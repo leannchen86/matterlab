@@ -3,14 +3,27 @@
 import { useMemo, useState } from 'react';
 import { LabCanvas } from './lab-canvas';
 import { baseStations, fieldGuide, initialLog, sources, type Station } from './sim-data';
+import { AlternateShift, PlannerPanel, ShiftDeckModal, type ScenarioId } from './scenario-shifts';
 
-type Modal = 'qc' | 'lineage' | 'evidence' | 'guide' | 'complete' | null;
+type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'guide' | 'deck' | 'complete' | null;
 type LogItem = { time: string; type: string; text: string };
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 
 const formatTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
 export default function Home() {
+  const [scenario, setScenario] = useState<ScenarioId>('xrd');
+  const [runKey, setRunKey] = useState(0);
+  const chooseScenario = (next: ScenarioId) => {
+    setScenario(next);
+    setRunKey((value) => value + 1);
+  };
+
+  if (scenario !== 'xrd') return <AlternateShift key={`${scenario}-${runKey}`} scenarioId={scenario} onSwitch={chooseScenario} />;
+  return <XrdShift key={`xrd-${runKey}`} onSwitch={chooseScenario} />;
+}
+
+function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const [phase, setPhase] = useState(0);
   const [modal, setModal] = useState<Modal>(null);
   const [selectedId, setSelectedId] = useState('XRD-03');
@@ -43,12 +56,21 @@ export default function Home() {
         : ['Safety zone: clear', 'Gripper: powder carrier', 'Carrier handshake: complete', 'Exceptions today: 1'],
     };
     if (station.id === 'FURN-04' && phase >= 4) return { ...station, state: 'READY', tone: 'ready', meta: 'Cycle complete · trace retained' };
+    if (station.id === 'SEM-01' && phase >= 5) return {
+      ...station,
+      state: phase >= 6 ? 'FOLLOW-UP COMPLETE' : 'TRIAGE QUEUED',
+      tone: phase >= 6 ? 'ready' : 'warn',
+      meta: phase >= 6 ? 'Multi-field map linked · scientist review' : 'SPEC-184-03 · inclusion follow-up',
+      technicianView: phase >= 6
+        ? ['Vacuum: stable', 'Fields acquired: 4', 'EDS map: linked', 'Review: scientist queue']
+        : ['Vacuum: stable', 'Specimen: SPEC-184-03', 'Target: bright inclusion', 'Coverage: 1 field only'],
+    };
     return station;
   }), [phase]);
 
   const selected = stations.find((station) => station.id === selectedId) ?? stations[0];
-  const completedTasks = phase === 0 ? 2 : phase === 1 ? 3 : phase === 2 ? 4 : phase === 3 ? 5 : phase === 4 ? 5 : 6;
-  const progress = Math.round((completedTasks / 6) * 100);
+  const completedTasks = phase === 0 ? 2 : phase === 1 ? 3 : phase === 2 ? 4 : phase === 3 ? 5 : phase === 4 ? 5 : phase === 5 ? 6 : 7;
+  const progress = Math.round((completedTasks / 7) * 100);
   const allQcChecks = Object.values(qcChecks).every(Boolean);
 
   const appendLog = (type: string, text: string, addMinutes = 0) => {
@@ -133,6 +155,21 @@ export default function Home() {
     setPhase(5);
     reward({ integrity: scores.integrity + 14, traceability: scores.traceability + 4 });
     appendLog('decision', 'Next synthesis held; unresolved XRD peak routed to SEM/EDS follow-up and scientist review.', 6);
+    setSelectedId('SEM-01');
+    setModal('sem');
+    setFeedback('');
+  };
+
+  const decideSem = (correct: boolean) => {
+    if (!correct) {
+      setFeedback('A single high-contrast field can localize an inclusion, but it cannot establish that the feature represents the bulk specimen.');
+      penalize('integrity', 12);
+      appendLog('exception', 'Single SEM field offered as bulk explanation; report held pending representative coverage.', 4);
+      return;
+    }
+    setPhase(6);
+    reward({ integrity: scores.integrity + 9, traceability: scores.traceability + 3, uptime: scores.uptime - 2 });
+    appendLog('result', 'Four SEM fields and an EDS inclusion map linked to SPEC-184-03; interpretation routed to scientist review.', 24);
     setModal('complete');
     setFeedback('');
   };
@@ -154,6 +191,7 @@ export default function Home() {
           <div><b>DAY SHIFT</b><small>{formatTime(minute)} · MENLO PARK SIM</small></div>
         </div>
         <div className="header-actions">
+          <button className="deck-button" type="button" onClick={() => setModal('deck')}>SHIFT DECK <span>3</span></button>
           <button type="button" onClick={() => setModal('guide')}>FIELD GUIDE</button>
           <button type="button" onClick={() => setLogOpen(true)}>EVENT LEDGER <span>{log.length}</span></button>
           <div className="operator-chip"><span>LC</span><b>TECH-07</b></div>
@@ -164,11 +202,11 @@ export default function Home() {
         <aside className="left-rail">
           <section className="rail-section shift-card">
             <p className="section-kicker">ACTIVE WORK ORDER</p>
-            <div className="wo-title"><span>WO-2841</span><em>{phase === 5 ? 'CLOSED' : 'PRIORITY 1'}</em></div>
+            <div className="wo-title"><span>WO-2841</span><em>{phase >= 6 ? 'CLOSED' : 'PRIORITY 1'}</em></div>
             <h2>Phase-purity recovery</h2>
             <p>Restore the Ca–Ti oxide campaign after an XRD reference check exceeded its control limit.</p>
             <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
-            <div className="progress-meta"><span>{completedTasks} / 6 tasks</span><span>{progress}%</span></div>
+            <div className="progress-meta"><span>{completedTasks} / 7 tasks</span><span>{progress}%</span></div>
           </section>
 
           <section className="rail-section">
@@ -180,6 +218,7 @@ export default function Home() {
               <Task number="04" title="Reconcile carrier" note={phase >= 2 ? '5 eligible · 1 quarantined' : 'BC-184 · 6 crucibles'} status={phase >= 2 ? 'done' : phase === 1 ? 'active' : 'pending'} onClick={phase === 1 ? openLineage : undefined} />
               <Task number="05" title="Release workcell" note={phase >= 3 ? 'Carrier accepted' : 'Awaiting identity gate'} status={phase >= 3 ? 'done' : phase === 2 ? 'active' : 'pending'} onClick={phase === 2 ? releaseCarrier : undefined} />
               <Task number="06" title="Review XRD result" note={phase >= 5 ? 'Follow-up assigned' : 'Pattern + phase analysis'} status={phase >= 5 ? 'done' : phase === 4 ? 'active' : 'pending'} onClick={phase === 4 ? () => setModal('evidence') : undefined} />
+              <Task number="07" title="Triage with SEM / EDS" note={phase >= 6 ? '4 fields + map linked' : 'Inclusion follow-up'} status={phase >= 6 ? 'done' : phase === 5 ? 'active' : 'pending'} onClick={phase === 5 ? () => { setSelectedId('SEM-01'); setModal('sem'); } : undefined} />
             </ol>
           </section>
 
@@ -217,7 +256,7 @@ export default function Home() {
         </section>
 
         <aside className="right-rail">
-          <ActionPanel phase={phase} onQc={openQc} onLineage={openLineage} onRelease={releaseCarrier} onAdvance={advanceRun} onEvidence={() => setModal('evidence')} onComplete={() => setModal('complete')} />
+          <ActionPanel phase={phase} onQc={openQc} onLineage={openLineage} onRelease={releaseCarrier} onAdvance={advanceRun} onEvidence={() => setModal('evidence')} onSem={() => { setSelectedId('SEM-01'); setModal('sem'); }} onComplete={() => setModal('complete')} />
 
           <section className="rail-section station-inspector">
             <div className="section-title-row"><p className="section-kicker">STATION INSPECTOR</p><span className={selected.tone}>{selected.state}</span></div>
@@ -228,6 +267,8 @@ export default function Home() {
             <p className="mini-label">OUTPUTS</p>
             <div className="tag-list">{selected.dataProducts.map((item) => <span key={item}>{item}</span>)}</div>
           </section>
+
+          <PlannerPanel scenario="xrd" phase={phase} />
 
           <section className="rail-section score-panel">
             <div className="section-title-row"><p className="section-kicker">SHIFT HEALTH</p><span>LIVE</span></div>
@@ -248,7 +289,9 @@ export default function Home() {
       {modal === 'qc' && <QcModal checks={qcChecks} setChecks={setQcChecks} allChecked={allQcChecks} ran={qcRan} feedback={feedback} onRun={runReference} onDisposition={dispositionQc} onClose={() => setModal(null)} />}
       {modal === 'lineage' && <LineageModal scanned={labelsScanned} onScan={() => { setLabelsScanned(true); setFeedback('Mismatch found: manifest SPEC-184-06; physical label SPEC-148-06.'); appendLog('lineage', 'Carrier BC-184 scan found one identifier mismatch.', 3); }} feedback={feedback} onResolve={resolveLineage} onClose={() => setModal(null)} />}
       {modal === 'evidence' && <EvidenceModal feedback={feedback} onDecide={decideEvidence} onClose={() => setModal(null)} />}
+      {modal === 'sem' && <SemEdsModal feedback={feedback} onDecide={decideSem} onClose={() => setModal(null)} />}
       {modal === 'guide' && <GuideModal onClose={() => setModal(null)} />}
+      {modal === 'deck' && <ShiftDeckModal active="xrd" onChoose={onSwitch} onClose={() => setModal(null)} />}
       {modal === 'complete' && <CompleteModal scores={scores} logCount={log.length} onReset={resetShift} onClose={() => setModal(null)} />}
       {logOpen && <LedgerDrawer log={log} onClose={() => setLogOpen(false)} />}
     </main>
@@ -264,16 +307,17 @@ function Score({ label, value }: { label: string; value: number }) {
   return <div className="score-row"><div><span>{label}</span><b>{value}</b></div><div className="score-track"><i style={{ width: `${value}%` }} /></div></div>;
 }
 
-function ActionPanel({ phase, onQc, onLineage, onRelease, onAdvance, onEvidence, onComplete }: { phase: number; onQc: () => void; onLineage: () => void; onRelease: () => void; onAdvance: () => void; onEvidence: () => void; onComplete: () => void }) {
+function ActionPanel({ phase, onQc, onLineage, onRelease, onAdvance, onEvidence, onSem, onComplete }: { phase: number; onQc: () => void; onLineage: () => void; onRelease: () => void; onAdvance: () => void; onEvidence: () => void; onSem: () => void; onComplete: () => void }) {
   const states = [
     { tag: 'QC EXCURSION', title: 'XRD-03 position drift', body: 'Campaign results may be biased. Run the reference material check before releasing held samples.', metric: '+0.17° 2θ', action: 'OPEN QC WORKFLOW', fn: onQc, tone: 'warn' },
     { tag: 'IDENTITY GATE', title: 'Carrier BC-184 on hold', body: 'Robot handshake is blocked until all six physical labels reconcile to the work-order manifest.', metric: '6 specimens', action: 'SCAN CARRIER', fn: onLineage, tone: 'warn' },
     { tag: 'READY TO RELEASE', title: 'Workcell gates satisfied', body: 'Instrument QC, material eligibility, and carrier custody are clear. One quarantined specimen is excluded.', metric: '5 eligible', action: 'RELEASE CARRIER', fn: onRelease, tone: 'ready' },
     { tag: 'AUTOMATED RUN', title: 'BC-184 in execution', body: 'The robot is moving the eligible set through heating, cool-down, and XRD reacquisition.', metric: '82 sim min', action: 'ADVANCE TO RESULTS', fn: onAdvance, tone: 'run' },
     { tag: 'RESULT REVIEW', title: 'Unexpected XRD peak', body: 'The phase result passes the target threshold, but the diffraction pattern contains an unresolved peak.', metric: '1 anomaly', action: 'REVIEW RESULTS', fn: onEvidence, tone: 'warn' },
-    { tag: 'SHIFT COMPLETE', title: 'Campaign safely advanced', body: 'Equipment, samples, automation, and result review are ready for the next scientific decision.', metric: '6 / 6', action: 'VIEW DEBRIEF', fn: onComplete, tone: 'ready' },
+    { tag: 'FOLLOW-UP QUEUE', title: 'SEM / EDS triage requested', body: 'The unresolved diffraction peak now needs local morphology and elemental evidence without overgeneralizing one field of view.', metric: 'SPEC-184-03', action: 'OPEN SEM / EDS', fn: onSem, tone: 'warn' },
+    { tag: 'SHIFT COMPLETE', title: 'Campaign safely advanced', body: 'Equipment, samples, automation, and characterization evidence are ready for the next scientific decision.', metric: '7 / 7', action: 'VIEW DEBRIEF', fn: onComplete, tone: 'ready' },
   ];
-  const state = states[phase] ?? states[5];
+  const state = states[phase] ?? states[6];
   return <section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>{phase === 0 ? 'ACKNOWLEDGED' : 'ACTIVE'}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={state.fn}>{state.action}<span>→</span></button></section>;
 }
 
@@ -301,13 +345,19 @@ function EvidenceModal({ feedback, onDecide, onClose }: { feedback: string; onDe
   return <ModalShell title="Characterization result review" kicker="RESULT GATE · RUN CA-TI-031" onClose={onClose} wide><div className="evidence-grid"><div className="trace-panel"><div className="panel-heading"><span>XRD DIFFRACTION PATTERN</span><b>XRD-03 · RUN 031</b></div><div className="xrd-chart" aria-label="Simulated XRD trace with one unresolved peak"><i style={{ left: '9%', height: '16%' }} /><i style={{ left: '19%', height: '40%' }} /><i style={{ left: '31%', height: '84%' }} /><i style={{ left: '44%', height: '35%' }} /><i className="unknown" style={{ left: '54%', height: '52%' }} /><i style={{ left: '67%', height: '29%' }} /><i style={{ left: '78%', height: '63%' }} /><i style={{ left: '91%', height: '22%' }} /><span>UNRESOLVED · 36.1°</span></div><div className="axis"><span>10°</span><b>2θ</b><span>80°</span></div></div><div className="report-panel"><div className="panel-heading"><span>PHASE-ANALYSIS RESULT</span><b>method v2.4</b></div><div className="report-metric"><span>Target phase</span><b>94.2%</b></div><div className="report-metric"><span>Fit Rwp</span><b>8.6%</b></div><div className="report-metric"><span>Campaign target</span><b>≥ 90%</b></div><div className="report-status">TARGET MET</div><p>Technician review still required for the unassigned reflection.</p></div></div><div className="ai-proposal"><div><span>AI PLANNER · PROPOSED NEXT RUN</span><h3>Increase dwell 4 h → 6 h at 1,000 °C</h3><p>Expected target fraction: 97% · confidence 0.82</p></div><b>READY</b></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onDecide(true)}>Flag anomaly · request SEM/EDS follow-up</button><button type="button" className="secondary" onClick={() => onDecide(false)}>Accept AI next-run plan</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
 }
 
+function SemEdsModal({ feedback, onDecide, onClose }: { feedback: string; onDecide: (correct: boolean) => void; onClose: () => void }) {
+  const grains = [[8, 15, 34, 27], [34, 9, 29, 36], [61, 12, 34, 25], [18, 41, 37, 30], [51, 38, 25, 26], [73, 39, 29, 33], [4, 70, 33, 24], [36, 67, 31, 28], [64, 72, 35, 22]];
+  const peaks: [string, number, number][] = [['O', 24, 43], ['Si', 38, 72], ['Ca', 57, 88], ['Ti', 76, 64], ['Ti', 86, 31]];
+  return <ModalShell title="SEM / EDS inclusion triage" kicker="CHARACTERIZATION FOLLOW-UP · SPEC-184-03" onClose={onClose} wide><p className="modal-intro">The XRD result contains an unassigned reflection. A backscattered-electron field reveals one bright inclusion; the local spectrum can guide follow-up, but not represent the bulk by itself.</p><div className="sem-evidence-grid"><div className="micrograph-panel"><div className="panel-heading"><span>BSE MICROGRAPH · FIELD 01</span><b>SEM-01 · SPEC-184-03</b></div><div className="micrograph" aria-label="Simulated SEM micrograph with a bright inclusion">{grains.map(([left, top, width, height], index) => <i key={index} style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }} />)}<span className="bright-inclusion" /><b className="feature-tag">EDS ROI 01</b><em className="scale-bar">20 µm</em><i className="scan-line" /></div><div className="field-strip"><span className="active"><i />F01<b>inclusion</b></span><span><i />F02<b>queued</b></span><span><i />F03<b>queued</b></span><span><i />F04<b>queued</b></span></div></div><div className="eds-panel"><div className="panel-heading"><span>LOCAL EDS SPECTRUM</span><b>ROI 01</b></div><div className="eds-spectrum" aria-label="Simulated local EDS spectrum">{peaks.map(([label, left, height], index) => <i key={`${label}-${index}`} className={label === 'Si' ? 'flagged' : ''} style={{ left: `${left}%`, height: `${height}%` }}><b>{label}</b></i>)}</div><div className="report-metric"><span>Matrix</span><b>Ca · Ti · O</b></div><div className="report-metric flagged-metric"><span>Inclusion</span><b>Si elevated</b></div><div className="report-status warn-status">LOCAL EVIDENCE ONLY</div><p>Elemental signal is spatially local and acquisition-context dependent.</p></div></div><div className="ai-proposal"><div><span>FOLLOW-UP QUESTION</span><h3>Does the Si-rich feature explain the unresolved XRD reflection?</h3><p>Current coverage: 1 field · representativeness not established</p></div><b>OPEN</b></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onDecide(true)}>Acquire 4 fields + EDS map · route interpretation</button><button type="button" className="secondary" onClick={() => onDecide(false)}>Report first field as bulk explanation</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+}
+
 function GuideModal({ onClose }: { onClose: () => void }) {
   return <ModalShell title="Technician field guide" kicker="SYSTEMS + CHARACTERIZATION" onClose={onClose} wide><p className="modal-intro">A compact map of what the terms in the job descriptions mean at the bench. This simulation is conceptual training, not an operating procedure.</p><div className="guide-grid">{fieldGuide.map((item) => <article key={item.term}><b>{item.term}</b><p>{item.role}</p><small>{item.atBench}</small></article>)}</div><div className="source-list"><p className="mini-label">RESEARCH SOURCES</p>{sources.map((source) => <a key={source.href} href={source.href} target="_blank" rel="noreferrer">{source.label}<span>↗</span></a>)}</div></ModalShell>;
 }
 
 function CompleteModal({ scores, logCount, onReset, onClose }: { scores: Scores; logCount: number; onReset: () => void; onClose: () => void }) {
   const total = Math.round((scores.safety + scores.traceability + scores.integrity + scores.uptime) / 4);
-  return <ModalShell title="Shift debrief" kicker="WO-2841 · COMPLETE" onClose={onClose}><div className="debrief-score"><span>SHIFT RATING</span><b>{total}</b><i>/ 100</i></div><p className="modal-intro">You returned an instrument to control, quarantined a mislabeled specimen, released a robot workcell, and escalated an unexpected characterization result before the next AI-directed experiment.</p><div className="debrief-grid"><span>Safety<b>{scores.safety}</b></span><span>Traceability<b>{scores.traceability}</b></span><span>Data integrity<b>{scores.integrity}</b></span><span>Uptime<b>{scores.uptime}</b></span></div><div className="lesson-card"><b>What the technician role connects</b><p>Hands-on sample work, equipment health, controlled records, automation exceptions, and timely communication with scientists and engineers.</p></div><p className="debrief-meta">{logCount} shift events captured · 1 specimen quarantined · 1 anomaly escalated</p><button className="modal-run" type="button" onClick={onReset}>REPLAY SHIFT</button></ModalShell>;
+  return <ModalShell title="Shift debrief" kicker="WO-2841 · COMPLETE" onClose={onClose}><div className="debrief-score"><span>SHIFT RATING</span><b>{total}</b><i>/ 100</i></div><p className="modal-intro">You returned an instrument to control, quarantined a mislabeled specimen, released a robot workcell, challenged an AI plan, and built a representative SEM/EDS follow-up package.</p><div className="debrief-grid"><span>Safety<b>{scores.safety}</b></span><span>Traceability<b>{scores.traceability}</b></span><span>Data integrity<b>{scores.integrity}</b></span><span>Uptime<b>{scores.uptime}</b></span></div><div className="lesson-card"><b>What the technician role connects</b><p>Hands-on sample work, equipment health, controlled records, automation exceptions, and evidence that is fit for scientific and AI decisions.</p></div><p className="debrief-meta">{logCount} shift events captured · 1 specimen quarantined · 2 characterization gates reviewed</p><button className="modal-run" type="button" onClick={onReset}>REPLAY SHIFT</button></ModalShell>;
 }
 
 function LedgerDrawer({ log, onClose }: { log: LogItem[]; onClose: () => void }) {

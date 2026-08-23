@@ -5,7 +5,7 @@ import type { Station } from './sim-data';
 
 type HitBox = { id: string; x: number; y: number; w: number; h: number };
 
-export function LabCanvas({ stations, selectedId, phase, onSelect }: { stations: Station[]; selectedId: string; phase: number; onSelect: (id: string) => void }) {
+export function LabCanvas({ stations, selectedId, phase, scenarioId = 'xrd', onSelect }: { stations: Station[]; selectedId: string; phase: number; scenarioId?: 'xrd' | 'bet' | 'furnace'; onSelect: (id: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hitsRef = useRef<HitBox[]>([]);
   const hoveredIdRef = useRef<string | null>(null);
@@ -62,7 +62,7 @@ export function LabCanvas({ stations, selectedId, phase, onSelect }: { stations:
         drawPod(context, station, index, x, y, podW, podH, selectedId === station.id, hoveredIdRef.current === station.id, now);
       });
       hitsRef.current = hits;
-      drawMaterialRoute(context, hits, phase, now);
+      drawMaterialRoute(context, hits, phase, now, scenarioId);
       animation = window.requestAnimationFrame(draw);
     };
 
@@ -79,7 +79,7 @@ export function LabCanvas({ stations, selectedId, phase, onSelect }: { stations:
       window.cancelAnimationFrame(resizeFrame);
       window.cancelAnimationFrame(animation);
     };
-  }, [stations, selectedId, phase]);
+  }, [stations, selectedId, phase, scenarioId]);
 
   const hitAt = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
@@ -192,7 +192,7 @@ function drawEquipment(ctx: CanvasRenderingContext2D, index: number, x: number, 
   if (index === 2) drawFurnace(ctx, x, y, w, h, pulse);
   if (index === 3) drawXrd(ctx, x, y, w, h, station.tone === 'run' ? pulse : .45);
   if (index === 4) drawSem(ctx, x, y, w, h, pulse);
-  if (index === 5) drawBet(ctx, x, y, w, h);
+  if (index === 5) drawBet(ctx, x, y, w, h, station.tone === 'run' ? pulse : .3);
   ctx.restore();
 }
 
@@ -283,12 +283,12 @@ function drawSem(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.strokeStyle = '#51e19a88'; ctx.lineWidth = 1; for (let i = 0; i < 9; i++) { const px = x + w * (.74 + (i % 3) * .055); const py = y + h * (.18 + Math.floor(i / 3) * .055); ctx.beginPath(); ctx.arc(px, py, 1 + (i % 2), 0, Math.PI * 2); ctx.stroke(); }
 }
 
-function drawBet(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+function drawBet(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, pulse: number) {
   ctx.fillStyle = '#293b4d'; ctx.fillRect(x + w * .09, y + h * .12, w * .45, h * .58);
   ctx.fillStyle = '#0b131d'; ctx.fillRect(x + w * .14, y + h * .18, w * .35, h * .16);
   ctx.strokeStyle = '#3c5269'; ctx.strokeRect(x + w * .14 + .5, y + h * .18 + .5, w * .35 - 1, h * .16 - 1);
   const ports = [0, 1, 2];
-  ports.forEach((port) => { const px = x + w * (.18 + port * .14); ctx.strokeStyle = '#8ea0ae'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px, y + h * .39); ctx.lineTo(px, y + h * .57); ctx.stroke(); ctx.fillStyle = '#7a8b98'; ctx.beginPath(); ctx.arc(px, y + h * .59, w * .025, 0, Math.PI * 2); ctx.fill(); });
+  ports.forEach((port) => { const px = x + w * (.18 + port * .14); ctx.strokeStyle = pulse > .4 ? `rgba(180,140,255,${pulse})` : '#8ea0ae'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px, y + h * .39); ctx.lineTo(px, y + h * .57); ctx.stroke(); ctx.fillStyle = pulse > .4 ? '#b48cff' : '#7a8b98'; ctx.shadowColor = '#b48cff'; ctx.shadowBlur = pulse > .4 ? 9 : 0; ctx.beginPath(); ctx.arc(px, y + h * .59, w * .025, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; });
   ctx.fillStyle = '#4c6578'; ctx.beginPath(); ctx.ellipse(x + w * .72, y + h * .57, w * .13, h * .16, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#0a131b'; ctx.beginPath(); ctx.ellipse(x + w * .72, y + h * .5, w * .1, h * .06, 0, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#8095a5'; ctx.beginPath(); ctx.moveTo(x + w * .52, y + h * .26); ctx.quadraticCurveTo(x + w * .72, y + h * .18, x + w * .72, y + h * .5); ctx.stroke();
@@ -296,8 +296,10 @@ function drawBet(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.fillStyle = '#657b8a'; ctx.beginPath(); ctx.arc(x + w * .87, y + h * .24, w * .03, Math.PI, 0); ctx.fill();
 }
 
-function drawMaterialRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number) {
+function drawMaterialRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number, scenarioId: 'xrd' | 'bet' | 'furnace') {
   if (hits.length < 6) return;
+  if (scenarioId === 'bet') { drawBetRoute(ctx, hits, phase, now); return; }
+  if (scenarioId === 'furnace') { drawFurnaceRoute(ctx, hits, phase, now); return; }
   const points = [hits[0], hits[1], hits[2], hits[3]].map((box) => ({ x: box.x + box.w / 2, y: box.y + box.h / 2 }));
   ctx.save();
   ctx.setLineDash([5, 5]);
@@ -322,6 +324,49 @@ function drawMaterialRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase:
   ctx.rotate(-Math.PI / 4);
   ctx.fillStyle = '#76dcef'; ctx.textAlign = 'center'; ctx.font = '700 6px ui-monospace, monospace'; ctx.fillText('BC-184', 0, 2);
   ctx.restore();
+}
+
+function drawBetRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number) {
+  const start = { x: hits[0].x + hits[0].w * .72, y: hits[0].y + hits[0].h * .58 };
+  const end = { x: hits[5].x + hits[5].w * .28, y: hits[5].y + hits[5].h * .52 };
+  const bend = { x: start.x + (end.x - start.x) * .58, y: start.y + (end.y - start.y) * .38 };
+  ctx.save();
+  ctx.setLineDash([4, 6]); ctx.strokeStyle = '#6d5895'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.quadraticCurveTo(bend.x, bend.y, end.x, end.y); ctx.stroke(); ctx.setLineDash([]);
+  const base = phase <= 0 ? .04 : phase === 1 ? .2 : phase === 2 ? .42 : phase === 3 ? .78 + Math.sin(now / 700) * .14 : 1;
+  const t = Math.max(0, Math.min(1, base));
+  const oneMinus = 1 - t;
+  const cx = oneMinus * oneMinus * start.x + 2 * oneMinus * t * bend.x + t * t * end.x;
+  const cy = oneMinus * oneMinus * start.y + 2 * oneMinus * t * bend.y + t * t * end.y;
+  ctx.translate(cx, cy); ctx.shadowColor = '#b48cffbb'; ctx.shadowBlur = phase === 3 ? 18 : 10;
+  ctx.fillStyle = '#211737'; ctx.strokeStyle = '#b48cff'; ctx.lineWidth = 1;
+  roundRect(ctx, -18, -9, 36, 18, 8); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#d2baff'; ctx.textAlign = 'center'; ctx.font = '700 6px ui-monospace, monospace'; ctx.fillText('ADS-77', 0, 2);
+  ctx.restore();
+}
+
+function drawFurnaceRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number) {
+  const robot = { x: hits[1].x + hits[1].w * .52, y: hits[1].y + hits[1].h * .57 };
+  const furnace = { x: hits[2].x + hits[2].w * .55, y: hits[2].y + hits[2].h * .46 };
+  ctx.save();
+  ctx.setLineDash([5, 5]); ctx.strokeStyle = phase >= 2 ? '#4f8c77' : '#8d613c'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(robot.x, robot.y); ctx.lineTo(furnace.x, furnace.y); ctx.stroke(); ctx.setLineDash([]);
+  if (phase < 2) {
+    drawRouteBadge(ctx, robot.x, robot.y, 'STATE', '#546779', .48);
+    drawRouteBadge(ctx, furnace.x, furnace.y, 'BC-207', '#ff995f', 1);
+    ctx.fillStyle = '#ffad7d'; ctx.font = '700 6px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText('STATE ≠ PHYSICAL', (robot.x + furnace.x) / 2, (robot.y + furnace.y) / 2 - 7);
+  } else {
+    const pulse = .74 + Math.sin(now / 520) * .2;
+    drawRouteBadge(ctx, furnace.x, furnace.y + 18, phase >= 5 ? 'CENS' : 'HOLD', '#ff995f', pulse);
+    ctx.fillStyle = '#65c999'; ctx.font = '700 6px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText(phase === 3 ? 'EMPTY-CELL VERIFY' : 'STATE RECONCILED', (robot.x + furnace.x) / 2, (robot.y + furnace.y) / 2 - 7);
+  }
+  ctx.restore();
+}
+
+function drawRouteBadge(ctx: CanvasRenderingContext2D, x: number, y: number, label: string, color: string, alpha: number) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.shadowColor = color; ctx.shadowBlur = 12;
+  ctx.fillStyle = '#1c1820'; ctx.strokeStyle = color; ctx.fillRect(-14, -14, 28, 28); ctx.strokeRect(-14.5, -14.5, 29, 29);
+  ctx.rotate(-Math.PI / 4); ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.font = '700 6px ui-monospace, monospace'; ctx.fillText(label, 0, 2); ctx.restore();
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius: number) {

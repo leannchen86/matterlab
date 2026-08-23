@@ -1,0 +1,245 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { LabCanvas } from './lab-canvas';
+import { baseStations, type Station } from './sim-data';
+
+export type ScenarioId = 'xrd' | 'bet' | 'furnace';
+type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
+type LogItem = { time: string; type: string; text: string };
+type Modal = 'deck' | 'bench' | 'sample' | 'evidence' | 'complete' | null;
+type Scenario = {
+  id: Exclude<ScenarioId, 'xrd'>;
+  label: string;
+  code: string;
+  priority: string;
+  title: string;
+  summary: string;
+  stationId: string;
+  accent: string;
+  handoff: [string, string, string][];
+  tasks: { title: string; pending: string; done: string }[];
+};
+
+const scenarios: Record<'bet' | 'furnace', Scenario> = {
+  bet: {
+    id: 'bet', label: 'Surface area', code: 'WO-2916', priority: 'SERVICE RETURN', title: 'BET recommissioning',
+    summary: 'Return the gas-sorption analyzer to service, reconcile a pretreatment record, and review a low reference result.',
+    stationId: 'BET-02', accent: '#b48cff',
+    handoff: [['SERVICE', 'MX-233', 'pump replaced'], ['QUEUE', '4', 'samples waiting'], ['GAS', 'N₂', 'supply normal']],
+    tasks: [
+      { title: 'Read handoff', pending: 'MX-233 received', done: 'Service scope read' },
+      { title: 'Review service evidence', pending: 'Vendor sign-off alone', done: 'Blank + leak check passed' },
+      { title: 'Reconcile prep record', pending: 'Tube ADS-77-C', done: 'Identity + degas linked' },
+      { title: 'Release analysis', pending: 'Awaiting eligibility', done: '4 samples accepted' },
+      { title: 'Review isotherm', pending: 'Low control result', done: 'Recheck assigned' },
+    ],
+  },
+  furnace: {
+    id: 'furnace', label: 'Workcell recovery', code: 'WO-2954', priority: 'CELL HOLD', title: 'Interrupted thermal run',
+    summary: 'Recover a robot–furnace workcell after an interlock event without erasing sample history or feeding compromised data to the planner.',
+    stationId: 'FURN-04', accent: '#ff995f',
+    handoff: [['ALARM', 'I-204', 'cycle interrupted'], ['CARRIER', 'BC-207', 'occupancy unknown'], ['CELL', 'HOLD', 'robot parked']],
+    tasks: [
+      { title: 'Read alarm handoff', pending: 'I-204 active', done: 'Alarm context read' },
+      { title: 'Disposition interrupted run', pending: '742 °C interruption', done: 'Carrier held + trace retained' },
+      { title: 'Recover robot state', pending: 'Occupancy uncertain', done: 'Carrier reconciled' },
+      { title: 'Verify empty-cell cycle', pending: 'Awaiting dry run', done: 'Interlocks verified' },
+      { title: 'Gate AI training data', pending: 'Interrupted run queued', done: 'Censored run excluded' },
+    ],
+  },
+};
+
+const deck = [
+  { id: 'xrd' as const, eyebrow: 'QC + LINEAGE', title: 'Phase-purity recovery', station: 'XRD · ROBOT · SEM/EDS', duration: '12–15 MIN', copy: 'Diagnose measurement drift, reconcile a carrier, and challenge an AI plan with unresolved diffraction evidence.', icon: 'xrd' },
+  { id: 'bet' as const, eyebrow: 'SERVICE + SAMPLE PREP', title: 'BET recommissioning', station: 'GAS SORPTION · CMMS · LIMS', duration: '9–12 MIN', copy: 'Accept equipment from service, audit pretreatment lineage, and interrogate a low surface-area result.', icon: 'bet' },
+  { id: 'furnace' as const, eyebrow: 'ALARM + RECOVERY', title: 'Interrupted thermal run', station: 'FURNACE · ROBOT · SCADA', duration: '10–13 MIN', copy: 'Preserve an interrupted cycle, reconcile workcell occupancy, and keep compromised evidence out of the AI loop.', icon: 'furnace' },
+];
+
+const formatTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
+export function ShiftDeckModal({ active, onChoose, onClose }: { active: ScenarioId; onChoose: (id: ScenarioId) => void; onClose: () => void }) {
+  return <div className="modal-backdrop deck-backdrop" role="presentation"><section className="modal-card wide deck-modal" role="dialog" aria-modal="true" aria-label="Choose a technician shift"><header><div><p className="section-kicker">SCENARIO SELECTOR · TECHNICIAN ACCESS VIEW</p><h2>Choose the next work order</h2></div><button type="button" onClick={onClose} aria-label="Close dialog">×</button></header><div className="deck-summary"><div><b>3</b><span>PLAYABLE SHIFTS</span></div><p>Each shift connects equipment state, sample identity, controlled records, automation, and scientific judgment. This is conceptual training—not an operating procedure.</p></div><div className="scenario-deck">{deck.map((item, index) => <button key={item.id} type="button" className={`scenario-card ${item.id === active ? 'active' : ''}`} onClick={() => onChoose(item.id)}><div className={`scenario-visual visual-${item.icon}`}><span>0{index + 1}</span><EquipmentGlyph type={item.icon} /><i>{item.station}</i></div><div className="scenario-copy"><span>{item.eyebrow}</span><h3>{item.title}</h3><p>{item.copy}</p><footer><b>{item.duration}</b><em>{item.id === active ? 'CURRENT SHIFT' : 'LOAD WORK ORDER →'}</em></footer></div></button>)}</div></section></div>;
+}
+
+function EquipmentGlyph({ type }: { type: string }) {
+  if (type === 'xrd') return <div className="glyph glyph-xrd"><i /><i /><b /></div>;
+  if (type === 'bet') return <div className="glyph glyph-bet"><i /><i /><i /><b /></div>;
+  return <div className="glyph glyph-furnace"><i /><b /><span /></div>;
+}
+
+export function PlannerPanel({ scenario, phase }: { scenario: ScenarioId; phase: number }) {
+  const states = {
+    xrd: {
+      request: 'Increase dwell · 4 h → 6 h', gate: 'Unresolved 36.1° reflection', next: 'SEM/EDS follow-up',
+      status: phase >= 5 ? 'HOLD + INVESTIGATE' : phase >= 4 ? 'TECH REVIEW' : 'WAITING ON LAB',
+    },
+    bet: {
+      request: 'Lower calcination · −35 °C', gate: 'Low control reference', next: 'Reference recheck',
+      status: phase >= 5 ? 'PROPOSAL HELD' : phase >= 4 ? 'TECH REVIEW' : 'WAITING ON LAB',
+    },
+    furnace: {
+      request: 'Ingest run HT-44-207', gate: 'Interrupted thermal history', next: 'Replacement run',
+      status: phase >= 5 ? 'EXCLUDED · CENSORED' : phase >= 4 ? 'ELIGIBILITY REVIEW' : 'WAITING ON LAB',
+    },
+  }[scenario];
+  const cursor = phase >= 5 ? 3 : phase >= 4 ? 2 : phase >= 2 ? 1 : 0;
+  return <section className="rail-section planner-panel"><div className="section-title-row"><p className="section-kicker">AI EXPERIMENT LOOP</p><span className={phase >= 5 ? 'held' : phase >= 4 ? 'review' : ''}>{states.status}</span></div><div className="planner-loop">{['PLAN', 'EXECUTE', 'MEASURE', 'LEARN'].map((label, index) => <div key={label} className={index < cursor ? 'passed' : index === cursor ? 'current' : ''}><i>{index < cursor ? '✓' : `0${index + 1}`}</i><span>{label}</span></div>)}</div><div className="planner-request"><span>MODEL REQUEST</span><b>{states.request}</b></div><div className="planner-gate"><i>TECH GATE</i><div><b>{states.gate}</b><span>Next: {states.next}</span></div></div></section>;
+}
+
+export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | 'furnace'; onSwitch: (id: ScenarioId) => void }) {
+  const scenario = scenarios[scenarioId];
+  const [phase, setPhase] = useState(0);
+  const [modal, setModal] = useState<Modal>(null);
+  const [selectedId, setSelectedId] = useState(scenario.stationId);
+  const [minute, setMinute] = useState(scenarioId === 'bet' ? 10 * 60 + 47 : 13 * 60 + 18);
+  const [log, setLog] = useState<LogItem[]>([
+    { time: scenarioId === 'bet' ? '10:31' : '13:04', type: 'handoff', text: scenarioId === 'bet' ? 'Vendor service MX-233 marked complete; laboratory acceptance still required.' : 'SCADA alarm I-204 interrupted thermal program at 742 °C; workcell placed on hold.' },
+    { time: scenarioId === 'bet' ? '10:42' : '13:12', type: 'system', text: `${scenario.code} assigned to TECH-07.` },
+  ]);
+  const [logOpen, setLogOpen] = useState(false);
+  const [checks, setChecks] = useState<Record<string, boolean>>({});
+  const [ran, setRan] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [scores, setScores] = useState<Scores>({ safety: 96, traceability: 78, integrity: 74, uptime: scenarioId === 'bet' ? 62 : 70 });
+
+  const stations = useMemo(() => baseStations.map((station): Station => {
+    if (scenarioId === 'bet' && station.id === 'BET-02') {
+      if (phase === 0) return station;
+      if (phase < 3) return { ...station, state: 'READY', tone: 'ready', meta: phase === 1 ? 'Acceptance complete · ports released' : 'Sample eligibility review', technicianView: ['Analysis ports: available', 'Leak/blank: accepted', `Tube ADS-77-C: ${phase >= 2 ? 'reconciled' : 'hold'}`, 'N₂ supply: normal'] };
+      return { ...station, state: phase === 3 ? 'ANALYZING' : 'REVIEW', tone: phase === 3 ? 'run' : 'warn', meta: phase === 3 ? 'ADS-77 batch · 61% complete' : 'Reference area below control band', technicianView: ['Reference: ALU-21', 'Measured: 168 m²/g', 'Control band: 173–191 m²/g', 'Fit review: required'] };
+    }
+    if (scenarioId === 'furnace' && station.id === 'FURN-04') {
+      if (phase === 0) return { ...station, state: 'ALARM HOLD', tone: 'warn', meta: 'Program stopped · 742 °C', technicianView: ['Program: HT-44 rev 7', 'Interrupted: 742 °C', 'Door interlock: event I-204', 'Carrier: BC-207'] };
+      if (phase < 3) return { ...station, state: 'SERVICE HOLD', tone: 'hold', meta: phase === 1 ? 'Trace retained · load held' : 'Empty-cell verification pending', technicianView: ['Program trace: retained', 'Carrier: quarantined', 'Chamber occupancy: reconciled', `Recovery: ${phase === 2 ? 'ready' : 'workcell check'}`] };
+      return { ...station, state: 'READY', tone: 'ready', meta: 'Empty-cell verification passed', technicianView: ['Program: HT-44 rev 7', 'Interlocks: verified', 'Controller trace: nominal', 'Next load: awaiting release'] };
+    }
+    if (scenarioId === 'furnace' && station.id === 'ROBO-02') return { ...station, state: phase < 2 ? 'RECOVERY HOLD' : 'READY', tone: phase < 2 ? 'warn' : 'ready', meta: phase < 2 ? 'BC-207 occupancy unknown' : 'Carrier state reconciled', technicianView: ['Safety zone: clear', 'Robot: parked', `Carrier BC-207: ${phase < 2 ? 'unresolved' : 'quarantined'}`, 'Recovery mode: supervised'] };
+    return station;
+  }), [phase, scenarioId]);
+
+  const selected = stations.find((station) => station.id === selectedId) ?? stations[0];
+  const completed = phase >= 5 ? 5 : Math.min(4, phase + 1);
+  const progress = Math.round((completed / 5) * 100);
+  const appendLog = (type: string, text: string, add = 0) => {
+    const next = minute + add; setMinute(next); setLog((items) => [...items, { time: formatTime(next), type, text }]);
+  };
+  const penalize = (key: keyof Scores, amount: number) => setScores((value) => ({ ...value, [key]: Math.max(0, value[key] - amount) }));
+  const reward = (updates: Partial<Scores>) => setScores((value) => ({ safety: Math.min(100, updates.safety ?? value.safety), traceability: Math.min(100, updates.traceability ?? value.traceability), integrity: Math.min(100, updates.integrity ?? value.integrity), uptime: Math.min(100, updates.uptime ?? value.uptime) }));
+  const open = (next: Modal, station = scenario.stationId) => { setFeedback(''); setChecks({}); setRan(false); setScanned(false); setSelectedId(station); setModal(next); };
+
+  const finishBench = (correct: boolean) => {
+    if (!correct) {
+      penalize(scenarioId === 'bet' ? 'integrity' : 'safety', 16);
+      setFeedback(scenarioId === 'bet' ? 'Vendor completion is not laboratory acceptance evidence. The analyzer still needs an independent readiness check.' : 'Resuming at the interrupted step would erase the thermal-history exception and expose an unresolved carrier state.');
+      appendLog('exception', scenarioId === 'bet' ? 'Attempted service release based only on vendor completion; release blocked.' : 'Attempted program resume without controlled interruption disposition; action blocked.', 2);
+      return;
+    }
+    setPhase(1); reward(scenarioId === 'bet' ? { integrity: scores.integrity + 10, uptime: scores.uptime + 10 } : { safety: scores.safety + 4, integrity: scores.integrity + 9 });
+    appendLog('decision', scenarioId === 'bet' ? 'BET-02 accepted after service-record review and independent blank/leak evidence.' : 'BC-207 held; interrupted thermal trace retained and linked to an exception record.', scenarioId === 'bet' ? 18 : 7);
+    window.setTimeout(() => setModal(null), 600);
+  };
+
+  const finishSample = (correct: boolean) => {
+    if (!correct) {
+      penalize('traceability', 18); setFeedback(scenarioId === 'bet' ? 'Copying the adjacent tube record would create a plausible but false pretreatment history.' : 'Robot telemetry alone cannot prove physical occupancy after an interrupted handoff.');
+      appendLog('exception', scenarioId === 'bet' ? 'Adjacent degas record selected as substitute; association blocked.' : 'Carrier occupancy inferred from telemetry without physical reconciliation; release blocked.', 2); return;
+    }
+    setPhase(2); reward({ traceability: scores.traceability + 15, integrity: scores.integrity + 5 });
+    appendLog('lineage', scenarioId === 'bet' ? 'ADS-77-C held, source barcode reconciled, and correct degas record linked.' : 'BC-207 physical occupancy reconciled; load quarantined and robot state restored.', scenarioId === 'bet' ? 9 : 12);
+    window.setTimeout(() => setModal(null), 650);
+  };
+
+  const releaseRun = () => {
+    setPhase(3); setSelectedId(scenario.stationId); reward({ uptime: scores.uptime + 5 });
+    appendLog('transfer', scenarioId === 'bet' ? 'Four eligible tubes released to BET-02; one reconciled record included.' : 'Empty-cell verification completed; furnace and robot interlocks returned to ready.', scenarioId === 'bet' ? 5 : 16);
+  };
+  const advance = () => { setPhase(4); setFeedback(''); appendLog('result', scenarioId === 'bet' ? 'Adsorption run complete; native isotherm, fit window, sample mass, and pretreatment records linked.' : 'Recovery evidence assembled; interrupted run is still present in the planner ingestion queue.', scenarioId === 'bet' ? 64 : 9); setModal('evidence'); };
+  const finishEvidence = (correct: boolean) => {
+    if (!correct) { penalize('integrity', 17); setFeedback(scenarioId === 'bet' ? 'The AI proposal treats the low area as material behavior before the control/reference exception is resolved.' : 'Marking the run complete would teach the planner from a specimen with interrupted and non-comparable thermal history.'); appendLog('exception', scenarioId === 'bet' ? 'AI synthesis proposal accepted before measurement-system review; decision held.' : 'Interrupted run offered to AI training set without censor label; export held.', 3); return; }
+    setPhase(5); reward({ integrity: scores.integrity + 12, traceability: scores.traceability + 5 }); appendLog('decision', scenarioId === 'bet' ? 'Low reference routed to recheck; AI synthesis change held pending trustworthy surface-area evidence.' : 'Interrupted run labeled censored and excluded from optimizer training; replacement run queued.', 5); setModal('complete'); setFeedback('');
+  };
+
+  const state = getActionState(scenarioId, phase, () => open('bench'), () => open('sample', scenarioId === 'furnace' ? 'ROBO-02' : 'BET-02'), releaseRun, advance, () => setModal('evidence'), () => setModal('complete'));
+
+  return <main className={`shell scenario-shell scenario-${scenarioId}`} style={{ '--scenario-accent': scenario.accent } as React.CSSProperties}>
+    <header className="topbar"><div className="brand-block"><span className="brand-mark">M<span>²</span></span><div><p className="eyebrow">Materials operations simulator</p><h1>SHIFT CONSOLE <span>{'// LAB 04'}</span></h1></div></div><div className="shift-readout"><span className="live-dot" /><div><b>DAY SHIFT</b><small>{formatTime(minute)} · MENLO PARK SIM</small></div></div><div className="header-actions"><button className="deck-button" type="button" onClick={() => setModal('deck')}>SHIFT DECK <span>3</span></button><button type="button" onClick={() => setLogOpen(true)}>EVENT LEDGER <span>{log.length}</span></button><div className="operator-chip"><span>LC</span><b>TECH-07</b></div></div></header>
+    <div className="workspace"><aside className="left-rail"><section className="rail-section shift-card"><p className="section-kicker">ACTIVE WORK ORDER</p><div className="wo-title"><span>{scenario.code}</span><em>{phase === 4 ? 'REVIEW GATE' : phase >= 5 ? 'CLOSED' : scenario.priority}</em></div><h2>{scenario.title}</h2><p>{scenario.summary}</p><div className="progress-track"><span style={{ width: `${progress}%` }} /></div><div className="progress-meta"><span>{completed} / 5 tasks</span><span>{progress}%</span></div></section><section className="rail-section"><p className="section-kicker">SHIFT CHECKLIST</p><ol className="task-list">{scenario.tasks.map((task, index) => { const done = index === 4 ? phase >= 5 : phase >= index; const active = !done && (index === phase + 1 || (index === 1 && phase === 0) || (index === 4 && phase === 4)); const actions = [undefined, () => open('bench'), () => open('sample', scenarioId === 'furnace' ? 'ROBO-02' : 'BET-02'), releaseRun, () => phase === 3 ? advance() : setModal('evidence')]; return <Task key={task.title} number={`0${index + 1}`} title={task.title} note={done ? task.done : task.pending} status={done ? 'done' : active ? 'active' : 'pending'} onClick={active ? actions[index] : undefined} />; })}</ol></section><section className="rail-section handoff-note"><div className="section-title-row"><p className="section-kicker">SHIFT HANDOFF</p><span>3 SIGNALS</span></div><div className="handoff-grid">{scenario.handoff.map(([tag, value, note]) => <div key={tag}><span>{tag}</span><b>{value}</b><small>{note}</small></div>)}</div></section><section className="rail-section system-boundary"><p className="section-kicker">RECORD PATH</p><div><span>CMMS</span><i>service + maintenance evidence</i></div><div><span>SCADA</span><i>state, trace + alarm context</i></div><div><span>LIMS / LES</span><i>identity, method + disposition</i></div></section></aside>
+      <section className="lab-view"><div className="lab-heading"><div><p className="section-kicker">LIVE FACILITY MAP</p><h2>High-throughput materials bay</h2></div><div className="legend"><span><i className="ready" />ready</span><span><i className="run" />active</span><span><i className="warn" />attention</span></div></div><LabCanvas stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} onSelect={setSelectedId} /><footer className="facility-footer"><div><span>ENV</span><b>22.1 °C</b><small>41% RH</small></div><div><span>EXHAUST</span><b>NORMAL</b><small>−12 Pa</small></div><div><span>GAS DETECTION</span><b>NORMAL</b><small>6 / 6 online</small></div><div><span>OPEN WORK</span><b>{phase >= 3 ? '9' : '12'}</b><small>{phase >= 2 ? '1' : '3'} waiting release</small></div></footer></section>
+      <aside className="right-rail"><section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>{phase >= 5 ? 'CLOSED' : phase === 4 ? 'REVIEW' : 'ACTIVE'}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={state.fn}>{state.action}<span>→</span></button></section><section className="rail-section station-inspector"><div className="section-title-row"><p className="section-kicker">STATION INSPECTOR</p><span className={selected.tone}>{selected.state}</span></div><div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div><div className="readout-list">{selected.technicianView.map((item) => { const [key, value] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b></div>; })}</div><p className="mini-label">OUTPUTS</p><div className="tag-list">{selected.dataProducts.map((item) => <span key={item}>{item}</span>)}</div></section><PlannerPanel scenario={scenarioId} phase={phase} /><section className="rail-section score-panel"><div className="section-title-row"><p className="section-kicker">SHIFT HEALTH</p><span>LIVE</span></div>{Object.entries(scores).map(([key, value]) => <Score key={key} label={{ safety: 'Safety', traceability: 'Traceability', integrity: 'Data integrity', uptime: 'Lab uptime' }[key]!} value={value} />)}</section><section className="rail-section lineage-card"><div className="section-title-row"><p className="section-kicker">EVIDENCE CHAIN</p><span>LIVE</span></div><div className="lineage-flow"><span>{scenarioId === 'bet' ? 'LOT-77' : 'LOT-112'}</span><i>→</i><span>{scenarioId === 'bet' ? 'ADS-77-C' : 'BC-207'}</span><i>→</i><span>{scenarioId === 'bet' ? (phase >= 2 ? 'ELIG' : 'HOLD') : (phase >= 5 ? 'CENS' : 'HOLD')}</span></div><p>{scenarioId === 'bet' ? (phase >= 2 ? 'Tube identity and pretreatment record agree.' : 'Pretreatment association requires review.') : (phase >= 5 ? 'Interrupted run is retained but excluded from optimizer training.' : phase >= 2 ? 'Interrupted load is quarantined with trace retained.' : 'Physical occupancy remains unresolved.')}</p></section></aside></div>
+    {modal === 'deck' && <ShiftDeckModal active={scenarioId} onChoose={onSwitch} onClose={() => setModal(null)} />}
+    {modal === 'bench' && <BenchModal scenarioId={scenarioId} checks={checks} setChecks={setChecks} ran={ran} setRan={setRan} feedback={feedback} appendLog={appendLog} onFinish={finishBench} onClose={() => setModal(null)} />}
+    {modal === 'sample' && <SampleModal scenarioId={scenarioId} scanned={scanned} setScanned={setScanned} feedback={feedback} appendLog={appendLog} onFinish={finishSample} onClose={() => setModal(null)} />}
+    {modal === 'evidence' && <ScenarioEvidenceModal scenarioId={scenarioId} feedback={feedback} onFinish={finishEvidence} onClose={() => setModal(null)} />}
+    {modal === 'complete' && <ScenarioCompleteModal scenarioId={scenarioId} scores={scores} logCount={log.length} onDeck={() => setModal('deck')} onClose={() => setModal(null)} />}
+    {logOpen && <LedgerDrawer log={log} onClose={() => setLogOpen(false)} />}
+  </main>;
+}
+
+function getActionState(id: 'bet' | 'furnace', phase: number, bench: () => void, sample: () => void, release: () => void, advance: () => void, evidence: () => void, complete: () => void) {
+  const bet = [
+    ['SERVICE ACCEPTANCE', 'BET-02 vendor work complete', 'A closed vendor ticket is not yet a laboratory release. Review evidence and challenge the measurement path.', 'MX-233', 'OPEN ACCEPTANCE', bench, 'warn'],
+    ['RECORD EXCEPTION', 'Pretreatment link unresolved', 'The analysis tube and degas rack refer to different suffixes. Resolve the physical identity before association.', 'ADS-77-C', 'RECONCILE TUBE', sample, 'warn'],
+    ['READY TO ANALYZE', 'Eligibility gates satisfied', 'Instrument acceptance, tube identity, pretreatment history, and adsorbate state agree.', '4 tubes', 'RELEASE ANALYSIS', release, 'ready'],
+    ['ANALYSIS RUN', 'Adsorption sequence active', 'The analyzer is acquiring the isotherm. Sample mass, equilibration state, and native points remain linked.', '61%', 'ADVANCE TO RESULT', advance, 'run'],
+    ['RESULT EXCEPTION', 'Control surface area is low', 'The number could be material behavior or a measurement-system problem. Review the native curve before the AI acts.', '168 m²/g', 'REVIEW ISOTHERM', evidence, 'warn'],
+    ['SHIFT COMPLETE', 'Analyzer safely evaluated', 'A trustworthy recheck, rather than a premature synthesis change, is now queued.', '5 / 5', 'VIEW DEBRIEF', complete, 'ready'],
+  ];
+  const furnace = [
+    ['PROCESS ALARM', 'Thermal cycle interrupted', 'The controller stopped at 742 °C after interlock I-204. Preserve the trace and disposition the load.', '742 °C', 'OPEN ALARM REVIEW', bench, 'warn'],
+    ['WORKCELL RECOVERY', 'Carrier occupancy uncertain', 'Robot state and physical chamber occupancy must agree before either station leaves recovery hold.', 'BC-207', 'RECONCILE WORKCELL', sample, 'warn'],
+    ['VERIFICATION READY', 'Empty-cell cycle available', 'The interrupted load remains quarantined. Verify coordinated interlocks without exposing it to a new history.', '0 specimens', 'RUN VERIFICATION', release, 'ready'],
+    ['VERIFICATION RUN', 'Furnace + robot handshake', 'An empty-cell cycle is checking state transitions, alarm clearance, and retained controller trace.', '16 sim min', 'ADVANCE TO GATE', advance, 'run'],
+    ['DATA ELIGIBILITY', 'Interrupted run in AI queue', 'The optimizer cannot infer material behavior from a run with non-comparable thermal history.', '1 censored', 'REVIEW AI GATE', evidence, 'warn'],
+    ['SHIFT COMPLETE', 'Workcell safely recovered', 'Equipment is ready and the interrupted run remains visible without contaminating the optimizer.', '5 / 5', 'VIEW DEBRIEF', complete, 'ready'],
+  ];
+  const raw = (id === 'bet' ? bet : furnace)[phase] ?? (id === 'bet' ? bet : furnace)[5];
+  return { tag: raw[0] as string, title: raw[1] as string, body: raw[2] as string, metric: raw[3] as string, action: raw[4] as string, fn: raw[5] as () => void, tone: raw[6] as string };
+}
+
+function ModalShell({ title, kicker, children, onClose, wide = true }: { title: string; kicker: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
+  return <div className="modal-backdrop" role="presentation"><section className={`modal-card ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}><header><div><p className="section-kicker">{kicker}</p><h2>{title}</h2></div><button type="button" onClick={onClose} aria-label="Close dialog">×</button></header>{children}</section></div>;
+}
+
+function BenchModal({ scenarioId, checks, setChecks, ran, setRan, feedback, appendLog, onFinish, onClose }: { scenarioId: 'bet' | 'furnace'; checks: Record<string, boolean>; setChecks: React.Dispatch<React.SetStateAction<Record<string, boolean>>>; ran: boolean; setRan: (value: boolean) => void; feedback: string; appendLog: (type: string, text: string, add?: number) => void; onFinish: (correct: boolean) => void; onClose: () => void }) {
+  const isBet = scenarioId === 'bet';
+  const items = isBet ? [
+    ['scope', 'Match service scope', 'Pump replacement, cleanliness release, and configuration changes are linked to MX-233.'],
+    ['utilities', 'Review utilities + port state', 'Adsorbate identity, supply state, analysis ports, and software configuration agree.'],
+    ['blank', 'Stage independent acceptance', 'A governed blank/leak check—not vendor status alone—will establish readiness.'],
+  ] : [
+    ['trace', 'Freeze controller trace', 'Retain the full temperature program, alarm sequence, and interruption timestamp.'],
+    ['load', 'Place BC-207 on material hold', 'An interrupted cycle creates a different thermal history even if the target temperature was nearly reached.'],
+    ['cell', 'Confirm workcell recovery state', 'Robot parked, access controlled, and local alarm context acknowledged.'],
+  ];
+  const all = items.every(([key]) => checks[key]);
+  const run = () => { if (!all) return; setRan(true); appendLog('qc', isBet ? 'BET-02 acceptance blank/leak sequence complete; criterion met.' : 'Interrupted trace package frozen; carrier BC-207 hold applied.', isBet ? 12 : 5); };
+  return <ModalShell title={isBet ? 'Gas-sorption service acceptance' : 'Interrupted-cycle disposition'} kicker={isBet ? 'CMMS + QC · BET-02' : 'SCADA + LES · FURN-04'} onClose={onClose}><div className="modal-grid scenario-bench-grid"><div><p className="modal-intro">{isBet ? 'Vendor work is complete. Laboratory operations owns the decision to return the analyzer to scientific service.' : 'The furnace is in a safe controller hold. Your job is to preserve what happened, control the material, and establish a recoverable workcell state.'}</p><div className="check-stack">{items.map(([key, title, note]) => <label key={key} className={checks[key] ? 'checked' : ''}><input type="checkbox" checked={Boolean(checks[key])} onChange={() => setChecks((value) => ({ ...value, [key]: !value[key] }))} /><span>{checks[key] ? '✓' : ''}</span><div><b>{title}</b><small>{note}</small></div></label>)}</div><button className="modal-run" type="button" disabled={!all || ran} onClick={run}>{ran ? 'EVIDENCE CAPTURED' : isBet ? 'RUN ACCEPTANCE CHECK · 12 MIN' : 'APPLY CONTROLLED HOLD · 5 MIN'}</button></div><div className={`instrument-console ${isBet ? 'vacuum-console' : 'thermal-console'}`}><div className="panel-heading"><span>{isBet ? 'VACUUM / BLANK TREND' : 'CONTROLLER TRACE'}</span><b>{isBet ? 'PORTS 1–4' : 'HT-44 · REV 7'}</b></div>{isBet ? <VacuumTrace ran={ran} /> : <ThermalTrace ran={ran} />}<div className="result-box"><span>{isBet ? 'SERVICE STATE' : 'ALARM'}</span><b>{isBet ? 'VENDOR COMPLETE' : 'I-204'}</b><span>{isBet ? 'LAB ACCEPTANCE' : 'LOAD STATE'}</span><b>{ran ? (isBet ? 'CRITERION MET' : 'CONTROLLED HOLD') : '—'}</b></div>{ran && <div className="decision-stack"><p className="mini-label">DISPOSITION</p><button type="button" onClick={() => onFinish(true)}>{isBet ? 'Accept with independent evidence' : 'Retain trace + quarantine load'}</button><button type="button" className="secondary" onClick={() => onFinish(false)}>{isBet ? 'Release from vendor sign-off only' : 'Resume program at interrupted step'}</button></div>}</div></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+}
+
+function VacuumTrace({ ran }: { ran: boolean }) { return <div className="vacuum-trace" aria-label="Simulated vacuum acceptance trend"><div className="vacuum-gauge"><i style={{ transform: `rotate(${ran ? 42 : -35}deg)` }} /><b>{ran ? '3.1e−3' : '—'}</b><span>mbar/min</span></div><div className="vacuum-lines">{[72, 58, 45, 34, 26, 21].map((top, index) => <i key={top} style={{ left: `${8 + index * 16}%`, top: `${ran ? top : 88}%` }} />)}<span className="accept-line">ACCEPTANCE CRITERION</span></div></div>; }
+function ThermalTrace({ ran }: { ran: boolean }) { return <div className="thermal-trace" aria-label="Simulated interrupted furnace trace"><i className="thermal-fill" /><span className="alarm-pin">I-204<br />742 °C</span><b className="trace-label">SETPOINT</b><b className="trace-label actual">MEASURED</b>{ran && <em>TRACE FROZEN · HASH LINKED</em>}</div>; }
+
+function SampleModal({ scenarioId, scanned, setScanned, feedback, appendLog, onFinish, onClose }: { scenarioId: 'bet' | 'furnace'; scanned: boolean; setScanned: (value: boolean) => void; feedback: string; appendLog: (type: string, text: string, add?: number) => void; onFinish: (correct: boolean) => void; onClose: () => void }) {
+  const isBet = scenarioId === 'bet';
+  const scan = () => { setScanned(true); appendLog('lineage', isBet ? 'Physical tube ADS-77-C scanned; degas rack event points to ADS-77-B.' : 'BC-207 physical occupancy checked; four crucibles present while robot state reports transfer complete.', 4); };
+  return <ModalShell title={isBet ? 'Pretreatment record reconciliation' : 'Robot–furnace occupancy reconciliation'} kicker={isBet ? 'LIMS + LES · ADS-77-C' : 'WORKCELL RECOVERY · BC-207'} onClose={onClose}><p className="modal-intro">{isBet ? 'Surface area depends on sample preparation and pretreatment history. The physical tube must be bound to its own record before analysis.' : 'A transfer interruption can leave digital station state ahead of physical reality. Reconcile both before commanding motion.'}</p><div className="record-compare"><article><span>PHYSICAL / LOCAL</span><EquipmentGlyph type={isBet ? 'bet' : 'furnace'} /><b>{isBet ? 'ADS-77-C' : 'FURNACE OCCUPANCY'}</b><p>{scanned ? (isBet ? 'Tube barcode C · dry mass 0.412 g' : 'BC-207 present · 4 crucibles') : 'Awaiting technician observation'}</p></article><i>≠</i><article className={scanned ? 'mismatch-record' : ''}><span>{isBet ? 'DEGAS RACK EVENT' : 'ROBOT CONTROLLER'}</span><div className="record-code">{scanned ? (isBet ? 'ADS-77-B' : 'TRANSFER COMPLETE') : '••••••••'}</div><b>{isBet ? 'METHOD DG-09' : 'LAST COMMAND 13:03:41'}</b><p>{isBet ? '300 °C · completion recorded 09:58' : 'Gripper empty · destination acknowledged'}</p></article></div>{!scanned ? <button className="modal-run" type="button" onClick={scan}>{isBet ? 'SCAN TUBE + RETRIEVE EVENTS' : 'OBSERVE CELL + COMPARE STATE'}</button> : <div className="decision-stack horizontal record-actions"><button type="button" onClick={() => onFinish(true)}>{isBet ? 'Hold tube · reconcile source record' : 'Quarantine load · restore state model'}</button><button type="button" className="secondary" onClick={() => onFinish(false)}>{isBet ? 'Copy adjacent tube’s degas record' : 'Trust robot telemetry · clear cell'}</button></div>}{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+}
+
+function ScenarioEvidenceModal({ scenarioId, feedback, onFinish, onClose }: { scenarioId: 'bet' | 'furnace'; feedback: string; onFinish: (correct: boolean) => void; onClose: () => void }) {
+  const isBet = scenarioId === 'bet';
+  return <ModalShell title={isBet ? 'Adsorption evidence review' : 'AI data-eligibility gate'} kicker={isBet ? 'RESULT GATE · ALU-21 CONTROL' : 'PLANNER INGESTION · RUN HT-44-207'} onClose={onClose}><div className="evidence-grid"><div className="trace-panel"><div className="panel-heading"><span>{isBet ? 'N₂ ADSORPTION ISOTHERM' : 'THERMAL HISTORY COMPARISON'}</span><b>{isBet ? '77 K · ALU-21' : 'SETPOINT VS ACTUAL'}</b></div>{isBet ? <IsothermChart /> : <EligibilityChart />}</div><div className="report-panel"><div className="panel-heading"><span>{isBet ? 'BET RESULT' : 'INGESTION RECORD'}</span><b>{isBet ? 'method v3.1' : 'dataset batch 084'}</b></div><div className="report-metric"><span>{isBet ? 'Specific area' : 'Run status'}</span><b>{isBet ? '168 m²/g' : 'complete*'}</b></div><div className="report-metric"><span>{isBet ? 'Control band' : 'Thermal completion'}</span><b>{isBet ? '173–191 m²/g' : '61%'}</b></div><div className="report-metric"><span>{isBet ? 'Fit R²' : 'Eligibility'}</span><b>{isBet ? '0.9992' : 'unreviewed'}</b></div><div className="report-status warn-status">{isBet ? 'OUTSIDE CONTROL BAND' : 'CENSOR LABEL MISSING'}</div><p>{isBet ? 'A strong linear fit does not resolve a low control reference.' : 'Data can remain discoverable without being eligible for model training.'}</p></div></div><div className="ai-proposal"><div><span>AI PLANNER · {isBet ? 'PROPOSED SYNTHESIS CHANGE' : 'AUTOMATED INGESTION'}</span><h3>{isBet ? 'Lower calcination temperature by 35 °C' : 'Add HT-44-207 to outcome model'}</h3><p>{isBet ? 'Goal: preserve surface area · confidence 0.79' : 'Novel interruption regime · uncertainty value high'}</p></div><b>QUEUED</b></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onFinish(true)}>{isBet ? 'Hold proposal · recheck reference + fit window' : 'Label censored · exclude from optimizer'}</button><button type="button" className="secondary" onClick={() => onFinish(false)}>{isBet ? 'Accept AI synthesis change' : 'Mark complete · train on run'}</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+}
+
+function IsothermChart() { const points = [8, 12, 16, 21, 27, 34, 43, 55, 69, 84]; return <div className="isotherm-chart" aria-label="Simulated gas adsorption isotherm">{points.map((value, index) => <i key={value} style={{ left: `${8 + index * 9}%`, bottom: `${value}%` }} />)}<span className="fit-window">BET FIT WINDOW</span><b className="chart-y">adsorbed volume</b><b className="chart-x">relative pressure P/P₀</b></div>; }
+function EligibilityChart() { return <div className="eligibility-chart" aria-label="Simulated thermal history mismatch"><span className="ideal-line" /><span className="actual-line" /><i>INTERRUPTION</i><div><b>APPROVED HISTORY</b><em>HT-44 envelope</em></div><div><b>BC-207 ACTUAL</b><em>truncated at 742 °C</em></div></div>; }
+
+function ScenarioCompleteModal({ scenarioId, scores, logCount, onDeck, onClose }: { scenarioId: 'bet' | 'furnace'; scores: Scores; logCount: number; onDeck: () => void; onClose: () => void }) {
+  const total = Math.round(Object.values(scores).reduce((sum, value) => sum + value, 0) / 4); const isBet = scenarioId === 'bet';
+  return <ModalShell title="Shift debrief" kicker={`${isBet ? 'WO-2916' : 'WO-2954'} · COMPLETE`} onClose={onClose} wide={false}><div className="debrief-score"><span>SHIFT RATING</span><b>{total}</b><i>/ 100</i></div><p className="modal-intro">{isBet ? 'You independently accepted serviced equipment, recovered a pretreatment identity exception, and stopped a measurement-system problem from becoming an AI-directed synthesis change.' : 'You preserved an interrupted thermal history, reconciled physical workcell state, verified coordinated recovery, and kept censored data out of the optimizer.'}</p><div className="debrief-grid"><span>Safety<b>{scores.safety}</b></span><span>Traceability<b>{scores.traceability}</b></span><span>Data integrity<b>{scores.integrity}</b></span><span>Uptime<b>{scores.uptime}</b></span></div><div className="lesson-card"><b>Technician leverage</b><p>{isBet ? 'A clean number is only trustworthy when service state, sample preparation, method context, and control evidence agree.' : 'Recovery is not merely making equipment move again; it is preserving history, controlling material, and restoring truthful system state.'}</p></div><p className="debrief-meta">{logCount} shift events captured · all critical evidence retained</p><button className="modal-run" type="button" onClick={onDeck}>CHOOSE ANOTHER SHIFT</button></ModalShell>;
+}
+
+function Task({ number, title, note, status, onClick }: { number: string; title: string; note: string; status: 'done' | 'active' | 'pending'; onClick?: () => void }) { const content = <><span>{status === 'done' ? '✓' : number}</span><div><b>{title}</b><small>{note}</small></div></>; return <li className={status}>{onClick ? <button type="button" onClick={onClick}>{content}</button> : content}</li>; }
+function Score({ label, value }: { label: string; value: number }) { return <div className="score-row"><div><span>{label}</span><b>{value}</b></div><div className="score-track"><i style={{ width: `${value}%` }} /></div></div>; }
+function LedgerDrawer({ log, onClose }: { log: LogItem[]; onClose: () => void }) { return <div className="drawer-backdrop" role="presentation" onClick={onClose}><aside className="ledger-drawer" role="dialog" aria-modal="true" aria-label="Event ledger" onClick={(event) => event.stopPropagation()}><header><div><p className="section-kicker">SHIFT RECORD</p><h2>Event ledger</h2></div><button type="button" onClick={onClose}>×</button></header><p className="drawer-intro">A chronological record of technician checks, equipment state, material exceptions, results, and decisions.</p><ol>{[...log].reverse().map((item, index) => <li key={`${item.time}-${index}`}><time>{item.time}</time><i className={item.type}>{item.type}</i><p>{item.text}</p></li>)}</ol></aside></div>; }

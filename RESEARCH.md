@@ -61,7 +61,8 @@ These boundaries are simplified in the game, but the layering follows the
   unassigned reflection. NIST maintains [powder-diffraction reference materials](https://www.nist.gov/mml/mmsd/standards-and-tools/reference-materials)
   for line position, line shape, intensity, and other instrument-performance checks.
 - **SEM/EDS:** SEM forms surface-sensitive electron images; EDS adds local elemental information.
-  The visual station includes the electron column, vacuum chamber, and elemental-display monitor.
+  The playable follow-up emphasizes that one bright feature and one local spectrum do not establish
+  bulk representativeness; the technician expands field coverage and retains acquisition context.
   See the [Thermo Fisher SEM/EDS overview](https://www.thermofisher.com/in/en/home/materials-science/elemental-analysis/technology.html).
 - **TGA/DSC:** TGA follows mass change while DSC follows heat-flow response under a defined thermal
   program and atmosphere. The field guide routes to [TA Instruments' theory materials](https://www.tainstruments.com/theory-applications-training-documents/).
@@ -82,9 +83,9 @@ demo and dependable daily operation.
 
 - The default screen is equipment-first and glanceable; detailed teaching stays in workflow dialogs
   and the field guide.
-- The first scenario is a shift, not a recipe builder. It exercises the responsibilities most
-  visible across the postings: QC, material identity, automation readiness, exception handling, and
-  communication.
+- The scenarios are shifts, not recipe builders. Together they exercise the responsibilities most
+  visible across the postings: QC, service acceptance, sample preparation and identity, automation
+  readiness, alarm recovery, maintenance evidence, characterization review, and communication.
 - AI appears downstream of lab work. It can propose the next experiment, but it depends on the
   technician and scientist review process to receive trustworthy, contextualized results.
 - The simulation uses fictional identifiers and simplified values. It is not affiliated with or an

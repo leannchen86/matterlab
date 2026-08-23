@@ -2,13 +2,26 @@
 
 MatterShift is a browser simulation of a lab technician's shift inside an AI-enabled,
 high-throughput materials laboratory. The primary experience is an equipment-first operations
-console: inspect the lab floor, recover an XRD quality-control excursion, reconcile a sample-label
-mismatch, release a robotic workcell, and review an unexpected characterization result before it is
-used to plan another experiment.
+console with three playable work orders. The shifts cover XRD quality control and SEM/EDS follow-up,
+BET service acceptance and pretreatment lineage, and robot–furnace recovery after an interrupted
+thermal run. Each path ends at a scientific or AI data gate rather than at equipment uptime alone.
 
 The interface is intentionally modeled after a real technician environment rather than a generic
 materials-science lesson. It includes work orders, handoff state, instrument readiness, QC controls,
 sample custody, automation gates, alarms, shift health, and a chronological event record.
+
+## Playable shifts
+
+- **Phase-purity recovery:** return XRD to control, reconcile a carrier, review an unexpected peak,
+  and build a representative SEM/EDS follow-up before the AI planner changes the next synthesis.
+- **BET recommissioning:** accept a gas-sorption analyzer after service, bind the correct pretreatment
+  record, and distinguish a low control result from a material trend.
+- **Interrupted thermal run:** preserve the thermal trace, reconcile robot and furnace occupancy,
+  verify empty-cell recovery, and censor a compromised run without deleting it.
+
+The shift deck and facility map are responsive down to a phone-sized viewport. All instrument
+graphics, traces, micrographs, spectra, and equipment routes are drawn in the app without external
+image assets.
 
 ## Run locally
 
@@ -36,3 +49,4 @@ workflow reasoning, but actual instrument operation belongs to site-specific SOP
 interlocks, and manufacturer documentation.
 
 See [RESEARCH.md](RESEARCH.md) for the role analysis and scientific sources used to shape the app.
+See [ITERATION_LOG.md](ITERATION_LOG.md) for the product critique and major refinement passes.
