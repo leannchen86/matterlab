@@ -324,6 +324,7 @@ button { font: inherit; }
 .modal-card > header h2, .ledger-drawer > header h2 { margin: 4px 0 0; font-size: 17px; font-weight: 620; letter-spacing: -.02em; }
 .modal-card > header > button, .ledger-drawer > header > button { width: 31px; height: 31px; border: 1px solid #2b3d55; background: #0a111b; color: #8495aa; font-size: 21px; line-height: 1; cursor: pointer; }
 .modal-card > header > button:hover, .ledger-drawer > header > button:hover { border-color: var(--cyan); color: var(--cyan); }
+.console-header-actions { display: flex; align-items: center; gap: 6px; }.console-header-actions button { height: 31px; border: 1px solid #2b3d55; background: #0a111b; color: #8495aa; font: 700 7px var(--font-geist-mono); cursor: pointer; }.console-header-actions button:last-child { width: 31px; font: 400 21px/1 var(--font-geist-sans); }.console-header-actions button:hover, .console-header-actions button:focus-visible { border-color: var(--cyan); color: var(--cyan); outline: none; }.console-header-actions button.return-asset { width: auto; padding: 0 10px; border-color: #356b59; color: var(--green); }
 .modal-intro { margin: 0; padding: 16px 17px 0; color: #8899ae; font-size: 11px; line-height: 1.55; }
 .modal-grid { display: grid; grid-template-columns: 1fr 310px; gap: 17px; padding: 17px; }
 .check-stack { display: grid; gap: 7px; margin-top: 14px; }

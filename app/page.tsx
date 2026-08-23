@@ -257,7 +257,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
             <div className="legend"><span><i className="ready" />ready</span><span><i className="run" />active</span><span><i className="warn" />attention</span></div>
           </div>
 
-          <LabViewport stations={stations} selectedId={selectedId} phase={phase} onInspectionChange={recordInspection} onSelect={setSelectedId} />
+          <LabViewport stations={stations} selectedId={selectedId} phase={phase} inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} />
 
           <footer className="facility-footer">
             <div><span>ENV</span><b>22.1 °C</b><small>41% RH</small></div>

@@ -34,6 +34,7 @@ const profiles: Record<string, {
 
 export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = [] }: { station: Station; scenarioId?: ScenarioId; physicalChecks?: string[] }) {
   const [open, setOpen] = useState(false);
+  const [enteredFromLab, setEnteredFromLab] = useState(false);
   const [tab, setTab] = useState<Tab>('hmi');
   const [completed, setCompleted] = useState<Record<Tab, boolean>>({ hmi: false, les: false, lims: false, cmms: false });
   const profile = profiles[station.id] ?? profiles['XRD-03'];
@@ -42,17 +43,30 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   useEffect(() => {
     const openFromLab = (event: Event) => {
       const request = event as CustomEvent<{ stationId?: string }>;
-      if (request.detail?.stationId === station.id) setOpen(true);
+      if (request.detail?.stationId === station.id) {
+        setEnteredFromLab(true);
+        setOpen(true);
+      }
     };
     window.addEventListener('mattershift:open-console', openFromLab);
     return () => window.removeEventListener('mattershift:open-console', openFromLab);
   }, [station.id]);
 
+  const closeConsole = () => {
+    setOpen(false);
+    setEnteredFromLab(false);
+  };
+  const returnToAsset = () => {
+    setOpen(false);
+    setEnteredFromLab(false);
+    window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:return-to-lab', { detail: { stationId: station.id } })));
+  };
+
   return <>
-    <button className="station-access-button" type="button" onClick={() => setOpen(true)}><span>⌁</span><b>OPEN LOCAL CONSOLE</b><i>{physicalChecks.length === 3 ? 'WALK ✓ · ' : `WALK ${physicalChecks.length}/3 · `}HMI · LES · LIMS · CMMS</i><em>→</em></button>
-    {open && <div className="modal-backdrop station-console-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setOpen(false); }}>
+    <button className="station-access-button" type="button" onClick={() => { setEnteredFromLab(false); setOpen(true); }}><span>⌁</span><b>OPEN LOCAL CONSOLE</b><i>{physicalChecks.length === 3 ? 'WALK ✓ · ' : `WALK ${physicalChecks.length}/3 · `}HMI · LES · LIMS · CMMS</i><em>→</em></button>
+    {open && <div className="modal-backdrop station-console-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) closeConsole(); }}>
       <section className="modal-card wide station-console" role="dialog" aria-modal="true" aria-label={`${station.name} local station console`}>
-        <header><div><p className="section-kicker">LOCAL STATION ACCESS · {profile.controller}</p><h2>{station.id} / {station.name}</h2></div><button type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></header>
+        <header><div><p className="section-kicker">LOCAL STATION ACCESS · {profile.controller}</p><h2>{station.id} / {station.name}</h2></div><div className="console-header-actions">{enteredFromLab && <button type="button" className="return-asset" onClick={returnToAsset}>← RETURN TO ASSET</button>}<button type="button" onClick={closeConsole} aria-label="Close">×</button></div></header>
         <div className="console-shell">
           <nav className="console-nav" aria-label="Station systems">
             {Object.entries(TAB_META).map(([id, meta]) => <button key={id} type="button" className={tab === id ? 'active' : ''} onClick={() => setTab(id as Tab)}>

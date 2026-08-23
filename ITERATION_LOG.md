@@ -381,6 +381,26 @@ physical presence into controlled operation.
 - Exercised XRD and SEM/EDS approach changes, lateral movement, the special TGA/DSC side approach,
   the compact mobile station selector, and the complete walk-to-console path at 390 × 844.
 
+## Critique 23: the physical-to-digital transition was one-way
+
+The aisle could open a local workstation, but closing it returned to the general dashboard. That
+broke the scientist's natural loop between the physical sample, equipment state, local controls,
+and governed records. It also risked losing visual inspection context when the 3D scene changed
+between its embedded and full-viewport presentation.
+
+### Changes
+
+- Added a `Return to asset` control to workstation sessions entered from the physical aisle while
+  preserving the ordinary close behavior for consoles opened from the dashboard.
+- Restored the same selected station in human-scale aisle mode rather than returning to a generic
+  overview.
+- Lifted walkaround evidence into shift-owned state so portal transitions cannot reset completed
+  physical checks.
+- Preserved workstation tab completions and safe-state attestation across repeated asset-console
+  round trips.
+- Verified an XRD sequence with 3/3 physical observations, HMI attestation, return to the green
+  physical markers, re-entry to the attested HMI, and the full mobile header layout.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

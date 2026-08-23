@@ -20,6 +20,7 @@ type SceneProps = {
   cameraMode: CameraMode;
   onCameraMode: (mode: CameraMode) => void;
   onOpenConsole: () => void;
+  inspectionState?: Record<string, string[]>;
   onInspectionChange?: (stationId: string, checks: string[]) => void;
   onSelect: (id: string) => void;
 };
@@ -42,9 +43,10 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onCameraMode, onOpenConsole, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
-  const [visited, setVisited] = useState<Record<string, string[]>>({});
+  const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
+  const visited = inspectionState ?? localVisited;
   const [observationRecord, setObservationRecord] = useState<{ stationId: string; point: InspectionPoint } | null>(null);
   const [walkCommand, setWalkCommand] = useState<WalkCommand>({ id: 0, direction: 'forward' });
   const selectedIndex = Math.max(0, stations.findIndex((station) => station.id === selectedId));
@@ -54,11 +56,9 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onC
   const inspect = (label: string) => {
     const point = HOTSPOTS[selectedIndex].find((hotspot) => hotspot.label === label);
     if (point) setObservationRecord({ stationId: selectedId, point });
-    setVisited((current) => {
-      const checks = Array.from(new Set([...(current[selectedId] ?? []), label]));
-      onInspectionChange?.(selectedId, checks);
-      return { ...current, [selectedId]: checks };
-    });
+    const checks = Array.from(new Set([...(visited[selectedId] ?? []), label]));
+    if (!inspectionState) setLocalVisited((current) => ({ ...current, [selectedId]: checks }));
+    onInspectionChange?.(selectedId, checks);
   };
   return (
     <div className={`lab-3d camera-${cameraMode}`} aria-label="Orbitable 3D digital twin of seven materials laboratory stations">

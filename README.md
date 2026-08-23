@@ -49,6 +49,9 @@ Its human-scale aisle mode moves the camera to technician eye height, supports W
 touch-pad movement, and glides between selected stations along operating approaches. From the aisle,
 the selected instrument opens directly into its local HMI/SCADA, LES, LIMS, and CMMS console; physical
 walkaround evidence remains a real permissive in that workstation.
+Workstation sessions can return to the same asset and aisle mode. Completed walkaround markers and
+console attestations survive the round trip, so the scientist can alternate between the sample,
+instrument, controls, and records without losing operational context.
 Every point captures a concise local observation and distinguishes normal evidence from an attention
 state; completing a walkaround does not erase a separate quality, service, or process hold.
 The shared bay includes overhead cable routing, gas/vacuum service panels, emergency controls,
