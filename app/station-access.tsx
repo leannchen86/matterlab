@@ -32,11 +32,22 @@ const profiles: Record<string, {
   'TGA-01': { controller: 'TGA-01 / GAS-3', safe: ['furnace near ambient', 'purge path proven', 'autosampler clear'], method: ['Select pan pair', 'Record sample mass', 'Run baseline / method', 'Review mass + heat flow'], sample: ['LOT-91-T', 'PANSET-14', 'THM-208'], workOrder: 'QC-621', service: 'Baseline + balance check · due', health: 84, supplies: ['Al pans 26', 'Pt pans 4', 'pan crimper'] },
 };
 
+const HMI_OPERATIONS: Record<string, [string, string, string]> = {
+  'PREP-01': ['Prove enclosure flow', 'Zero analytical balance', 'Confirm antistatic state'],
+  'ROBO-02': ['Reset safeguarded stop', 'Home transfer axes', 'Prove gripper state'],
+  'FURN-04': ['Read overtemperature relay', 'Verify door chain', 'Confirm empty-cell state'],
+  'XRD-03': ['Home specimen stage', 'Prove shutter feedback', 'Read reference position'],
+  'SEM-01': ['Establish chamber vacuum', 'Verify stage clearance', 'Arm BSE / EDS detectors'],
+  'BET-02': ['Isolate analysis ports', 'Run manifold leak check', 'Prove N₂ supply state'],
+  'TGA-01': ['Tare balance channel', 'Prove purge path', 'Home autosampler carousel'],
+};
+
 export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = [] }: { station: Station; scenarioId?: ScenarioId; physicalChecks?: string[] }) {
   const [open, setOpen] = useState(false);
   const [enteredFromLab, setEnteredFromLab] = useState(false);
   const [tab, setTab] = useState<Tab>('hmi');
   const [completed, setCompleted] = useState<Record<Tab, boolean>>({ hmi: false, les: false, lims: false, cmms: false });
+  const [hmiOperations, setHmiOperations] = useState<string[]>([]);
   const profile = profiles[station.id] ?? profiles['XRD-03'];
   const finish = () => setCompleted((current) => ({ ...current, [tab]: true }));
 
@@ -75,7 +86,7 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
           </nav>
           <div className="console-main">
             <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>WALK <b>{physicalChecks.length}/3</b></span><span><i className={station.tone === 'warn' ? 'alarm' : station.tone === 'off' ? '' : 'online'} />{station.state}</span></div>
-            {tab === 'hmi' && <HmiView station={station} profile={profile} physicalChecks={physicalChecks} complete={completed.hmi} onComplete={finish} />}
+            {tab === 'hmi' && <HmiView station={station} profile={profile} physicalChecks={physicalChecks} operations={hmiOperations} onOperation={(operation) => setHmiOperations((current) => current.includes(operation) ? current : [...current, operation])} complete={completed.hmi} onComplete={finish} />}
             {tab === 'les' && <LesView station={station} profile={profile} complete={completed.les} onComplete={finish} />}
             {tab === 'lims' && <LimsView profile={profile} scenarioId={scenarioId} complete={completed.lims} onComplete={finish} />}
             {tab === 'cmms' && <CmmsView profile={profile} complete={completed.cmms} onComplete={finish} />}
@@ -86,9 +97,11 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   </>;
 }
 
-function HmiView({ station, profile, physicalChecks, complete, onComplete }: { station: Station; profile: typeof profiles[string]; physicalChecks: string[]; complete: boolean; onComplete: () => void }) {
+function HmiView({ station, profile, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; profile: typeof profiles[string]; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
   const releaseBlocked = station.tone === 'warn' || station.tone === 'off' || station.tone === 'hold';
   const walkaroundComplete = physicalChecks.length === 3;
+  const operationSteps = HMI_OPERATIONS[station.id] ?? HMI_OPERATIONS['XRD-03'];
+  const operationsComplete = operations.length === operationSteps.length;
   return <div className="console-view hmi-view">
     <div className="console-view-head"><div><p className="section-kicker">HMI / SCADA</p><h3>Equipment state + permissives</h3></div><span>REFRESH 250 ms</span></div>
     <div className="hmi-layout">
@@ -96,7 +109,11 @@ function HmiView({ station, profile, physicalChecks, complete, onComplete }: { s
       <div className="live-readouts">{station.technicianView.map((item, index) => { const [key, value = '—'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b><i style={{ width: `${58 + index * 9}%` }} /></div>; })}</div>
       <div className="permissive-panel"><p className="mini-label">START PERMISSIVES</p>{profile.safe.map((item) => <div key={item}><i className="ok">✓</i><span>{item}</span><b>TRUE</b></div>)}<div><i className={walkaroundComplete ? 'ok' : 'attention'}>{walkaroundComplete ? '✓' : '!'}</i><span>physical walkaround evidence</span><b>{walkaroundComplete ? 'TRUE' : 'HOLD'}</b></div><div><i className={releaseBlocked ? 'attention' : 'ok'}>{releaseBlocked ? '!' : '✓'}</i><span>quality / service release</span><b>{releaseBlocked ? 'HOLD' : 'TRUE'}</b></div></div>
     </div>
-    <ConsoleAction complete={complete} disabled={!walkaroundComplete} idle={walkaroundComplete ? 'RUN SAFE-STATE CHECK' : 'WALKAROUND REQUIRED'} done="SAFE STATE ATTESTED" note={complete ? 'Attestation staged for the LES record.' : walkaroundComplete ? 'Physical state is linked; quality or service holds remain independent.' : `${physicalChecks.length}/3 physical inspection points linked. Use 3D focus mode.`} onClick={onComplete} />
+    <div className="hmi-operations">
+      <div><p className="mini-label">LOCAL CONTROL SEQUENCE</p><span>{operations.length} / {operationSteps.length} proven</span></div>
+      {operationSteps.map((operation, index) => { const done = operations.includes(operation); const active = walkaroundComplete && index === operations.length; return <button key={operation} type="button" className={done ? 'done' : active ? 'active' : ''} disabled={!walkaroundComplete || index > operations.length || done} onClick={() => onOperation(operation)}><i>{done ? '✓' : `0${index + 1}`}</i><b>{operation}</b><small>{done ? 'feedback retained' : active ? 'ready at HMI' : walkaroundComplete ? 'sequence held' : 'walkaround held'}</small></button>; })}
+    </div>
+    <ConsoleAction complete={complete} disabled={!walkaroundComplete || !operationsComplete} idle={!walkaroundComplete ? 'WALKAROUND REQUIRED' : operationsComplete ? 'ATTEST SAFE STATE' : 'COMPLETE CONTROL SEQUENCE'} done="SAFE STATE ATTESTED" note={complete ? 'Attestation staged for the LES record.' : !walkaroundComplete ? `${physicalChecks.length}/3 physical inspection points linked. Use 3D focus mode.` : operationsComplete ? 'Physical state and local feedback agree; quality or service holds remain independent.' : `${operations.length}/3 local subsystem checks retained.`} onClick={onComplete} />
   </div>;
 }
 

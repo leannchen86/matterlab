@@ -34,6 +34,10 @@ Selecting an asset exposes a simulated local workstation with four technician-fa
 HMI/SCADA state and permissives, LES method execution, LIMS identity and lineage, and CMMS service
 evidence. Each station has its own instrument mimic, interlocks, method, sample identifiers,
 maintenance state, and point-of-use supplies.
+The HMI also requires an instrument-specific local control sequence after the physical walkaround:
+for example, XRD stage/shutter/reference checks, SEM vacuum/clearance/detector checks, BET
+manifold/leak/gas checks, or TGA/DSC balance/purge/carousel checks. A successful safe-state
+attestation does not clear an independent quality or service hold.
 The Field Guide adds a visual authority map across physical equipment, supervisory controls,
 governed records, and the proposal-only AI planner.
 

@@ -417,6 +417,26 @@ read as game pedestals rather than installed lab infrastructure or a restrained 
 - Rechecked XRD at technician scale and the full-bay composition; equipment now shares the epoxy
   floor visually while retaining a legible selected asset.
 
+## Critique 25: “operate” still meant one generic HMI click
+
+The workstation showed instrument-specific state, permissives, and mimics, but safe-state operation
+collapsed into a single universal button once the walkaround was complete. That skipped the local
+subsystem feedback a technician must reconcile before an instrument is ready for governed work.
+
+### Changes
+
+- Added three-step local control sequences for all seven assets, with instrument-specific language
+  and strict ordering.
+- Added XRD stage-home, shutter-feedback, and reference-position checks; SEM/EDS chamber-vacuum,
+  stage-clearance, and detector checks; BET port-isolation, manifold-leak, and gas-supply checks; and
+  TGA/DSC balance-tare, purge-path, and carousel-home checks.
+- Kept the physical walkaround as the prerequisite for the control sequence and the completed
+  sequence as the prerequisite for safe-state attestation.
+- Preserved quality and service holds as independent conditions so operational readiness does not
+  silently release suspect science.
+- Exercised the complete XRD sequence on desktop, confirmed persistence across LES/HMI tab changes,
+  and completed the TGA/DSC sequence on a 390 × 844 viewport.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
