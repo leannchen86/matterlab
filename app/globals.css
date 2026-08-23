@@ -738,6 +738,11 @@ button { font: inherit; }
 .constraint-console.result-miss .constraint-signal span, .constraint-console.result-miss .constraint-signal b { color: #d1ba73; }
 .constraint-console.result-miss .constraint-signal i { background: linear-gradient(90deg, var(--amber) 48%, var(--green) 48%); }
 .constraint-console.result-miss > p { color: #9eaa91; }
+.constraint-console.result-hit { border-color: #3f765d; background: linear-gradient(100deg, #0c2118, #0b1618); }
+.constraint-console.result-hit .constraint-signal { border-color: #3f8064; }
+.constraint-console.result-hit .constraint-signal span, .constraint-console.result-hit .constraint-signal b { color: var(--green); }
+.constraint-console.result-hit .constraint-signal i { background: var(--green); box-shadow: 0 0 10px #51e19a88; }
+.constraint-console.result-hit > p { color: #9bc5b2; }
 
 .campaign-actions button.room-view { border-color: #3c5e70; background: #0e202b; color: #8db5c3; }
 .scene-station-picker button.campaign-active { border-color: var(--station-tone); box-shadow: inset 2px 0 var(--station-tone), 0 0 10px color-mix(in srgb, var(--station-tone) 22%, transparent); }

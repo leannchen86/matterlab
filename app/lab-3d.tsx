@@ -4,6 +4,7 @@ import { ContactShadows, Environment, Grid, Html, Lightformer, Line, OrbitContro
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { getCampaignSpec } from './campaign-spec';
 import type { Station } from './sim-data';
 
 type OrbitControlsHandle = React.ComponentRef<typeof OrbitControls>;
@@ -18,6 +19,7 @@ type SceneProps = {
   selectedId: string;
   phase: number;
   campaignStage: number;
+  campaignSelected: string;
   scenarioId: ScenarioId;
   cameraMode: CameraMode;
   lightingMode: LightingMode;
@@ -60,7 +62,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, campaignStage, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -69,11 +71,11 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, scenarioId, 
   const selectedIndex = Math.max(0, stations.findIndex((station) => station.id === selectedId));
   const selectedStation = stations[selectedIndex];
   const campaignIndex = getCampaignStationIndex(campaignStage);
-  const inspectionKey = getInspectionKey(selectedId, selectedIndex, campaignStage);
-  const selectedHotspots = getInspectionPoints(selectedIndex, scenarioId, phase, campaignStage);
+  const inspectionKey = getInspectionKey(selectedId, selectedIndex, campaignStage, campaignSelected);
+  const selectedHotspots = getInspectionPoints(selectedIndex, scenarioId, phase, campaignStage, campaignSelected);
   const inspected = visited[inspectionKey] ?? [];
   const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? observationRecord.point : null;
-  const campaignState = getCampaignRoomState(campaignStage);
+  const campaignState = getCampaignRoomState(campaignStage, campaignSelected);
   const inspect = (label: string) => {
     const point = selectedHotspots.find((hotspot) => hotspot.label === label);
     if (point) setObservationRecord({ stationId: selectedId, point });
@@ -98,7 +100,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, scenarioId, 
         <LabArchitecture lightingMode={lightingMode} />
         <OperationsProps scenarioId={scenarioId} phase={phase} />
         <MaterialRoute scenarioId={scenarioId} phase={phase} />
-        <CampaignMaterialRoute stage={campaignStage} />
+        <CampaignMaterialRoute stage={campaignStage} selected={campaignSelected} />
         {stations.map((station, index) => (cameraMode !== 'focus' || selectedId === station.id) ? (
           <StationCell
             key={station.id}
@@ -110,8 +112,8 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, scenarioId, 
             toneOverride={campaignIndex === index ? campaignState.color : undefined}
             stateOverride={campaignIndex === index ? campaignState.label : undefined}
             showHotspots={selectedId === station.id && cameraMode === 'focus'}
-            inspected={visited[getInspectionKey(station.id, index, campaignStage)] ?? []}
-            inspectionPoints={getInspectionPoints(index, scenarioId, phase, campaignStage)}
+            inspected={visited[getInspectionKey(station.id, index, campaignStage, campaignSelected)] ?? []}
+            inspectionPoints={getInspectionPoints(index, scenarioId, phase, campaignStage, campaignSelected)}
             controls={controlFeedback?.[station.id] ?? []}
             scenarioId={scenarioId}
             phase={phase}
@@ -143,7 +145,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, scenarioId, 
       </nav>
       <div className="scene-corner scene-corner-top"><span>LIVE SPATIAL TWIN</span><b>LAB 04 · BAY A/B</b></div>
       <div className="scene-corner scene-corner-bottom">{cameraMode === 'walk' ? <><span>WASD</span> MOVE <i>·</i> <span>DRAG</span> LOOK <i>·</i> <span>SELECT</span> APPROACH</> : <><span>DRAG</span> ORBIT <i>·</i> <span>SCROLL</span> ZOOM <i>·</i> <span>CLICK</span> INSPECT</>}</div>
-      {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN TWIN · RUN-042</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? 'VALID NEGATIVE' : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
+      {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN TWIN · RUN-042 · {campaignSelected}</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? campaignState.result : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
       {cameraMode === 'walk' && <div className="walk-hud">
         <header><span>HUMAN-SCALE AISLE</span><b>{selectedStation.id} · {selectedStation.name}</b></header>
         <div className="walk-pad" role="group" aria-label="Aisle movement controls">
@@ -626,11 +628,12 @@ const HOTSPOTS: InspectionPoint[][] = [
   [{ position: [-0.58, 1.12, 0.76], label: 'PAN', observation: 'matched empty-pan pair · clean', state: 'pass' }, { position: [0.82, 0.78, 0.7], label: 'PURGE', observation: 'N₂ flow stable · outlet clear', state: 'pass' }, { position: [0.08, 1.28, 0.82], label: 'FURNACE', observation: '28 °C · baseline check due', state: 'attention' }],
 ];
 
-function getCampaignInspectionPoints(index: number, stage: number): InspectionPoint[] | null {
+function getCampaignInspectionPoints(index: number, stage: number, selected: string): InspectionPoint[] | null {
+  const spec = getCampaignSpec(selected);
   if (stage === 1 && index === 0) return [
     { position: [-0.65, 1.25, 0.68], label: 'SASH', observation: '420 mm opening · LEV airflow proven', state: 'pass' },
-    { position: [0.86, 0.97, 0.55], label: 'BALANCE', observation: 'zero 0.000 g · C-42 target 24.00 g', state: 'pass' },
-    { position: [-0.15, 0.68, 0.58], label: 'LOT', observation: 'Ca + Ti precursor lots match RUN-042-P', state: 'pass' },
+    { position: [0.86, 0.97, 0.55], label: 'BALANCE', observation: `zero 0.000 g · ${spec.id} target ${spec.targetMass}`, state: 'pass' },
+    { position: [-0.15, 0.68, 0.58], label: 'LOT', observation: `${spec.precursorLabel} match RUN-042-P`, state: 'pass' },
   ];
   if (stage >= 2 && stage <= 3 && index === 1) return [
     { position: [-1.32, 1.45, 1.06], label: 'GATE', observation: 'CH1 safeguard closed · scanner field clear', state: 'pass' },
@@ -638,20 +641,20 @@ function getCampaignInspectionPoints(index: number, stage: number): InspectionPo
     { position: [1.05, 0.92, -0.32], label: 'HMI', observation: stage === 2 ? 'RUN-042 held before dosing · motion inhibited' : 'RUN-042 dosing 6 crucibles · route active', state: stage === 2 ? 'attention' : 'pass' },
   ];
   if (stage >= 4 && stage <= 5 && index === 2) return [
-    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: stage === 4 ? 'door closed · RUN-039 cycle owns chamber' : 'door chain closed · 980 °C profile active', state: 'pass' },
-    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? 'RUN-039 remaining 62 min · RUN-042 Q01' : 'C42-980-4H · ramp/dwell trace recording', state: stage === 4 ? 'attention' : 'pass' },
+    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: stage === 4 ? 'door closed · RUN-039 cycle owns chamber' : `door chain closed · ${spec.temperature} profile active`, state: 'pass' },
+    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? 'RUN-039 remaining 62 min · RUN-042 Q01' : `${spec.profile} · ramp/dwell trace recording`, state: stage === 4 ? 'attention' : 'pass' },
     { position: stage === 4 ? [0, 0.42, 1.04] : [0, 1.38, 0.94], label: 'CARRIER', observation: stage === 4 ? 'BC-042 parked at marked queue stand · seal intact' : 'BC-042 chamber occupancy confirmed', state: stage === 4 ? 'attention' : 'pass' },
   ];
   if (stage >= 6 && index === 3) return [
     { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: stage === 6 ? 'NIST Si reference seated · RUN-042-T held' : 'RUN-042-T flat · reference accepted', state: 'pass' },
-    { position: [0.9, 0.7, 0.92], label: 'HMI', observation: stage === 6 ? 'reference interval overdue · specimen release inhibited' : '+0.01° 2θ · 95.8% target phase', state: stage === 6 ? 'attention' : 'pass' },
+    { position: [0.9, 0.7, 0.92], label: 'HMI', observation: stage === 6 ? 'reference interval overdue · specimen release inhibited' : `+0.01° 2θ · ${spec.measured}% target phase`, state: stage === 6 ? 'attention' : 'pass' },
     { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', observation: 'closed feedback TRUE · radiation chain healthy', state: 'pass' },
   ];
   return null;
 }
 
-function getInspectionPoints(index: number, scenarioId: ScenarioId, phase: number, campaignStage = 0): InspectionPoint[] {
-  const campaignPoints = getCampaignInspectionPoints(index, campaignStage);
+function getInspectionPoints(index: number, scenarioId: ScenarioId, phase: number, campaignStage = 0, campaignSelected = 'C-42'): InspectionPoint[] {
+  const campaignPoints = getCampaignInspectionPoints(index, campaignStage, campaignSelected);
   if (campaignPoints) return campaignPoints;
   if (scenarioId === 'xrd' && index === 3 && phase >= 1) return [
     { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: phase >= 4 ? 'run holder clear · specimen record retained' : 'NIST Si seated · surface clean', state: 'pass' },
@@ -1113,22 +1116,23 @@ function getCampaignStationIndex(stage: number) {
   return 3;
 }
 
-function getInspectionKey(stationId: string, stationIndex: number, campaignStage: number) {
-  return getCampaignStationIndex(campaignStage) === stationIndex ? `${stationId}:MAT-042:S${campaignStage}` : stationId;
+function getInspectionKey(stationId: string, stationIndex: number, campaignStage: number, selected: string) {
+  return getCampaignStationIndex(campaignStage) === stationIndex ? `${stationId}:MAT-042:${selected}:S${campaignStage}` : stationId;
 }
 
-function getCampaignRoomState(stage: number) {
-  if (stage === 1) return { station: 'PREP-01', label: 'RUN-042 PREP', color: '#4dd5ed', tone: 'running' };
-  if (stage === 2) return { station: 'ROBO-02', label: 'CLEANLINESS FAULT', color: '#f4b95f', tone: 'held' };
-  if (stage === 3) return { station: 'ROBO-02', label: 'ROBOT DOSING', color: '#4dd5ed', tone: 'running' };
-  if (stage === 4) return { station: 'FURN-04', label: 'QUEUE 01', color: '#f4b95f', tone: 'held' };
-  if (stage === 5) return { station: 'FURN-04', label: '980 °C PROFILE', color: '#ff955c', tone: 'running' };
-  if (stage === 6) return { station: 'XRD-03', label: 'QC HOLD', color: '#f4b95f', tone: 'held' };
-  if (stage >= 7) return { station: 'XRD-03', label: '95.8% · TARGET MISSED', color: '#8fcf8f', tone: 'complete' };
-  return { station: 'PREP-01', label: 'CAMPAIGN READY', color: '#4dd5ed', tone: 'running' };
+function getCampaignRoomState(stage: number, selected = 'C-42') {
+  const spec = getCampaignSpec(selected);
+  if (stage === 1) return { station: 'PREP-01', label: `${spec.id} PREP`, color: '#4dd5ed', tone: 'running', result: '' };
+  if (stage === 2) return { station: 'ROBO-02', label: 'CLEANLINESS FAULT', color: '#f4b95f', tone: 'held', result: '' };
+  if (stage === 3) return { station: 'ROBO-02', label: `${spec.id} DOSING`, color: '#4dd5ed', tone: 'running', result: '' };
+  if (stage === 4) return { station: 'FURN-04', label: 'QUEUE 01', color: '#f4b95f', tone: 'held', result: '' };
+  if (stage === 5) return { station: 'FURN-04', label: `${spec.temperatureShort} PROFILE`, color: '#ff955c', tone: 'running', result: '' };
+  if (stage === 6) return { station: 'XRD-03', label: 'QC HOLD', color: '#f4b95f', tone: 'held', result: '' };
+  if (stage >= 7) return { station: 'XRD-03', label: `${spec.measured}% · TARGET ${spec.objectiveMet ? 'MET' : 'MISSED'}`, color: spec.objectiveMet ? '#51e19a' : '#8fcf8f', tone: 'complete', result: spec.objectiveMet ? 'TARGET MET' : 'VALID NEGATIVE' };
+  return { station: 'PREP-01', label: 'CAMPAIGN READY', color: '#4dd5ed', tone: 'running', result: '' };
 }
 
-function CampaignMaterialRoute({ stage }: { stage: number }) {
+function CampaignMaterialRoute({ stage, selected }: { stage: number; selected: string }) {
   const carrier = useRef<THREE.Group>(null);
   const current = useRef(0.02);
   const points = useMemo(() => [0, 1, 2, 3].map((index) => {
@@ -1138,7 +1142,7 @@ function CampaignMaterialRoute({ stage }: { stage: number }) {
   const curve = useMemo(() => new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.12), [points]);
   const route = useMemo(() => curve.getPoints(64), [curve]);
   const target = stage <= 1 ? 0.02 : stage <= 3 ? 0.34 : stage <= 5 ? 0.66 : 0.98;
-  const state = getCampaignRoomState(stage);
+  const state = getCampaignRoomState(stage, selected);
   useFrame(({ clock }, delta) => {
     current.current = THREE.MathUtils.damp(current.current, target, 3.2, delta);
     const activity = [1, 3, 5].includes(stage) ? Math.sin(clock.elapsedTime * 1.7) * 0.006 : 0;

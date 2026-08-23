@@ -1,17 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
-type Recipe = {
-  id: string;
-  name: string;
-  formula: string;
-  temperature: string;
-  dwell: string;
-  prediction: string;
-  uncertainty: string;
-  point: [number, number];
-};
+import { campaignSpecs as recipes, getCampaignSpec } from './campaign-spec';
 
 type CampaignRun = {
   stage: number;
@@ -20,12 +10,6 @@ type CampaignRun = {
   insight: number;
   message: string;
 };
-
-const recipes: Recipe[] = [
-  { id: 'C-42', name: 'Ca-rich edge', formula: 'Ca₀.₅₂Ti₀.₄₈O₃', temperature: '980 °C', dwell: '4.0 h', prediction: '96.4%', uncertainty: '±1.9%', point: [196, 70] },
-  { id: 'Z-17', name: 'Zr-doped', formula: 'CaTi₀.₉₆Zr₀.₀₄O₃', temperature: '1,020 °C', dwell: '3.5 h', prediction: '97.1%', uncertainty: '±2.6%', point: [230, 91] },
-  { id: 'D-08', name: 'Low-energy', formula: 'CaTiO₃', temperature: '900 °C', dwell: '6.0 h', prediction: '94.8%', uncertainty: '±1.2%', point: [166, 112] },
-];
 
 const initialRun: CampaignRun = {
   stage: 0,
@@ -60,7 +44,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
     window.dispatchEvent(new CustomEvent('mattershift:campaign-state', { detail: run }));
   }, [run]);
 
-  const recipe = recipes.find((candidate) => candidate.id === run.selected) ?? recipes[0];
+  const recipe = getCampaignSpec(run.selected);
   const fault = run.stage === 2 ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 6 ? 'qc' : null;
   const primary = getPrimaryAction(run.stage);
 
@@ -92,7 +76,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
         <div><span>OBJECTIVE</span><b>Target phase ≥ 96%</b></div>
         <div><span>LAB CLOCK</span><b>+{run.elapsed} min</b></div>
         <div><span>INSIGHT</span><b>{run.insight} RP</b></div>
-        <div><span>LAB THROUGHPUT</span><b>{run.stage >= 7 ? '1.9' : '1.4'} runs / h</b></div>
+        <div><span>FURNACE-LIMITED RATE</span><b>{recipe.throughput}</b></div>
         <div className={fault ? 'hud-alert' : ''}><span>ACTIVE CONSTRAINT</span><b>{fault === 'cell' ? 'ROBOT CELL' : fault === 'queue' ? 'FURNACE QUEUE' : fault === 'qc' ? 'XRD QC' : 'NONE'}</b></div>
       </div>
 
@@ -127,25 +111,25 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
           <div className="route-board">
             <RouteCell code="PREP-01" label="PREP" cycle="12 MIN" state={routeState(run.stage, 1, 2)} current={run.stage === 1} job={run.stage >= 1 ? 'RUN-042' : 'OPEN'} />
             <RouteCell code="ROBO-02" label="SYNTHESIZE" cycle="14 MIN" state={run.stage === 2 ? 'fault' : routeState(run.stage, 3, 4)} current={run.stage === 3} job={run.stage === 2 ? 'CELL FAULT' : run.stage >= 3 ? 'RUN-042' : 'WAIT'} />
-            <RouteCell code="FURN-04" label="CALCINE" cycle="94 MIN" state={run.stage === 4 ? 'queued' : routeState(run.stage, 5, 6)} current={run.stage === 5} job={run.stage === 4 ? 'Q 01' : run.stage >= 5 ? 'RUN-042' : 'RUN-039'} />
+            <RouteCell code="FURN-04" label="CALCINE" cycle={`${recipe.thermalMinutes} MIN`} state={run.stage === 4 ? 'queued' : routeState(run.stage, 5, 6)} current={run.stage === 5} job={run.stage === 4 ? 'Q 01' : run.stage >= 5 ? 'RUN-042' : 'RUN-039'} />
             <RouteCell code="XRD-03" label="MEASURE" cycle="18 MIN" state={run.stage === 6 ? 'fault' : routeState(run.stage, 6, 7)} current={run.stage === 6} job={run.stage === 6 ? 'QC HOLD' : run.stage >= 7 ? 'RUN-042' : 'RUN-038'} />
-            <RouteCell code="MODEL" label="LEARN" cycle="GATED" state={run.stage >= 7 ? 'complete' : 'waiting'} current={false} job={run.stage >= 7 ? '+46 RP' : 'EVIDENCE'} />
+            <RouteCell code="MODEL" label="LEARN" cycle="GATED" state={run.stage >= 7 ? 'complete' : 'waiting'} current={false} job={run.stage >= 7 ? `+${recipe.insightReward} RP` : 'EVIDENCE'} />
           </div>
 
-          <div className={`constraint-console ${fault ? `fault-${fault}` : run.stage >= 7 ? 'result-miss' : ''}`}>
-            <div className="constraint-signal"><span>{fault ? 'BOTTLENECK DETECTED' : run.stage >= 7 ? 'VALID RESULT · TARGET MISSED' : 'ROUTE STATUS'}</span><b>{fault === 'cell' ? 'ROBO-02 / CLEANLINESS' : fault === 'queue' ? 'FURN-04 / CAPACITY 1 OF 1' : fault === 'qc' ? 'XRD-03 / CONTROL DUE' : run.stage >= 7 ? '95.8% · GAP −0.2 pp' : 'FLOW NOMINAL'}</b><i /></div>
+          <div className={`constraint-console ${fault ? `fault-${fault}` : run.stage >= 7 ? recipe.objectiveMet ? 'result-hit' : 'result-miss' : ''}`}>
+            <div className="constraint-signal"><span>{fault ? 'BOTTLENECK DETECTED' : run.stage >= 7 ? recipe.objectiveMet ? 'VALID RESULT · TARGET MET' : 'VALID RESULT · TARGET MISSED' : 'ROUTE STATUS'}</span><b>{fault === 'cell' ? 'ROBO-02 / CLEANLINESS' : fault === 'queue' ? 'FURN-04 / CAPACITY 1 OF 1' : fault === 'qc' ? 'XRD-03 / CONTROL DUE' : run.stage >= 7 ? `${recipe.measured}% · GAP ${recipe.gap}` : 'FLOW NOMINAL'}</b><i /></div>
             <div className="constraint-visual" aria-label="Campaign queue visualization">
               <span className="queue-axis">QUEUE</span>
               <div className={`queue-token token-a ${run.stage >= 4 ? 'visible' : ''}`}>042</div>
               <div className={`queue-token token-b ${run.stage === 4 ? 'visible' : ''}`}>043</div>
               <div className={`machine-aperture ${fault ? 'held' : ''}`}><i /><b>{fault ? 'HOLD' : 'READY'}</b></div>
-              <em>{fault === 'queue' ? '62 min wait' : fault === 'cell' ? '18 min recovery' : fault === 'qc' ? 'reference first' : run.stage >= 7 ? 'valid negative result' : 'no active delay'}</em>
+              <em>{fault === 'queue' ? '62 min wait' : fault === 'cell' ? '18 min recovery' : fault === 'qc' ? 'reference first' : run.stage >= 7 ? recipe.objectiveMet ? 'objective achieved' : 'valid negative result' : 'no active delay'}</em>
             </div>
             <p>{run.message}</p>
           </div>
 
           <div className="campaign-timeline" aria-label="Equipment schedule">
-            <header><span>EQUIPMENT SCHEDULE</span><b>NOW</b><i>+30</i><i>+60</i><i>+90 MIN</i></header>
+            <header><span>EQUIPMENT SCHEDULE</span><b>NOW</b><i>+2 H</i><i>+4 H</i><i>+6 H</i></header>
             <div><span>ROBO-02</span><i className="bar robot" /><b>RUN-042</b></div>
             <div><span>FURN-04</span><i className="bar furnace" /><b>RUN-039</b><i className="bar furnace queued" /><b>042</b></div>
             <div><span>XRD-03</span><i className="bar xrd" /><b>REF</b><i className="bar xrd queued" /><b>042</b></div>
@@ -154,7 +138,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
       </div>
 
       <footer className="campaign-actions">
-        <div><span>PLAYER COMMAND</span><b>{primary.hint}</b></div>
+        <div><span>PLAYER COMMAND</span><b>{run.stage >= 7 ? `${recipe.id} · ${recipe.measured}% · ${recipe.gap}` : primary.hint}</b></div>
         {run.stage === 2 && <button type="button" className="secondary" onClick={() => rejectShortcut('robot')}>BYPASS WITNESS</button>}
         {run.stage === 4 && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace')}>SHORTEN RUN-039</button>}
         <button type="button" onClick={run.stage > 0 && run.stage < 7 ? viewInLab : advance}>{primary.label}<span>→</span></button>

@@ -997,6 +997,29 @@ room. Machine interaction was optional scenery.
   its ordered control sequence advanced the run by 62 minutes, and the room returned with a fresh
   0/3 walkaround under the active 980 °C profile.
 
+## Critique 56: candidate selection was cosmetic
+
+The design space offered C-42, Z-17, and D-08, but the physical lab always reverted to C-42's
+formula, 980 °C profile, 95.8% result, and target miss. That made the core scientific decision look
+interactive without producing a different experiment.
+
+### Changes
+
+- Created a shared campaign specification for all three candidates with formula, precursor set,
+  target mass, thermal profile, prediction, uncertainty, measured outcome, objective gap, insight
+  value, and furnace-limited rate.
+- Propagated the selected candidate through 3D room labels, physical observations, PREP and furnace
+  HMI readouts, ordered control operations, LES methods, LIMS identities, XRD results, model reward,
+  and final objective verdict.
+- Replaced the placeholder 94-minute calcination with candidate-specific ramp/dwell/cool durations
+  of 330–480 minutes and changed the schedule scale and throughput metric to reflect the single-
+  capacity furnace bottleneck.
+- Isolated campaign inspection and console evidence by candidate as well as stage, preventing a
+  completed C-42 check from unlocking Z-17.
+- Browser-played C-42 to a valid 95.8% target miss at +484 minutes, then selected Z-17 and confirmed
+  a fresh 0/3 PREP walkaround, Zr-doped formula, 22.50 g mass target, Z17-1020-3H30 furnace profile,
+  330-minute thermal cycle, and a green 96.7% target-met result at +454 minutes.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
