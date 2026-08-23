@@ -469,7 +469,7 @@ button { font: inherit; }
 .facility-control-panel .modal-intro { margin-top: 0; }
 .move-bay-svg, .gas-manifold-svg { display: block; width: 100%; height: 314px; background: radial-gradient(circle at 50% 46%, #182c31, #071017 72%); }
 .move-bay-svg text, .gas-manifold-svg text { fill: #829995; font: 650 8px var(--font-geist-mono); letter-spacing: .04em; }
-.facility-indicator-strip { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid #283b45; background: #08131a; }
+.facility-indicator-strip { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid #283b45; background: #08131a; }
 .facility-indicator-strip span { padding: 9px; border-right: 1px solid #233742; color: #6b7d82; text-align: center; font: 700 7px var(--font-geist-mono); }
 .facility-indicator-strip span::before { content: ''; display: inline-block; width: 5px; height: 5px; margin-right: 6px; border-radius: 50%; background: #bd8b44; box-shadow: 0 0 7px #bd8b4466; }
 .facility-indicator-strip span.ok { color: #8fcfb7; }.facility-indicator-strip span.ok::before { background: #68d4ad; box-shadow: 0 0 8px #68d4ad99; }

@@ -7,7 +7,7 @@ export function FieldGuideModal({ onClose }: { onClose: () => void }) {
 function AccessBoundaryMap() {
   const layers = [
     { icon: '◫', code: 'PHYSICAL', title: 'ASSET + SAMPLE', detail: 'observe · identify · control' },
-    { icon: '⌁', code: 'SCADA / HMI', title: 'LIVE STATE', detail: 'alarms · interlocks · permissives' },
+    { icon: '⌁', code: 'MES / SCADA / HMI', title: 'EXECUTION + LIVE STATE', detail: 'moves · alarms · permissives' },
     { icon: '✓', code: 'LES / LIMS', title: 'GOVERNED RECORD', detail: 'method · lineage · native data' },
     { icon: '◇', code: 'AI PLANNER', title: 'PROPOSED NEXT', detail: 'recommend · never self-release' },
   ];
