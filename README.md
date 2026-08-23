@@ -69,6 +69,10 @@ so the instruments read as one operational facility rather than isolated product
 Characterization systems sit on subdued installation or anti-vibration slabs with leveling points
 and thin digital-twin perimeters; the selection treatment is intentionally an overlay, not a glowing
 physical platform.
+The 3D bay defaults to a neutral inspection-light state with visible overhead fixtures, readable
+service hardware, and brighter epoxy-floor and wall materials. A technician can switch to an
+instrument-run state that lowers ambient and fixture light while preserving HMI, alarm, furnace,
+and station-state cues; both states are available in dashboard and immersive aisle views.
 Scenario routes move distinct physical carriers rather than a generic token: a six-position XRD
 tray, a four-tube gas-sorption rack, a refractory setter with crucibles, or a paired-pan carrier for
 thermal analysis. Loading zones sit in front of each instrument, and the procedural robot includes

@@ -93,6 +93,7 @@ button { font: inherit; }
 .lab-viewport.is-immersive::after { content: 'EQUIPMENT-FIRST VIEW · ESC TO RETURN TO SHIFT CONSOLE'; position: absolute; z-index: 39; left: 24px; bottom: 18px; color: #70869a; font: 650 6px var(--font-geist-mono); letter-spacing: .1em; pointer-events: none; text-shadow: 0 2px 8px #000; }
 .lab-viewport.is-immersive .view-switch { top: 18px; right: 20px; }
 .lab-viewport.is-immersive .camera-switch { top: 58px; right: 20px; }
+.lab-viewport.is-immersive .lighting-switch { top: 90px; right: 20px; }
 .lab-viewport.is-immersive .scene-corner-top { top: 24px; left: 25px; }
 .lab-viewport.is-immersive .scene-corner-bottom { left: 25px; bottom: 34px; }
 .lab-viewport.is-immersive .scene-station-picker { right: 22px; bottom: 20px; }
@@ -116,6 +117,7 @@ button { font: inherit; }
 .view-switch button.immersive-toggle { min-width: 76px; border-left: 1px solid #22374c; }
 .camera-switch { position: absolute; z-index: 34; top: 47px; right: 11px; display: flex; border: 1px solid #263a50; background: #080e17d4; box-shadow: 0 8px 24px #0007; backdrop-filter: blur(9px); }
 .camera-switch button { height: 25px; padding: 0 8px; border: 0; border-right: 1px solid #26384c; background: transparent; color: #5e7085; font: 650 6px var(--font-geist-mono); cursor: pointer; }.camera-switch button:last-child { border-right: 0; }.camera-switch button:hover, .camera-switch button:focus-visible { color: #b5c5d3; outline: none; }.camera-switch button.active { background: #112838; color: var(--cyan); }
+.lighting-switch { position: absolute; z-index: 34; top: 78px; right: 11px; height: 24px; padding: 0 8px; border: 1px solid #3d4d58; background: #11191ed9; color: #aab5b6; box-shadow: 0 8px 22px #0007; backdrop-filter: blur(9px); font: 700 6px var(--font-geist-mono); letter-spacing: .055em; cursor: pointer; }.lighting-switch span { margin-right: 6px; color: #f0cf84; }.lighting-switch:hover, .lighting-switch:focus-visible { border-color: #7c8e8d; color: #e2e8e5; outline: none; }.lighting-switch.mode-run { border-color: #315b6b; background: #0a1720d9; color: #78aabb; }.lighting-switch.mode-run span { color: var(--cyan); }
 .scene-corner { position: absolute; z-index: 25; pointer-events: none; color: #6d7f94; font: 600 7px var(--font-geist-mono); letter-spacing: .08em; text-shadow: 0 2px 8px #000; }
 .scene-corner-top { top: 15px; left: 16px; display: flex; flex-direction: column; gap: 3px; }
 .scene-corner-top span { color: var(--cyan); }
@@ -542,10 +544,12 @@ button { font: inherit; }
   .scene-corner-bottom { display: none; }
   .view-switch { right: 8px; top: 8px; }
   .camera-switch { right: 8px; top: 42px; }
+  .lighting-switch { left: 8px; right: auto; top: 76px; }
   .view-switch button { min-width: 66px; }
   .view-switch button.immersive-toggle { min-width: 60px; }
   .lab-viewport.is-immersive .view-switch { top: 12px; right: 12px; }
   .lab-viewport.is-immersive .camera-switch { top: 52px; right: 12px; }
+  .lab-viewport.is-immersive .lighting-switch { left: 12px; right: auto; top: 92px; }
   .lab-viewport.is-immersive::after { left: 17px; bottom: 14px; max-width: 190px; line-height: 1.5; }
   .station-3d-label { width: 98px; padding: 5px 6px; }
   .station-3d-label:not(.selected) { display: none; }

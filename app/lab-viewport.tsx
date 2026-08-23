@@ -18,6 +18,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
 }) {
   const [mode, setMode] = useState<'3d' | '2d'>('3d');
   const [cameraMode, setCameraMode] = useState<'overview' | 'walk' | 'focus'>('overview');
+  const [lightingMode, setLightingMode] = useState<'inspection' | 'run'>('inspection');
   const [immersive, setImmersive] = useState(false);
 
   useEffect(() => {
@@ -72,8 +73,15 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
       <button type="button" className={cameraMode === 'walk' ? 'active' : ''} onClick={() => setCameraMode('walk')} aria-pressed={cameraMode === 'walk'}>⇧ WALK AISLE</button>
       <button type="button" className={cameraMode === 'focus' ? 'active' : ''} onClick={() => setCameraMode('focus')} aria-pressed={cameraMode === 'focus'}>◎ FOCUS {selectedId}</button>
     </div>}
+    {mode === '3d' && <button
+      type="button"
+      className={`lighting-switch mode-${lightingMode}`}
+      onClick={() => setLightingMode((current) => current === 'inspection' ? 'run' : 'inspection')}
+      aria-label={`Facility lighting: ${lightingMode === 'inspection' ? 'inspection light' : 'instrument run light'}. Activate to change lighting.`}
+      aria-pressed={lightingMode === 'inspection'}
+    ><span>{lightingMode === 'inspection' ? '☼' : '◐'}</span>{lightingMode === 'inspection' ? 'INSPECTION LIGHT' : 'RUN LIGHT'}</button>}
     {mode === '3d'
-      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} cameraMode={cameraMode} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
+      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
       : <LabCanvas stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} onSelect={onSelect} />}
   </div>;
 

@@ -10,6 +10,7 @@ type OrbitControlsHandle = React.ComponentRef<typeof OrbitControls>;
 
 type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga';
 type CameraMode = 'overview' | 'walk' | 'focus';
+type LightingMode = 'inspection' | 'run';
 type WalkDirection = 'forward' | 'back' | 'left' | 'right';
 type WalkCommand = { id: number; direction: WalkDirection };
 type SceneProps = {
@@ -18,6 +19,7 @@ type SceneProps = {
   phase: number;
   scenarioId: ScenarioId;
   cameraMode: CameraMode;
+  lightingMode: LightingMode;
   onCameraMode: (mode: CameraMode) => void;
   onOpenConsole: () => void;
   inspectionState?: Record<string, string[]>;
@@ -43,7 +45,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lightingMode, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -67,38 +69,14 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onC
         dpr={[1, 1.55]}
         camera={{ position: [10.5, 11.8, 19.5], fov: 50, near: 0.1, far: 90 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
-        onCreated={({ gl, scene }) => {
+        onCreated={({ gl }) => {
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.05;
-          scene.background = new THREE.Color('#070b12');
-          scene.fog = new THREE.Fog('#070b12', 17, 34);
         }}
       >
-        <ambientLight intensity={0.72} color="#9fb6d5" />
-        <hemisphereLight args={['#d5e8ff', '#111722', 1.15]} />
-        <directionalLight
-          castShadow
-          position={[7, 11, 8]}
-          intensity={2.8}
-          color="#e7f1ff"
-          shadow-mapSize-width={1536}
-          shadow-mapSize-height={1536}
-          shadow-camera-left={-12}
-          shadow-camera-right={12}
-          shadow-camera-top={10}
-          shadow-camera-bottom={-10}
-          shadow-bias={-0.00035}
-        />
-        <pointLight position={[-4, 4.5, 1]} intensity={24} distance={10} color="#4dd5ed" decay={2} />
-        <pointLight position={[3.5, 3.4, -2]} intensity={18} distance={8} color="#f4b95f" decay={2} />
-        <Environment resolution={128} frames={1}>
-          <Lightformer form="rect" intensity={3.2} color="#d9edff" position={[0, 7, 1]} rotation={[Math.PI / 2, 0, 0]} scale={[11, 8, 1]} />
-          <Lightformer form="rect" intensity={2.1} color="#75d9ee" position={[-8, 3, 3]} rotation={[0, Math.PI / 2, 0]} scale={[5, 3, 1]} />
-          <Lightformer form="rect" intensity={1.8} color="#ffb469" position={[6, 2, -2]} rotation={[0, -Math.PI / 2, 0]} scale={[4, 2, 1]} />
-        </Environment>
+        <FacilityLighting mode={lightingMode} />
 
-        <LabArchitecture />
+        <LabArchitecture lightingMode={lightingMode} />
         <OperationsProps />
         <MaterialRoute scenarioId={scenarioId} phase={phase} />
         {stations.map((station, index) => (cameraMode !== 'focus' || selectedId === station.id) ? (
@@ -158,6 +136,36 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onC
       </div>}
     </div>
   );
+}
+
+function FacilityLighting({ mode }: { mode: LightingMode }) {
+  const inspection = mode === 'inspection';
+  return <>
+    <color attach="background" args={[inspection ? '#171d21' : '#070b12']} />
+    <fog attach="fog" args={[inspection ? '#171d21' : '#070b12', inspection ? 22 : 17, inspection ? 43 : 34]} />
+    <ambientLight intensity={inspection ? 1.08 : 0.68} color={inspection ? '#e3e9e8' : '#9fb6d5'} />
+    <hemisphereLight args={[inspection ? '#f4f8f5' : '#d5e8ff', inspection ? '#3c4546' : '#111722', inspection ? 1.6 : 1.08]} />
+    <directionalLight
+      castShadow
+      position={[7, 11, 8]}
+      intensity={inspection ? 3.7 : 2.7}
+      color={inspection ? '#fffaf0' : '#e7f1ff'}
+      shadow-mapSize-width={1536}
+      shadow-mapSize-height={1536}
+      shadow-camera-left={-12}
+      shadow-camera-right={12}
+      shadow-camera-top={10}
+      shadow-camera-bottom={-10}
+      shadow-bias={-0.00035}
+    />
+    <pointLight position={[-4, 4.5, 1]} intensity={inspection ? 8 : 24} distance={10} color="#4dd5ed" decay={2} />
+    <pointLight position={[3.5, 3.4, -2]} intensity={inspection ? 5 : 18} distance={8} color="#f4b95f" decay={2} />
+    <Environment key={mode} resolution={128} frames={1}>
+      <Lightformer form="rect" intensity={inspection ? 5.4 : 3.2} color={inspection ? '#f5f5ed' : '#d9edff'} position={[0, 7, 1]} rotation={[Math.PI / 2, 0, 0]} scale={[11, 8, 1]} />
+      <Lightformer form="rect" intensity={inspection ? 2.6 : 2.1} color={inspection ? '#dce9e7' : '#75d9ee'} position={[-8, 3, 3]} rotation={[0, Math.PI / 2, 0]} scale={[5, 3, 1]} />
+      <Lightformer form="rect" intensity={inspection ? 2.2 : 1.8} color={inspection ? '#f0e4d3' : '#ffb469'} position={[6, 2, -2]} rotation={[0, -Math.PI / 2, 0]} scale={[4, 2, 1]} />
+    </Environment>
+  </>;
 }
 
 function CameraDirector({ mode, selectedIndex, controls }: { mode: CameraMode; selectedIndex: number; controls: React.RefObject<OrbitControlsHandle | null> }) {
@@ -266,24 +274,30 @@ function AisleNavigator({ active, controls, command }: { active: boolean; contro
   return null;
 }
 
-function LabArchitecture() {
+function LabArchitecture({ lightingMode }: { lightingMode: LightingMode }) {
+  const inspection = lightingMode === 'inspection';
   return <group>
     <mesh receiveShadow position={[-1.75, -0.07, 2.05]}>
       <boxGeometry args={[14.4, 0.14, 13.1]} />
-      <meshPhysicalMaterial color="#111924" roughness={0.76} metalness={0.12} clearcoat={0.3} clearcoatRoughness={0.8} />
+      <meshPhysicalMaterial color={inspection ? '#30383b' : '#111924'} roughness={0.76} metalness={0.12} clearcoat={0.3} clearcoatRoughness={0.8} />
     </mesh>
-    <Grid position={[-1.75, 0.012, 2.05]} args={[14.2, 13]} cellSize={0.5} cellThickness={0.38} cellColor="#26384d" sectionSize={2} sectionThickness={0.75} sectionColor="#34506c" fadeDistance={19} fadeStrength={1.6} infiniteGrid={false} />
+    <Grid position={[-1.75, 0.012, 2.05]} args={[14.2, 13]} cellSize={0.5} cellThickness={0.38} cellColor={inspection ? '#465156' : '#26384d'} sectionSize={2} sectionThickness={0.75} sectionColor={inspection ? '#5b686e' : '#34506c'} fadeDistance={19} fadeStrength={1.6} infiniteGrid={false} />
     <mesh receiveShadow position={[-1.75, 2.45, -4.42]}>
       <boxGeometry args={[14.4, 5, 0.18]} />
-      <meshStandardMaterial color="#101923" roughness={0.68} metalness={0.18} />
+      <meshStandardMaterial color={inspection ? '#566064' : '#101923'} roughness={0.68} metalness={0.18} />
     </mesh>
     <mesh receiveShadow position={[-8.86, 2.45, -0.15]}>
       <boxGeometry args={[0.18, 5, 8.7]} />
-      <meshStandardMaterial color="#0d151f" roughness={0.72} metalness={0.14} />
+      <meshStandardMaterial color={inspection ? '#4d575b' : '#0d151f'} roughness={0.72} metalness={0.14} />
     </mesh>
     {[-5.8, -1.75, 2.3].map((x) => <group key={x} position={[x, 4.65, -4.25]}>
-      <mesh castShadow><boxGeometry args={[2.7, 0.07, 0.12]} /><meshStandardMaterial color="#d7f2ff" emissive="#bdeaff" emissiveIntensity={2.8} /></mesh>
-      <pointLight position={[0, -0.3, 1.2]} intensity={8} distance={6.5} color="#caeaff" decay={2} />
+      <mesh castShadow><boxGeometry args={[2.7, 0.07, 0.12]} /><meshStandardMaterial color="#d7f2ff" emissive="#bdeaff" emissiveIntensity={inspection ? 2.8 : 0.7} /></mesh>
+      <pointLight position={[0, -0.3, 1.2]} intensity={inspection ? 8 : 1.8} distance={6.5} color="#caeaff" decay={2} />
+    </group>)}
+    {[[-5.25, -1.55], [-1.75, -1.55], [1.75, -1.55], [-5.25, 2.15], [-1.75, 2.15], [1.75, 2.15], [-1.75, 5.5], [1.75, 5.5]].map(([x, z]) => <group key={`${x}-${z}`} position={[x, 4.72, z]}>
+      <mesh castShadow><boxGeometry args={[2.25, 0.12, 0.72]} /><meshStandardMaterial color="#687176" metalness={0.52} roughness={0.35} /></mesh>
+      <mesh position={[0, -0.07, 0]}><boxGeometry args={[2.02, 0.035, 0.56]} /><meshStandardMaterial color={inspection ? '#f4f4e9' : '#a9c2ca'} emissive={inspection ? '#fffbea' : '#a8d9e5'} emissiveIntensity={inspection ? 2.8 : 0.7} roughness={0.48} /></mesh>
+      <pointLight position={[0, -0.25, 0]} intensity={inspection ? 8.5 : 1.8} distance={6.8} color={inspection ? '#fff7df' : '#c5e6ed'} decay={2} />
     </group>)}
     <mesh position={[-1.75, 0.025, 2.05]} rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={[0.08, 12.7]} />

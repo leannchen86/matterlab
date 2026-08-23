@@ -472,6 +472,25 @@ meant to teach.
   and attestation, then repeated the check with TGA/DSC pan/purge/furnace observations, balance tare,
   purge proof, carousel home, and attestation.
 
+## Critique 28: cinematic darkness fought physical inspection
+
+The dark digital-twin treatment made status lights and metallic equipment attractive, but it also
+made the bay feel like a product stage. A technician walking down valves, sample holders, doors, and
+clearances needs a high, neutral ambient level; lower light is useful during instrument operation,
+but should be an intentional facility state rather than the only visual language.
+
+### Changes
+
+- Added a technician-selectable inspection-light and instrument-run lighting state in every 3D
+  camera mode, including the full-viewport equipment-first view.
+- Added modeled overhead LED troffers with matching physical emission and local room illumination.
+- Gave inspection mode neutral wall, epoxy-floor, fog, environment, and accent-light values so
+  cabinet geometry and operating clearances remain readable without flattening metallic materials.
+- Preserved a restrained run state that lowers room and fixture output while retaining alarm,
+  furnace, HMI, and station-status cues.
+- Compared TGA/DSC at overview and technician eye height in both modes, then verified the toggle,
+  station selector, movement controls, and console handoff at 390 × 844 in immersive mode.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
