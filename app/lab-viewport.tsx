@@ -64,8 +64,14 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
 
   const toggleImmersive = () => {
     if (!immersive) setMode('3d');
-    else if (cameraMode === 'walk') setCameraMode('overview');
+    else setCameraMode('overview');
     setImmersive((value) => !value);
+  };
+
+  const enterLab = () => {
+    setMode('3d');
+    setCameraMode('walk');
+    setImmersive(true);
   };
 
   const openSelectedConsole = () => {
@@ -95,6 +101,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
       aria-label={`Facility lighting: ${lightingMode === 'inspection' ? 'inspection light' : 'instrument run light'}. Activate to change lighting.`}
       aria-pressed={lightingMode === 'inspection'}
     ><span>{lightingMode === 'inspection' ? '☼' : '◐'}</span>{lightingMode === 'inspection' ? 'INSPECTION LIGHT' : 'RUN LIGHT'}</button>}
+    {mode === '3d' && !immersive && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>HUMAN-SCALE AISLE</small><i>→</i></button>}
     {mode === '3d'
       ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
       : <LabCanvas stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} onSelect={onSelect} />}
