@@ -5,6 +5,9 @@ import type { Station } from './sim-data';
 
 type Tab = 'hmi' | 'les' | 'lims' | 'cmms';
 type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
+type ConsoleSession = { completed: Record<Tab, boolean>; hmiOperations: string[] };
+
+const emptyConsoleSession = (): ConsoleSession => ({ completed: { hmi: false, les: false, lims: false, cmms: false }, hmiOperations: [] });
 
 const TAB_META: Record<Tab, { icon: string; label: string; sub: string }> = {
   hmi: { icon: '⌁', label: 'HMI', sub: 'live control' },
@@ -57,17 +60,25 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   const [open, setOpen] = useState(false);
   const [enteredFromLab, setEnteredFromLab] = useState(false);
   const [tab, setTab] = useState<Tab>('hmi');
-  const [completed, setCompleted] = useState<Record<Tab, boolean>>({ hmi: false, les: false, lims: false, cmms: false });
-  const [hmiOperations, setHmiOperations] = useState<string[]>([]);
+  const [sessions, setSessions] = useState<Record<string, ConsoleSession>>({});
+  const session = sessions[station.id] ?? emptyConsoleSession();
+  const completed = session.completed;
+  const hmiOperations = session.hmiOperations;
   const profile = getContextProfile(station.id, scenarioId);
   const recordStationEvent = (type: string, text: string, action?: string) => window.dispatchEvent(new CustomEvent('mattershift:station-event', { detail: { stationId: station.id, type, text, action } }));
   const finish = () => {
-    setCompleted((current) => ({ ...current, [tab]: true }));
+    setSessions((current) => {
+      const active = current[station.id] ?? emptyConsoleSession();
+      return { ...current, [station.id]: { ...active, completed: { ...active.completed, [tab]: true } } };
+    });
     recordStationEvent('attestation', `${station.id} ${TAB_META[tab].label} ${tab === 'hmi' ? 'safe-state attestation' : 'operator action'} retained with TECH-07 and the active record revision.`);
   };
   const commitHmiOperation = (operation: string) => {
     if (hmiOperations.includes(operation)) return;
-    setHmiOperations((current) => [...current, operation]);
+    setSessions((current) => {
+      const active = current[station.id] ?? emptyConsoleSession();
+      return { ...current, [station.id]: { ...active, hmiOperations: [...active.hmiOperations, operation] } };
+    });
     recordStationEvent('control', `${station.id} local control: ${operation}; equipment feedback retained.`, operation);
   };
 

@@ -858,6 +858,42 @@ vendor-recommissioning record, and the XRD furnace inherited BC-207 recovery con
 - Browser-verified the facility LES procedure, LIMS identifiers, evidence meanings, and
   `MOVE RELEASED` state after physical tote reconciliation.
 
+## Critique 49: walking between instruments erased console work
+
+The local consoles let the player complete governed HMI, LES, and LIMS actions, but selecting a
+different station remounted the console and discarded that evidence. That made the lab feel like a
+collection of disconnected demos rather than a persistent room.
+
+### Changes
+
+- Replaced the single transient console state with station-keyed sessions for active tab, completed
+  HMI sequence steps, LES progress, and verified LIMS associations.
+- Kept session data scoped to the current campaign run, so returning to an asset shows the work the
+  player actually completed there without leaking records between stations.
+- Removed parent keys that forced station access to remount whenever the selected asset changed.
+- Browser-tested PREP-01 by verifying MOV-3024, walking to BET-02, returning to PREP-01, and
+  confirming both the completed-tab checkmark and `ASSOCIATION VERIFIED` state persisted.
+
+## Critique 50: research scaffolding leaked into the game world
+
+The field guide still explained the simulator through its source job descriptions and external
+research. That was useful during design, but it broke the fiction of entering a working materials
+lab and made the interface feel like a training document instead of a game system.
+
+### Changes
+
+- Removed player-facing job-description and source language from the field guide and metadata.
+- Recast the guide as an in-world operations reference anchored on a five-stage campaign loop:
+  design, prepare, synthesize, measure, and learn.
+- Added a compact visual fault vocabulary for QC drift, starved queues, cell faults, utility holds,
+  contamination, and model holds—the conditions future sandbox play will surface as bottlenecks.
+- Added a player-control boundary showing how physical assets, MES/SCADA/HMI, LES/LIMS, and the AI
+  planner relate, including the rule that AI can propose but cannot override release gates.
+- Changed player-facing deck, ledger, and debrief language from employment/training framing to
+  campaign incidents, run records, system insight, and operator decisions.
+- Visually inspected the new guide at desktop and compact viewport sizes and confirmed the removed
+  employment/source language no longer appears in the application.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

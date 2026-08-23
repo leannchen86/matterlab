@@ -88,12 +88,12 @@ export const fieldGuide = [
   {
     term: 'LIMS / LES',
     role: 'Sample identity, methods, results, and governed laboratory execution.',
-    atBench: 'The technician sees work queues, barcodes, required fields, exceptions, and review status—not just a database.',
+    atBench: 'You see work queues, barcodes, required fields, exceptions, and review status—not just a database.',
   },
   {
     term: 'MES / SCADA',
     role: 'Operations coordination and supervisory visibility across equipment and process controls.',
-    atBench: 'The technician sees equipment states, interlocks, alarms, recipes, and material movement while local controllers still own hard real-time control.',
+    atBench: 'You see equipment states, interlocks, alarms, recipes, and material movement while local controllers still own hard real-time control.',
   },
   {
     term: 'XRD',
@@ -115,19 +115,6 @@ export const fieldGuide = [
     role: 'Specific surface area inferred from a gas-adsorption isotherm.',
     atBench: 'Degassing history, adsorbate, leak checks, equilibrium criteria, and the selected fit region belong with the reported number.',
   },
-];
-
-export const sources = [
-  { label: 'Periodic Labs · Lab Technician', href: 'https://jobs.ashbyhq.com/periodic-labs/50a878d1-f9a6-4234-950d-f18d73c65c47' },
-  { label: 'Periodic Labs · Research Engineer, Lab Automation', href: 'https://jobs.ashbyhq.com/periodic-labs/a16ee7dd-021d-4f37-823d-7a8b520c6d8a' },
-  { label: 'Periodic Labs · Automation Engineer', href: 'https://jobs.ashbyhq.com/periodic-labs/5e692aeb-234b-4112-b318-7ff464977303/' },
-  { label: 'Periodic Labs · Lab Operations & Maintenance', href: 'https://jobs.ashbyhq.com/periodic-labs/b1ad8632-f489-4922-8805-42d84711cda1/' },
-  { label: 'A-Lab · autonomous inorganic synthesis', href: 'https://www.nature.com/articles/s41586-023-06734-w' },
-  { label: 'NIST · XRD reference materials', href: 'https://www.nist.gov/mml/mmsd/standards-and-tools/reference-materials' },
-  { label: 'ISA · ISA-95 integration model', href: 'https://www.isa.org/standards-and-publications/isa-standards/isa-95-standard' },
-  { label: 'Thermo Fisher · SEM/EDS overview', href: 'https://www.thermofisher.com/in/en/home/materials-science/elemental-analysis/technology.html' },
-  { label: 'TA Instruments · thermal analysis training', href: 'https://www.tainstruments.com/theory-applications-training-documents/' },
-  { label: 'Micromeritics · BET surface area', href: 'https://micromeritics.com/bet-surface-area-analyzers/' },
 ];
 
 export const initialLog = [
