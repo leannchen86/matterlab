@@ -34,6 +34,11 @@ The shared bay includes overhead cable routing, gas/vacuum service panels, emerg
 mobile handling equipment, point-of-work tools, and a compact keyboard-accessible station selector
 so the instruments read as one operational facility rather than isolated product models.
 
+The AI experiment loop is visual rather than conversational: each shift plots retained measurements,
+an uncertainty field, and a proposed next experiment in a small scenario-specific design space. A
+technician evidence gate can visibly hold that proposal when measurement context, reference control,
+or thermal history is not yet trustworthy.
+
 The shift deck, 3D facility, 2D fallback map, and station consoles are responsive down to a
 phone-sized viewport. All instrument geometry, traces, micrographs, spectra, and equipment routes
 are drawn in the app without external image assets.

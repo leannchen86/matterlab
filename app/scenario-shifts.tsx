@@ -85,7 +85,30 @@ export function PlannerPanel({ scenario, phase }: { scenario: ScenarioId; phase:
     },
   }[scenario];
   const cursor = phase >= 5 ? 3 : phase >= 4 ? 2 : phase >= 2 ? 1 : 0;
-  return <section className="rail-section planner-panel"><div className="section-title-row"><p className="section-kicker">AI EXPERIMENT LOOP</p><span className={phase >= 5 ? 'held' : phase >= 4 ? 'review' : ''}>{states.status}</span></div><div className="planner-loop">{['PLAN', 'EXECUTE', 'MEASURE', 'LEARN'].map((label, index) => <div key={label} className={index < cursor ? 'passed' : index === cursor ? 'current' : ''}><i>{index < cursor ? '✓' : `0${index + 1}`}</i><span>{label}</span></div>)}</div><div className="planner-request"><span>MODEL REQUEST</span><b>{states.request}</b></div><div className="planner-gate"><i>TECH GATE</i><div><b>{states.gate}</b><span>Next: {states.next}</span></div></div></section>;
+  return <section className="rail-section planner-panel"><div className="section-title-row"><p className="section-kicker">AI EXPERIMENT LOOP</p><span className={phase >= 5 ? 'held' : phase >= 4 ? 'review' : ''}>{states.status}</span></div><div className="planner-loop">{['PLAN', 'EXECUTE', 'MEASURE', 'LEARN'].map((label, index) => <div key={label} className={index < cursor ? 'passed' : index === cursor ? 'current' : ''}><i>{index < cursor ? '✓' : `0${index + 1}`}</i><span>{label}</span></div>)}</div><DesignSpace scenario={scenario} phase={phase} /><div className="planner-request"><span>MODEL REQUEST</span><b>{states.request}</b></div><div className="planner-gate"><i>TECH GATE</i><div><b>{states.gate}</b><span>Next: {states.next}</span></div></div></section>;
+}
+
+function DesignSpace({ scenario, phase }: { scenario: ScenarioId; phase: number }) {
+  const config = {
+    xrd: { x: 'DWELL', y: 'COMPOSITION', accent: '#4dd5ed', proposal: [78, 28], points: [[18, 72], [31, 58], [45, 67], [58, 43], [69, 55], [84, 35]] },
+    bet: { x: 'CALCINATION', y: 'SURFACE AREA', accent: '#b48cff', proposal: [35, 69], points: [[16, 42], [28, 51], [43, 62], [58, 58], [70, 39], [82, 28]] },
+    furnace: { x: 'THERMAL DOSE', y: 'PHASE SCORE', accent: '#ff995f', proposal: [72, 34], points: [[14, 76], [29, 66], [42, 54], [56, 45], [69, 38], [84, 29]] },
+  }[scenario];
+  const visible = Math.min(config.points.length, 2 + Math.floor(phase / 2));
+  const gated = phase >= 4;
+  return <div className={`design-space ${gated ? 'gated' : ''}`} style={{ '--design-accent': config.accent } as React.CSSProperties}>
+    <div className="design-space-head"><span>EXPERIMENT SPACE</span><b>{gated ? 'EVIDENCE GATE' : 'MODEL PROPOSAL'}</b></div>
+    <svg viewBox="0 0 100 74" role="img" aria-label={`${config.x} by ${config.y} experiment design space with ${visible} measured points and one proposed point`}>
+      <defs><radialGradient id={`field-${scenario}`}><stop offset="0" stopColor={config.accent} stopOpacity=".28" /><stop offset="1" stopColor={config.accent} stopOpacity="0" /></radialGradient></defs>
+      <path className="space-contour" d="M10 55 C22 25, 47 18, 91 30 M7 66 C34 38, 61 36, 94 15 M18 70 C44 54, 69 50, 94 46" />
+      <ellipse cx={config.proposal[0]} cy={config.proposal[1]} rx="22" ry="18" fill={`url(#field-${scenario})`} />
+      {config.points.slice(0, visible).map(([x, y], index) => <g key={`${x}-${y}`} className="measured-point"><circle cx={x} cy={y} r="2.2" /><text x={x + 3.5} y={y + 1.8}>{String(index + 1).padStart(2, '0')}</text></g>)}
+      <g className="proposal-point" transform={`translate(${config.proposal[0]} ${config.proposal[1]})`}><circle r="5.2" /><path d="M-3 0H3M0-3V3" />{gated && <path className="gate-slash" d="M-5 5L5-5" />}</g>
+      <text className="axis-label axis-y-label" x="4" y="9">{config.y}</text>
+      <text className="axis-label axis-x-label" x="96" y="71" textAnchor="end">{config.x}</text>
+    </svg>
+    <div className="design-legend"><span><i className="measured" />MEASURED</span><span><i className="proposed" />PROPOSED</span><em>{gated ? 'HOLD' : 'UNCERTAINTY ↓'}</em></div>
+  </div>;
 }
 
 export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | 'furnace'; onSwitch: (id: ScenarioId) => void }) {

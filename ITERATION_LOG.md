@@ -153,6 +153,25 @@ or partly occluded mesh was also less discoverable than the rest of the interfac
   HTML labels into pointer stacking made all but one disappear in the rendered scene, so the labels
   remain visual annotations and selection lives in a stable scene-level control.
 
+## Critique 9: the AI loop was named but not visible
+
+The right rail showed PLAN → EXECUTE → MEASURE → LEARN and a textual model request, but it did not
+make an AI-guided materials campaign visually legible. The model could still feel like a chatbot
+issuing a recipe rather than a proposal inside an evolving experimental space.
+
+### Changes
+
+- Added a compact scenario-specific experiment-space map for dwell/composition, calcination/surface
+  area, or thermal dose/phase score.
+- Plotted retained measurements, an uncertainty field, and the model's proposed next point without
+  displacing the technician's equipment view.
+- Bound the visualization to real scenario progress: measurements accumulate as governed steps
+  complete, and the proposed point changes to an evidence-gated HOLD when XRD, BET, or interrupted
+  thermal history requires technician review.
+- Exercised the complete XRD path through QC recovery, one quarantined identity mismatch, automated
+  execution, and result review; verified the chart at both proposal and gated states.
+- Verified the BET-specific design variables and compact visualization at 390 × 844.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
