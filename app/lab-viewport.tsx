@@ -16,7 +16,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', o
   onSelect: (id: string) => void;
 }) {
   const [mode, setMode] = useState<'3d' | '2d'>('3d');
-  const [cameraMode, setCameraMode] = useState<'overview' | 'focus'>('overview');
+  const [cameraMode, setCameraMode] = useState<'overview' | 'walk' | 'focus'>('overview');
   const [immersive, setImmersive] = useState(false);
 
   useEffect(() => {
@@ -38,6 +38,11 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', o
     setImmersive((value) => !value);
   };
 
+  const openSelectedConsole = () => {
+    setImmersive(false);
+    window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:open-console', { detail: { stationId: selectedId } })));
+  };
+
   const viewport = <div
     className={`lab-viewport mode-${mode}${immersive ? ' is-immersive' : ''}`}
     aria-label={immersive ? 'Immersive facility view' : undefined}
@@ -50,10 +55,11 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', o
     </div>
     {mode === '3d' && <div className="camera-switch" role="group" aria-label="3D camera mode">
       <button type="button" className={cameraMode === 'overview' ? 'active' : ''} onClick={() => setCameraMode('overview')} aria-pressed={cameraMode === 'overview'}>⌂ OVERVIEW</button>
+      <button type="button" className={cameraMode === 'walk' ? 'active' : ''} onClick={() => setCameraMode('walk')} aria-pressed={cameraMode === 'walk'}>⇧ WALK AISLE</button>
       <button type="button" className={cameraMode === 'focus' ? 'active' : ''} onClick={() => setCameraMode('focus')} aria-pressed={cameraMode === 'focus'}>◎ FOCUS {selectedId}</button>
     </div>}
     {mode === '3d'
-      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} cameraMode={cameraMode} onCameraMode={setCameraMode} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
+      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} cameraMode={cameraMode} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
       : <LabCanvas stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} onSelect={onSelect} />}
   </div>;
 

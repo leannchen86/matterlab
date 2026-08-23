@@ -130,6 +130,7 @@ button { font: inherit; }
 .station-3d-label i { display: block; margin-top: 3px; color: var(--station-tone); font: 650 6px var(--font-geist-mono); font-style: normal; }
 .station-3d-label.selected { border-color: var(--cyan); background: #0c2130ed; box-shadow: 0 0 26px #4dd5ed2e, 0 8px 24px #000a, inset 2px 0 0 var(--cyan); transform: translateY(-7px) scale(1.04); }
 .lab-3d.camera-focus .station-3d-label:not(.selected) { display: none; }
+.lab-3d.camera-walk .station-3d-label { display: none; }
 .scene-station-picker { position: absolute; z-index: 28; right: 14px; bottom: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 4px; border: 1px solid #253b50; background: #06101ad9; box-shadow: 0 12px 26px #000a; backdrop-filter: blur(9px); }
 .scene-station-picker button { min-width: 58px; height: 23px; display: flex; align-items: center; gap: 5px; padding: 0 7px; border: 1px solid transparent; background: #0b1621; color: #617489; font: 650 6px var(--font-geist-mono); cursor: pointer; }
 .scene-station-picker button i { width: 5px; height: 5px; border-radius: 50%; background: var(--station-tone); box-shadow: 0 0 6px color-mix(in srgb, var(--station-tone) 68%, transparent); }
@@ -140,6 +141,11 @@ button { font: inherit; }
 .walkaround-panel header { display: flex; align-items: center; justify-content: space-between; }.walkaround-panel header div { min-width: 0; }.walkaround-panel header span { display: block; color: var(--cyan); font: 700 6px var(--font-geist-mono); letter-spacing: .09em; }.walkaround-panel header b { display: block; margin-top: 4px; overflow: hidden; color: #b9c7d3; font: 650 8px var(--font-geist-mono); white-space: nowrap; text-overflow: ellipsis; }.walkaround-panel header em { color: #7c91a3; font: 700 8px var(--font-geist-mono); font-style: normal; }.walkaround-panel > div:first-of-type { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 9px; }.walkaround-panel button { min-width: 0; height: 27px; border: 1px solid #293d52; background: #0d1824; color: #718397; font: 650 6px var(--font-geist-mono); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.walkaround-panel button i { margin-right: 4px; color: #5e7589; font-style: normal; }.walkaround-panel button:hover, .walkaround-panel button:focus-visible { border-color: #46758c; color: #b9c8d4; outline: none; }.walkaround-panel button.visited { border-color: #36755d; background: #0d241b; color: var(--green); }.walkaround-panel button.visited i { color: var(--green); }.walkaround-panel > small { display: block; margin-top: 8px; color: #5e7287; font: 500 6px/1.4 var(--font-geist-mono); }
 .walkaround-observation { position: relative; min-height: 35px; margin-top: 6px; padding: 6px 56px 6px 7px; border: 1px solid #274157; background: #091722; }
 .walkaround-observation span { display: block; color: #5f7a8f; font: 700 5px var(--font-geist-mono); letter-spacing: .08em; }.walkaround-observation b { display: block; margin-top: 4px; overflow: hidden; color: #a8bbc9; font: 600 6px var(--font-geist-mono); white-space: nowrap; text-overflow: ellipsis; }.walkaround-observation em { position: absolute; top: 7px; right: 7px; padding: 2px 4px; border: 1px solid #32765c; color: var(--green); font: 700 5px var(--font-geist-mono); font-style: normal; }.walkaround-observation.attention { border-color: #6b5031; background: #18130d; }.walkaround-observation.attention em { border-color: #8a6132; color: var(--amber); }
+.walk-hud { position: absolute; z-index: 31; left: 50%; bottom: 18px; width: min(540px, calc(100% - 32px)); display: grid; grid-template-columns: minmax(110px, 1fr) auto auto; gap: 5px 10px; align-items: center; padding: 9px 11px; transform: translateX(-50%); border: 1px solid #31516a; background: #07111be8; box-shadow: 0 16px 40px #000b, inset 2px 0 var(--cyan); backdrop-filter: blur(12px); }
+.walk-hud header { min-width: 0; }.walk-hud header span { display: block; color: var(--cyan); font: 700 6px var(--font-geist-mono); letter-spacing: .09em; }.walk-hud header b { display: block; margin-top: 4px; overflow: hidden; color: #bdcad4; font: 650 8px var(--font-geist-mono); white-space: nowrap; text-overflow: ellipsis; }
+.walk-hud small { grid-column: 1 / -1; color: #607489; font: 550 6px var(--font-geist-mono); }
+.walk-pad { display: flex; gap: 3px; }.walk-pad button { width: 28px; height: 27px; border: 1px solid #2e4c62; background: #0c1b28; color: #8bb0c0; font: 700 11px var(--font-geist-mono); cursor: pointer; }.walk-pad button:hover, .walk-pad button:focus-visible { border-color: var(--cyan); background: #143044; color: var(--cyan); outline: none; }
+.walk-console { height: 27px; padding: 0 9px; border: 1px solid #3f8069; background: #123126; color: var(--green); font: 700 6px var(--font-geist-mono); white-space: nowrap; cursor: pointer; }.walk-console i { margin-left: 4px; font-style: normal; }.walk-console:hover, .walk-console:focus-visible { filter: brightness(1.18); outline: 1px solid #66cda3; outline-offset: 2px; }
 .canvas-a11y { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .facility-map { position: relative; min-height: 0; padding: 38px 26px 24px; overflow: hidden; background-color: #080d15; background-image: linear-gradient(#17223555 1px, transparent 1px), linear-gradient(90deg, #17223555 1px, transparent 1px); background-size: 26px 26px; }
 .facility-map::before { content: ''; position: absolute; inset: 13px; border: 1px solid #27364a; pointer-events: none; }
@@ -542,10 +548,15 @@ button { font: inherit; }
   .station-3d-label { width: 98px; padding: 5px 6px; }
   .station-3d-label:not(.selected) { display: none; }
   .scene-station-picker { top: 76px; right: 8px; bottom: auto; grid-template-columns: repeat(2, 1fr); }
+  .lab-viewport.is-immersive .scene-station-picker { top: 76px; right: 12px; bottom: auto; }
   .scene-station-picker button { min-width: 55px; }
   .camera-focus .scene-station-picker { display: none; }
   .hotspot-label { display: none; }
   .walkaround-panel { left: 8px; right: 8px; bottom: 8px; width: auto; }
+  .walk-hud { bottom: 9px; width: calc(100% - 18px); grid-template-columns: minmax(70px, 1fr) auto auto; gap: 4px; padding: 8px; }
+  .walk-hud small { line-height: 1.35; }
+  .walk-pad button { width: 27px; }
+  .walk-console { width: 93px; padding: 0 5px; overflow: hidden; text-overflow: ellipsis; }
   .station-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); }
   .right-rail { display: block; }
   .facility-footer { grid-template-columns: repeat(2, 1fr); }

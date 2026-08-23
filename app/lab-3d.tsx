@@ -9,13 +9,17 @@ import type { Station } from './sim-data';
 type OrbitControlsHandle = React.ComponentRef<typeof OrbitControls>;
 
 type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga';
+type CameraMode = 'overview' | 'walk' | 'focus';
+type WalkDirection = 'forward' | 'back' | 'left' | 'right';
+type WalkCommand = { id: number; direction: WalkDirection };
 type SceneProps = {
   stations: Station[];
   selectedId: string;
   phase: number;
   scenarioId: ScenarioId;
-  cameraMode: 'overview' | 'focus';
-  onCameraMode: (mode: 'overview' | 'focus') => void;
+  cameraMode: CameraMode;
+  onCameraMode: (mode: CameraMode) => void;
+  onOpenConsole: () => void;
   onInspectionChange?: (stationId: string, checks: string[]) => void;
   onSelect: (id: string) => void;
 };
@@ -38,10 +42,11 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onCameraMode, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onCameraMode, onOpenConsole, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [visited, setVisited] = useState<Record<string, string[]>>({});
   const [observationRecord, setObservationRecord] = useState<{ stationId: string; point: InspectionPoint } | null>(null);
+  const [walkCommand, setWalkCommand] = useState<WalkCommand>({ id: 0, direction: 'forward' });
   const selectedIndex = Math.max(0, stations.findIndex((station) => station.id === selectedId));
   const selectedStation = stations[selectedIndex];
   const inspected = visited[selectedId] ?? [];
@@ -96,7 +101,7 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onC
         <LabArchitecture />
         <OperationsProps />
         <MaterialRoute scenarioId={scenarioId} phase={phase} />
-        {stations.map((station, index) => (cameraMode === 'overview' || selectedId === station.id) ? (
+        {stations.map((station, index) => (cameraMode !== 'focus' || selectedId === station.id) ? (
           <StationCell
             key={station.id}
             station={station}
@@ -113,16 +118,18 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onC
         ) : null)}
         <ContactShadows position={[0, 0.025, 0]} opacity={0.58} scale={22} blur={2.6} far={8} resolution={512} color="#000713" />
         <CameraDirector mode={cameraMode} selectedIndex={selectedIndex} controls={controlsRef} />
+        <AisleNavigator active={cameraMode === 'walk'} controls={controlsRef} command={walkCommand} />
         <OrbitControls
           ref={controlsRef}
           makeDefault
           target={[-1.55, 0.72, -0.18]}
           enableDamping
           dampingFactor={0.075}
-          minDistance={cameraMode === 'focus' ? 3.8 : 11}
-          maxDistance={34}
-          minPolarAngle={0.55}
-          maxPolarAngle={1.36}
+          enablePan={cameraMode !== 'walk'}
+          minDistance={cameraMode === 'focus' ? 3.8 : cameraMode === 'walk' ? 2.8 : 11}
+          maxDistance={cameraMode === 'walk' ? 4.4 : 34}
+          minPolarAngle={cameraMode === 'walk' ? 1.05 : 0.55}
+          maxPolarAngle={cameraMode === 'walk' ? 1.55 : 1.36}
           minAzimuthAngle={-1.45}
           maxAzimuthAngle={1.25}
         />
@@ -131,7 +138,18 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onC
         {stations.map((station) => <button key={station.id} type="button" className={selectedId === station.id ? 'active' : ''} style={{ '--station-tone': TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => onSelect(station.id)} onDoubleClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
       </nav>
       <div className="scene-corner scene-corner-top"><span>LIVE SPATIAL TWIN</span><b>LAB 04 · BAY A/B</b></div>
-      <div className="scene-corner scene-corner-bottom"><span>DRAG</span> ORBIT <i>·</i> <span>SCROLL</span> ZOOM <i>·</i> <span>CLICK</span> INSPECT</div>
+      <div className="scene-corner scene-corner-bottom">{cameraMode === 'walk' ? <><span>WASD</span> MOVE <i>·</i> <span>DRAG</span> LOOK <i>·</i> <span>SELECT</span> APPROACH</> : <><span>DRAG</span> ORBIT <i>·</i> <span>SCROLL</span> ZOOM <i>·</i> <span>CLICK</span> INSPECT</>}</div>
+      {cameraMode === 'walk' && <div className="walk-hud">
+        <header><span>HUMAN-SCALE AISLE</span><b>{selectedStation.id} · {selectedStation.name}</b></header>
+        <div className="walk-pad" role="group" aria-label="Aisle movement controls">
+          <button type="button" className="walk-forward" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'forward' }))} aria-label="Step forward">↑</button>
+          <button type="button" className="walk-left" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'left' }))} aria-label="Step left">←</button>
+          <button type="button" className="walk-back" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'back' }))} aria-label="Step back">↓</button>
+          <button type="button" className="walk-right" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'right' }))} aria-label="Step right">→</button>
+        </div>
+        <button type="button" className="walk-console" onClick={onOpenConsole}>OPERATE LOCAL CONSOLE <i>↗</i></button>
+        <small>WASD / ARROWS · choose a station to approach · Focus to inspect</small>
+      </div>}
       {cameraMode === 'focus' && <div className="walkaround-panel">
         <header><div><span>PHYSICAL WALKAROUND</span><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspected.length} / {HOTSPOTS[selectedIndex].length}</em></header>
         <div>{HOTSPOTS[selectedIndex].map((hotspot) => <button key={hotspot.label} type="button" className={inspected.includes(hotspot.label) ? 'visited' : ''} onClick={() => inspect(hotspot.label)}><i>{inspected.includes(hotspot.label) ? '✓' : '○'}</i>{hotspot.label}</button>)}</div>
@@ -142,7 +160,7 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onC
   );
 }
 
-function CameraDirector({ mode, selectedIndex, controls }: { mode: 'overview' | 'focus'; selectedIndex: number; controls: React.RefObject<OrbitControlsHandle | null> }) {
+function CameraDirector({ mode, selectedIndex, controls }: { mode: CameraMode; selectedIndex: number; controls: React.RefObject<OrbitControlsHandle | null> }) {
   const { camera } = useThree();
   const animating = useRef(true);
   const overviewPosition = useMemo(() => new THREE.Vector3(10.5, 11.8, 19.5), []);
@@ -156,12 +174,20 @@ function CameraDirector({ mode, selectedIndex, controls }: { mode: 'overview' | 
     const [x, , z] = STATION_POSITIONS[selectedIndex];
     return new THREE.Vector3(x + (selectedIndex === 1 ? 0.42 : 0), 1.05, z);
   }, [selectedIndex]);
+  const walkPosition = useMemo(() => {
+    const [x, , z] = STATION_POSITIONS[selectedIndex];
+    return selectedIndex === 6 ? new THREE.Vector3(x - 3.75, 1.68, z + 1.55) : new THREE.Vector3(x, 1.68, z + 4.45);
+  }, [selectedIndex]);
+  const walkTarget = useMemo(() => {
+    const [x, , z] = STATION_POSITIONS[selectedIndex];
+    return new THREE.Vector3(x, 1.28, z + 0.2);
+  }, [selectedIndex]);
   useEffect(() => { animating.current = true; }, [mode, selectedIndex]);
   useFrame((_, delta) => {
     const orbit = controls.current;
     if (!orbit || !animating.current) return;
-    const position = mode === 'focus' ? focusPosition : overviewPosition;
-    const target = mode === 'focus' ? focusTarget : overviewTarget;
+    const position = mode === 'focus' ? focusPosition : mode === 'walk' ? walkPosition : overviewPosition;
+    const target = mode === 'focus' ? focusTarget : mode === 'walk' ? walkTarget : overviewTarget;
     const easing = 1 - Math.exp(-delta * 3.8);
     camera.position.lerp(position, easing);
     orbit.target.lerp(target, easing);
@@ -172,6 +198,61 @@ function CameraDirector({ mode, selectedIndex, controls }: { mode: 'overview' | 
       orbit.update();
       animating.current = false;
     }
+  });
+  return null;
+}
+
+function AisleNavigator({ active, controls, command }: { active: boolean; controls: React.RefObject<OrbitControlsHandle | null>; command: WalkCommand }) {
+  const { camera } = useThree();
+  const keys = useRef(new Set<string>());
+  const handledCommand = useRef(0);
+  useEffect(() => {
+    const pressedKeys = keys.current;
+    if (!active) {
+      pressedKeys.clear();
+      return;
+    }
+    const keyDown = (event: KeyboardEvent) => {
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) event.preventDefault();
+      pressedKeys.add(event.code);
+    };
+    const keyUp = (event: KeyboardEvent) => pressedKeys.delete(event.code);
+    window.addEventListener('keydown', keyDown);
+    window.addEventListener('keyup', keyUp);
+    return () => {
+      pressedKeys.clear();
+      window.removeEventListener('keydown', keyDown);
+      window.removeEventListener('keyup', keyUp);
+    };
+  }, [active]);
+  useFrame((_, delta) => {
+    if (!active || !controls.current) return;
+    const orbit = controls.current;
+    const forward = orbit.target.clone().sub(camera.position);
+    forward.y = 0;
+    if (forward.lengthSq() < 0.001) forward.set(0, 0, -1);
+    forward.normalize();
+    const right = forward.clone().cross(new THREE.Vector3(0, 1, 0)).normalize();
+    const movement = new THREE.Vector3();
+    if (keys.current.has('KeyW') || keys.current.has('ArrowUp')) movement.add(forward);
+    if (keys.current.has('KeyS') || keys.current.has('ArrowDown')) movement.sub(forward);
+    if (keys.current.has('KeyD') || keys.current.has('ArrowRight')) movement.add(right);
+    if (keys.current.has('KeyA') || keys.current.has('ArrowLeft')) movement.sub(right);
+    let distance = Math.min(delta, 0.04) * (keys.current.has('ShiftLeft') ? 2.6 : 1.45);
+    if (command.id !== handledCommand.current) {
+      handledCommand.current = command.id;
+      distance = 0.62;
+      movement.copy(command.direction === 'forward' ? forward : command.direction === 'back' ? forward.clone().negate() : command.direction === 'right' ? right : right.clone().negate());
+    }
+    if (movement.lengthSq() === 0) return;
+    movement.normalize().multiplyScalar(distance);
+    const next = camera.position.clone().add(movement);
+    next.x = THREE.MathUtils.clamp(next.x, -8.1, 4.25);
+    next.z = THREE.MathUtils.clamp(next.z, -3.8, 8.75);
+    const applied = next.sub(camera.position);
+    camera.position.add(applied);
+    orbit.target.add(applied);
+    orbit.update();
   });
   return null;
 }
@@ -473,12 +554,26 @@ function Xrd({ active }: { active: boolean }) {
     <group position={[-0.12, 1.25, 0.86]}>
       <mesh><torusGeometry args={[0.55, 0.07, 16, 64, Math.PI * 1.55]} /><meshStandardMaterial color="#8499a8" metalness={0.88} roughness={0.18} emissive={active ? '#174d59' : '#000000'} /></mesh>
       <mesh position={[0, -0.18, 0]}><cylinderGeometry args={[0.22, 0.28, 0.12, 28]} /><meshStandardMaterial color="#d6dee0" metalness={0.84} roughness={0.15} /></mesh>
+      <mesh position={[0, -0.105, 0]}><cylinderGeometry args={[0.105, 0.105, 0.035, 24]} /><meshStandardMaterial color="#222e35" metalness={0.82} roughness={0.18} /></mesh>
+      <mesh position={[0, -0.083, 0]}><cylinderGeometry args={[0.075, 0.075, 0.014, 24]} /><meshStandardMaterial color="#c7a462" roughness={0.58} /></mesh>
       <mesh position={[-0.46, 0.28, 0]} rotation={[0, 0, -0.72]} castShadow><boxGeometry args={[0.2, 0.42, 0.18]} /><meshStandardMaterial color="#bec8cc" metalness={0.76} roughness={0.22} /></mesh>
       <mesh position={[0.46, 0.29, 0]} rotation={[0, 0, 0.7]} castShadow><boxGeometry args={[0.22, 0.48, 0.2]} /><meshStandardMaterial color="#617380" metalness={0.8} roughness={0.2} /></mesh>
+      {[-0.47, 0.47].map((x) => <group key={x} position={[x, 0.08, 0.005]}>
+        <mesh><cylinderGeometry args={[0.13, 0.13, 0.08, 24]} /><meshStandardMaterial color="#455b68" metalness={0.86} roughness={0.18} /></mesh>
+        <mesh position={[0, 0.047, 0]}><torusGeometry args={[0.085, 0.014, 8, 24]} /><meshStandardMaterial color="#aab7bc" metalness={0.9} roughness={0.14} /></mesh>
+      </group>)}
       <Line points={[[-0.48, 0.37, 0.03], [0, -0.1, 0.03], [0.47, 0.4, 0.03]]} color={active ? '#f4b95f' : '#6f8591'} lineWidth={active ? 1.4 : 0.7} transparent opacity={active ? 0.92 : 0.35} />
     </group>
+    <Line points={[[ -1.06, 0.36, 0.805], [1.06, 0.36, 0.805]]} color="#829099" lineWidth={0.55} transparent opacity={0.6} />
+    <Line points={[[0.77, 0.43, 0.82], [0.77, 2.01, 0.82]]} color="#7b8a92" lineWidth={0.55} transparent opacity={0.5} />
+    {[0.74, 1.3, 1.86].map((y) => <mesh key={y} position={[0.79, y, 0.838]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.026, 0.026, 0.13, 12]} /><meshStandardMaterial color="#46545c" metalness={0.82} roughness={0.2} /></mesh>)}
+    <mesh position={[-0.96, 0.48, 0.837]}><planeGeometry args={[0.25, 0.17]} /><meshStandardMaterial color="#d7ad48" roughness={0.56} /></mesh>
+    <mesh position={[-0.96, 0.48, 0.842]} rotation={[0, 0, 0.76]}><boxGeometry args={[0.16, 0.018, 0.006]} /><meshBasicMaterial color="#20262a" /></mesh>
+    <group position={[-0.62, 0.26, 0.838]}>{Array.from({ length: 8 }, (_, index) => <mesh key={index} position={[(index % 4) * 0.13, Math.floor(index / 4) * 0.09, 0]}><planeGeometry args={[0.085, 0.026]} /><meshBasicMaterial color="#26333b" /></mesh>)}</group>
+    {[-0.9, 0.9].map((x) => <mesh key={x} position={[x, 0.04, 0.55]} castShadow><cylinderGeometry args={[0.075, 0.09, 0.12, 16]} /><meshStandardMaterial color="#313e45" metalness={0.74} roughness={0.3} /></mesh>)}
     <RoundedBox args={[0.42, 0.62, 0.1]} radius={0.04} position={[0.9, 0.62, 0.8]}><meshBasicMaterial color="#0a161c" /></RoundedBox>
     <mesh position={[0.9, 0.69, 0.856]}><planeGeometry args={[0.26, 0.026]} /><meshBasicMaterial color={active ? '#4dd5ed' : '#5c7583'} /></mesh>
+    {[0.81, 0.98].map((x, index) => <mesh key={x} position={[x, 0.48, 0.858]}><circleGeometry args={[0.035, 16]} /><meshStandardMaterial color={index === 0 ? '#51e19a' : '#f4b95f'} emissive={index === 0 ? '#195d40' : '#6d471c'} emissiveIntensity={0.55} /></mesh>)}
   </group>;
 }
 
@@ -490,17 +585,34 @@ function SemEds({ active }: { active: boolean }) {
     <mesh position={[-0.25, 1.12, 0.04]} castShadow><cylinderGeometry args={[0.38, 0.52, 0.45, 32]} /><meshStandardMaterial color="#657783" metalness={0.86} roughness={0.2} /></mesh>
     <mesh position={[-0.25, 1.72, 0.04]} castShadow><cylinderGeometry args={[0.17, 0.3, 0.83, 32]} /><meshPhysicalMaterial color="#d0d5d4" metalness={0.82} roughness={0.2} clearcoat={0.4} /></mesh>
     <mesh position={[-0.25, 2.24, 0.04]} castShadow><cylinderGeometry args={[0.24, 0.17, 0.28, 32]} /><meshStandardMaterial color="#6d7b82" metalness={0.85} roughness={0.2} /></mesh>
+    {[1.36, 1.6, 1.94, 2.18].map((y, index) => <mesh key={y} position={[-0.25, y, 0.04]} castShadow><cylinderGeometry args={[0.22 - index * 0.018, 0.22 - index * 0.018, 0.055, 28]} /><meshStandardMaterial color={index % 2 ? '#89969b' : '#3f505a'} metalness={0.86} roughness={0.18} /></mesh>)}
     <Line points={[[-0.25, 2.04, 0.76], [-0.25, 0.65, 0.76]]} color="#4dd5ed" lineWidth={active ? 1.3 : 0.5} transparent opacity={active ? 0.9 : 0.25} />
     <mesh position={[-0.25, 0.62, 0.76]}><circleGeometry args={[0.22, 32]} /><meshPhysicalMaterial color="#14242d" metalness={0.55} roughness={0.16} /></mesh>
+    <mesh position={[-0.25, 0.62, 0.775]}><torusGeometry args={[0.29, 0.045, 12, 40]} /><meshStandardMaterial color="#71828b" metalness={0.9} roughness={0.15} /></mesh>
+    {Array.from({ length: 10 }, (_, index) => { const angle = index * Math.PI / 5; return <mesh key={index} position={[-0.25 + Math.cos(angle) * 0.29, 0.62 + Math.sin(angle) * 0.29, 0.824]}><cylinderGeometry args={[0.018, 0.018, 0.03, 10]} /><meshStandardMaterial color="#c5ccce" metalness={0.92} roughness={0.14} /></mesh>; })}
+    <group position={[-0.82, 0.58, 0.62]} rotation={[0, 0, Math.PI / 2]}>
+      <mesh castShadow><cylinderGeometry args={[0.1, 0.1, 0.34, 22]} /><meshStandardMaterial color="#52636d" metalness={0.82} roughness={0.24} /></mesh>
+      <mesh position={[0, 0.21, 0]}><cylinderGeometry args={[0.15, 0.15, 0.08, 24]} /><meshStandardMaterial color="#87949a" metalness={0.9} roughness={0.16} /></mesh>
+      <mesh position={[0, -0.2, 0]}><torusGeometry args={[0.11, 0.022, 10, 24]} /><meshStandardMaterial color="#aab3b6" metalness={0.9} roughness={0.14} /></mesh>
+    </group>
     <group position={[0.36, 1.18, 0.48]} rotation={[0, 0, 0.96]}>
       <mesh castShadow><cylinderGeometry args={[0.1, 0.14, 0.5, 24]} /><meshPhysicalMaterial color="#768894" metalness={0.86} roughness={0.2} clearcoat={0.35} /></mesh>
       <mesh position={[0, -0.3, 0]}><cylinderGeometry args={[0.06, 0.09, 0.14, 20]} /><meshStandardMaterial color="#303f49" metalness={0.8} roughness={0.22} /></mesh>
       <mesh position={[0, 0.29, 0]}><torusGeometry args={[0.12, 0.025, 10, 24]} /><meshStandardMaterial color="#a2adb1" metalness={0.9} roughness={0.16} /></mesh>
     </group>
+    <group position={[-0.76, 1.28, 0.28]} rotation={[0, 0, -0.88]}>
+      <mesh castShadow><cylinderGeometry args={[0.075, 0.11, 0.42, 22]} /><meshPhysicalMaterial color="#596d78" metalness={0.86} roughness={0.2} clearcoat={0.24} /></mesh>
+      <mesh position={[0, -0.24, 0]}><cylinderGeometry args={[0.045, 0.07, 0.1, 18]} /><meshStandardMaterial color="#1f3038" metalness={0.76} roughness={0.25} /></mesh>
+    </group>
     <Line points={[[0.57, 1.4, 0.44], [1.04, 1.72, 0.04], [1.18, 0.92, -0.42]]} color="#4a5f6e" lineWidth={1.1} />
     <RoundedBox args={[0.72, 0.62, 0.62]} radius={0.07} position={[0.9, 0.5, -0.43]} castShadow><meshStandardMaterial color="#374b58" metalness={0.68} roughness={0.33} /></RoundedBox>
     <mesh position={[0.9, 0.66, -0.115]}><planeGeometry args={[0.44, 0.18]} /><meshBasicMaterial color="#09161c" /></mesh>
     <mesh position={[0.9, 0.67, -0.119]}><planeGeometry args={[0.28, 0.024]} /><meshBasicMaterial color={active ? '#51e19a' : '#6a7f8d'} /></mesh>
+    <group position={[-0.96, 0.3, -0.48]}>
+      <RoundedBox args={[0.48, 0.4, 0.54]} radius={0.055} castShadow><meshStandardMaterial color="#263640" metalness={0.68} roughness={0.34} /></RoundedBox>
+      {[-0.13, -0.04, 0.05, 0.14].map((y) => <mesh key={y} position={[0, y, 0.277]}><planeGeometry args={[0.28, 0.025]} /><meshBasicMaterial color="#526672" /></mesh>)}
+      <Line points={[[0.2, 0.13, 0.03], [0.34, 0.45, 0.08], [0.46, 0.74, 0.2]]} color="#354c58" lineWidth={2.1} />
+    </group>
     <group position={[0.95, 0.7, 0.2]}>
       <mesh position={[0, 0.6, 0]} castShadow><boxGeometry args={[1.0, 0.7, 0.08]} /><meshStandardMaterial color="#1f303e" metalness={0.55} roughness={0.3} /></mesh>
       <mesh position={[0, 0.6, 0.046]}><planeGeometry args={[0.86, 0.55]} /><meshBasicMaterial color="#071317" /></mesh>
@@ -523,11 +635,29 @@ function Bet({ active, tone }: { active: boolean; tone: string }) {
       <mesh><cylinderGeometry args={[0.045, 0.055, 0.72, 18]} /><meshPhysicalMaterial color="#c4d9de" transparent opacity={0.58} roughness={0.08} /></mesh>
       <mesh position={[0, -0.39, 0]}><sphereGeometry args={[0.095, 18, 12]} /><meshStandardMaterial color={active && i !== 2 ? '#b48cff' : '#6f8390'} emissive={active && i !== 2 ? '#5f36a0' : '#000000'} emissiveIntensity={active ? 1.3 : 0} /></mesh>
       <mesh position={[0, 0.39, 0]}><cylinderGeometry args={[0.07, 0.07, 0.06, 18]} /><meshStandardMaterial color="#b7c4c8" metalness={0.82} roughness={0.18} /></mesh>
+      <mesh position={[0, 0.47, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.085, 0.016, 8, 20]} /><meshStandardMaterial color={i === 2 ? '#b7853d' : '#688796'} metalness={0.72} roughness={0.25} /></mesh>
+      <mesh position={[0, -0.48, 0]}><cylinderGeometry args={[0.125, 0.145, 0.18, 22]} /><meshPhysicalMaterial color="#8a9aa2" metalness={0.7} roughness={0.22} clearcoat={0.25} /></mesh>
     </group>)}
     <mesh position={[-0.28, 1.98, 0.81]}><boxGeometry args={[1.25, 0.05, 0.06]} /><meshStandardMaterial color="#7e939e" metalness={0.8} /></mesh>
+    {[-0.72, -0.42, -0.13, 0.16].map((x) => <group key={`valve-${x}`} position={[x, 2.04, 0.82]}>
+      <mesh><cylinderGeometry args={[0.035, 0.035, 0.12, 14]} /><meshStandardMaterial color="#9eaaae" metalness={0.9} roughness={0.14} /></mesh>
+      <mesh position={[0, 0.08, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.075, 0.012, 8, 20]} /><meshStandardMaterial color="#6b8490" metalness={0.75} roughness={0.24} /></mesh>
+    </group>)}
+    <mesh position={[0.46, 1.55, 0.784]}><circleGeometry args={[0.18, 30]} /><meshStandardMaterial color="#101d24" metalness={0.4} roughness={0.24} /></mesh>
+    <mesh position={[0.46, 1.55, 0.798]}><torusGeometry args={[0.18, 0.025, 10, 30]} /><meshStandardMaterial color="#94a3a9" metalness={0.88} roughness={0.16} /></mesh>
+    <Line points={[[0.46, 1.55, 0.81], [0.51, 1.62, 0.82]]} color="#f4b95f" lineWidth={1.2} />
+    <group position={[-0.74, 0.48, 0.78]}>{[-0.12, -0.04, 0.04, 0.12].map((y) => <mesh key={y} position={[0, y, 0]}><planeGeometry args={[0.52, 0.025]} /><meshBasicMaterial color="#334753" /></mesh>)}</group>
     <mesh position={[0.98, 0.7, 0.08]} castShadow><cylinderGeometry args={[0.32, 0.36, 1.2, 28]} /><meshPhysicalMaterial color="#607788" metalness={0.72} roughness={0.25} clearcoat={0.4} /></mesh>
     <mesh position={[0.98, 1.35, 0.08]}><cylinderGeometry args={[0.1, 0.1, 0.12, 18]} /><meshStandardMaterial color="#aab7bc" metalness={0.86} /></mesh>
+    <group position={[0.98, 1.5, 0.08]}>
+      {[-0.13, 0.13].map((x) => <group key={x} position={[x, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh><cylinderGeometry args={[0.105, 0.105, 0.035, 22]} /><meshStandardMaterial color="#c2cbce" metalness={0.84} roughness={0.17} /></mesh>
+        <mesh position={[0, -0.02, 0]}><circleGeometry args={[0.075, 20]} /><meshBasicMaterial color="#101d23" /></mesh>
+      </group>)}
+      <mesh position={[0, -0.13, 0]}><boxGeometry args={[0.38, 0.12, 0.14]} /><meshStandardMaterial color="#415460" metalness={0.72} roughness={0.28} /></mesh>
+    </group>
     <Line points={[[0.98, 1.39, 0.1], [0.8, 1.92, 0.1], [0.3, 1.98, 0.1]]} color={tone} lineWidth={0.8} transparent opacity={0.55} />
+    <Line points={[[0.82, 1.48, 0.12], [0.55, 1.94, 0.12], [-0.28, 2.02, 0.12]]} color="#738b98" lineWidth={1.4} transparent opacity={0.72} />
   </group>;
 }
 
@@ -539,20 +669,39 @@ function TgaDsc({ active }: { active: boolean }) {
     </RoundedBox>
     <RoundedBox args={[0.96, 0.38, 0.08]} radius={0.04} position={[0.2, 0.82, 0.59]}><meshBasicMaterial color="#07161d" /></RoundedBox>
     <mesh position={[0.2, 0.87, 0.635]}><planeGeometry args={[0.68, 0.035]} /><meshBasicMaterial color={active ? '#4dd5ed' : '#f4b95f'} /></mesh>
+    <Line points={[[ -0.92, 0.56, 0.595], [0.62, 0.56, 0.595]]} color="#8b979b" lineWidth={0.55} transparent opacity={0.55} />
+    <group position={[0.2, 0.69, 0.637]}>{[-0.18, -0.06, 0.06, 0.18].map((x, index) => <mesh key={x} position={[x, 0, 0]}><circleGeometry args={[0.022, 14]} /><meshStandardMaterial color={index === 0 ? '#51e19a' : '#6f8088'} emissive={index === 0 ? '#1d6645' : '#1a252b'} emissiveIntensity={0.5} /></mesh>)}</group>
+    <group position={[-0.46, 1.83, -0.03]}>
+      <RoundedBox args={[0.56, 0.72, 0.52]} radius={0.14} castShadow><meshPhysicalMaterial color="#576a75" metalness={0.82} roughness={0.2} clearcoat={0.35} /></RoundedBox>
+      <mesh position={[0, 0.37, 0]}><cylinderGeometry args={[0.16, 0.19, 0.12, 26]} /><meshStandardMaterial color="#aab5b9" metalness={0.86} roughness={0.17} /></mesh>
+      <mesh position={[0, 0.45, 0]}><torusGeometry args={[0.12, 0.02, 9, 26]} /><meshStandardMaterial color="#42545e" metalness={0.8} roughness={0.2} /></mesh>
+    </group>
     <group position={[-0.46, 1.26, 0.14]}>
       <mesh castShadow><cylinderGeometry args={[0.3, 0.38, 0.42, 32]} /><meshPhysicalMaterial color="#71828d" metalness={0.86} roughness={0.18} clearcoat={0.35} /></mesh>
       <mesh position={[0, 0.25, 0]}><cylinderGeometry args={[0.18, 0.25, 0.12, 28]} /><meshStandardMaterial color="#b8c1c4" metalness={0.86} roughness={0.16} /></mesh>
       <mesh position={[0, 0.34, 0]}><torusGeometry args={[0.14, 0.025, 10, 28]} /><meshStandardMaterial color="#293943" emissive="#c45b2e" emissiveIntensity={active ? 1.7 : 0.24} /></mesh>
+      <mesh position={[0.29, 0.08, 0.04]} rotation={[0, 0, -0.38]} castShadow><boxGeometry args={[0.08, 0.32, 0.1]} /><meshStandardMaterial color="#475b65" metalness={0.78} roughness={0.24} /></mesh>
+      <mesh position={[0.34, -0.09, 0.04]}><cylinderGeometry args={[0.055, 0.055, 0.08, 16]} /><meshStandardMaterial color="#b2bdc1" metalness={0.88} roughness={0.15} /></mesh>
       <pointLight position={[0, 0.38, 0]} intensity={active ? 4 : 0.6} distance={1.5} color="#ff8b4d" />
     </group>
     <group position={[0.78, 1.12, 0.1]}>
       <mesh castShadow><cylinderGeometry args={[0.42, 0.42, 0.1, 36]} /><meshPhysicalMaterial color="#647681" metalness={0.82} roughness={0.2} clearcoat={0.34} /></mesh>
       {Array.from({ length: 6 }, (_, index) => { const angle = index * Math.PI / 3; return <group key={index} position={[Math.cos(angle) * 0.26, 0.09, Math.sin(angle) * 0.26]}><mesh><cylinderGeometry args={[0.055, 0.07, 0.035, 18]} /><meshStandardMaterial color="#d7dfe0" metalness={0.88} roughness={0.14} /></mesh>{index < 2 && <mesh position={[0, 0.028, 0]}><cylinderGeometry args={[0.038, 0.045, 0.012, 18]} /><meshStandardMaterial color="#cfa65d" roughness={0.45} /></mesh>}</group>; })}
       <mesh position={[0, 0.2, 0]} castShadow><cylinderGeometry args={[0.07, 0.09, 0.34, 18]} /><meshStandardMaterial color="#51646f" metalness={0.78} roughness={0.22} /></mesh>
+      <mesh position={[0, 0.21, 0]}><cylinderGeometry args={[0.47, 0.47, 0.38, 40, 1, true]} /><meshPhysicalMaterial color="#a8c4cf" transparent opacity={0.14} roughness={0.06} transmission={0.18} side={THREE.DoubleSide} /></mesh>
+      <mesh position={[0, 0.42, 0]}><torusGeometry args={[0.45, 0.024, 10, 36]} /><meshStandardMaterial color="#778b94" metalness={0.84} roughness={0.18} /></mesh>
     </group>
     <Line points={[[0.82, 0.7, 0.55], [1.12, 1.02, 0.48], [1.12, 1.52, 0.12], [0.92, 1.66, 0.08]]} color="#6c8795" lineWidth={1.1} />
     <mesh position={[1.14, 0.76, 0.22]} castShadow><cylinderGeometry args={[0.13, 0.15, 0.78, 24]} /><meshStandardMaterial color="#57717f" metalness={0.72} roughness={0.28} /></mesh>
     <mesh position={[1.14, 1.18, 0.22]}><cylinderGeometry args={[0.05, 0.05, 0.09, 18]} /><meshStandardMaterial color="#b0bec3" metalness={0.84} /></mesh>
+    <group position={[1.02, 1.34, 0.22]}>
+      {[-0.11, 0.11].map((x) => <group key={x} position={[x, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh><cylinderGeometry args={[0.085, 0.085, 0.03, 20]} /><meshStandardMaterial color="#aeb9bd" metalness={0.84} roughness={0.17} /></mesh>
+        <mesh position={[0, -0.018, 0]}><circleGeometry args={[0.058, 18]} /><meshBasicMaterial color="#0b1a20" /></mesh>
+      </group>)}
+      <mesh position={[0, -0.12, 0]}><boxGeometry args={[0.34, 0.12, 0.12]} /><meshStandardMaterial color="#405560" metalness={0.7} roughness={0.27} /></mesh>
+    </group>
+    <group position={[-1.0, 0.68, 0.62]}>{[-0.09, 0, 0.09].map((x) => <mesh key={x} position={[x, 0, 0]}><planeGeometry args={[0.055, 0.24]} /><meshBasicMaterial color="#41545d" /></mesh>)}</group>
   </group>;
 }
 

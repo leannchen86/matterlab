@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Station } from './sim-data';
 
 type Tab = 'hmi' | 'les' | 'lims' | 'cmms';
@@ -38,6 +38,15 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   const [completed, setCompleted] = useState<Record<Tab, boolean>>({ hmi: false, les: false, lims: false, cmms: false });
   const profile = profiles[station.id] ?? profiles['XRD-03'];
   const finish = () => setCompleted((current) => ({ ...current, [tab]: true }));
+
+  useEffect(() => {
+    const openFromLab = (event: Event) => {
+      const request = event as CustomEvent<{ stationId?: string }>;
+      if (request.detail?.stationId === station.id) setOpen(true);
+    };
+    window.addEventListener('mattershift:open-console', openFromLab);
+    return () => window.removeEventListener('mattershift:open-console', openFromLab);
+  }, [station.id]);
 
   return <>
     <button className="station-access-button" type="button" onClick={() => setOpen(true)}><span>⌁</span><b>OPEN LOCAL CONSOLE</b><i>{physicalChecks.length === 3 ? 'WALK ✓ · ' : `WALK ${physicalChecks.length}/3 · `}HMI · LES · LIMS · CMMS</i><em>→</em></button>

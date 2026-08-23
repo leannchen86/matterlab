@@ -13,6 +13,12 @@ procedurally modeled XRD, SEM/EDS, BET, TGA/DSC, furnace, powder-prep, and robot
 includes work orders, handoff state, instrument readiness, QC controls, sample custody, automation
 gates, alarms, shift health, and a chronological event record.
 
+The characterization assets are assembled from instrument-scale subsystems rather than single
+silhouettes: goniometer and sample-stage hardware in XRD; column lenses, vacuum chamber, detector
+ports, and pumping hardware in SEM/EDS; valved manifolds, analysis tubes, dewars, gauges, and gas
+regulation in BET; and a balance head, furnace, covered autosampler, paired pans, and purge control in
+TGA/DSC. These parts correspond to the boundaries a technician inspects, services, or records.
+
 ## Playable shifts
 
 - **Phase-purity recovery:** return XRD to control, reconcile a carrier, review an unexpected peak,
@@ -39,6 +45,10 @@ An immersive equipment-first mode expands the procedural bay over the full viewp
 station selection, overview/focus cameras, physical inspection points, and an explicit return to the
 shift console. It is designed to make the facility itself—not the surrounding text—the primary
 interface on both desktop and mobile.
+Its human-scale aisle mode moves the camera to technician eye height, supports WASD/arrow-key and
+touch-pad movement, and glides between selected stations along operating approaches. From the aisle,
+the selected instrument opens directly into its local HMI/SCADA, LES, LIMS, and CMMS console; physical
+walkaround evidence remains a real permissive in that workstation.
 Every point captures a concise local observation and distinguishes normal evidence from an attention
 state; completing a walkaround does not erase a separate quality, service, or process hold.
 The shared bay includes overhead cable routing, gas/vacuum service panels, emergency controls,

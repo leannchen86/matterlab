@@ -340,6 +340,47 @@ dashboard containing a 3D illustration instead of an equipment simulator with an
 - Rechecked the wide establishing shot, XRD focus, cross-station transition to TGA/DSC, and the
   equipment-focused layout at 390 × 844.
 
+## Critique 21: recognizable equipment was not yet sophisticated equipment
+
+Immersive focus made the gap between a plausible silhouette and a real characterization system much
+more obvious. At technician scale, smooth cabinets and a few glowing parts did not communicate the
+motion axes, vacuum boundaries, gas services, sample interfaces, and access hardware that make these
+instruments operationally demanding.
+
+### Changes
+
+- Expanded XRD with a sample spinner, goniometer pivots, enclosure hinges, panel seams, lower vents,
+  warning marking, HMI indicators, and leveling feet.
+- Expanded SEM/EDS with column lens rings, a bolted chamber flange, stage feedthrough, secondary
+  detector port, vacuum pump/service hardware, and a more legible imaging workstation.
+- Expanded BET with four valved manifold branches, tube collars, dewars, vacuum gauge, service vents,
+  dual-stage gas regulation, and additional visible plumbing.
+- Expanded TGA/DSC with a balance head, furnace latch, transparent autosampler guard, local indicators,
+  dual purge gauges, and service ventilation.
+- Inspected every upgraded asset in immersive focus, then rechecked the full bay and XRD close-up at
+  a 390 × 844 viewport to keep the added geometry readable rather than merely dense.
+
+## Critique 22: orbiting a lab is not the same as walking through one
+
+Even with a full-screen facility and detailed assets, the camera still behaved like a digital-twin
+viewer. The experience needed a body-scale approach to equipment and a continuous transition from
+physical presence into controlled operation.
+
+### Changes
+
+- Added a human-scale aisle mode with station-specific approach positions, eye-height sight lines,
+  smooth cross-bay travel, drag-to-look behavior, and restrained movement bounds.
+- Added keyboard movement with WASD or arrow keys plus a visible four-direction touch pad so the same
+  spatial interaction is available on mobile.
+- Removed floating equipment labels in aisle mode and kept identity in a compact heads-up strip to
+  reduce the feeling of navigating a dashboard overlay.
+- Added a direct `Operate local console` handoff from the selected physical asset to its HMI/SCADA,
+  LES, LIMS, and CMMS workstation.
+- Preserved the instrument selection and physical-inspection state across that transition; the HMI
+  still requires all three walkaround observations before safe-state attestation.
+- Exercised XRD and SEM/EDS approach changes, lateral movement, the special TGA/DSC side approach,
+  the compact mobile station selector, and the complete walk-to-console path at 390 × 844.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
