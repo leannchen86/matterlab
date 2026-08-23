@@ -107,6 +107,32 @@ between local controls, controlled work instructions, specimen records, and main
 - Collapsed the workstation into four compact tabs on mobile and hid non-selected floating labels so
   the 3D equipment remains the dominant visual.
 
+## Critique 7: overview selection skipped the physical walkaround
+
+The digital twin allowed orbit and selection, but selecting an instrument still jumped from a wide
+facility view to a software inspector. That did not represent the technician's physical-to-digital
+sequence: approach the asset, inspect its local state, then compare it with the controller and
+records.
+
+### Changes
+
+- Added smooth overview and focus camera modes. Focus moves to technician scale, then returns orbit
+  control to the player instead of continually forcing a canned camera.
+- Added three physical inspection markers to every asset and a compact walkaround checklist. Markers
+  change state in the 3D scene and persist while the shift remains active.
+- Isolated the selected asset in focus mode after the first robot close-up revealed that a front-row
+  BET cabinet blocked the robot. The bay remains spatial in overview; focus prioritizes equipment
+  legibility while retaining floor, lighting, walls, and the asset's own safety enclosure.
+- Reframed the robot gripper and reduced safety-cage rail opacity in focus mode after a second visual
+  review.
+- Linked completed walkarounds to a timestamped ledger event and the local HMI. The HMI now shows a
+  physical-evidence permissive and blocks safe-state attestation at 0/3, while quality and service
+  holds remain independent after the walkaround reaches 3/3.
+- Reset local-console state by asset so an attestation completed on one instrument cannot carry into
+  the next selection.
+- Verified XRD, BET, robot, and furnace close-ups on desktop, plus a 390 × 844 BET focus view with the
+  walkaround panel visible above facility status.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

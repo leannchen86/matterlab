@@ -36,6 +36,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const [labelsScanned, setLabelsScanned] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [scores, setScores] = useState<Scores>({ safety: 100, traceability: 82, integrity: 68, uptime: 91 });
+  const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
 
   const stations = useMemo(() => baseStations.map((station): Station => {
     if (station.id === 'XRD-03' && phase >= 1) return {
@@ -78,6 +79,12 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     const nextMinute = minute + addMinutes;
     setMinute(nextMinute);
     setLog((items) => [...items, { time: formatTime(nextMinute), type, text }]);
+  };
+
+  const recordInspection = (stationId: string, checks: string[]) => {
+    const wasComplete = (physicalInspections[stationId]?.length ?? 0) === 3;
+    setPhysicalInspections((current) => ({ ...current, [stationId]: checks }));
+    if (!wasComplete && checks.length === 3) appendLog('inspection', `${stationId} physical walkaround completed; ${checks.join(', ')} linked to the local-console evidence gate.`, 1);
   };
 
   const penalize = (key: keyof Scores, amount: number) => {
@@ -246,7 +253,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
             <div className="legend"><span><i className="ready" />ready</span><span><i className="run" />active</span><span><i className="warn" />attention</span></div>
           </div>
 
-          <LabViewport stations={stations} selectedId={selectedId} phase={phase} onSelect={setSelectedId} />
+          <LabViewport stations={stations} selectedId={selectedId} phase={phase} onInspectionChange={recordInspection} onSelect={setSelectedId} />
 
           <footer className="facility-footer">
             <div><span>ENV</span><b>22.1 °C</b><small>41% RH</small></div>
@@ -267,7 +274,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
             </div>
             <p className="mini-label">OUTPUTS</p>
             <div className="tag-list">{selected.dataProducts.map((item) => <span key={item}>{item}</span>)}</div>
-            <StationAccess station={selected} scenarioId="xrd" phase={phase} />
+            <StationAccess key={selected.id} station={selected} scenarioId="xrd" physicalChecks={physicalInspections[selected.id] ?? []} />
           </section>
 
           <PlannerPanel scenario="xrd" phase={phase} />

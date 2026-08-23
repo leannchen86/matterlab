@@ -1,10 +1,12 @@
 'use client';
 
 import { ContactShadows, Environment, Grid, Html, Lightformer, Line, OrbitControls, RoundedBox } from '@react-three/drei';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { Station } from './sim-data';
+
+type OrbitControlsHandle = React.ComponentRef<typeof OrbitControls>;
 
 type ScenarioId = 'xrd' | 'bet' | 'furnace';
 type SceneProps = {
@@ -12,6 +14,9 @@ type SceneProps = {
   selectedId: string;
   phase: number;
   scenarioId: ScenarioId;
+  cameraMode: 'overview' | 'focus';
+  onCameraMode: (mode: 'overview' | 'focus') => void;
+  onInspectionChange?: (stationId: string, checks: string[]) => void;
   onSelect: (id: string) => void;
 };
 
@@ -32,9 +37,19 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, scenarioId, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onCameraMode, onInspectionChange, onSelect }: SceneProps) {
+  const controlsRef = useRef<OrbitControlsHandle>(null);
+  const [visited, setVisited] = useState<Record<string, string[]>>({});
+  const selectedIndex = Math.max(0, stations.findIndex((station) => station.id === selectedId));
+  const selectedStation = stations[selectedIndex];
+  const inspected = visited[selectedId] ?? [];
+  const inspect = (label: string) => setVisited((current) => {
+    const checks = Array.from(new Set([...(current[selectedId] ?? []), label]));
+    onInspectionChange?.(selectedId, checks);
+    return { ...current, [selectedId]: checks };
+  });
   return (
-    <div className="lab-3d" aria-label="Orbitable 3D digital twin of six materials laboratory stations">
+    <div className={`lab-3d camera-${cameraMode}`} aria-label="Orbitable 3D digital twin of six materials laboratory stations">
       <Canvas
         shadows
         dpr={[1, 1.55]}
@@ -74,7 +89,7 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, onSelect }: Sce
         <LabArchitecture />
         <OperationsProps />
         <MaterialRoute scenarioId={scenarioId} phase={phase} />
-        {stations.map((station, index) => (
+        {stations.map((station, index) => (cameraMode === 'overview' || selectedId === station.id) ? (
           <StationCell
             key={station.id}
             station={station}
@@ -82,16 +97,22 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, onSelect }: Sce
             position={STATION_POSITIONS[index]}
             selected={selectedId === station.id}
             active={station.tone === 'run'}
+            showHotspots={selectedId === station.id && cameraMode === 'focus'}
+            inspected={visited[station.id] ?? []}
+            onInspect={inspect}
+            onFocus={() => onCameraMode('focus')}
             onSelect={onSelect}
           />
-        ))}
+        ) : null)}
         <ContactShadows position={[0, 0.025, 0]} opacity={0.58} scale={22} blur={2.6} far={8} resolution={512} color="#000713" />
+        <CameraDirector mode={cameraMode} selectedIndex={selectedIndex} controls={controlsRef} />
         <OrbitControls
+          ref={controlsRef}
           makeDefault
           target={[-1.55, 0.72, -0.18]}
           enableDamping
           dampingFactor={0.075}
-          minDistance={11}
+          minDistance={cameraMode === 'focus' ? 3.8 : 11}
           maxDistance={34}
           minPolarAngle={0.55}
           maxPolarAngle={1.36}
@@ -102,8 +123,47 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, onSelect }: Sce
       <div className="canvas-a11y">{stations.map((station) => <button key={station.id} type="button" onClick={() => onSelect(station.id)}>{station.name}: {station.state}</button>)}</div>
       <div className="scene-corner scene-corner-top"><span>LIVE SPATIAL TWIN</span><b>LAB 04 · BAY A/B</b></div>
       <div className="scene-corner scene-corner-bottom"><span>DRAG</span> ORBIT <i>·</i> <span>SCROLL</span> ZOOM <i>·</i> <span>CLICK</span> INSPECT</div>
+      {cameraMode === 'focus' && <div className="walkaround-panel">
+        <header><div><span>PHYSICAL WALKAROUND</span><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspected.length} / {HOTSPOTS[selectedIndex].length}</em></header>
+        <div>{HOTSPOTS[selectedIndex].map((hotspot) => <button key={hotspot.label} type="button" className={inspected.includes(hotspot.label) ? 'visited' : ''} onClick={() => inspect(hotspot.label)}><i>{inspected.includes(hotspot.label) ? '✓' : '○'}</i>{hotspot.label}</button>)}</div>
+        <small>{inspected.length === HOTSPOTS[selectedIndex].length ? 'Walkaround captured. Compare physical state with the local console.' : 'Select each marker on the asset or checklist.'}</small>
+      </div>}
     </div>
   );
+}
+
+function CameraDirector({ mode, selectedIndex, controls }: { mode: 'overview' | 'focus'; selectedIndex: number; controls: React.RefObject<OrbitControlsHandle | null> }) {
+  const { camera } = useThree();
+  const animating = useRef(true);
+  const overviewPosition = useMemo(() => new THREE.Vector3(10.5, 11.8, 19.5), []);
+  const overviewTarget = useMemo(() => new THREE.Vector3(-1.55, 0.72, -0.18), []);
+  const focusPosition = useMemo(() => {
+    const [x, , z] = STATION_POSITIONS[selectedIndex];
+    const horizontalOffset = selectedIndex % 3 === 2 ? -2.6 : 3.2;
+    return new THREE.Vector3(x + horizontalOffset, 3.35, z + 5.6);
+  }, [selectedIndex]);
+  const focusTarget = useMemo(() => {
+    const [x, , z] = STATION_POSITIONS[selectedIndex];
+    return new THREE.Vector3(x + (selectedIndex === 1 ? 0.42 : 0), 1.05, z);
+  }, [selectedIndex]);
+  useEffect(() => { animating.current = true; }, [mode, selectedIndex]);
+  useFrame((_, delta) => {
+    const orbit = controls.current;
+    if (!orbit || !animating.current) return;
+    const position = mode === 'focus' ? focusPosition : overviewPosition;
+    const target = mode === 'focus' ? focusTarget : overviewTarget;
+    const easing = 1 - Math.exp(-delta * 3.8);
+    camera.position.lerp(position, easing);
+    orbit.target.lerp(target, easing);
+    orbit.update();
+    if (camera.position.distanceTo(position) < 0.025 && orbit.target.distanceTo(target) < 0.02) {
+      camera.position.copy(position);
+      orbit.target.copy(target);
+      orbit.update();
+      animating.current = false;
+    }
+  });
+  return null;
 }
 
 function LabArchitecture() {
@@ -156,12 +216,16 @@ function OperationsProps() {
   </group>;
 }
 
-function StationCell({ station, index, position, selected, active, onSelect }: {
+function StationCell({ station, index, position, selected, active, showHotspots, inspected, onInspect, onFocus, onSelect }: {
   station: Station;
   index: number;
   position: [number, number, number];
   selected: boolean;
   active: boolean;
+  showHotspots: boolean;
+  inspected: string[];
+  onInspect: (label: string) => void;
+  onFocus: () => void;
   onSelect: (id: string) => void;
 }) {
   const tone = TONE_COLORS[station.tone];
@@ -170,6 +234,7 @@ function StationCell({ station, index, position, selected, active, onSelect }: {
     <group
       position={position}
       onClick={(event) => { event.stopPropagation(); onSelect(station.id); }}
+      onDoubleClick={(event) => { event.stopPropagation(); onSelect(station.id); onFocus(); }}
       onPointerOver={(event) => { event.stopPropagation(); setCursor('pointer'); }}
       onPointerOut={() => setCursor('default')}
     >
@@ -180,8 +245,8 @@ function StationCell({ station, index, position, selected, active, onSelect }: {
         <ringGeometry args={[1.66, 1.71, 4]} />
         <meshBasicMaterial color={selected ? '#4dd5ed' : tone} transparent opacity={selected ? 0.76 : 0.18} />
       </mesh>
-      <Equipment index={index} active={active} tone={tone} />
-      {selected && <InspectionHotspots index={index} tone={tone} />}
+      <Equipment index={index} active={active} tone={tone} focused={showHotspots} />
+      {showHotspots && <InspectionHotspots index={index} tone={tone} inspected={inspected} onInspect={onInspect} />}
       <StatusBeacon position={[1.32, 0.34, 1.08]} color={tone} active={active || selected} />
       <Html center position={[index === 3 ? 0.5 : index === 2 ? -0.38 : 0, index < 3 ? 2.98 : 2.72, index < 3 ? -0.2 : 0.2]} distanceFactor={10.5} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
         <div className={`station-3d-label ${selected ? 'selected' : ''}`} style={{ '--station-tone': tone } as React.CSSProperties}>
@@ -192,9 +257,9 @@ function StationCell({ station, index, position, selected, active, onSelect }: {
   );
 }
 
-function Equipment({ index, active, tone }: { index: number; active: boolean; tone: string }) {
+function Equipment({ index, active, tone, focused }: { index: number; active: boolean; tone: string; focused: boolean }) {
   if (index === 0) return <PowderPrep />;
-  if (index === 1) return <RobotCell active={active} />;
+  if (index === 1) return <RobotCell active={active} focused={focused} />;
   if (index === 2) return <Furnace active={active} />;
   if (index === 3) return <Xrd active={active} />;
   if (index === 4) return <SemEds active={active} />;
@@ -203,29 +268,30 @@ function Equipment({ index, active, tone }: { index: number; active: boolean; to
 
 const HOTSPOTS: { position: [number, number, number]; label: string }[][] = [
   [{ position: [-0.65, 1.25, 0.68], label: 'SASH' }, { position: [0.86, 0.97, 0.55], label: 'BALANCE' }, { position: [-0.15, 0.68, 0.58], label: 'LOT' }],
-  [{ position: [-1.32, 1.45, 1.06], label: 'GATE' }, { position: [0.55, 2.42, 0.35], label: 'GRIPPER' }, { position: [1.05, 1.05, -0.32], label: 'HMI' }],
+  [{ position: [-1.32, 1.45, 1.06], label: 'GATE' }, { position: [1.08, 1.48, 0.18], label: 'GRIPPER' }, { position: [1.05, 0.92, -0.32], label: 'HMI' }],
   [{ position: [0.82, 1.55, 0.93], label: 'INTERLOCK' }, { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER' }, { position: [0, 1.38, 0.94], label: 'CHAMBER' }],
   [{ position: [-0.12, 1.23, 0.98], label: 'HOLDER' }, { position: [0.9, 0.7, 0.92], label: 'HMI' }, { position: [-0.58, 1.7, 0.92], label: 'SHUTTER' }],
   [{ position: [-0.25, 1.2, 0.82], label: 'CHAMBER' }, { position: [-0.25, 2.08, 0.42], label: 'COLUMN' }, { position: [0.95, 1.32, 0.3], label: 'BSE / EDS' }],
   [{ position: [-0.3, 1.45, 0.88], label: 'PORTS' }, { position: [0.98, 1.42, 0.34], label: 'N₂' }, { position: [-0.6, 0.62, 0.84], label: 'VACUUM' }],
 ];
 
-function InspectionHotspots({ index, tone }: { index: number; tone: string }) {
-  return <group>{HOTSPOTS[index].map((hotspot, hotspotIndex) => <Hotspot key={hotspot.label} {...hotspot} tone={tone} delay={hotspotIndex * 0.8} />)}</group>;
+function InspectionHotspots({ index, tone, inspected, onInspect }: { index: number; tone: string; inspected: string[]; onInspect: (label: string) => void }) {
+  return <group>{HOTSPOTS[index].map((hotspot, hotspotIndex) => <Hotspot key={hotspot.label} {...hotspot} tone={tone} visited={inspected.includes(hotspot.label)} delay={hotspotIndex * 0.8} onInspect={onInspect} />)}</group>;
 }
 
-function Hotspot({ position, label, tone, delay }: { position: [number, number, number]; label: string; tone: string; delay: number }) {
+function Hotspot({ position, label, tone, visited, delay, onInspect }: { position: [number, number, number]; label: string; tone: string; visited: boolean; delay: number; onInspect: (label: string) => void }) {
   const ref = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (!ref.current) return;
     const pulse = 0.86 + Math.sin(clock.elapsedTime * 2.2 + delay) * 0.18;
     ref.current.scale.setScalar(pulse);
   });
-  return <group ref={ref} position={position}>
-    <mesh><sphereGeometry args={[0.045, 14, 10]} /><meshStandardMaterial color={tone} emissive={tone} emissiveIntensity={1.7} /></mesh>
-    <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.11, 0.012, 8, 28]} /><meshBasicMaterial color={tone} transparent opacity={0.72} /></mesh>
-    <pointLight intensity={0.65} distance={0.75} color={tone} />
-    <Html center position={[0, 0.22, 0]} distanceFactor={8} zIndexRange={[18, 0]} style={{ pointerEvents: 'none' }}><span className="hotspot-label" style={{ '--hotspot': tone } as React.CSSProperties}>{label}</span></Html>
+  const color = visited ? '#51e19a' : tone;
+  return <group ref={ref} position={position} onClick={(event) => { event.stopPropagation(); onInspect(label); }}>
+    <mesh><sphereGeometry args={[0.045, 14, 10]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.7} /></mesh>
+    <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.11, 0.012, 8, 28]} /><meshBasicMaterial color={color} transparent opacity={0.72} /></mesh>
+    <pointLight intensity={0.65} distance={0.75} color={color} />
+    <Html center position={[0, 0.22, 0]} distanceFactor={8} zIndexRange={[18, 0]} style={{ pointerEvents: 'none' }}><span className="hotspot-label" style={{ '--hotspot': color } as React.CSSProperties}>{visited ? '✓ ' : ''}{label}</span></Html>
   </group>;
 }
 
@@ -252,9 +318,9 @@ function PowderPrep() {
   </group>;
 }
 
-function RobotCell({ active }: { active: boolean }) {
+function RobotCell({ active, focused }: { active: boolean; focused: boolean }) {
   return <group position={[0, 0.18, 0]}>
-    <SafetyCage />
+    <SafetyCage focused={focused} />
     <RobotArm active={active} />
     <RoundedBox args={[0.72, 1.1, 0.5]} radius={0.05} position={[1.05, 0.72, -0.62]} castShadow>
       <meshStandardMaterial color="#263745" metalness={0.72} roughness={0.28} />
@@ -264,13 +330,13 @@ function RobotCell({ active }: { active: boolean }) {
   </group>;
 }
 
-function SafetyCage() {
+function SafetyCage({ focused }: { focused: boolean }) {
   const posts: [number, number, number][] = [[-1.35, 1.15, -1.05], [1.35, 1.15, -1.05], [-1.35, 1.15, 1.05], [1.35, 1.15, 1.05]];
   return <group>
-    {posts.map((position, index) => <mesh key={index} position={position} castShadow><boxGeometry args={[0.055, 2.25, 0.055]} /><meshStandardMaterial color="#c89a38" metalness={0.55} roughness={0.34} /></mesh>)}
+    {posts.map((position, index) => <mesh key={index} position={position} castShadow><boxGeometry args={[0.055, 2.25, 0.055]} /><meshStandardMaterial color="#c89a38" metalness={0.55} roughness={0.34} transparent={focused} opacity={focused ? 0.78 : 1} /></mesh>)}
     {[0.55, 1.65].map((y) => <group key={y}>
-      <mesh position={[0, y, -1.05]}><boxGeometry args={[2.7, 0.035, 0.035]} /><meshStandardMaterial color="#926e28" metalness={0.4} /></mesh>
-      <mesh position={[0, y, 1.05]}><boxGeometry args={[2.7, 0.035, 0.035]} /><meshStandardMaterial color="#926e28" metalness={0.4} /></mesh>
+      <mesh position={[0, y, -1.05]}><boxGeometry args={[2.7, 0.035, 0.035]} /><meshStandardMaterial color="#926e28" metalness={0.4} transparent={focused} opacity={focused ? 0.56 : 1} /></mesh>
+      <mesh position={[0, y, 1.05]}><boxGeometry args={[2.7, 0.035, 0.035]} /><meshStandardMaterial color="#926e28" metalness={0.4} transparent={focused} opacity={focused ? 0.56 : 1} /></mesh>
     </group>)}
   </group>;
 }

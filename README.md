@@ -26,6 +26,11 @@ HMI/SCADA state and permissives, LES method execution, LIMS identity and lineage
 evidence. Each station has its own instrument mimic, interlocks, method, sample identifiers,
 maintenance state, and point-of-use supplies.
 
+The 3D view also supports a technician-scale focus camera and physical walkaround. Each asset exposes
+three inspection points—such as an XRD shutter/holder/HMI, BET ports/vacuum/N₂, or furnace
+interlock/controller/chamber. Those checks are written to the event ledger and become an explicit
+HMI permissive; safe-state attestation stays disabled until physical and digital state are linked.
+
 The shift deck, 3D facility, 2D fallback map, and station consoles are responsive down to a
 phone-sized viewport. All instrument geometry, traces, micrographs, spectra, and equipment routes
 are drawn in the app without external image assets.

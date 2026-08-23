@@ -31,7 +31,7 @@ const profiles: Record<string, {
   'BET-02': { controller: 'BET-02 / VAC-MFD', safe: ['vacuum trend stable', 'N₂ supply in range', 'tube ports isolated'], method: ['Verify pretreatment', 'Enter dry mass', 'Leak test', 'Acquire isotherm'], sample: ['ADS-77-C', 'DEGAS-771', 'ISO-220'], workOrder: 'MX-233', service: 'Vendor recommission · open', health: 63, supplies: ['sample tubes 12', 'filler rods 8', 'LN₂ dewar'] },
 };
 
-export function StationAccess({ station, scenarioId = 'xrd', phase }: { station: Station; scenarioId?: ScenarioId; phase: number }) {
+export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = [] }: { station: Station; scenarioId?: ScenarioId; physicalChecks?: string[] }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('hmi');
   const [completed, setCompleted] = useState<Record<Tab, boolean>>({ hmi: false, les: false, lims: false, cmms: false });
@@ -39,7 +39,7 @@ export function StationAccess({ station, scenarioId = 'xrd', phase }: { station:
   const finish = () => setCompleted((current) => ({ ...current, [tab]: true }));
 
   return <>
-    <button className="station-access-button" type="button" onClick={() => setOpen(true)}><span>⌁</span><b>OPEN LOCAL CONSOLE</b><i>HMI · LES · LIMS · CMMS</i><em>→</em></button>
+    <button className="station-access-button" type="button" onClick={() => setOpen(true)}><span>⌁</span><b>OPEN LOCAL CONSOLE</b><i>{physicalChecks.length === 3 ? 'WALK ✓ · ' : `WALK ${physicalChecks.length}/3 · `}HMI · LES · LIMS · CMMS</i><em>→</em></button>
     {open && <div className="modal-backdrop station-console-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setOpen(false); }}>
       <section className="modal-card wide station-console" role="dialog" aria-modal="true" aria-label={`${station.name} local station console`}>
         <header><div><p className="section-kicker">LOCAL STATION ACCESS · {profile.controller}</p><h2>{station.id} / {station.name}</h2></div><button type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></header>
@@ -50,8 +50,8 @@ export function StationAccess({ station, scenarioId = 'xrd', phase }: { station:
             </button>)}
           </nav>
           <div className="console-main">
-            <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>MODE <b>{phase >= 4 ? 'REVIEW' : 'SUPERVISED'}</b></span><span><i className={station.tone === 'warn' ? 'alarm' : station.tone === 'off' ? '' : 'online'} />{station.state}</span></div>
-            {tab === 'hmi' && <HmiView station={station} profile={profile} complete={completed.hmi} onComplete={finish} />}
+            <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>WALK <b>{physicalChecks.length}/3</b></span><span><i className={station.tone === 'warn' ? 'alarm' : station.tone === 'off' ? '' : 'online'} />{station.state}</span></div>
+            {tab === 'hmi' && <HmiView station={station} profile={profile} physicalChecks={physicalChecks} complete={completed.hmi} onComplete={finish} />}
             {tab === 'les' && <LesView station={station} profile={profile} complete={completed.les} onComplete={finish} />}
             {tab === 'lims' && <LimsView profile={profile} scenarioId={scenarioId} complete={completed.lims} onComplete={finish} />}
             {tab === 'cmms' && <CmmsView profile={profile} complete={completed.cmms} onComplete={finish} />}
@@ -62,16 +62,17 @@ export function StationAccess({ station, scenarioId = 'xrd', phase }: { station:
   </>;
 }
 
-function HmiView({ station, profile, complete, onComplete }: { station: Station; profile: typeof profiles[string]; complete: boolean; onComplete: () => void }) {
+function HmiView({ station, profile, physicalChecks, complete, onComplete }: { station: Station; profile: typeof profiles[string]; physicalChecks: string[]; complete: boolean; onComplete: () => void }) {
   const releaseBlocked = station.tone === 'warn' || station.tone === 'off' || station.tone === 'hold';
+  const walkaroundComplete = physicalChecks.length === 3;
   return <div className="console-view hmi-view">
     <div className="console-view-head"><div><p className="section-kicker">HMI / SCADA</p><h3>Equipment state + permissives</h3></div><span>REFRESH 250 ms</span></div>
     <div className="hmi-layout">
       <div className="instrument-mimic"><InstrumentMimic stationId={station.id} tone={station.tone} /><div className="mimic-caption"><span>ASSET MIMIC</span><b>{station.id}</b><i>{station.state}</i></div></div>
       <div className="live-readouts">{station.technicianView.map((item, index) => { const [key, value = '—'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b><i style={{ width: `${58 + index * 9}%` }} /></div>; })}</div>
-      <div className="permissive-panel"><p className="mini-label">START PERMISSIVES</p>{profile.safe.map((item) => <div key={item}><i className="ok">✓</i><span>{item}</span><b>TRUE</b></div>)}<div><i className={releaseBlocked ? 'attention' : 'ok'}>{releaseBlocked ? '!' : '✓'}</i><span>quality / service release</span><b>{releaseBlocked ? 'HOLD' : 'TRUE'}</b></div></div>
+      <div className="permissive-panel"><p className="mini-label">START PERMISSIVES</p>{profile.safe.map((item) => <div key={item}><i className="ok">✓</i><span>{item}</span><b>TRUE</b></div>)}<div><i className={walkaroundComplete ? 'ok' : 'attention'}>{walkaroundComplete ? '✓' : '!'}</i><span>physical walkaround evidence</span><b>{walkaroundComplete ? 'TRUE' : 'HOLD'}</b></div><div><i className={releaseBlocked ? 'attention' : 'ok'}>{releaseBlocked ? '!' : '✓'}</i><span>quality / service release</span><b>{releaseBlocked ? 'HOLD' : 'TRUE'}</b></div></div>
     </div>
-    <ConsoleAction complete={complete} idle="RUN SAFE-STATE CHECK" done="SAFE STATE ATTESTED" note={complete ? 'Attestation staged for the LES record.' : 'Controls remain read-only until all permissives agree.'} onClick={onComplete} />
+    <ConsoleAction complete={complete} disabled={!walkaroundComplete} idle={walkaroundComplete ? 'RUN SAFE-STATE CHECK' : 'WALKAROUND REQUIRED'} done="SAFE STATE ATTESTED" note={complete ? 'Attestation staged for the LES record.' : walkaroundComplete ? 'Physical state is linked; quality or service holds remain independent.' : `${physicalChecks.length}/3 physical inspection points linked. Use 3D focus mode.`} onClick={onComplete} />
   </div>;
 }
 
@@ -100,8 +101,8 @@ function CmmsView({ profile, complete, onComplete }: { profile: typeof profiles[
   </div>;
 }
 
-function ConsoleAction({ complete, idle, done, note, onClick }: { complete: boolean; idle: string; done: string; note: string; onClick: () => void }) {
-  return <footer className="console-action"><p><i className={complete ? 'online' : ''} />{note}</p><button type="button" className={complete ? 'complete' : ''} onClick={onClick}>{complete ? '✓ ' : ''}{complete ? done : idle}</button></footer>;
+function ConsoleAction({ complete, disabled = false, idle, done, note, onClick }: { complete: boolean; disabled?: boolean; idle: string; done: string; note: string; onClick: () => void }) {
+  return <footer className="console-action"><p><i className={complete ? 'online' : ''} />{note}</p><button type="button" disabled={disabled} className={complete ? 'complete' : ''} onClick={onClick}>{complete ? '✓ ' : ''}{complete ? done : idle}</button></footer>;
 }
 
 function Barcode({ seed }: { seed: number }) {
