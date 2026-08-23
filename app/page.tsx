@@ -302,7 +302,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
       {modal === 'sem' && <SemEdsModal feedback={feedback} onDecide={decideSem} onClose={() => setModal(null)} />}
       {modal === 'guide' && <GuideModal onClose={() => setModal(null)} />}
       {modal === 'deck' && <ShiftDeckModal active="xrd" onChoose={onSwitch} onClose={() => setModal(null)} />}
-      {modal === 'complete' && <CompleteModal scores={scores} logCount={log.length} onReset={resetShift} onClose={() => setModal(null)} />}
+      {modal === 'complete' && <CompleteModal scores={scores} logCount={log.length} exceptionCount={log.filter((event) => event.type === 'exception').length} onReset={resetShift} onClose={() => setModal(null)} />}
       {logOpen && <LedgerDrawer log={log} onClose={() => setLogOpen(false)} />}
     </main>
   );
@@ -379,9 +379,9 @@ function AccessBoundaryMap() {
   </div>;
 }
 
-function CompleteModal({ scores, logCount, onReset, onClose }: { scores: Scores; logCount: number; onReset: () => void; onClose: () => void }) {
+function CompleteModal({ scores, logCount, exceptionCount, onReset, onClose }: { scores: Scores; logCount: number; exceptionCount: number; onReset: () => void; onClose: () => void }) {
   const total = Math.round((scores.safety + scores.traceability + scores.integrity + scores.uptime) / 4);
-  return <ModalShell title="Shift debrief" kicker="WO-2841 · COMPLETE" onClose={onClose}><div className="debrief-score"><span>SHIFT RATING</span><b>{total}</b><i>/ 100</i></div><p className="modal-intro">You returned an instrument to control, quarantined a mislabeled specimen, released a robot workcell, challenged an AI plan, and built a representative SEM/EDS follow-up package.</p><DebriefVisual scenario="xrd" scores={scores} /><div className="debrief-grid"><span>Safety<b>{scores.safety}</b></span><span>Traceability<b>{scores.traceability}</b></span><span>Data integrity<b>{scores.integrity}</b></span><span>Uptime<b>{scores.uptime}</b></span></div><div className="lesson-card"><b>What the technician role connects</b><p>Hands-on sample work, equipment health, controlled records, automation exceptions, and evidence that is fit for scientific and AI decisions.</p></div><p className="debrief-meta">{logCount} shift events captured · 1 specimen quarantined · 2 characterization gates reviewed</p><button className="modal-run" type="button" onClick={onReset}>REPLAY SHIFT</button></ModalShell>;
+  return <ModalShell title="Shift debrief" kicker="WO-2841 · COMPLETE" onClose={onClose}><div className="debrief-score"><span>SHIFT RATING</span><b>{total}</b><i>/ 100</i></div><p className="modal-intro">You returned an instrument to control, quarantined a mislabeled specimen, released a robot workcell, challenged an AI plan, and built a representative SEM/EDS follow-up package.</p><DebriefVisual scenario="xrd" scores={scores} exceptionCount={exceptionCount} /><div className="debrief-grid"><span>Safety<b>{scores.safety}</b></span><span>Traceability<b>{scores.traceability}</b></span><span>Data integrity<b>{scores.integrity}</b></span><span>Uptime<b>{scores.uptime}</b></span></div><div className="lesson-card"><b>What the technician role connects</b><p>Hands-on sample work, equipment health, controlled records, automation exceptions, and evidence that is fit for scientific and AI decisions.</p></div><p className="debrief-meta">{logCount} shift events captured · 1 specimen quarantined · 2 characterization gates reviewed</p><button className="modal-run" type="button" onClick={onReset}>REPLAY SHIFT</button></ModalShell>;
 }
 
 function LedgerDrawer({ log, onClose }: { log: LogItem[]; onClose: () => void }) {

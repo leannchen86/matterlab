@@ -258,3 +258,6 @@ equipment close-ups.
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
 covered a wide desktop viewport and a 390 × 844 mobile viewport, including the scenario deck and a
 stacked instrument workbench. TypeScript, lint, and production build checks are run before publish.
+### Critique 15 — A recovered mistake looked indistinguishable from a flawless shift
+
+The adversarial furnace regression proved that an unsafe resume attempt was blocked, logged, and penalized, but the debrief still rendered a uniformly green evidence path. That conflated evidence completeness with execution quality. The debrief now preserves the green retained-evidence chain while adding an amber recovered-attempt lane, with the count explicitly linked to the event ledger.

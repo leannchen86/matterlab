@@ -25,7 +25,7 @@ const trails: Record<Scenario, { label: string; detail: string }[]> = {
   ],
 };
 
-export function DebriefVisual({ scenario, scores }: { scenario: Scenario; scores: Scores }) {
+export function DebriefVisual({ scenario, scores, exceptionCount = 0 }: { scenario: Scenario; scores: Scores; exceptionCount?: number }) {
   const values = [scores.safety, scores.traceability, scores.integrity, scores.uptime];
   const point = (value: number, index: number) => {
     const angle = -Math.PI / 2 + index * Math.PI / 2;
@@ -44,8 +44,9 @@ export function DebriefVisual({ scenario, scores }: { scenario: Scenario; scores
         <text x="55" y="7" textAnchor="middle">SAFETY</text><text x="104" y="57">TRACE</text><text x="55" y="108" textAnchor="middle">INTEGRITY</text><text x="6" y="57" textAnchor="end">UPTIME</text>
       </svg>
     </div>
-    <div className="debrief-trail">
+    <div className={`debrief-trail${exceptionCount ? ' recovered' : ''}`}>
       <header><span>RETAINED EVIDENCE TRAIL</span><b>5 / 5 LINKED</b></header>
+      {exceptionCount > 0 && <div className="recovery-band" role="status"><i>!</i><b>{exceptionCount} BLOCKED {exceptionCount === 1 ? 'ATTEMPT' : 'ATTEMPTS'}</b><span>recovered · retained in ledger</span></div>}
       <div>{trails[scenario].map((item, index) => <article key={item.label}><i>{index + 1}</i><b>{item.label}</b><small>{item.detail}</small></article>)}</div>
       <footer><span>PHYSICAL</span><i>→</i><span>DIGITAL</span><i>→</i><span>SCIENTIFIC</span><i>→</i><span>AI-ELIGIBLE</span></footer>
     </div>
