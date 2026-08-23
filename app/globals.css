@@ -113,13 +113,19 @@ button { font: inherit; }
 .scene-corner-top b { color: #9dafc0; font-weight: 600; }
 .scene-corner-bottom { left: 16px; bottom: 13px; }
 .scene-corner-bottom span { color: #a8bac9; }.scene-corner-bottom i { color: #3c5067; font-style: normal; }
-.station-3d-label { position: relative; width: 118px; padding: 6px 8px 7px; border: 1px solid color-mix(in srgb, var(--station-tone) 40%, #26384b); background: #07101be6; box-shadow: 0 8px 24px #000a, inset 2px 0 0 var(--station-tone); backdrop-filter: blur(8px); transform: translateY(-4px); }
+.station-3d-label { position: relative; width: 118px; padding: 6px 22px 7px 8px; border: 1px solid color-mix(in srgb, var(--station-tone) 40%, #26384b); background: #07101be6; box-shadow: 0 8px 24px #000a, inset 2px 0 0 var(--station-tone); backdrop-filter: blur(8px); color: inherit; text-align: left; transform: translateY(-4px); transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease; }
+.station-3d-label::before { content: '◇'; position: absolute; top: 7px; right: 8px; color: var(--station-tone); font: 700 8px var(--font-geist-mono); opacity: .58; }
 .station-3d-label::after { content: ''; position: absolute; top: 100%; left: 50%; width: 1px; height: 11px; background: var(--station-tone); opacity: .45; }
 .station-3d-label span { display: block; color: #718399; font: 650 6px var(--font-geist-mono); letter-spacing: .08em; }
 .station-3d-label b { display: block; margin-top: 2px; overflow: hidden; color: #d6e1ec; font: 650 9px var(--font-geist-sans); white-space: nowrap; text-overflow: ellipsis; }
 .station-3d-label i { display: block; margin-top: 3px; color: var(--station-tone); font: 650 6px var(--font-geist-mono); font-style: normal; }
 .station-3d-label.selected { border-color: var(--cyan); background: #0c2130ed; box-shadow: 0 0 26px #4dd5ed2e, 0 8px 24px #000a, inset 2px 0 0 var(--cyan); transform: translateY(-7px) scale(1.04); }
 .lab-3d.camera-focus .station-3d-label:not(.selected) { display: none; }
+.scene-station-picker { position: absolute; z-index: 28; right: 14px; bottom: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 4px; border: 1px solid #253b50; background: #06101ad9; box-shadow: 0 12px 26px #000a; backdrop-filter: blur(9px); }
+.scene-station-picker button { min-width: 58px; height: 23px; display: flex; align-items: center; gap: 5px; padding: 0 7px; border: 1px solid transparent; background: #0b1621; color: #617489; font: 650 6px var(--font-geist-mono); cursor: pointer; }
+.scene-station-picker button i { width: 5px; height: 5px; border-radius: 50%; background: var(--station-tone); box-shadow: 0 0 6px color-mix(in srgb, var(--station-tone) 68%, transparent); }
+.scene-station-picker button:hover, .scene-station-picker button:focus-visible { border-color: #3d5d75; color: #b3c2cf; outline: none; }
+.scene-station-picker button.active { border-color: var(--station-tone); background: #102332; color: #d1dde7; box-shadow: inset 2px 0 var(--station-tone); }
 .hotspot-label { display: block; padding: 3px 5px; border: 1px solid color-mix(in srgb, var(--hotspot) 62%, #2b3d4f); background: #07111adc; color: var(--hotspot); box-shadow: 0 4px 12px #0009; font: 700 5px var(--font-geist-mono); letter-spacing: .08em; white-space: nowrap; }
 .walkaround-panel { position: absolute; z-index: 30; left: 15px; bottom: 37px; width: 280px; padding: 10px; border: 1px solid #31506a; background: #07111be8; box-shadow: 0 16px 38px #000b, inset 2px 0 #4dd5ed; backdrop-filter: blur(12px); }
 .walkaround-panel header { display: flex; align-items: center; justify-content: space-between; }.walkaround-panel header div { min-width: 0; }.walkaround-panel header span { display: block; color: var(--cyan); font: 700 6px var(--font-geist-mono); letter-spacing: .09em; }.walkaround-panel header b { display: block; margin-top: 4px; overflow: hidden; color: #b9c7d3; font: 650 8px var(--font-geist-mono); white-space: nowrap; text-overflow: ellipsis; }.walkaround-panel header em { color: #7c91a3; font: 700 8px var(--font-geist-mono); font-style: normal; }.walkaround-panel > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 9px; }.walkaround-panel button { min-width: 0; height: 27px; border: 1px solid #293d52; background: #0d1824; color: #718397; font: 650 6px var(--font-geist-mono); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.walkaround-panel button i { margin-right: 4px; color: #5e7589; font-style: normal; }.walkaround-panel button:hover, .walkaround-panel button:focus-visible { border-color: #46758c; color: #b9c8d4; outline: none; }.walkaround-panel button.visited { border-color: #36755d; background: #0d241b; color: var(--green); }.walkaround-panel button.visited i { color: var(--green); }.walkaround-panel > small { display: block; margin-top: 8px; color: #5e7287; font: 500 6px/1.4 var(--font-geist-mono); }
@@ -488,6 +494,9 @@ button { font: inherit; }
   .view-switch button { min-width: 66px; }
   .station-3d-label { width: 98px; padding: 5px 6px; }
   .station-3d-label:not(.selected) { display: none; }
+  .scene-station-picker { top: 76px; right: 8px; bottom: auto; grid-template-columns: repeat(2, 1fr); }
+  .scene-station-picker button { min-width: 55px; }
+  .camera-focus .scene-station-picker { display: none; }
   .hotspot-label { display: none; }
   .walkaround-panel { left: 8px; right: 8px; bottom: 8px; width: auto; }
   .station-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); }

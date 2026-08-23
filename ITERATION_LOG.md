@@ -133,6 +133,26 @@ records.
 - Verified XRD, BET, robot, and furnace close-ups on desktop, plus a 390 × 844 BET focus view with the
   walkaround panel visible above facility status.
 
+## Critique 8: the instruments still read as isolated product models
+
+The first 3D pass established scale and station identity, but close review showed too little of the
+infrastructure and point-of-work detail that makes a laboratory feel operational. Selecting a small
+or partly occluded mesh was also less discoverable than the rest of the interface.
+
+### Changes
+
+- Added an overhead cable tray, routed services, color-coded gas/vacuum manifolds, local utilities,
+  an emergency stop, and a fire extinguisher to connect the stations into one facility.
+- Added close-up powder-prep details: hood task light, extraction duct, balance pan, sample boat,
+  powder charge, and spatula.
+- Added an SEM/EDS detector, support cable, vacuum equipment, and a more legible detector-to-chamber
+  relationship; scaled the detector back after its first close-up blocked the chamber.
+- Added a compact, keyboard-accessible station picker with state-colored indicators so every asset
+  has an explicit inspection entry point in addition to direct geometry picking.
+- Rejected an initial approach that made the floating 3D labels themselves clickable. Mixing the
+  HTML labels into pointer stacking made all but one disappear in the rendered scene, so the labels
+  remain visual annotations and selection lives in a stable scene-level control.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
