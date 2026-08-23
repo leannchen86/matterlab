@@ -302,6 +302,27 @@ new workflow introduced unfamiliar equipment.
 - Preserved the visual access-boundary map and optional deeper sources without adding text to the
   default equipment view.
 
+## Critique 19: TGA/DSC was inspectable but not operable
+
+The seventh station had credible equipment, walkaround points, records, and outputs, but it remained
+an exhibit beside the three playable workflows. A technician could inspect the thermal analyzer
+without experiencing the measurement-control decisions that make its data scientifically usable.
+
+### Changes
+
+- Added a fourth work order for thermal-analysis release, with a scenario-specific shift handoff,
+  station states, AI experiment space, evidence chain, event ledger, and debrief.
+- Built an empty-pan baseline review that requires retaining the failed run before method release.
+- Added a physical-versus-governed pan-pair reconciliation, including a mixed Pt/Al scan and a
+  matched PANSET-14 recovery path.
+- Added paired mass-change, heat-flow, and purge traces so temporal alignment is visible without
+  implying causality.
+- Made the AI planner's lower-temperature proposal contingent on a technician gate that flags the
+  coupled event and queues a matched-pan repeat.
+- Added a paired-pan 3D carrier and extended the mobile work-order deck to four complete cards.
+- Exercised both unsafe branches in the browser, verified that they remain as recovered exceptions,
+  and rechecked the full debrief at 390 × 844.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

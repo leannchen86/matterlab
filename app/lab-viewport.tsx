@@ -10,7 +10,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', o
   stations: Station[];
   selectedId: string;
   phase: number;
-  scenarioId?: 'xrd' | 'bet' | 'furnace';
+  scenarioId?: 'xrd' | 'bet' | 'furnace' | 'tga';
   onInspectionChange?: (stationId: string, checks: string[]) => void;
   onSelect: (id: string) => void;
 }) {

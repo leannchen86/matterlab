@@ -2,9 +2,10 @@
 
 MatterShift is a browser simulation of a lab technician's shift inside an AI-enabled,
 high-throughput materials laboratory. The primary experience is an equipment-first operations
-console with three playable work orders. The shifts cover XRD quality control and SEM/EDS follow-up,
-BET service acceptance and pretreatment lineage, and robot–furnace recovery after an interrupted
-thermal run. Each path ends at a scientific or AI data gate rather than at equipment uptime alone.
+console with four playable work orders. The shifts cover XRD quality control and SEM/EDS follow-up,
+BET service acceptance and pretreatment lineage, robot–furnace recovery after an interrupted
+thermal run, and TGA/DSC measurement-control recovery. Each path ends at a scientific or AI data
+gate rather than at equipment uptime alone.
 
 The interface is intentionally modeled after a real technician environment rather than a generic
 materials-science lesson. Its default facility view is an orbitable Three.js digital twin with
@@ -20,6 +21,8 @@ gates, alarms, shift health, and a chronological event record.
   record, and distinguish a low control result from a material trend.
 - **Interrupted thermal run:** preserve the thermal trace, reconcile robot and furnace occupancy,
   verify empty-cell recovery, and censor a compromised run without deleting it.
+- **Thermal-analysis release:** retain a failed empty-pan baseline, reconcile a mixed physical pan
+  pair, run a governed blank, and stop a purge-coupled event from steering the AI planner.
 
 Selecting an asset exposes a simulated local workstation with four technician-facing boundaries:
 HMI/SCADA state and permissives, LES method execution, LIMS identity and lineage, and CMMS service
@@ -38,9 +41,9 @@ The shared bay includes overhead cable routing, gas/vacuum service panels, emerg
 mobile handling equipment, point-of-work tools, and a compact keyboard-accessible station selector
 so the instruments read as one operational facility rather than isolated product models.
 Scenario routes move distinct physical carriers rather than a generic token: a six-position XRD
-tray, a four-tube gas-sorption rack, or a refractory setter with crucibles. Loading zones sit in
-front of each instrument, and the procedural robot includes articulated servo housings, a wrist
-flange, gripper tooling, and dressed cabling.
+tray, a four-tube gas-sorption rack, a refractory setter with crucibles, or a paired-pan carrier for
+thermal analysis. Loading zones sit in front of each instrument, and the procedural robot includes
+articulated servo housings, a wrist flange, gripper tooling, and dressed cabling.
 
 The AI experiment loop is visual rather than conversational: each shift plots retained measurements,
 an uncertainty field, and a proposed next experiment in a small scenario-specific design space. A

@@ -1,4 +1,4 @@
-type Scenario = 'xrd' | 'bet' | 'furnace';
+type Scenario = 'xrd' | 'bet' | 'furnace' | 'tga';
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 
 const trails: Record<Scenario, { label: string; detail: string }[]> = {
@@ -22,6 +22,13 @@ const trails: Record<Scenario, { label: string; detail: string }[]> = {
     { label: 'CELL VERIFIED', detail: 'empty cycle' },
     { label: 'RUN CENSORED', detail: 'excluded' },
     { label: 'REPLAN READY', detail: 'replacement' },
+  ],
+  tga: [
+    { label: 'BASELINE HELD', detail: 'offset retained' },
+    { label: 'PANSET BOUND', detail: 'PANSET-14' },
+    { label: 'BLANK PASSED', detail: 'paired pans' },
+    { label: 'ARTIFACT FLAGGED', detail: 'purge step' },
+    { label: 'REPEAT QUEUED', detail: 'AI held' },
   ],
 };
 

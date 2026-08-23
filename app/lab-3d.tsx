@@ -8,7 +8,7 @@ import type { Station } from './sim-data';
 
 type OrbitControlsHandle = React.ComponentRef<typeof OrbitControls>;
 
-type ScenarioId = 'xrd' | 'bet' | 'furnace';
+type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga';
 type SceneProps = {
   stations: Station[];
   selectedId: string;
@@ -589,7 +589,7 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
   const carrier = useRef<THREE.Group>(null);
   const current = useRef(0.03);
   const points = useMemo(() => {
-    const indexes = scenarioId === 'xrd' ? [0, 1, 2, 3] : scenarioId === 'bet' ? [0, 1, 5] : [1, 2];
+    const indexes = scenarioId === 'xrd' ? [0, 1, 2, 3] : scenarioId === 'bet' ? [0, 1, 5] : scenarioId === 'tga' ? [0, 6] : [1, 2];
     return indexes.map((index) => {
       const [x, , z] = STATION_POSITIONS[index];
       return new THREE.Vector3(x, 0.18, z + 1.18);
@@ -597,9 +597,9 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
   }, [scenarioId]);
   const curve = useMemo(() => new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.15), [points]);
   const route = useMemo(() => curve.getPoints(50), [curve]);
-  const routeColor = scenarioId === 'bet' ? '#b48cff' : scenarioId === 'furnace' ? '#f39a62' : '#4dd5ed';
+  const routeColor = scenarioId === 'bet' ? '#b48cff' : scenarioId === 'furnace' ? '#f39a62' : scenarioId === 'tga' ? '#e2a64f' : '#4dd5ed';
   useFrame(({ clock }, delta) => {
-    const maxStep = scenarioId === 'furnace' ? 2 : scenarioId === 'bet' ? 4 : 4;
+    const maxStep = scenarioId === 'furnace' ? 2 : 4;
     const target = Math.min(0.96, 0.04 + (Math.min(phase, maxStep) / maxStep) * 0.9);
     current.current = THREE.MathUtils.damp(current.current, target, 3.8, delta);
     const breathing = phase === 3 ? Math.sin(clock.elapsedTime * 1.6) * 0.008 : 0;
@@ -616,6 +616,16 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
 }
 
 function SampleCarrier({ scenarioId, routeColor }: { scenarioId: ScenarioId; routeColor: string }) {
+  if (scenarioId === 'tga') return <group rotation={[0, Math.PI / 4, 0]}>
+    <RoundedBox args={[0.5, 0.07, 0.34]} radius={0.025} position={[0, 0.035, 0]} castShadow><meshStandardMaterial color="#4f5f67" metalness={0.78} roughness={0.26} /></RoundedBox>
+    {[-0.13, 0.13].map((x, index) => <group key={x} position={[x, 0.09, 0]}>
+      <mesh castShadow><cylinderGeometry args={[0.08, 0.085, 0.045, 24]} /><meshStandardMaterial color={index === 0 ? '#d2d6d5' : '#b7a27b'} metalness={index === 0 ? 0.74 : 0.28} roughness={0.3} /></mesh>
+      <mesh position={[0, 0.028, 0]}><torusGeometry args={[0.067, 0.009, 8, 22]} /><meshStandardMaterial color="#e6e5df" metalness={0.6} roughness={0.24} /></mesh>
+    </group>)}
+    <mesh position={[0, 0.11, -0.11]} castShadow><cylinderGeometry args={[0.04, 0.045, 0.14, 16]} /><meshPhysicalMaterial color="#d4c7a0" roughness={0.42} clearcoat={0.2} /></mesh>
+    <CarrierTag color={routeColor} />
+  </group>;
+
   if (scenarioId === 'bet') return <group rotation={[0, Math.PI / 4, 0]}>
     <RoundedBox args={[0.54, 0.08, 0.38]} radius={0.025} position={[0, 0.04, 0]} castShadow><meshStandardMaterial color="#4a5d69" metalness={0.78} roughness={0.27} /></RoundedBox>
     {[-0.18, -0.06, 0.06, 0.18].map((x, index) => <group key={x} position={[x, 0.23, 0]}>

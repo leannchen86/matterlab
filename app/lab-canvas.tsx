@@ -5,7 +5,7 @@ import type { Station } from './sim-data';
 
 type HitBox = { id: string; x: number; y: number; w: number; h: number };
 
-export function LabCanvas({ stations, selectedId, phase, scenarioId = 'xrd', onSelect }: { stations: Station[]; selectedId: string; phase: number; scenarioId?: 'xrd' | 'bet' | 'furnace'; onSelect: (id: string) => void }) {
+export function LabCanvas({ stations, selectedId, phase, scenarioId = 'xrd', onSelect }: { stations: Station[]; selectedId: string; phase: number; scenarioId?: 'xrd' | 'bet' | 'furnace' | 'tga'; onSelect: (id: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hitsRef = useRef<HitBox[]>([]);
   const hoveredIdRef = useRef<string | null>(null);
@@ -312,10 +312,11 @@ function drawTga(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.fillStyle = '#526b78'; ctx.fillRect(x + w * .87, y + h * .36, w * .06, h * .32);
 }
 
-function drawMaterialRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number, scenarioId: 'xrd' | 'bet' | 'furnace') {
+function drawMaterialRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number, scenarioId: 'xrd' | 'bet' | 'furnace' | 'tga') {
   if (hits.length < 6) return;
   if (scenarioId === 'bet') { drawBetRoute(ctx, hits, phase, now); return; }
   if (scenarioId === 'furnace') { drawFurnaceRoute(ctx, hits, phase, now); return; }
+  if (scenarioId === 'tga') { drawTgaRoute(ctx, hits, phase, now); return; }
   const points = [hits[0], hits[1], hits[2], hits[3]].map((box) => ({ x: box.x + box.w / 2, y: box.y + box.h / 2 }));
   ctx.save();
   ctx.setLineDash([5, 5]);
@@ -339,6 +340,23 @@ function drawMaterialRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase:
   ctx.fillRect(-13, -13, 26, 26); ctx.strokeRect(-13.5, -13.5, 27, 27);
   ctx.rotate(-Math.PI / 4);
   ctx.fillStyle = '#76dcef'; ctx.textAlign = 'center'; ctx.font = '700 6px ui-monospace, monospace'; ctx.fillText('BC-184', 0, 2);
+  ctx.restore();
+}
+
+function drawTgaRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number) {
+  if (hits.length < 7) return;
+  const start = { x: hits[0].x + hits[0].w * .72, y: hits[0].y + hits[0].h * .62 };
+  const end = { x: hits[6].x + hits[6].w * .48, y: hits[6].y + hits[6].h * .46 };
+  ctx.save();
+  ctx.setLineDash([4, 6]); ctx.strokeStyle = '#806334'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke(); ctx.setLineDash([]);
+  const target = Math.min(1, .05 + Math.min(phase, 3) / 3 * .9);
+  const movement = phase === 3 ? target + Math.sin(now / 750) * .025 : target;
+  const cx = start.x + (end.x - start.x) * movement; const cy = start.y + (end.y - start.y) * movement;
+  ctx.translate(cx, cy); ctx.shadowColor = '#e2a64faa'; ctx.shadowBlur = phase === 3 ? 16 : 8;
+  ctx.fillStyle = '#292015'; ctx.strokeStyle = '#e2a64f'; ctx.lineWidth = 1;
+  roundRect(ctx, -17, -9, 34, 18, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#f1ca84'; ctx.textAlign = 'center'; ctx.font = '700 6px ui-monospace, monospace'; ctx.fillText('PAN-14', 0, 2);
   ctx.restore();
 }
 
