@@ -592,7 +592,7 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
     const indexes = scenarioId === 'xrd' ? [0, 1, 2, 3] : scenarioId === 'bet' ? [0, 1, 5] : [1, 2];
     return indexes.map((index) => {
       const [x, , z] = STATION_POSITIONS[index];
-      return new THREE.Vector3(x, 0.02, z + 1.58);
+      return new THREE.Vector3(x, 0.18, z + 1.18);
     });
   }, [scenarioId]);
   const curve = useMemo(() => new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.15), [points]);

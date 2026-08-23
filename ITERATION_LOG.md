@@ -270,8 +270,9 @@ hid the fact that different characterization workflows use different carrier har
 - Replaced the cube with a six-position metal XRD specimen tray, a four-tube gas-sorption rack, or a
   refractory setter with four crucibles, depending on the active shift.
 - Added small physical details such as loaded powders, tube caps, crucible rims, and carrier ID tags.
-- Moved route endpoints from asset centers to front-of-instrument loading zones so the carrier remains
-  visible and spatially plausible instead of disappearing beneath equipment.
+- Moved route endpoints from asset centers to raised front-of-instrument transfer decks so carriers
+  remain visible without disappearing beneath equipment or implying that exposed samples sit on the
+  laboratory floor.
 - Reduced route-line brightness so the line reads as a digital-twin overlay while the carrier reads
   as the physical object the technician controls.
 

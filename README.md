@@ -37,6 +37,10 @@ state; completing a walkaround does not erase a separate quality, service, or pr
 The shared bay includes overhead cable routing, gas/vacuum service panels, emergency controls,
 mobile handling equipment, point-of-work tools, and a compact keyboard-accessible station selector
 so the instruments read as one operational facility rather than isolated product models.
+Scenario routes move distinct physical carriers rather than a generic token: a six-position XRD
+tray, a four-tube gas-sorption rack, or a refractory setter with crucibles. Loading zones sit in
+front of each instrument, and the procedural robot includes articulated servo housings, a wrist
+flange, gripper tooling, and dressed cabling.
 
 The AI experiment loop is visual rather than conversational: each shift plots retained measurements,
 an uncertainty field, and a proposed next experiment in a small scenario-specific design space. A
@@ -45,7 +49,9 @@ or thermal history is not yet trustworthy.
 
 Each completed shift ends with a visual performance profile and a scenario-specific evidence trail,
 making the path from physical work through governed records to an AI-eligible—or deliberately
-censored—outcome clear enough to compare on replay.
+censored—outcome clear enough to compare on replay. Blocked mistakes remain visible as recovered
+exceptions and stay linked to the chronological event ledger even after the final evidence chain is
+complete.
 
 The shift deck, 3D facility, 2D fallback map, and station consoles are responsive down to a
 phone-sized viewport. All instrument geometry, traces, micrographs, spectra, and equipment routes
