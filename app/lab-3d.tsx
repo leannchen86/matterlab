@@ -67,10 +67,11 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
   const [walkCommand, setWalkCommand] = useState<WalkCommand>({ id: 0, direction: 'forward' });
   const selectedIndex = Math.max(0, stations.findIndex((station) => station.id === selectedId));
   const selectedStation = stations[selectedIndex];
+  const selectedHotspots = getInspectionPoints(selectedIndex, scenarioId, phase);
   const inspected = visited[selectedId] ?? [];
   const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? observationRecord.point : null;
   const inspect = (label: string) => {
-    const point = HOTSPOTS[selectedIndex].find((hotspot) => hotspot.label === label);
+    const point = selectedHotspots.find((hotspot) => hotspot.label === label);
     if (point) setObservationRecord({ stationId: selectedId, point });
     const checks = Array.from(new Set([...(visited[selectedId] ?? []), label]));
     if (!inspectionState) setLocalVisited((current) => ({ ...current, [selectedId]: checks }));
@@ -103,7 +104,10 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
             active={station.tone === 'run'}
             showHotspots={selectedId === station.id && cameraMode === 'focus'}
             inspected={visited[station.id] ?? []}
+            inspectionPoints={getInspectionPoints(index, scenarioId, phase)}
             controls={controlFeedback?.[station.id] ?? []}
+            scenarioId={scenarioId}
+            phase={phase}
             onInspect={inspect}
             onFocus={() => onCameraMode('focus')}
             onSelect={onSelect}
@@ -142,14 +146,14 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
         </div>
         <button type="button" className="walk-console" onClick={onOpenConsole}>OPERATE LOCAL CONSOLE <i>↗</i></button>
         <small>WASD / ARROWS · choose a station to approach</small>
-        <button type="button" className="walk-inspect" onClick={() => onCameraMode('focus')}>◎ INSPECT ASSET <i>{inspected.length}/{HOTSPOTS[selectedIndex].length}</i></button>
+        <button type="button" className="walk-inspect" onClick={() => onCameraMode('focus')}>◎ INSPECT ASSET <i>{inspected.length}/{selectedHotspots.length}</i></button>
       </div>}
       {cameraMode === 'focus' && <div className="walkaround-panel">
-        <header><div><span>PHYSICAL WALKAROUND</span><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspected.length} / {HOTSPOTS[selectedIndex].length}</em></header>
-        <div>{HOTSPOTS[selectedIndex].map((hotspot) => <button key={hotspot.label} type="button" className={inspected.includes(hotspot.label) ? 'visited' : ''} onClick={() => inspect(hotspot.label)}><i>{inspected.includes(hotspot.label) ? '✓' : '○'}</i>{hotspot.label}</button>)}</div>
+        <header><div><span>PHYSICAL WALKAROUND</span><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspected.length} / {selectedHotspots.length}</em></header>
+        <div>{selectedHotspots.map((hotspot) => <button key={hotspot.label} type="button" className={inspected.includes(hotspot.label) ? 'visited' : ''} onClick={() => inspect(hotspot.label)}><i>{inspected.includes(hotspot.label) ? '✓' : '○'}</i>{hotspot.label}</button>)}</div>
         {activeObservation && <div className={`walkaround-observation ${activeObservation.state}`}><span>{activeObservation.label} OBSERVATION</span><b>{activeObservation.observation}</b><em>{activeObservation.state === 'attention' ? 'ATTENTION' : 'CAPTURED'}</em></div>}
-        {inspected.length === HOTSPOTS[selectedIndex].length && <button type="button" className="walkaround-next" onClick={onOpenConsole}>OPEN LOCAL CONSOLE <i>→</i></button>}
-        <small>{inspected.length === HOTSPOTS[selectedIndex].length ? 'Walkaround captured. Compare physical state with the local console.' : 'Select each marker on the asset or checklist.'}</small>
+        {inspected.length === selectedHotspots.length && <button type="button" className="walkaround-next" onClick={onOpenConsole}>OPEN LOCAL CONSOLE <i>→</i></button>}
+        <small>{inspected.length === selectedHotspots.length ? 'Walkaround captured. Compare physical state with the local console.' : 'Select each marker on the asset or checklist.'}</small>
       </div>}
     </div>
   );
@@ -430,7 +434,23 @@ function OperationsProps({ scenarioId, phase }: { scenarioId: ScenarioId; phase:
     </group>
     <PoweredPalletJack scenarioId={scenarioId} phase={phase} />
     <GasServiceBay active={scenarioId === 'facility'} accepted={scenarioId === 'facility' && phase >= 3} />
+    <FurnaceQuarantineStand active={scenarioId === 'furnace'} occupied={scenarioId === 'furnace' && phase >= 2} />
     <SampleStagingRack />
+  </group>;
+}
+
+function FurnaceQuarantineStand({ active, occupied }: { active: boolean; occupied: boolean }) {
+  if (!active) return null;
+  const color = occupied ? '#f39a62' : '#80664e';
+  return <group position={[3.72, 0.045, -0.55]}>
+    <RoundedBox args={[1.18, 0.055, 1.02]} radius={0.03} receiveShadow><meshStandardMaterial color="#2a2422" roughness={0.9} /></RoundedBox>
+    <Line points={[[ -0.53, 0.035, -0.45 ], [ 0.53, 0.035, -0.45 ], [ 0.53, 0.035, 0.45 ], [ -0.53, 0.035, 0.45 ], [ -0.53, 0.035, -0.45 ]]} color={color} lineWidth={0.9} transparent opacity={0.8} />
+    <mesh position={[0, 0.052, -0.34]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[0.72, 0.12]} /><meshBasicMaterial color={color} transparent opacity={0.42} /></mesh>
+    <group position={[0.48, 0.52, -0.42]}>
+      <mesh position={[0, -0.21, 0]} castShadow><boxGeometry args={[0.045, 0.48, 0.045]} /><meshStandardMaterial color="#56636a" metalness={0.75} roughness={0.26} /></mesh>
+      <RoundedBox args={[0.72, 0.28, 0.055]} radius={0.025} castShadow><meshStandardMaterial color="#3b302b" metalness={0.32} roughness={0.56} /></RoundedBox>
+      <mesh position={[0, 0.03, 0.031]}><planeGeometry args={[0.5, 0.035]} /><meshBasicMaterial color={color} /></mesh>
+    </group>
   </group>;
 }
 
@@ -529,7 +549,7 @@ function SampleStagingRack() {
   </group>;
 }
 
-function StationCell({ station, index, position, selected, active, showHotspots, inspected, controls, onInspect, onFocus, onSelect }: {
+function StationCell({ station, index, position, selected, active, showHotspots, inspected, inspectionPoints, controls, scenarioId, phase, onInspect, onFocus, onSelect }: {
   station: Station;
   index: number;
   position: [number, number, number];
@@ -537,7 +557,10 @@ function StationCell({ station, index, position, selected, active, showHotspots,
   active: boolean;
   showHotspots: boolean;
   inspected: string[];
+  inspectionPoints: InspectionPoint[];
   controls: string[];
+  scenarioId: ScenarioId;
+  phase: number;
   onInspect: (label: string) => void;
   onFocus: () => void;
   onSelect: (id: string) => void;
@@ -558,8 +581,8 @@ function StationCell({ station, index, position, selected, active, showHotspots,
       </RoundedBox>
       <Line points={[[-1.54, 0.082, -1.36], [1.54, 0.082, -1.36], [1.54, 0.082, 1.36], [-1.54, 0.082, 1.36], [-1.54, 0.082, -1.36]]} color={selected ? '#4dd5ed' : tone} lineWidth={selected ? 1.05 : 0.55} transparent opacity={selected ? 0.48 : 0.12} />
       {[-1.36, 1.36].flatMap((x) => [-1.18, 1.18].map((z) => <mesh key={`${x}-${z}`} position={[x, 0.09, z]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.035, 0.055, 16]} /><meshStandardMaterial color="#687681" metalness={0.78} roughness={0.26} /></mesh>))}
-      <Equipment index={index} active={active} tone={tone} focused={showHotspots} controls={controls} />
-      {showHotspots && <InspectionHotspots index={index} tone={tone} inspected={inspected} onInspect={onInspect} />}
+      <Equipment index={index} active={active} tone={tone} focused={showHotspots} controls={controls} scenarioId={scenarioId} phase={phase} />
+      {showHotspots && <InspectionHotspots points={inspectionPoints} tone={tone} inspected={inspected} onInspect={onInspect} />}
       <StatusBeacon position={[1.32, 0.34, 1.08]} color={tone} active={active || selected} />
       <ControlProofLights count={controls.length} />
       {(selected || hovered) && <Html center position={[index === 3 ? 0.5 : index === 2 ? -0.38 : 0, index < 3 ? 2.98 : 2.72, index < 3 ? -0.2 : 0.2]} distanceFactor={10.5} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
@@ -571,10 +594,10 @@ function StationCell({ station, index, position, selected, active, showHotspots,
   );
 }
 
-function Equipment({ index, active, tone, focused, controls }: { index: number; active: boolean; tone: string; focused: boolean; controls: string[] }) {
+function Equipment({ index, active, tone, focused, controls, scenarioId, phase }: { index: number; active: boolean; tone: string; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number }) {
   if (index === 0) return <PowderPrep controls={controls} />;
   if (index === 1) return <RobotCell active={active} focused={focused} controls={controls} />;
-  if (index === 2) return <Furnace active={active} controls={controls} />;
+  if (index === 2) return <Furnace active={active} controls={controls} scenarioId={scenarioId} phase={phase} />;
   if (index === 3) return <Xrd active={active} controls={controls} />;
   if (index === 4) return <SemEds active={active} controls={controls} />;
   if (index === 5) return <Bet active={active} tone={tone} controls={controls} />;
@@ -593,8 +616,27 @@ const HOTSPOTS: InspectionPoint[][] = [
   [{ position: [-0.58, 1.12, 0.76], label: 'PAN', observation: 'matched empty-pan pair · clean', state: 'pass' }, { position: [0.82, 0.78, 0.7], label: 'PURGE', observation: 'N₂ flow stable · outlet clear', state: 'pass' }, { position: [0.08, 1.28, 0.82], label: 'FURNACE', observation: '28 °C · baseline check due', state: 'attention' }],
 ];
 
-function InspectionHotspots({ index, tone, inspected, onInspect }: { index: number; tone: string; inspected: string[]; onInspect: (label: string) => void }) {
-  return <group>{HOTSPOTS[index].map((hotspot, hotspotIndex) => <Hotspot key={hotspot.label} {...hotspot} tone={tone} visited={inspected.includes(hotspot.label)} delay={hotspotIndex * 0.8} onInspect={onInspect} />)}</group>;
+function getInspectionPoints(index: number, scenarioId: ScenarioId, phase: number): InspectionPoint[] {
+  if (index !== 2 || scenarioId !== 'furnace') return HOTSPOTS[index];
+  if (phase >= 3) return [
+    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: 'access loop closed · dry-cycle proof linked', state: 'pass' },
+    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'recovery sequence complete · I-204 retained', state: 'pass' },
+    { position: [0, 1.38, 0.94], label: 'CHAMBER', observation: 'empty · BC-207 at quarantine stand', state: 'pass' },
+  ];
+  if (phase >= 2) return [
+    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: 'access loop ready · coordinated proof pending', state: 'attention' },
+    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'recovery mode armed · I-204 retained', state: 'pass' },
+    { position: [0, 1.38, 0.94], label: 'CHAMBER', observation: 'empty · BC-207 physically quarantined', state: 'pass' },
+  ];
+  return [
+    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: 'I-204 active · reset inhibited', state: 'attention' },
+    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'cycle interrupted at 742 °C · trace held', state: 'attention' },
+    { position: [0, 1.38, 0.94], label: 'CHAMBER', observation: 'BC-207 present · thermal history interrupted', state: 'attention' },
+  ];
+}
+
+function InspectionHotspots({ points, tone, inspected, onInspect }: { points: InspectionPoint[]; tone: string; inspected: string[]; onInspect: (label: string) => void }) {
+  return <group>{points.map((hotspot, hotspotIndex) => <Hotspot key={hotspot.label} {...hotspot} tone={tone} visited={inspected.includes(hotspot.label)} delay={hotspotIndex * 0.8} onInspect={onInspect} />)}</group>;
 }
 
 function Hotspot({ position, label, tone, visited, delay, onInspect }: { position: [number, number, number]; label: string; tone: string; visited: boolean; delay: number; onInspect: (label: string) => void }) {
@@ -723,12 +765,20 @@ function RobotArm({ active, homed, gripperProven }: { active: boolean; homed: bo
   </group>;
 }
 
-function Furnace({ active, controls }: { active: boolean; controls: string[] }) {
+function Furnace({ active, controls, scenarioId, phase }: { active: boolean; controls: string[]; scenarioId: ScenarioId; phase: number }) {
   const relayRead = controls.includes('Read overtemperature relay');
   const doorVerified = controls.includes('Verify door chain');
   const emptyConfirmed = controls.includes('Confirm empty-cell state');
   const occupancyConfirmed = controls.includes('Confirm chamber occupancy');
-  const chamberStateConfirmed = emptyConfirmed || occupancyConfirmed;
+  const recoveryScenario = scenarioId === 'furnace';
+  const recovered = recoveryScenario && phase >= 3;
+  const recoveryHeld = recoveryScenario && phase >= 1 && phase < 3;
+  const chamberStateConfirmed = emptyConfirmed || occupancyConfirmed || recovered;
+  const chamberColor = recovered ? '#0e1916' : recoveryHeld ? '#1e1610' : emptyConfirmed && !active ? '#111a18' : '#28120b';
+  const chamberEmissive = recovered ? '#1f6b4a' : recoveryHeld ? '#8a4d25' : emptyConfirmed && !active ? '#1f6b4a' : '#e3672e';
+  const chamberIntensity = recovered ? 0.55 : recoveryHeld ? 0.32 : emptyConfirmed && !active ? 0.4 : active ? 2.7 : recoveryScenario ? 1.35 : 0.65;
+  const statusGreen = relayRead || recovered;
+  const doorGreen = doorVerified || recovered;
   return <group position={[0, 0.18, 0]}>
     <RoundedBox args={[2.05, 2.22, 1.5]} radius={0.09} smoothness={4} position={[0, 1.15, 0]} castShadow>
       <meshPhysicalMaterial color="#59636a" metalness={0.9} roughness={0.2} clearcoat={0.34} />
@@ -736,13 +786,13 @@ function Furnace({ active, controls }: { active: boolean; controls: string[] }) 
     <RoundedBox args={[1.52, 1.18, 0.12]} radius={0.05} position={[0, 1.37, 0.79]}>
       <meshStandardMaterial color="#15191c" metalness={0.6} roughness={0.38} />
     </RoundedBox>
-    <mesh position={[0, 1.39, 0.858]}><planeGeometry args={[1.18, 0.76]} /><meshStandardMaterial color={emptyConfirmed && !active ? '#111a18' : '#28120b'} emissive={emptyConfirmed && !active ? '#1f6b4a' : '#e3672e'} emissiveIntensity={emptyConfirmed && !active ? 0.4 : active ? 2.7 : 0.65} roughness={0.85} /></mesh>
-    <pointLight position={[0, 1.4, 1.1]} intensity={emptyConfirmed && !active ? 1.2 : active ? 12 : 2} color={emptyConfirmed && !active ? '#51e19a' : '#ff8b3d'} distance={3} decay={2} />
+    <mesh position={[0, 1.39, 0.858]}><planeGeometry args={[1.18, 0.76]} /><meshStandardMaterial color={chamberColor} emissive={chamberEmissive} emissiveIntensity={chamberIntensity} roughness={0.85} /></mesh>
+    <pointLight position={[0, 1.4, 1.1]} intensity={recovered ? 1.5 : recoveryHeld ? 0.8 : emptyConfirmed && !active ? 1.2 : active ? 12 : recoveryScenario ? 5 : 2} color={recovered ? '#51e19a' : recoveryHeld ? '#d6894f' : emptyConfirmed && !active ? '#51e19a' : '#ff8b3d'} distance={3} decay={2} />
     <RoundedBox args={[0.9, 0.32, 0.09]} radius={0.035} position={[-0.34, 0.55, 0.805]}>
       <meshBasicMaterial color="#08161c" />
     </RoundedBox>
-    <mesh position={[-0.42, 0.56, 0.855]}><planeGeometry args={[0.42, 0.035]} /><meshBasicMaterial color={relayRead ? '#51e19a' : active ? '#f4b95f' : '#6a8290'} /></mesh>
-    <mesh position={[0.82, 1.36, 0.875]} castShadow><boxGeometry args={[0.07, 0.8, 0.08]} /><meshStandardMaterial color={doorVerified ? '#64d49f' : '#9aa3a8'} emissive={doorVerified ? '#1c6545' : '#000000'} emissiveIntensity={doorVerified ? 0.55 : 0} metalness={0.9} roughness={0.16} /></mesh>
+    <mesh position={[-0.42, 0.56, 0.855]}><planeGeometry args={[0.42, 0.035]} /><meshBasicMaterial color={statusGreen ? '#51e19a' : recoveryHeld ? '#d6894f' : active ? '#f4b95f' : '#6a8290'} /></mesh>
+    <mesh position={[0.82, 1.36, 0.875]} castShadow><boxGeometry args={[0.07, 0.8, 0.08]} /><meshStandardMaterial color={doorGreen ? '#64d49f' : recoveryHeld ? '#c88b58' : '#9aa3a8'} emissive={doorGreen ? '#1c6545' : recoveryHeld ? '#5f321c' : '#000000'} emissiveIntensity={doorGreen || recoveryHeld ? 0.55 : 0} metalness={0.9} roughness={0.16} /></mesh>
     <mesh position={[0.71, 0.83, 0.87]}><circleGeometry args={[0.045, 18]} /><meshStandardMaterial color={chamberStateConfirmed ? '#51e19a' : '#6f7e82'} emissive={chamberStateConfirmed ? '#238253' : '#192428'} emissiveIntensity={chamberStateConfirmed ? 1 : 0.2} /></mesh>
   </group>;
 }
@@ -977,6 +1027,10 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
   const carrier = useRef<THREE.Group>(null);
   const current = useRef(0.03);
   const points = useMemo(() => {
+    if (scenarioId === 'furnace') {
+      const [furnaceX, , furnaceZ] = STATION_POSITIONS[2];
+      return [new THREE.Vector3(furnaceX, 0.18, furnaceZ + 1.18), new THREE.Vector3(3.72, 0.18, -0.55)];
+    }
     const indexes = scenarioId === 'xrd' ? [0, 1, 2, 3] : scenarioId === 'bet' ? [0, 1, 5] : scenarioId === 'tga' ? [0, 6] : scenarioId === 'facility' ? [0, 1, 5] : [1, 2];
     return indexes.map((index) => {
       const [x, , z] = STATION_POSITIONS[index];
@@ -987,10 +1041,10 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
   const route = useMemo(() => curve.getPoints(50), [curve]);
   const routeColor = scenarioId === 'bet' ? '#b48cff' : scenarioId === 'furnace' ? '#f39a62' : scenarioId === 'tga' ? '#e2a64f' : scenarioId === 'facility' ? '#68d4ad' : '#4dd5ed';
   useFrame(({ clock }, delta) => {
-    const maxStep = scenarioId === 'furnace' || scenarioId === 'facility' ? 2 : 4;
-    const target = Math.min(0.96, 0.04 + (Math.min(phase, maxStep) / maxStep) * 0.9);
+    const maxStep = scenarioId === 'facility' ? 2 : 4;
+    const target = scenarioId === 'furnace' ? (phase < 2 ? 0.04 + phase * 0.05 : 0.96) : Math.min(0.96, 0.04 + (Math.min(phase, maxStep) / maxStep) * 0.9);
     current.current = THREE.MathUtils.damp(current.current, target, 3.8, delta);
-    const breathing = phase === 3 ? Math.sin(clock.elapsedTime * 1.6) * 0.008 : 0;
+    const breathing = phase === 3 && scenarioId !== 'furnace' ? Math.sin(clock.elapsedTime * 1.6) * 0.008 : 0;
     const point = curve.getPointAt(THREE.MathUtils.clamp(current.current + breathing, 0.02, 0.98));
     if (carrier.current) carrier.current.position.copy(point);
   });

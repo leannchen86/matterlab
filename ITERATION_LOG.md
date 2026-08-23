@@ -795,6 +795,27 @@ handshake that make a coordinated recovery materially different from acknowledgi
 - Exercised the alarm disposition, physical occupancy reconciliation, blocked shortcut, acquired
   dry cycle, correct return-to-ready handoff, desktop composition, and compact-screen stack.
 
+## Critique 46: the room contradicted the furnace recovery record
+
+The recovery console could now prove an empty chamber, yet the 3D carrier route still moved BC-207
+toward FURN-04 and the chamber kept its interrupted-load glow. The static furnace walkaround also
+continued to report a hot load after the workcell was returned to ready.
+
+### Changes
+
+- Reversed the physical recovery story in the spatial twin: BC-207 begins at the furnace threshold
+  and moves to a marked quarantine stand outside the station footprint after reconciliation.
+- Added a dedicated quarantine-zone prop with hold color, floor boundary, and status placard so the
+  material disposition is visible in the room rather than existing only in the event ledger.
+- Made the furnace chamber, controller strip, door-chain indicator, and local light respond to the
+  work-order phase: interrupted/hot, controlled hold, then empty and recovery-proven.
+- Made furnace walkaround observations phase-aware; after recovery they report the closed access
+  loop, retained I-204 trace, empty chamber, and BC-207 quarantine location.
+- Corrected the 2D fallback to show a quarantine hold and `RECOVERY PROVEN` rather than a carrier at
+  the furnace and an already-complete empty-cell cycle still running.
+- Visually inspected the recovered furnace in equipment focus and exercised all three updated
+  physical observations through the local-console handoff.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

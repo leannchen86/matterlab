@@ -405,6 +405,7 @@ function drawBetRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: numb
 function drawFurnaceRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number) {
   const robot = { x: hits[1].x + hits[1].w * .52, y: hits[1].y + hits[1].h * .57 };
   const furnace = { x: hits[2].x + hits[2].w * .55, y: hits[2].y + hits[2].h * .46 };
+  const quarantine = { x: hits[2].x + hits[2].w * .87, y: hits[2].y + hits[2].h * .8 };
   ctx.save();
   ctx.setLineDash([5, 5]); ctx.strokeStyle = phase >= 2 ? '#4f8c77' : '#8d613c'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(robot.x, robot.y); ctx.lineTo(furnace.x, furnace.y); ctx.stroke(); ctx.setLineDash([]);
@@ -414,8 +415,9 @@ function drawFurnaceRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: 
     ctx.fillStyle = '#ffad7d'; ctx.font = '700 6px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText('STATE ≠ PHYSICAL', (robot.x + furnace.x) / 2, (robot.y + furnace.y) / 2 - 7);
   } else {
     const pulse = .74 + Math.sin(now / 520) * .2;
-    drawRouteBadge(ctx, furnace.x, furnace.y + 18, phase >= 5 ? 'CENS' : 'HOLD', '#ff995f', pulse);
-    ctx.fillStyle = '#65c999'; ctx.font = '700 6px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText(phase === 3 ? 'EMPTY-CELL VERIFY' : 'STATE RECONCILED', (robot.x + furnace.x) / 2, (robot.y + furnace.y) / 2 - 7);
+    ctx.setLineDash([3, 4]); ctx.strokeStyle = '#9b6e4e'; ctx.beginPath(); ctx.moveTo(furnace.x, furnace.y); ctx.lineTo(quarantine.x, quarantine.y); ctx.stroke(); ctx.setLineDash([]);
+    drawRouteBadge(ctx, quarantine.x, quarantine.y, phase >= 5 ? 'CENS' : 'Q-HOLD', '#ff995f', pulse);
+    ctx.fillStyle = '#65c999'; ctx.font = '700 6px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText(phase >= 3 ? 'RECOVERY PROVEN' : 'BC-207 QUARANTINED', (robot.x + furnace.x) / 2, (robot.y + furnace.y) / 2 - 7);
   }
   ctx.restore();
 }
