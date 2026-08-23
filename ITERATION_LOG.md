@@ -528,6 +528,28 @@ vacuum, detector, manifold, and gas hardware needed to respond at the same level
 - Exercised both complete sequences in focus mode and verified that SEM readiness and the BET service
   offline state remain independent from the newly proven local subsystems.
 
+## Critique 31: prep, automation, and thermal processing lagged the instruments
+
+All four characterization stations now returned detailed local feedback to the physical twin, but
+the balance/enclosure, robot cell, and furnace still relied on the universal three-light proof unit.
+That left the materials workflow uneven: preparation and processing deserved the same visible
+cause-and-effect as measurement.
+
+### Changes
+
+- Connected prep-bench enclosure-flow proof to the task light, balance zero to its display, and
+  antistatic proof to the point-of-use tool and work surface.
+- Connected robot safeguard reset to the cell/HMI state, transfer-axis home to a settled arm pose,
+  and gripper proof to the jaws and tool indicator.
+- Connected furnace relay readback, door-chain feedback, and chamber-state proof to the controller,
+  latch, chamber indicator, and hot-zone presentation.
+- Replaced the furnace's static empty-cell third step with state-aware chamber logic: a non-ready
+  furnace confirms occupancy, while only a READY furnace can confirm an empty cell.
+- Changed sequence completion from a raw action count to exact required-action matching, preventing
+  stale or context-changed controls from satisfying the wrong sequence.
+- Exercised all three complete sequences and specifically verified that a 982 °C RUNNING furnace
+  retains its orange hot zone while recording chamber occupancy—not an impossible empty-cell state.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

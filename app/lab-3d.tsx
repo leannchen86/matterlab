@@ -406,9 +406,9 @@ function StationCell({ station, index, position, selected, active, showHotspots,
 }
 
 function Equipment({ index, active, tone, focused, controls }: { index: number; active: boolean; tone: string; focused: boolean; controls: string[] }) {
-  if (index === 0) return <PowderPrep />;
-  if (index === 1) return <RobotCell active={active} focused={focused} />;
-  if (index === 2) return <Furnace active={active} />;
+  if (index === 0) return <PowderPrep controls={controls} />;
+  if (index === 1) return <RobotCell active={active} focused={focused} controls={controls} />;
+  if (index === 2) return <Furnace active={active} controls={controls} />;
   if (index === 3) return <Xrd active={active} controls={controls} />;
   if (index === 4) return <SemEds active={active} controls={controls} />;
   if (index === 5) return <Bet active={active} tone={tone} controls={controls} />;
@@ -447,7 +447,10 @@ function Hotspot({ position, label, tone, visited, delay, onInspect }: { positio
   </group>;
 }
 
-function PowderPrep() {
+function PowderPrep({ controls }: { controls: string[] }) {
+  const flowProven = controls.includes('Prove enclosure flow');
+  const balanceZeroed = controls.includes('Zero analytical balance');
+  const antistaticProven = controls.includes('Confirm antistatic state');
   return <group position={[0, 0.18, 0]}>
     <LabBench position={[0, 0, 0.26]} width={2.62} />
     <mesh position={[-0.32, 2.22, -0.23]} castShadow><cylinderGeometry args={[0.18, 0.18, 0.62, 24]} /><meshStandardMaterial color="#73818a" metalness={0.85} roughness={0.27} /></mesh>
@@ -460,18 +463,19 @@ function PowderPrep() {
       <meshPhysicalMaterial color="#8fc6d1" transparent opacity={0.18} roughness={0.08} metalness={0.1} transmission={0.18} />
     </mesh>
     <mesh position={[-0.32, 0.56, 0.24]} castShadow><boxGeometry args={[1.5, 0.08, 0.72]} /><meshStandardMaterial color="#263542" metalness={0.55} roughness={0.32} /></mesh>
-    <mesh position={[-0.32, 1.68, 0.225]}><boxGeometry args={[1.32, 0.045, 0.04]} /><meshStandardMaterial color="#d7f4ff" emissive="#a7e9ff" emissiveIntensity={2.2} /></mesh>
-    <pointLight position={[-0.32, 1.45, 0.45]} intensity={3.2} distance={2.1} color="#c7efff" decay={2} />
+    <mesh position={[-0.32, 1.68, 0.225]}><boxGeometry args={[1.32, 0.045, 0.04]} /><meshStandardMaterial color={flowProven ? '#83e7b8' : '#d7f4ff'} emissive={flowProven ? '#2d9c68' : '#a7e9ff'} emissiveIntensity={2.2} /></mesh>
+    <pointLight position={[-0.32, 1.45, 0.45]} intensity={3.2} distance={2.1} color={flowProven ? '#7ee3b4' : '#c7efff'} decay={2} />
     <RoundedBox args={[0.58, 0.42, 0.58]} radius={0.045} position={[0.86, 0.7, 0.18]} castShadow>
       <meshStandardMaterial color="#293b4c" metalness={0.45} roughness={0.4} />
     </RoundedBox>
     <mesh position={[0.86, 0.925, 0.37]} rotation={[-0.08, 0, 0]}><planeGeometry args={[0.41, 0.16]} /><meshBasicMaterial color="#07151b" /></mesh>
-    <mesh position={[0.86, 0.928, 0.375]} rotation={[-0.08, 0, 0]}><planeGeometry args={[0.28, 0.025]} /><meshBasicMaterial color="#4dd5ed" /></mesh>
+    <mesh position={[0.86, 0.928, 0.375]} rotation={[-0.08, 0, 0]}><planeGeometry args={[0.28, 0.025]} /><meshBasicMaterial color={balanceZeroed ? '#51e19a' : '#4dd5ed'} /></mesh>
     <mesh position={[0.86, 0.985, 0.04]} castShadow><cylinderGeometry args={[0.19, 0.21, 0.045, 28]} /><meshStandardMaterial color="#d6dfe2" metalness={0.88} roughness={0.15} /></mesh>
     <group position={[-0.28, 0.66, 0.5]}>
       <RoundedBox args={[0.46, 0.035, 0.2]} radius={0.02} castShadow><meshStandardMaterial color="#d6dde0" metalness={0.7} roughness={0.22} /></RoundedBox>
       <mesh position={[0, 0.026, 0]}><boxGeometry args={[0.35, 0.018, 0.11]} /><meshStandardMaterial color="#d7ae63" roughness={0.72} /></mesh>
-      <mesh position={[0.42, 0.04, -0.02]} rotation={[0, 0, Math.PI / 2.7]} castShadow><cylinderGeometry args={[0.018, 0.018, 0.62, 12]} /><meshStandardMaterial color="#b7c2c8" metalness={0.85} roughness={0.18} /></mesh>
+      <mesh position={[0.42, 0.04, -0.02]} rotation={[0, 0, Math.PI / 2.7]} castShadow><cylinderGeometry args={[0.018, 0.018, 0.62, 12]} /><meshStandardMaterial color={antistaticProven ? '#6bcf9f' : '#b7c2c8'} emissive={antistaticProven ? '#1f6044' : '#000000'} emissiveIntensity={antistaticProven ? 0.65 : 0} metalness={0.85} roughness={0.18} /></mesh>
+      {antistaticProven && <pointLight position={[0.46, 0.1, 0]} intensity={1.1} distance={0.8} color="#51e19a" decay={2} />}
     </group>
     {[-0.68, -0.32, 0.05].map((x, i) => <group key={x} position={[x, 0.67, 0.38]}>
       <mesh castShadow><cylinderGeometry args={[0.09, 0.08, 0.28, 18]} /><meshPhysicalMaterial color={['#d5b66e', '#c7795f', '#8bbaca'][i]} roughness={0.36} clearcoat={0.4} /></mesh>
@@ -480,22 +484,25 @@ function PowderPrep() {
   </group>;
 }
 
-function RobotCell({ active, focused }: { active: boolean; focused: boolean }) {
+function RobotCell({ active, focused, controls }: { active: boolean; focused: boolean; controls: string[] }) {
+  const safeguardReset = controls.includes('Reset safeguarded stop');
+  const axesHomed = controls.includes('Home transfer axes');
+  const gripperProven = controls.includes('Prove gripper state');
   return <group position={[0, 0.18, 0]}>
-    <SafetyCage focused={focused} />
-    <RobotArm active={active} />
+    <SafetyCage focused={focused} reset={safeguardReset} />
+    <RobotArm active={active} homed={axesHomed} gripperProven={gripperProven} />
     <RoundedBox args={[0.72, 1.1, 0.5]} radius={0.05} position={[1.05, 0.72, -0.62]} castShadow>
       <meshStandardMaterial color="#263745" metalness={0.72} roughness={0.28} />
     </RoundedBox>
     <mesh position={[1.05, 0.86, -0.365]}><planeGeometry args={[0.48, 0.3]} /><meshBasicMaterial color="#06151a" /></mesh>
-    <mesh position={[1.05, 0.89, -0.37]}><planeGeometry args={[0.34, 0.025]} /><meshBasicMaterial color={active ? '#51e19a' : '#6c7b8a'} /></mesh>
+    <mesh position={[1.05, 0.89, -0.37]}><planeGeometry args={[0.34, 0.025]} /><meshBasicMaterial color={safeguardReset ? '#51e19a' : active ? '#4dd5ed' : '#6c7b8a'} /></mesh>
   </group>;
 }
 
-function SafetyCage({ focused }: { focused: boolean }) {
+function SafetyCage({ focused, reset }: { focused: boolean; reset: boolean }) {
   const posts: [number, number, number][] = [[-1.35, 1.15, -1.05], [1.35, 1.15, -1.05], [-1.35, 1.15, 1.05], [1.35, 1.15, 1.05]];
   return <group>
-    {posts.map((position, index) => <mesh key={index} position={position} castShadow><boxGeometry args={[0.055, 2.25, 0.055]} /><meshStandardMaterial color="#c89a38" metalness={0.55} roughness={0.34} transparent={focused} opacity={focused ? 0.78 : 1} /></mesh>)}
+    {posts.map((position, index) => <mesh key={index} position={position} castShadow><boxGeometry args={[0.055, 2.25, 0.055]} /><meshStandardMaterial color={reset && index === 2 ? '#51e19a' : '#c89a38'} emissive={reset && index === 2 ? '#1d6042' : '#000000'} emissiveIntensity={reset && index === 2 ? 0.55 : 0} metalness={0.55} roughness={0.34} transparent={focused} opacity={focused ? 0.78 : 1} /></mesh>)}
     {[0.55, 1.65].map((y) => <group key={y}>
       <mesh position={[0, y, -1.05]}><boxGeometry args={[2.7, 0.035, 0.035]} /><meshStandardMaterial color="#926e28" metalness={0.4} transparent={focused} opacity={focused ? 0.56 : 1} /></mesh>
       <mesh position={[0, y, 1.05]}><boxGeometry args={[2.7, 0.035, 0.035]} /><meshStandardMaterial color="#926e28" metalness={0.4} transparent={focused} opacity={focused ? 0.56 : 1} /></mesh>
@@ -503,17 +510,17 @@ function SafetyCage({ focused }: { focused: boolean }) {
   </group>;
 }
 
-function RobotArm({ active }: { active: boolean }) {
+function RobotArm({ active, homed, gripperProven }: { active: boolean; homed: boolean; gripperProven: boolean }) {
   const base = useRef<THREE.Group>(null);
   const shoulder = useRef<THREE.Group>(null);
   const elbow = useRef<THREE.Group>(null);
   const wrist = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    if (base.current) base.current.rotation.y = active ? -0.2 + Math.sin(t * 0.55) * 0.46 : -0.42;
-    if (shoulder.current) shoulder.current.rotation.z = active ? -0.58 + Math.sin(t * 0.72) * 0.18 : -0.62;
-    if (elbow.current) elbow.current.rotation.z = active ? -1.02 + Math.sin(t * 0.92 + 1.2) * 0.23 : -0.94;
-    if (wrist.current) wrist.current.rotation.y = active ? Math.sin(t * 1.15) * 0.7 : 0.18;
+    if (base.current) base.current.rotation.y = active ? -0.2 + Math.sin(t * 0.55) * 0.46 : THREE.MathUtils.lerp(base.current.rotation.y, homed ? 0 : -0.42, 0.08);
+    if (shoulder.current) shoulder.current.rotation.z = active ? -0.58 + Math.sin(t * 0.72) * 0.18 : THREE.MathUtils.lerp(shoulder.current.rotation.z, homed ? -0.44 : -0.62, 0.08);
+    if (elbow.current) elbow.current.rotation.z = active ? -1.02 + Math.sin(t * 0.92 + 1.2) * 0.23 : THREE.MathUtils.lerp(elbow.current.rotation.z, homed ? -1.08 : -0.94, 0.08);
+    if (wrist.current) wrist.current.rotation.y = active ? Math.sin(t * 1.15) * 0.7 : THREE.MathUtils.lerp(wrist.current.rotation.y, homed ? 0 : 0.18, 0.08);
   });
   return <group position={[-0.15, 0.08, 0.08]} ref={base}>
     <mesh castShadow><cylinderGeometry args={[0.46, 0.55, 0.25, 32]} /><meshPhysicalMaterial color="#53626c" metalness={0.82} roughness={0.25} clearcoat={0.32} /></mesh>
@@ -539,18 +546,23 @@ function RobotArm({ active }: { active: boolean }) {
           <mesh position={[0, 0.15, 0]} castShadow><cylinderGeometry args={[0.13, 0.16, 0.22, 22]} /><meshPhysicalMaterial color="#aeb9bc" metalness={0.72} roughness={0.24} clearcoat={0.24} /></mesh>
           <mesh position={[0, 0.27, 0]}><cylinderGeometry args={[0.16, 0.16, 0.045, 22]} /><meshStandardMaterial color="#263841" metalness={0.83} roughness={0.2} /></mesh>
           <mesh position={[0, 0.3, 0]} castShadow><boxGeometry args={[0.34, 0.16, 0.25]} /><meshStandardMaterial color="#26343d" metalness={0.76} roughness={0.3} /></mesh>
-          {[-0.12, 0.12].map((x) => <group key={x} position={[x, 0.52, 0]}>
+          {[-0.12, 0.12].map((x) => <group key={x} position={[x + (gripperProven ? -Math.sign(x) * 0.025 : 0), 0.52, 0]}>
             <mesh castShadow><boxGeometry args={[0.065, 0.38, 0.1]} /><meshStandardMaterial color="#151f26" metalness={0.72} roughness={0.32} /></mesh>
             <mesh position={[-Math.sign(x) * 0.025, 0.17, 0]}><boxGeometry args={[0.11, 0.05, 0.12]} /><meshStandardMaterial color="#65747b" metalness={0.82} roughness={0.22} /></mesh>
           </group>)}
-          <mesh position={[0, 0.3, 0.13]}><circleGeometry args={[0.035, 18]} /><meshStandardMaterial color={active ? '#51e19a' : '#4f6670'} emissive={active ? '#24744f' : '#132029'} emissiveIntensity={active ? 0.6 : 0.12} /></mesh>
+          <mesh position={[0, 0.3, 0.13]}><circleGeometry args={[0.035, 18]} /><meshStandardMaterial color={gripperProven || active ? '#51e19a' : '#4f6670'} emissive={gripperProven || active ? '#24744f' : '#132029'} emissiveIntensity={gripperProven ? 1.1 : active ? 0.6 : 0.12} /></mesh>
         </group>
       </group>
     </group>
   </group>;
 }
 
-function Furnace({ active }: { active: boolean }) {
+function Furnace({ active, controls }: { active: boolean; controls: string[] }) {
+  const relayRead = controls.includes('Read overtemperature relay');
+  const doorVerified = controls.includes('Verify door chain');
+  const emptyConfirmed = controls.includes('Confirm empty-cell state');
+  const occupancyConfirmed = controls.includes('Confirm chamber occupancy');
+  const chamberStateConfirmed = emptyConfirmed || occupancyConfirmed;
   return <group position={[0, 0.18, 0]}>
     <RoundedBox args={[2.05, 2.22, 1.5]} radius={0.09} smoothness={4} position={[0, 1.15, 0]} castShadow>
       <meshPhysicalMaterial color="#59636a" metalness={0.9} roughness={0.2} clearcoat={0.34} />
@@ -558,13 +570,14 @@ function Furnace({ active }: { active: boolean }) {
     <RoundedBox args={[1.52, 1.18, 0.12]} radius={0.05} position={[0, 1.37, 0.79]}>
       <meshStandardMaterial color="#15191c" metalness={0.6} roughness={0.38} />
     </RoundedBox>
-    <mesh position={[0, 1.39, 0.858]}><planeGeometry args={[1.18, 0.76]} /><meshStandardMaterial color="#28120b" emissive="#e3672e" emissiveIntensity={active ? 2.7 : 0.65} roughness={0.85} /></mesh>
-    <pointLight position={[0, 1.4, 1.1]} intensity={active ? 12 : 2} color="#ff8b3d" distance={3} decay={2} />
+    <mesh position={[0, 1.39, 0.858]}><planeGeometry args={[1.18, 0.76]} /><meshStandardMaterial color={emptyConfirmed && !active ? '#111a18' : '#28120b'} emissive={emptyConfirmed && !active ? '#1f6b4a' : '#e3672e'} emissiveIntensity={emptyConfirmed && !active ? 0.4 : active ? 2.7 : 0.65} roughness={0.85} /></mesh>
+    <pointLight position={[0, 1.4, 1.1]} intensity={emptyConfirmed && !active ? 1.2 : active ? 12 : 2} color={emptyConfirmed && !active ? '#51e19a' : '#ff8b3d'} distance={3} decay={2} />
     <RoundedBox args={[0.9, 0.32, 0.09]} radius={0.035} position={[-0.34, 0.55, 0.805]}>
       <meshBasicMaterial color="#08161c" />
     </RoundedBox>
-    <mesh position={[-0.42, 0.56, 0.855]}><planeGeometry args={[0.42, 0.035]} /><meshBasicMaterial color={active ? '#f4b95f' : '#6a8290'} /></mesh>
-    <mesh position={[0.82, 1.36, 0.875]} castShadow><boxGeometry args={[0.07, 0.8, 0.08]} /><meshStandardMaterial color="#9aa3a8" metalness={0.9} roughness={0.16} /></mesh>
+    <mesh position={[-0.42, 0.56, 0.855]}><planeGeometry args={[0.42, 0.035]} /><meshBasicMaterial color={relayRead ? '#51e19a' : active ? '#f4b95f' : '#6a8290'} /></mesh>
+    <mesh position={[0.82, 1.36, 0.875]} castShadow><boxGeometry args={[0.07, 0.8, 0.08]} /><meshStandardMaterial color={doorVerified ? '#64d49f' : '#9aa3a8'} emissive={doorVerified ? '#1c6545' : '#000000'} emissiveIntensity={doorVerified ? 0.55 : 0} metalness={0.9} roughness={0.16} /></mesh>
+    <mesh position={[0.71, 0.83, 0.87]}><circleGeometry args={[0.045, 18]} /><meshStandardMaterial color={chamberStateConfirmed ? '#51e19a' : '#6f7e82'} emissive={chamberStateConfirmed ? '#238253' : '#192428'} emissiveIntensity={chamberStateConfirmed ? 1 : 0.2} /></mesh>
   </group>;
 }
 

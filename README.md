@@ -44,7 +44,9 @@ ephemeral UI state.
 Control feedback also returns to the spatial twin: every station gains a three-channel local-proof
 indicator. XRD specimen stage/shutter/reference signals, SEM chamber/stage/detector states, BET
 valves/leak/gas proof, and TGA/DSC balance/purge/carousel feedback settle into their proven physical
-states. Those states survive console-to-asset round trips.
+states. Prep enclosure/balance/antistatic feedback, robot safeguard/axis/gripper state, and furnace
+relay/door/chamber proof complete the same loop across all seven assets. Those states survive
+console-to-asset round trips.
 The Field Guide adds a visual authority map across physical equipment, supervisory controls,
 governed records, and the proposal-only AI planner.
 

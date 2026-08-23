@@ -109,8 +109,11 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
 function HmiView({ station, profile, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; profile: typeof profiles[string]; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
   const releaseBlocked = station.tone === 'warn' || station.tone === 'off' || station.tone === 'hold';
   const walkaroundComplete = physicalChecks.length === 3;
-  const operationSteps = HMI_OPERATIONS[station.id] ?? HMI_OPERATIONS['XRD-03'];
-  const operationsComplete = operations.length === operationSteps.length;
+  const operationSteps = station.id === 'FURN-04' && station.state !== 'READY'
+    ? ['Read overtemperature relay', 'Verify door chain', 'Confirm chamber occupancy']
+    : HMI_OPERATIONS[station.id] ?? HMI_OPERATIONS['XRD-03'];
+  const completedOperations = operationSteps.filter((operation) => operations.includes(operation)).length;
+  const operationsComplete = operationSteps.every((operation) => operations.includes(operation));
   return <div className="console-view hmi-view">
     <div className="console-view-head"><div><p className="section-kicker">HMI / SCADA</p><h3>Equipment state + permissives</h3></div><span>REFRESH 250 ms</span></div>
     <div className="hmi-layout">
@@ -119,10 +122,10 @@ function HmiView({ station, profile, physicalChecks, operations, onOperation, co
       <div className="permissive-panel"><p className="mini-label">START PERMISSIVES</p>{profile.safe.map((item) => <div key={item}><i className="ok">✓</i><span>{item}</span><b>TRUE</b></div>)}<div><i className={walkaroundComplete ? 'ok' : 'attention'}>{walkaroundComplete ? '✓' : '!'}</i><span>physical walkaround evidence</span><b>{walkaroundComplete ? 'TRUE' : 'HOLD'}</b></div><div><i className={releaseBlocked ? 'attention' : 'ok'}>{releaseBlocked ? '!' : '✓'}</i><span>quality / service release</span><b>{releaseBlocked ? 'HOLD' : 'TRUE'}</b></div></div>
     </div>
     <div className="hmi-operations">
-      <div><p className="mini-label">LOCAL CONTROL SEQUENCE</p><span>{operations.length} / {operationSteps.length} proven</span></div>
-      {operationSteps.map((operation, index) => { const done = operations.includes(operation); const active = walkaroundComplete && index === operations.length; return <button key={operation} type="button" className={done ? 'done' : active ? 'active' : ''} disabled={!walkaroundComplete || index > operations.length || done} onClick={() => onOperation(operation)}><i>{done ? '✓' : `0${index + 1}`}</i><b>{operation}</b><small>{done ? 'feedback retained' : active ? 'ready at HMI' : walkaroundComplete ? 'sequence held' : 'walkaround held'}</small></button>; })}
+      <div><p className="mini-label">LOCAL CONTROL SEQUENCE</p><span>{completedOperations} / {operationSteps.length} proven</span></div>
+      {operationSteps.map((operation, index) => { const done = operations.includes(operation); const priorComplete = operationSteps.slice(0, index).every((prior) => operations.includes(prior)); const active = walkaroundComplete && priorComplete && !done; return <button key={operation} type="button" className={done ? 'done' : active ? 'active' : ''} disabled={!walkaroundComplete || !priorComplete || done} onClick={() => onOperation(operation)}><i>{done ? '✓' : `0${index + 1}`}</i><b>{operation}</b><small>{done ? 'feedback retained' : active ? 'ready at HMI' : walkaroundComplete ? 'sequence held' : 'walkaround held'}</small></button>; })}
     </div>
-    <ConsoleAction complete={complete} disabled={!walkaroundComplete || !operationsComplete} idle={!walkaroundComplete ? 'WALKAROUND REQUIRED' : operationsComplete ? 'ATTEST SAFE STATE' : 'COMPLETE CONTROL SEQUENCE'} done="SAFE STATE ATTESTED" note={complete ? 'Attestation staged for the LES record.' : !walkaroundComplete ? `${physicalChecks.length}/3 physical inspection points linked. Use 3D focus mode.` : operationsComplete ? 'Physical state and local feedback agree; quality or service holds remain independent.' : `${operations.length}/3 local subsystem checks retained.`} onClick={onComplete} />
+    <ConsoleAction complete={complete} disabled={!walkaroundComplete || !operationsComplete} idle={!walkaroundComplete ? 'WALKAROUND REQUIRED' : operationsComplete ? 'ATTEST SAFE STATE' : 'COMPLETE CONTROL SEQUENCE'} done="SAFE STATE ATTESTED" note={complete ? 'Attestation staged for the LES record.' : !walkaroundComplete ? `${physicalChecks.length}/3 physical inspection points linked. Use 3D focus mode.` : operationsComplete ? 'Physical state and local feedback agree; quality or service holds remain independent.' : `${completedOperations}/3 local subsystem checks retained.`} onClick={onComplete} />
   </div>;
 }
 
