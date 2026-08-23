@@ -310,6 +310,51 @@ function LabArchitecture({ lightingMode }: { lightingMode: LightingMode }) {
     </mesh>)}
     {[-5.7, -4.9, -4.1].map((x) => <mesh key={x} position={[x, 0.03, 5.6]} rotation={[-Math.PI / 2, 0, -0.7]}><planeGeometry args={[0.09, 1.3]} /><meshBasicMaterial color="#f4b95f" transparent opacity={0.3} /></mesh>)}
     <UtilityServices />
+    <FacilitySafetyInfrastructure inspection={inspection} />
+  </group>;
+}
+
+function FacilitySafetyInfrastructure({ inspection }: { inspection: boolean }) {
+  return <group>
+    <group position={[3.18, 0.05, -4.27]}>
+      <RoundedBox args={[1.58, 2.55, 0.18]} radius={0.055} position={[0, 1.27, 0]} castShadow><meshStandardMaterial color="#29353b" metalness={0.7} roughness={0.3} /></RoundedBox>
+      <RoundedBox args={[1.34, 2.31, 0.13]} radius={0.035} position={[0, 1.24, 0.11]} castShadow><meshPhysicalMaterial color={inspection ? '#b8c0bf' : '#526069'} metalness={0.52} roughness={0.42} clearcoat={0.18} /></RoundedBox>
+      <RoundedBox args={[0.72, 0.62, 0.055]} radius={0.035} position={[0, 1.65, 0.195]}><meshPhysicalMaterial color="#21343b" transparent opacity={0.7} roughness={0.05} metalness={0.12} transmission={0.12} /></RoundedBox>
+      <mesh position={[0.44, 1.05, 0.205]} castShadow><boxGeometry args={[0.25, 0.055, 0.06]} /><meshStandardMaterial color="#4d5659" metalness={0.88} roughness={0.18} /></mesh>
+      <mesh position={[0.54, 1.05, 0.235]}><sphereGeometry args={[0.045, 18, 12]} /><meshStandardMaterial color="#6f7778" metalness={0.85} roughness={0.2} /></mesh>
+      <mesh position={[0, 2.12, 0.19]}><planeGeometry args={[0.72, 0.08]} /><meshBasicMaterial color="#4dd5ed" transparent opacity={0.68} /></mesh>
+      <group position={[-1.0, 1.12, 0.12]}>
+        <RoundedBox args={[0.28, 0.55, 0.13]} radius={0.04} castShadow><meshStandardMaterial color="#25343d" metalness={0.6} roughness={0.34} /></RoundedBox>
+        <mesh position={[0, 0.11, 0.075]}><planeGeometry args={[0.16, 0.12]} /><meshBasicMaterial color="#07171b" /></mesh>
+        <mesh position={[0, 0.12, 0.08]}><planeGeometry args={[0.09, 0.018]} /><meshBasicMaterial color="#51e19a" /></mesh>
+        <mesh position={[0, -0.12, 0.08]}><circleGeometry args={[0.035, 16]} /><meshStandardMaterial color="#51e19a" emissive="#206847" emissiveIntensity={0.8} /></mesh>
+      </group>
+      <group position={[0, 2.68, 0.07]}>
+        <RoundedBox args={[0.76, 0.22, 0.12]} radius={0.035}><meshStandardMaterial color="#1e4031" roughness={0.42} /></RoundedBox>
+        <mesh position={[0, 0, 0.066]}><planeGeometry args={[0.48, 0.035]} /><meshBasicMaterial color="#8cf0c0" /></mesh>
+      </group>
+    </group>
+    <group position={[3.18, 0.035, -3.45]}>
+      <RoundedBox args={[1.7, 0.045, 1.28]} radius={0.03} receiveShadow><meshStandardMaterial color="#22363a" roughness={0.88} /></RoundedBox>
+      {[-0.45, 0, 0.45].map((x) => <Line key={x} points={[[x, 0.03, -0.48], [x, 0.03, 0.48]]} color="#4c7071" lineWidth={0.65} transparent opacity={0.65} />)}
+    </group>
+    <group>
+      <mesh position={[-8.55, 1.58, 0.85]} castShadow><cylinderGeometry args={[0.04, 0.04, 2.7, 18]} /><meshStandardMaterial color="#7e8d90" metalness={0.88} roughness={0.18} /></mesh>
+      <mesh position={[-8.12, 2.91, 0.85]} rotation={[0, 0, Math.PI / 2]} castShadow><cylinderGeometry args={[0.04, 0.04, 0.86, 18]} /><meshStandardMaterial color="#7e8d90" metalness={0.88} roughness={0.18} /></mesh>
+      <mesh position={[-7.68, 2.74, 0.85]} castShadow><cylinderGeometry args={[0.16, 0.08, 0.24, 24]} /><meshStandardMaterial color="#aeb9b8" metalness={0.78} roughness={0.22} /></mesh>
+      <mesh position={[-8.12, 1.05, 0.85]} castShadow><cylinderGeometry args={[0.28, 0.2, 0.13, 28]} /><meshPhysicalMaterial color="#8aa4a2" metalness={0.72} roughness={0.24} clearcoat={0.22} /></mesh>
+      <mesh position={[-8.12, 1.16, 0.85]}><torusGeometry args={[0.2, 0.035, 10, 28]} /><meshStandardMaterial color="#c1cbca" metalness={0.82} roughness={0.18} /></mesh>
+      {[-0.1, 0.1].map((z) => <mesh key={z} position={[-8.12, 1.2, 0.85 + z]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.025, 0.025, 0.22, 14]} /><meshStandardMaterial color="#557e76" metalness={0.7} roughness={0.24} /></mesh>)}
+      <mesh position={[-8.12, 0.58, 0.85]} castShadow><cylinderGeometry args={[0.055, 0.055, 0.82, 18]} /><meshStandardMaterial color="#68797d" metalness={0.8} roughness={0.22} /></mesh>
+      <mesh position={[-8.12, 0.16, 0.85]}><cylinderGeometry args={[0.28, 0.35, 0.08, 24]} /><meshStandardMaterial color="#405055" metalness={0.68} roughness={0.3} /></mesh>
+      <group position={[-8.72, 1.28, -0.65]} rotation={[0, Math.PI / 2, 0]}>
+        <RoundedBox args={[0.78, 1.18, 0.12]} radius={0.045} castShadow><meshStandardMaterial color="#315d49" metalness={0.42} roughness={0.46} /></RoundedBox>
+        <mesh position={[0, 0.3, 0.07]}><planeGeometry args={[0.5, 0.12]} /><meshBasicMaterial color="#d7ece1" /></mesh>
+        <mesh position={[0, -0.11, 0.07]}><planeGeometry args={[0.48, 0.34]} /><meshBasicMaterial color="#173528" /></mesh>
+        <mesh position={[0, -0.11, 0.075]}><planeGeometry args={[0.32, 0.035]} /><meshBasicMaterial color="#8bd8b2" /></mesh>
+      </group>
+      <mesh position={[-8.05, 0.025, 0.85]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.46, 0.52, 32]} /><meshBasicMaterial color="#51e19a" transparent opacity={0.5} /></mesh>
+    </group>
   </group>;
 }
 

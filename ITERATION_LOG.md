@@ -550,6 +550,24 @@ cause-and-effect as measurement.
 - Exercised all three complete sequences and specifically verified that a 982 °C RUNNING furnace
   retains its orange hot zone while recording chamber occupancy—not an impossible empty-cell state.
 
+## Critique 32: the lab had equipment but no credible controlled boundary
+
+The bay contained utilities, alarms, a cart, and material-handling equipment, yet still felt like an
+open digital-twin stage. A technician should read how they entered the space, where emergency
+equipment lives, and where clean/controlled circulation begins without opening an explanatory panel.
+
+### Changes
+
+- Added a framed controlled-access door with a vision panel, closer/handle hardware, green access
+  status, and a point-of-entry badge reader.
+- Added a clean transition mat with physical grooves at the laboratory threshold.
+- Added a wall-fed emergency shower and dual-head eyewash with a marked clear zone.
+- Added a wall-mounted spill-response cabinet and retained the existing alarm, emergency stop, and
+  fire-response hardware as one safety layer.
+- Verified that the compact dashboard view preserves instrument priority while the full equipment-
+  first overview reveals the complete door, clean zone, emergency station, utilities, and aisle
+  relationship at room scale.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

@@ -72,6 +72,9 @@ state; completing a walkaround does not erase a separate quality, service, or pr
 The shared bay includes overhead cable routing, gas/vacuum service panels, emergency controls,
 mobile handling equipment, point-of-work tools, and a compact keyboard-accessible station selector
 so the instruments read as one operational facility rather than isolated product models.
+The room boundary includes a controlled access door with glazing and badge feedback, a clean-entry
+mat, emergency shower/eyewash, spill cabinet, alarm hardware, and floor safety markings. These are
+most legible in the full equipment-first overview and remain physically present in aisle mode.
 Characterization systems sit on subdued installation or anti-vibration slabs with leveling points
 and thin digital-twin perimeters; the selection treatment is intentionally an overlay, not a glowing
 physical platform.
