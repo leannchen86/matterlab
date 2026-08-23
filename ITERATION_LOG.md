@@ -776,6 +776,25 @@ purge conditions.
 - Exercised the blocked shortcut, governed acquisition, accepted release, phase transition, desktop
   composition, and stacked compact-screen layout in the running application.
 
+## Critique 45: furnace recovery asserted a coordinated dry cycle without showing one
+
+After the interrupted load and robot occupancy were reconciled, `Run verification` immediately
+returned both machines to ready. That hid the safety boundary, furnace controller, and robot
+handshake that make a coordinated recovery materially different from acknowledging an alarm.
+
+### Changes
+
+- Added a furnace–robot recovery console with separate cell-boundary, safeguarding, and retained
+  SCADA/controller-context checks.
+- Added a visual four-stage dry-cycle sequence for area clear, access closed, furnace proof, and
+  robot handshake, with occupancy and machine-state readbacks retained together.
+- Added a blocked branch that attempts release from alarm acknowledgement alone; the workcell
+  remains held and the safety exception is logged.
+- Reframed the post-cycle state as retained recovery evidence rather than implying the already
+  completed 16-minute verification is still running.
+- Exercised the alarm disposition, physical occupancy reconciliation, blocked shortcut, acquired
+  dry cycle, correct return-to-ready handoff, desktop composition, and compact-screen stack.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
