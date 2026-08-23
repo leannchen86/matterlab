@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
@@ -38,6 +38,19 @@ export function TgaShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void }) {
   const [feedback, setFeedback] = useState('');
   const [scores, setScores] = useState<Scores>({ safety: 96, traceability: 80, integrity: 72, uptime: 68 });
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const retainStationEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: string; text?: string }>).detail;
+      const text = detail?.text;
+      if (!text) return;
+      const next = minute + 1;
+      setMinute(next);
+      setLog((items) => [...items, { time: formatTime(next), type: detail.type ?? 'control', text }]);
+    };
+    window.addEventListener('mattershift:station-event', retainStationEvent);
+    return () => window.removeEventListener('mattershift:station-event', retainStationEvent);
+  }, [minute]);
 
   const stations = useMemo(() => baseStations.map((station): Station => {
     if (station.id !== 'TGA-01') return station;

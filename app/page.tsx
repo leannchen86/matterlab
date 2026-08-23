@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
@@ -41,6 +41,19 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const [feedback, setFeedback] = useState('');
   const [scores, setScores] = useState<Scores>({ safety: 100, traceability: 82, integrity: 68, uptime: 91 });
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const retainStationEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: string; text?: string }>).detail;
+      const text = detail?.text;
+      if (!text) return;
+      const nextMinute = minute + 1;
+      setMinute(nextMinute);
+      setLog((items) => [...items, { time: formatTime(nextMinute), type: detail.type ?? 'control', text }]);
+    };
+    window.addEventListener('mattershift:station-event', retainStationEvent);
+    return () => window.removeEventListener('mattershift:station-event', retainStationEvent);
+  }, [minute]);
 
   const stations = useMemo(() => baseStations.map((station): Station => {
     if (station.id === 'XRD-03' && phase >= 1) return {

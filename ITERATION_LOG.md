@@ -453,6 +453,25 @@ or safety cell.
 - Verified repeated forward movement at XRD stops before the enclosure and that lateral-plus-forward
   movement follows the aisle between XRD and SEM/EDS without clipping through either instrument.
 
+## Critique 27: local equipment actions disappeared from the shift record
+
+The physical walkaround created a ledger event, but the controls subsequently operated at the HMI
+only changed workstation-local state. A scientist could prove an XRD shutter or tare the TGA balance
+without that action entering the work-order chronology, weakening the traceability the simulator is
+meant to teach.
+
+### Changes
+
+- Added structured station events for every instrument-specific HMI control and every completed
+  workstation attestation.
+- Routed those events into all four playable shift variants while preserving each shift's simulated
+  clock, technician identity, and existing record vocabulary.
+- Kept safe-state attestations separate from quality, service, and sample holds; recording an action
+  is not the same as authorizing scientific release.
+- Verified an XRD sequence ordered as walkaround, stage home, shutter feedback, reference position,
+  and attestation, then repeated the check with TGA/DSC pan/purge/furnace observations, balance tare,
+  purge proof, carousel home, and attestation.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

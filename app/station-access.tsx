@@ -49,7 +49,16 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   const [completed, setCompleted] = useState<Record<Tab, boolean>>({ hmi: false, les: false, lims: false, cmms: false });
   const [hmiOperations, setHmiOperations] = useState<string[]>([]);
   const profile = profiles[station.id] ?? profiles['XRD-03'];
-  const finish = () => setCompleted((current) => ({ ...current, [tab]: true }));
+  const recordStationEvent = (type: string, text: string) => window.dispatchEvent(new CustomEvent('mattershift:station-event', { detail: { stationId: station.id, type, text } }));
+  const finish = () => {
+    setCompleted((current) => ({ ...current, [tab]: true }));
+    recordStationEvent('attestation', `${station.id} ${TAB_META[tab].label} ${tab === 'hmi' ? 'safe-state attestation' : 'operator action'} retained with TECH-07 and the active record revision.`);
+  };
+  const commitHmiOperation = (operation: string) => {
+    if (hmiOperations.includes(operation)) return;
+    setHmiOperations((current) => [...current, operation]);
+    recordStationEvent('control', `${station.id} local control: ${operation}; equipment feedback retained.`);
+  };
 
   useEffect(() => {
     const openFromLab = (event: Event) => {
@@ -86,7 +95,7 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
           </nav>
           <div className="console-main">
             <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>WALK <b>{physicalChecks.length}/3</b></span><span><i className={station.tone === 'warn' ? 'alarm' : station.tone === 'off' ? '' : 'online'} />{station.state}</span></div>
-            {tab === 'hmi' && <HmiView station={station} profile={profile} physicalChecks={physicalChecks} operations={hmiOperations} onOperation={(operation) => setHmiOperations((current) => current.includes(operation) ? current : [...current, operation])} complete={completed.hmi} onComplete={finish} />}
+            {tab === 'hmi' && <HmiView station={station} profile={profile} physicalChecks={physicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
             {tab === 'les' && <LesView station={station} profile={profile} complete={completed.les} onComplete={finish} />}
             {tab === 'lims' && <LimsView profile={profile} scenarioId={scenarioId} complete={completed.lims} onComplete={finish} />}
             {tab === 'cmms' && <CmmsView profile={profile} complete={completed.cmms} onComplete={finish} />}
