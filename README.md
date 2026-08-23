@@ -53,6 +53,8 @@ Its human-scale aisle mode moves the camera to technician eye height, supports W
 touch-pad movement, and glides between selected stations along operating approaches. From the aisle,
 the selected instrument opens directly into its local HMI/SCADA, LES, LIMS, and CMMS console; physical
 walkaround evidence remains a real permissive in that workstation.
+Movement respects installed equipment footprints and slides along their edges, preventing the
+first-person camera from passing through instrument cabinets while preserving usable aisles.
 Workstation sessions can return to the same asset and aisle mode. Completed walkaround markers and
 console attestations survive the round trip, so the scientist can alternate between the sample,
 instrument, controls, and records without losing operational context.

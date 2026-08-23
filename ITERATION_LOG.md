@@ -437,6 +437,22 @@ subsystem feedback a technician must reconcile before an instrument is ready for
 - Exercised the complete XRD sequence on desktop, confirmed persistence across LES/HMI tab changes,
   and completed the TGA/DSC sequence on a 390 × 844 viewport.
 
+## Critique 26: the first-person camera could ghost through equipment
+
+Room bounds prevented leaving the modeled bay, but forward and lateral movement did not respect the
+installed asset footprints. That broke physical presence as soon as a user walked through a cabinet
+or safety cell.
+
+### Changes
+
+- Added collision zones around all seven installed stations with a technician-clearance margin.
+- Added edge sliding so diagonal or lateral movement can continue along an occupied footprint rather
+  than stopping the camera unnecessarily.
+- Kept the guided approach points outside protected zones, including the side approach used by the
+  foreground TGA/DSC bench.
+- Verified repeated forward movement at XRD stops before the enclosure and that lateral-plus-forward
+  movement follows the aisle between XRD and SEM/EDS without clipping through either instrument.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

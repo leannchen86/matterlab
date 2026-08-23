@@ -249,7 +249,16 @@ function AisleNavigator({ active, controls, command }: { active: boolean; contro
     const next = camera.position.clone().add(movement);
     next.x = THREE.MathUtils.clamp(next.x, -8.1, 4.25);
     next.z = THREE.MathUtils.clamp(next.z, -3.8, 8.75);
-    const applied = next.sub(camera.position);
+    const occupied = (position: THREE.Vector3) => STATION_POSITIONS.some(([stationX, , stationZ]) => Math.abs(position.x - stationX) < 1.72 && Math.abs(position.z - stationZ) < 1.58);
+    let resolved = next;
+    if (occupied(resolved)) {
+      const slideX = camera.position.clone();
+      slideX.x = next.x;
+      const slideZ = camera.position.clone();
+      slideZ.z = next.z;
+      resolved = !occupied(slideX) ? slideX : !occupied(slideZ) ? slideZ : camera.position.clone();
+    }
+    const applied = resolved.sub(camera.position);
     camera.position.add(applied);
     orbit.target.add(applied);
     orbit.update();
