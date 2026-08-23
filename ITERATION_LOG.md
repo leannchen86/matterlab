@@ -239,6 +239,20 @@ inspect.
 - Repositioned the pallet jack after introducing the foreground asset; verified the seven-station 3D
   establishing shot, TGA/DSC close-up, 2D map, and mobile overview.
 
+## Critique 14: station status lights looked like sci-fi props
+
+The original single glowing spheres were legible from the overview but became overexposed white orbs
+at technician scale. Because every station repeated the artifact, it weakened otherwise grounded
+equipment close-ups.
+
+### Changes
+
+- Replaced each orb with a compact industrial stack light, including a base, mast, separated lenses,
+  dividers, and cap.
+- Bound ready/running, attention/hold, and offline states to distinct stack positions while keeping
+  emission restrained under the scene's PBR lighting.
+- Rechecked the TGA/DSC focus view, where the foreground beacon now retains material and state detail.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

@@ -552,14 +552,20 @@ function LabBench({ position, width }: { position: [number, number, number]; wid
 
 function StatusBeacon({ position, color, active }: { position: [number, number, number]; color: string; active: boolean }) {
   const ref = useRef<THREE.Mesh>(null);
+  const activeIndex = color === TONE_COLORS.ready || color === TONE_COLORS.run ? 0 : color === TONE_COLORS.off ? 2 : 1;
   useFrame(({ clock }) => {
     if (!ref.current) return;
     const material = ref.current.material as THREE.MeshStandardMaterial;
-    material.emissiveIntensity = active ? 1.1 + Math.sin(clock.elapsedTime * 3.2) * 0.35 : 0.45;
+    material.emissiveIntensity = active ? 1.25 + Math.sin(clock.elapsedTime * 3.2) * 0.28 : 0.52;
   });
   return <group position={position}>
-    <mesh position={[0, 0.12, 0]}><cylinderGeometry args={[0.055, 0.07, 0.24, 14]} /><meshStandardMaterial color="#586873" metalness={0.75} roughness={0.22} /></mesh>
-    <mesh ref={ref} position={[0, 0.28, 0]}><sphereGeometry args={[0.08, 16, 10]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} /></mesh>
+    <mesh position={[0, 0.055, 0]} castShadow><cylinderGeometry args={[0.085, 0.1, 0.11, 18]} /><meshStandardMaterial color="#202d35" metalness={0.78} roughness={0.28} /></mesh>
+    <mesh position={[0, 0.15, 0]}><cylinderGeometry args={[0.035, 0.04, 0.12, 14]} /><meshStandardMaterial color="#52616a" metalness={0.82} roughness={0.22} /></mesh>
+    {[0.235, 0.315, 0.395].map((y, index) => <group key={y} position={[0, y, 0]}>
+      <mesh ref={index === activeIndex ? ref : undefined}><cylinderGeometry args={[0.062, 0.062, 0.07, 18]} />{index === activeIndex ? <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} transparent opacity={0.94} /> : <meshPhysicalMaterial color={index === 0 ? '#25483a' : index === 1 ? '#4b4124' : '#4c2828'} emissive={index === 0 ? '#173427' : index === 1 ? '#342b16' : '#351919'} emissiveIntensity={0.18} transparent opacity={0.82} roughness={0.18} />}</mesh>
+      <mesh position={[0, index === 2 ? 0.043 : -0.043, 0]}><cylinderGeometry args={[0.067, 0.067, 0.012, 18]} /><meshStandardMaterial color="#27343c" metalness={0.76} roughness={0.26} /></mesh>
+    </group>)}
+    <mesh position={[0, 0.44, 0]}><cylinderGeometry args={[0.066, 0.058, 0.025, 18]} /><meshStandardMaterial color="#52616a" metalness={0.82} roughness={0.2} /></mesh>
   </group>;
 }
 
