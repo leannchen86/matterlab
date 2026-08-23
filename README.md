@@ -25,6 +25,8 @@ Selecting an asset exposes a simulated local workstation with four technician-fa
 HMI/SCADA state and permissives, LES method execution, LIMS identity and lineage, and CMMS service
 evidence. Each station has its own instrument mimic, interlocks, method, sample identifiers,
 maintenance state, and point-of-use supplies.
+The Field Guide adds a visual authority map across physical equipment, supervisory controls,
+governed records, and the proposal-only AI planner.
 
 The 3D view also supports a technician-scale focus camera and physical walkaround. Each asset exposes
 three inspection points—such as an XRD shutter/holder/HMI, BET ports/vacuum/N₂, or furnace

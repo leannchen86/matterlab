@@ -205,6 +205,21 @@ It did not show how physical work became retained evidence or give repeat play a
   correction, analysis, control failure, and held AI proposal to verify the debrief from real state.
 - Verified the full debrief composition at desktop and 390 × 844.
 
+## Critique 12: the systems field guide was still a wall of definitions
+
+The playable station consoles showed the differences between SCADA, LES, LIMS, and AI behavior, but
+the reference view explained them only as text cards. That made the role boundary harder to scan than
+the rest of the product.
+
+### Changes
+
+- Added a visual access-boundary map from physical asset/sample through SCADA/HMI and LES/LIMS to the
+  AI planner.
+- Drew technician authority across observation, attestation, hold, and role-based release while
+  separating the AI planner as proposal-only.
+- Kept the detailed field-guide definitions and sources below the diagram for users who want depth.
+- Verified the four-layer map at desktop and in a two-by-two mobile composition at 390 × 844.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
