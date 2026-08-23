@@ -894,6 +894,45 @@ lab and made the interface feel like a training document instead of a game syste
 - Visually inspected the new guide at desktop and compact viewport sizes and confirmed the removed
   employment/source language no longer appears in the application.
 
+## Critique 51: incidents did not yet form a playable lab system
+
+The work orders had realistic local decisions, but they remained isolated stories. There was no
+place to choose a material candidate, route it through the room, see shared equipment capacity, or
+experience how a machine failure propagates into scientific throughput.
+
+### Changes
+
+- Added a persistent Campaign Lab accessible from every scenario and made it the primary compact-
+  screen entry point.
+- Added three AI-proposed Ca–Ti–O experiment candidates with composition, thermal envelope,
+  predicted phase fraction, and uncertainty shown in a visual design space.
+- Added a live five-stage route through PREP-01, ROBO-02, FURN-04, XRD-03, and the evidence-gated
+  model, including current jobs, cycle times, completion state, and a parallel equipment schedule.
+- Implemented a full playable run with a robot cleanliness fault, a single-capacity furnace queue,
+  and an overdue XRD reference check; each constraint changes clock time, route state, queue tokens,
+  and the available player command.
+- Added tempting but blocked shortcuts for bypassing the robot cleanliness witness and shortening a
+  governed furnace run, with the scientific consequence explained in the live constraint console.
+- Persisted the campaign lane in browser storage so closing and reopening Campaign Lab does not
+  erase the current experiment.
+- Browser-played the complete route, verified both shortcut blocks, and visually inspected initial,
+  robot-fault, furnace-queue, XRD-hold, completed, and compact-screen states.
+
+## Critique 52: a valid experiment was visually mistaken for a successful objective
+
+The first sandbox run measured 95.8% target phase against a campaign objective of at least 96%.
+Because every route step completed and the evidence was AI-eligible, the result initially looked
+like an uncomplicated win even though the material objective was missed.
+
+### Changes
+
+- Separated route completion and evidence validity from material-objective success.
+- Reframed the terminal state as `VALID RESULT · TARGET MISSED`, showed the −0.2 percentage-point
+  gap, and styled it as a mixed amber/green outcome.
+- Preserved the result as useful model evidence and research insight rather than discarding a
+  scientifically valid negative experiment.
+- Clarified that the throughput readout is lab-wide rather than the elapsed time of one serial run.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

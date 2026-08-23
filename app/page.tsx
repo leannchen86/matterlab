@@ -2,6 +2,7 @@
 
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
+import { CampaignControlModal } from './campaign-control';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
 import { baseStations, initialLog, type Station } from './sim-data';
@@ -11,7 +12,7 @@ import { StationAccess } from './station-access';
 const TgaShift = lazy(() => import('./tga-shift').then((module) => ({ default: module.TgaShift })));
 const FacilityShift = lazy(() => import('./facility-shift').then((module) => ({ default: module.FacilityShift })));
 
-type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'guide' | 'deck' | 'complete' | null;
+type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'guide' | 'campaign' | 'deck' | 'complete' | null;
 type LogItem = { time: string; type: string; text: string };
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 
@@ -227,6 +228,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
           <div><b>DAY SHIFT</b><small>{formatTime(minute)} · MENLO PARK SIM</small></div>
         </div>
         <div className="header-actions">
+          <button className="campaign-button" type="button" onClick={() => setModal('campaign')}>CAMPAIGN LAB</button>
           <button className="deck-button" type="button" onClick={() => setModal('deck')}>SHIFT DECK <span>5</span></button>
           <button type="button" onClick={() => setModal('guide')}>FIELD GUIDE</button>
           <button type="button" onClick={() => setLogOpen(true)}>EVENT LEDGER <span>{log.length}</span></button>
@@ -328,6 +330,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
       {modal === 'evidence' && <EvidenceModal feedback={feedback} onDecide={decideEvidence} onClose={() => setModal(null)} />}
       {modal === 'sem' && <SemEdsModal feedback={feedback} onDecide={decideSem} onClose={() => setModal(null)} />}
       {modal === 'guide' && <FieldGuideModal onClose={() => setModal(null)} />}
+      {modal === 'campaign' && <CampaignControlModal onClose={() => setModal(null)} />}
       {modal === 'deck' && <ShiftDeckModal active="xrd" onChoose={onSwitch} onClose={() => setModal(null)} />}
       {modal === 'complete' && <CompleteModal scores={scores} logCount={log.length} exceptionCount={log.filter((event) => event.type === 'exception').length} onReset={resetShift} onClose={() => setModal(null)} />}
       {logOpen && <LedgerDrawer log={log} onClose={() => setLogOpen(false)} />}
