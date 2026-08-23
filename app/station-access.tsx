@@ -239,6 +239,7 @@ function HmiView({ station, profile, campaignStage, campaignSelected, campaignRu
       <div className="live-readouts">{station.technicianView.map((item, index) => { const [key, value = '—'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b><i style={{ width: `${58 + index * 9}%` }} /></div>; })}</div>
       <div className="permissive-panel"><p className="mini-label">START PERMISSIVES</p>{profile.safe.map((item) => <div key={item}><i className="ok">✓</i><span>{item}</span><b>TRUE</b></div>)}<div><i className={walkaroundComplete ? 'ok' : 'attention'}>{walkaroundComplete ? '✓' : '!'}</i><span>physical walkaround evidence</span><b>{walkaroundComplete ? 'TRUE' : 'HOLD'}</b></div><div><i className={releaseBlocked ? 'attention' : 'ok'}>{releaseBlocked ? '!' : '✓'}</i><span>quality / service release</span><b>{releaseBlocked ? 'HOLD' : 'TRUE'}</b></div></div>
     </div>
+    {campaignStage === 1 && station.id === 'PREP-01' && <PrepCampaignPanel selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 2 && campaignStage <= 3 && station.id === 'ROBO-02' && <RobotCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
@@ -248,6 +249,46 @@ function HmiView({ station, profile, campaignStage, campaignSelected, campaignRu
     </div>
     <ConsoleAction complete={complete} disabled={!walkaroundComplete || !operationsComplete} idle={!walkaroundComplete ? 'WALKAROUND REQUIRED' : operationsComplete ? 'ATTEST SAFE STATE' : 'COMPLETE CONTROL SEQUENCE'} done="SAFE STATE ATTESTED" note={complete ? 'Attestation staged for the LES record.' : !walkaroundComplete ? `${physicalChecks.length}/3 physical inspection points linked. Use 3D focus mode.` : operationsComplete ? 'Physical state and local feedback agree; quality or service holds remain independent.' : `${completedOperations}/${operationSteps.length} local subsystem checks retained.`} onClick={onComplete} />
   </div>;
+}
+
+const PRECURSOR_PROGRAMS: Record<string, Array<{ lot: string; material: string; mass: string }>> = {
+  'C-42': [{ lot: 'CA-21A', material: 'CaCO₃', mass: '13.82 g' }, { lot: 'TI-09C', material: 'TiO₂', mass: '10.18 g' }],
+  'Z-17': [{ lot: 'CA-21A', material: 'CaCO₃', mass: '12.39 g' }, { lot: 'TI-09C', material: 'TiO₂', mass: '9.50 g' }, { lot: 'ZR-04B', material: 'ZrO₂', mass: '0.61 g' }],
+  'D-08': [{ lot: 'CA-21A', material: 'CaCO₃', mass: '13.35 g' }, { lot: 'TI-09C', material: 'TiO₂', mass: '10.65 g' }],
+};
+
+function PrepCampaignPanel({ selected, runNumber, operations }: { selected: string; runNumber: number; operations: string[] }) {
+  const spec = getCampaignSpec(selected);
+  const identity = getCampaignIdentity(runNumber);
+  const airflowProven = operations.includes('Prove enclosure flow');
+  const zeroed = operations.includes('Zero analytical balance');
+  const antistatic = operations.includes('Confirm antistatic state');
+  const target = Number.parseFloat(spec.targetMass);
+  const offset = spec.id === 'Z-17' ? -.0002 : spec.id === 'D-08' ? .0001 : .0002;
+  const actual = (target + offset).toFixed(4);
+  const lots = PRECURSOR_PROGRAMS[spec.id] ?? PRECURSOR_PROGRAMS['C-42'];
+  const status = antistatic ? 'PORTION RELEASED' : zeroed ? 'MASS STABLE' : airflowProven ? 'READY TO TARE' : 'ENCLOSURE HOLD';
+  const massPath = zeroed ? 'M257 125 C276 124 287 126 301 124 S327 125 341 124 S366 126 383 124 S411 125 431 124 S456 123 479 124' : 'M257 146 H479';
+  return <section className={`campaign-prep-console${antistatic ? ' operation-complete' : ''}`}>
+    <header><div><span>POWDER PREPARATION RECORD</span><b>BAL-01 / LEV-01 · MAT-{identity.suffix} · {spec.id}</b></div><em>{status}</em></header>
+    <div className="campaign-prep-layout">
+      <svg viewBox="0 0 520 180" role="img" aria-label={`${identity.runId} ${spec.formula} precursor weighing program`}>
+        <defs><pattern id="prepGrid" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0V22" className="grid" /></pattern><linearGradient id="balanceGlow" x1="0" x2="1"><stop stopColor="#4dd5ed" stopOpacity=".05" /><stop offset=".5" stopColor="#4dd5ed" stopOpacity=".26" /><stop offset="1" stopColor="#4dd5ed" stopOpacity=".05" /></linearGradient></defs>
+        <rect width="520" height="180" fill="url(#prepGrid)" />
+        <rect x="20" y="21" width="207" height="136" rx="3" className={airflowProven ? 'prep-enclosure proven' : 'prep-enclosure'} /><path d="M35 46 H211 M35 61 H211" className={airflowProven ? 'airflow proven' : 'airflow'} /><text x="34" y="35">LEV-01 · {airflowProven ? '0.48 m/s PROVEN' : 'FLOW PROOF REQUIRED'}</text>
+        {lots.map((lot, index) => <g key={lot.lot} transform={`translate(34 ${77 + index * 23})`} className="precursor-lot"><rect width="176" height="18" rx="2" /><text x="7" y="12">{lot.lot}</text><text x="62" y="12">{lot.material}</text><text x="132" y="12">{lot.mass}</text></g>)}
+        <rect x="247" y="21" width="252" height="136" rx="3" className="balance-deck" /><text x="259" y="36">ANALYTICAL BALANCE · ±0.2 mg</text>
+        <rect x="258" y="48" width="229" height="45" rx="2" className={zeroed ? 'balance-display stable' : 'balance-display'} /><text x="270" y="64">{identity.prepSample}</text><text x="270" y="84" className="mass-value">{zeroed ? actual : '—.——'} g</text><text x="422" y="84" className={zeroed ? 'within' : ''}>{zeroed ? 'STABLE' : 'NOT TARED'}</text>
+        <line x1="258" x2="487" y1="146" y2="146" className="mass-baseline" /><path d={massPath} className={zeroed ? 'mass-trace stable' : 'mass-trace'} /><line x1="258" x2="487" y1="119" y2="119" className="mass-target" /><text x="259" y="111">TARGET {spec.targetMass} · LIMIT ±0.0002 g</text>
+        {antistatic && <g className="release-stamp"><rect x="392" y="97" width="94" height="20" rx="2" /><text x="404" y="110">RELEASE → {identity.carrier}</text></g>}
+      </svg>
+      <aside>
+        <div className={airflowProven ? 'pass' : 'hold'}><span>ENCLOSURE FLOW</span><b>{airflowProven ? '0.48 m/s' : 'HOLD'}</b><small>{airflowProven ? 'LEV feedback true' : 'prove local capture'}</small></div>
+        <div className={zeroed ? 'pass' : airflowProven ? 'review' : 'waiting'}><span>NET MASS</span><b>{zeroed ? `${actual} g` : '—'}</b><small>{zeroed ? `${offset >= 0 ? '+' : '−'}${Math.abs(offset * 1000).toFixed(1)} mg` : 'tare required'}</small></div>
+        <div className={antistatic ? 'pass' : 'waiting'}><span>PORTION RECORD</span><b>{identity.prepSample}</b><small>{antistatic ? `${identity.carrier} linked` : 'antistatic gate'}</small></div>
+      </aside>
+    </div>
+  </section>;
 }
 
 const CRUCIBLE_POSITIONS = [[362, 64], [408, 64], [454, 64], [362, 116], [408, 116], [454, 116]];

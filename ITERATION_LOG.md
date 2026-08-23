@@ -1113,6 +1113,23 @@ history were not visible where the player operated the furnace.
   62-minute occupancy hold to a 980 °C / 4.0-hour / 360-minute profile and only displayed `PROFILE
   ACTIVE` after all safety feedback and the explicit start command were retained.
 
+## Critique 62: material preparation had no physical weighing evidence
+
+PREP-01 showed a balance-shaped mimic, but the player could not see the precursor identities, target
+portions, enclosure proof, live balance value, or the actual material record released downstream.
+
+### Changes
+
+- Added a powder-preparation HMI with a local-exhaust enclosure, candidate-specific precursor lot
+  cards, analytical-balance display, ±0.2 mg limit, stability trace, and portion-to-carrier release.
+- Added chemically distinct mass programs for C-42, Z-17, and D-08; the Zr-doped program includes
+  CA-21A / CaCO₃ at 12.39 g, TI-09C / TiO₂ at 9.50 g, and ZR-04B / ZrO₂ at 0.61 g for a 22.50 g target.
+- Bound enclosure proof, balance tare, mass stabilization, and antistatic release to ordered local
+  feedback, so a portion record cannot link to the carrier before all three physical states agree.
+- Browser-verified Z-17 / RUN-045 from an untared enclosure hold through 0.48 m/s flow, a stable
+  22.4998 g measurement at −0.2 mg, and final RUN-045-P → BC-045 release; caught and corrected a
+  0.01 g rounding mismatch in the initial three-precursor program during that review.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
