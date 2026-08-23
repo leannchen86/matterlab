@@ -410,8 +410,8 @@ function Equipment({ index, active, tone, focused, controls }: { index: number; 
   if (index === 1) return <RobotCell active={active} focused={focused} />;
   if (index === 2) return <Furnace active={active} />;
   if (index === 3) return <Xrd active={active} controls={controls} />;
-  if (index === 4) return <SemEds active={active} />;
-  if (index === 5) return <Bet active={active} tone={tone} />;
+  if (index === 4) return <SemEds active={active} controls={controls} />;
+  if (index === 5) return <Bet active={active} tone={tone} controls={controls} />;
   return <TgaDsc active={active} controls={controls} />;
 }
 
@@ -612,7 +612,10 @@ function Xrd({ active, controls }: { active: boolean; controls: string[] }) {
   </group>;
 }
 
-function SemEds({ active }: { active: boolean }) {
+function SemEds({ active, controls }: { active: boolean; controls: string[] }) {
+  const vacuumEstablished = controls.includes('Establish chamber vacuum');
+  const clearanceVerified = controls.includes('Verify stage clearance');
+  const detectorsArmed = controls.includes('Arm BSE / EDS detectors');
   return <group position={[0, 0.18, 0]}>
     <RoundedBox args={[1.58, 0.78, 1.34]} radius={0.22} smoothness={5} position={[-0.25, 0.62, 0.06]} castShadow>
       <meshPhysicalMaterial color="#8c999f" metalness={0.9} roughness={0.18} clearcoat={0.42} />
@@ -621,9 +624,10 @@ function SemEds({ active }: { active: boolean }) {
     <mesh position={[-0.25, 1.72, 0.04]} castShadow><cylinderGeometry args={[0.17, 0.3, 0.83, 32]} /><meshPhysicalMaterial color="#d0d5d4" metalness={0.82} roughness={0.2} clearcoat={0.4} /></mesh>
     <mesh position={[-0.25, 2.24, 0.04]} castShadow><cylinderGeometry args={[0.24, 0.17, 0.28, 32]} /><meshStandardMaterial color="#6d7b82" metalness={0.85} roughness={0.2} /></mesh>
     {[1.36, 1.6, 1.94, 2.18].map((y, index) => <mesh key={y} position={[-0.25, y, 0.04]} castShadow><cylinderGeometry args={[0.22 - index * 0.018, 0.22 - index * 0.018, 0.055, 28]} /><meshStandardMaterial color={index % 2 ? '#89969b' : '#3f505a'} metalness={0.86} roughness={0.18} /></mesh>)}
-    <Line points={[[-0.25, 2.04, 0.76], [-0.25, 0.65, 0.76]]} color="#4dd5ed" lineWidth={active ? 1.3 : 0.5} transparent opacity={active ? 0.9 : 0.25} />
+    <Line points={[[-0.25, 2.04, 0.76], [-0.25, 0.65, 0.76]]} color={vacuumEstablished ? '#51e19a' : '#4dd5ed'} lineWidth={vacuumEstablished || active ? 1.3 : 0.5} transparent opacity={vacuumEstablished || active ? 0.9 : 0.25} />
     <mesh position={[-0.25, 0.62, 0.76]}><circleGeometry args={[0.22, 32]} /><meshPhysicalMaterial color="#14242d" metalness={0.55} roughness={0.16} /></mesh>
-    <mesh position={[-0.25, 0.62, 0.775]}><torusGeometry args={[0.29, 0.045, 12, 40]} /><meshStandardMaterial color="#71828b" metalness={0.9} roughness={0.15} /></mesh>
+    <mesh position={[-0.25, 0.62, 0.775]}><torusGeometry args={[0.29, 0.045, 12, 40]} /><meshStandardMaterial color={vacuumEstablished ? '#51e19a' : '#71828b'} emissive={vacuumEstablished ? '#1d6645' : '#000000'} emissiveIntensity={vacuumEstablished ? 0.7 : 0} metalness={0.9} roughness={0.15} /></mesh>
+    <mesh position={[-0.25, clearanceVerified ? 0.68 : 0.57, 0.788]}><circleGeometry args={[0.09, 28]} /><meshStandardMaterial color={clearanceVerified ? '#b8c7c7' : '#6b777b'} emissive={clearanceVerified ? '#245b4a' : '#000000'} emissiveIntensity={clearanceVerified ? 0.5 : 0} metalness={0.78} roughness={0.2} /></mesh>
     {Array.from({ length: 10 }, (_, index) => { const angle = index * Math.PI / 5; return <mesh key={index} position={[-0.25 + Math.cos(angle) * 0.29, 0.62 + Math.sin(angle) * 0.29, 0.824]}><cylinderGeometry args={[0.018, 0.018, 0.03, 10]} /><meshStandardMaterial color="#c5ccce" metalness={0.92} roughness={0.14} /></mesh>; })}
     <group position={[-0.82, 0.58, 0.62]} rotation={[0, 0, Math.PI / 2]}>
       <mesh castShadow><cylinderGeometry args={[0.1, 0.1, 0.34, 22]} /><meshStandardMaterial color="#52636d" metalness={0.82} roughness={0.24} /></mesh>
@@ -631,7 +635,7 @@ function SemEds({ active }: { active: boolean }) {
       <mesh position={[0, -0.2, 0]}><torusGeometry args={[0.11, 0.022, 10, 24]} /><meshStandardMaterial color="#aab3b6" metalness={0.9} roughness={0.14} /></mesh>
     </group>
     <group position={[0.36, 1.18, 0.48]} rotation={[0, 0, 0.96]}>
-      <mesh castShadow><cylinderGeometry args={[0.1, 0.14, 0.5, 24]} /><meshPhysicalMaterial color="#768894" metalness={0.86} roughness={0.2} clearcoat={0.35} /></mesh>
+      <mesh castShadow><cylinderGeometry args={[0.1, 0.14, 0.5, 24]} /><meshPhysicalMaterial color={detectorsArmed ? '#8aa99e' : '#768894'} emissive={detectorsArmed ? '#1d5c45' : '#000000'} emissiveIntensity={detectorsArmed ? 0.55 : 0} metalness={0.86} roughness={0.2} clearcoat={0.35} /></mesh>
       <mesh position={[0, -0.3, 0]}><cylinderGeometry args={[0.06, 0.09, 0.14, 20]} /><meshStandardMaterial color="#303f49" metalness={0.8} roughness={0.22} /></mesh>
       <mesh position={[0, 0.29, 0]}><torusGeometry args={[0.12, 0.025, 10, 24]} /><meshStandardMaterial color="#a2adb1" metalness={0.9} roughness={0.16} /></mesh>
     </group>
@@ -642,7 +646,7 @@ function SemEds({ active }: { active: boolean }) {
     <Line points={[[0.57, 1.4, 0.44], [1.04, 1.72, 0.04], [1.18, 0.92, -0.42]]} color="#4a5f6e" lineWidth={1.1} />
     <RoundedBox args={[0.72, 0.62, 0.62]} radius={0.07} position={[0.9, 0.5, -0.43]} castShadow><meshStandardMaterial color="#374b58" metalness={0.68} roughness={0.33} /></RoundedBox>
     <mesh position={[0.9, 0.66, -0.115]}><planeGeometry args={[0.44, 0.18]} /><meshBasicMaterial color="#09161c" /></mesh>
-    <mesh position={[0.9, 0.67, -0.119]}><planeGeometry args={[0.28, 0.024]} /><meshBasicMaterial color={active ? '#51e19a' : '#6a7f8d'} /></mesh>
+    <mesh position={[0.9, 0.67, -0.119]}><planeGeometry args={[0.28, 0.024]} /><meshBasicMaterial color={detectorsArmed ? '#51e19a' : active ? '#4dd5ed' : '#6a7f8d'} /></mesh>
     <group position={[-0.96, 0.3, -0.48]}>
       <RoundedBox args={[0.48, 0.4, 0.54]} radius={0.055} castShadow><meshStandardMaterial color="#263640" metalness={0.68} roughness={0.34} /></RoundedBox>
       {[-0.13, -0.04, 0.05, 0.14].map((y) => <mesh key={y} position={[0, y, 0.277]}><planeGeometry args={[0.28, 0.025]} /><meshBasicMaterial color="#526672" /></mesh>)}
@@ -658,7 +662,10 @@ function SemEds({ active }: { active: boolean }) {
   </group>;
 }
 
-function Bet({ active, tone }: { active: boolean; tone: string }) {
+function Bet({ active, tone, controls }: { active: boolean; tone: string; controls: string[] }) {
+  const portsIsolated = controls.includes('Isolate analysis ports');
+  const leakCheckPassed = controls.includes('Run manifold leak check');
+  const gasProven = controls.includes('Prove N₂ supply state');
   return <group position={[0, 0.18, 0]}>
     <RoundedBox args={[2.0, 2.2, 1.42]} radius={0.1} smoothness={4} position={[-0.28, 1.14, 0]} castShadow>
       <meshPhysicalMaterial color="#4b5b67" metalness={0.78} roughness={0.25} clearcoat={0.4} />
@@ -668,26 +675,26 @@ function Bet({ active, tone }: { active: boolean; tone: string }) {
     </RoundedBox>
     {[-0.72, -0.42, -0.13, 0.16].map((x, i) => <group key={x} position={[x, 1.4, 0.8]}>
       <mesh><cylinderGeometry args={[0.045, 0.055, 0.72, 18]} /><meshPhysicalMaterial color="#c4d9de" transparent opacity={0.58} roughness={0.08} /></mesh>
-      <mesh position={[0, -0.39, 0]}><sphereGeometry args={[0.095, 18, 12]} /><meshStandardMaterial color={active && i !== 2 ? '#b48cff' : '#6f8390'} emissive={active && i !== 2 ? '#5f36a0' : '#000000'} emissiveIntensity={active ? 1.3 : 0} /></mesh>
+      <mesh position={[0, -0.39, 0]}><sphereGeometry args={[0.095, 18, 12]} /><meshStandardMaterial color={leakCheckPassed ? '#51e19a' : active && i !== 2 ? '#b48cff' : '#6f8390'} emissive={leakCheckPassed ? '#24744f' : active && i !== 2 ? '#5f36a0' : '#000000'} emissiveIntensity={leakCheckPassed || active ? 1.3 : 0} /></mesh>
       <mesh position={[0, 0.39, 0]}><cylinderGeometry args={[0.07, 0.07, 0.06, 18]} /><meshStandardMaterial color="#b7c4c8" metalness={0.82} roughness={0.18} /></mesh>
       <mesh position={[0, 0.47, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.085, 0.016, 8, 20]} /><meshStandardMaterial color={i === 2 ? '#b7853d' : '#688796'} metalness={0.72} roughness={0.25} /></mesh>
       <mesh position={[0, -0.48, 0]}><cylinderGeometry args={[0.125, 0.145, 0.18, 22]} /><meshPhysicalMaterial color="#8a9aa2" metalness={0.7} roughness={0.22} clearcoat={0.25} /></mesh>
     </group>)}
     <mesh position={[-0.28, 1.98, 0.81]}><boxGeometry args={[1.25, 0.05, 0.06]} /><meshStandardMaterial color="#7e939e" metalness={0.8} /></mesh>
-    {[-0.72, -0.42, -0.13, 0.16].map((x) => <group key={`valve-${x}`} position={[x, 2.04, 0.82]}>
+    {[-0.72, -0.42, -0.13, 0.16].map((x) => <group key={`valve-${x}`} position={[x, 2.04, 0.82]} rotation={[0, portsIsolated ? Math.PI / 2 : 0, 0]}>
       <mesh><cylinderGeometry args={[0.035, 0.035, 0.12, 14]} /><meshStandardMaterial color="#9eaaae" metalness={0.9} roughness={0.14} /></mesh>
-      <mesh position={[0, 0.08, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.075, 0.012, 8, 20]} /><meshStandardMaterial color="#6b8490" metalness={0.75} roughness={0.24} /></mesh>
+      <mesh position={[0, 0.08, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.075, 0.012, 8, 20]} /><meshStandardMaterial color={portsIsolated ? '#51e19a' : '#6b8490'} emissive={portsIsolated ? '#1c5d3f' : '#000000'} emissiveIntensity={portsIsolated ? 0.55 : 0} metalness={0.75} roughness={0.24} /></mesh>
     </group>)}
     <mesh position={[0.46, 1.55, 0.784]}><circleGeometry args={[0.18, 30]} /><meshStandardMaterial color="#101d24" metalness={0.4} roughness={0.24} /></mesh>
     <mesh position={[0.46, 1.55, 0.798]}><torusGeometry args={[0.18, 0.025, 10, 30]} /><meshStandardMaterial color="#94a3a9" metalness={0.88} roughness={0.16} /></mesh>
-    <Line points={[[0.46, 1.55, 0.81], [0.51, 1.62, 0.82]]} color="#f4b95f" lineWidth={1.2} />
+    <Line points={[[0.46, 1.55, 0.81], [leakCheckPassed ? 0.42 : 0.51, leakCheckPassed ? 1.64 : 1.62, 0.82]]} color={leakCheckPassed ? '#51e19a' : '#f4b95f'} lineWidth={1.2} />
     <group position={[-0.74, 0.48, 0.78]}>{[-0.12, -0.04, 0.04, 0.12].map((y) => <mesh key={y} position={[0, y, 0]}><planeGeometry args={[0.52, 0.025]} /><meshBasicMaterial color="#334753" /></mesh>)}</group>
-    <mesh position={[0.98, 0.7, 0.08]} castShadow><cylinderGeometry args={[0.32, 0.36, 1.2, 28]} /><meshPhysicalMaterial color="#607788" metalness={0.72} roughness={0.25} clearcoat={0.4} /></mesh>
+    <mesh position={[0.98, 0.7, 0.08]} castShadow><cylinderGeometry args={[0.32, 0.36, 1.2, 28]} /><meshPhysicalMaterial color={gasProven ? '#668a7d' : '#607788'} emissive={gasProven ? '#183e31' : '#000000'} emissiveIntensity={gasProven ? 0.34 : 0} metalness={0.72} roughness={0.25} clearcoat={0.4} /></mesh>
     <mesh position={[0.98, 1.35, 0.08]}><cylinderGeometry args={[0.1, 0.1, 0.12, 18]} /><meshStandardMaterial color="#aab7bc" metalness={0.86} /></mesh>
     <group position={[0.98, 1.5, 0.08]}>
       {[-0.13, 0.13].map((x) => <group key={x} position={[x, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <mesh><cylinderGeometry args={[0.105, 0.105, 0.035, 22]} /><meshStandardMaterial color="#c2cbce" metalness={0.84} roughness={0.17} /></mesh>
-        <mesh position={[0, -0.02, 0]}><circleGeometry args={[0.075, 20]} /><meshBasicMaterial color="#101d23" /></mesh>
+        <mesh position={[0, -0.02, 0]}><circleGeometry args={[0.075, 20]} /><meshBasicMaterial color={gasProven ? '#17402f' : '#101d23'} /></mesh>
       </group>)}
       <mesh position={[0, -0.13, 0]}><boxGeometry args={[0.38, 0.12, 0.14]} /><meshStandardMaterial color="#415460" metalness={0.72} roughness={0.28} /></mesh>
     </group>

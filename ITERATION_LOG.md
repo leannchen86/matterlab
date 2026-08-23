@@ -511,6 +511,23 @@ should help a technician reconcile commanded state with physical feedback.
   separate QC holds in place, and verified an aisle → console → return-to-asset round trip retains
   all physical feedback.
 
+## Critique 30: two major characterization tools still behaved as static props
+
+XRD and TGA/DSC now reconciled local controls with the spatial twin, but SEM/EDS and BET—two of the
+techniques emphasized in the target lab roles—only showed the generic proof channels. Their central
+vacuum, detector, manifold, and gas hardware needed to respond at the same level of specificity.
+
+### Changes
+
+- Connected SEM chamber-vacuum proof to the column path and bolted chamber ring, stage-clearance
+  proof to the visible stage position, and BSE/EDS arming to the detector body and acquisition HMI.
+- Connected BET port isolation to the four-valve manifold, the manifold leak check to analysis-tube
+  feedback and gauge position, and N₂ proof to the cylinder and regulator faces.
+- Retained the universal three-channel proof unit, so equipment-specific feedback and shared
+  operating grammar reinforce rather than replace one another.
+- Exercised both complete sequences in focus mode and verified that SEM readiness and the BET service
+  offline state remain independent from the newly proven local subsystems.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
