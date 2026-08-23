@@ -78,7 +78,7 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
         <FacilityLighting mode={lightingMode} />
 
         <LabArchitecture lightingMode={lightingMode} />
-        <OperationsProps />
+        <OperationsProps scenarioId={scenarioId} phase={phase} />
         <MaterialRoute scenarioId={scenarioId} phase={phase} />
         {stations.map((station, index) => (cameraMode !== 'focus' || selectedId === station.id) ? (
           <StationCell
@@ -259,7 +259,16 @@ function AisleNavigator({ active, controls, command }: { active: boolean; contro
     const next = camera.position.clone().add(movement);
     next.x = THREE.MathUtils.clamp(next.x, -8.1, 4.25);
     next.z = THREE.MathUtils.clamp(next.z, -3.8, 8.75);
-    const occupied = (position: THREE.Vector3) => STATION_POSITIONS.some(([stationX, , stationZ]) => Math.abs(position.x - stationX) < 1.72 && Math.abs(position.z - stationZ) < 1.58);
+    const occupied = (position: THREE.Vector3) => {
+      const station = STATION_POSITIONS.some(([stationX, , stationZ]) => Math.abs(position.x - stationX) < 1.72 && Math.abs(position.z - stationZ) < 1.58);
+      const facilityProps = [
+        { x: -3.95, z: 5.65, halfX: 0.98, halfZ: 0.66 },
+        { x: -0.32, z: 6.15, halfX: 0.72, halfZ: 1.18 },
+        { x: 4.42, z: 1.58, halfX: 0.72, halfZ: 1.62 },
+        { x: -8.18, z: 5.45, halfX: 0.58, halfZ: 1.42 },
+      ].some((box) => Math.abs(position.x - box.x) < box.halfX && Math.abs(position.z - box.z) < box.halfZ);
+      return station || facilityProps;
+    };
     let resolved = next;
     if (occupied(resolved)) {
       const slideX = camera.position.clone();
@@ -389,7 +398,7 @@ function UtilityServices() {
   </group>;
 }
 
-function OperationsProps() {
+function OperationsProps({ scenarioId, phase }: { scenarioId: ScenarioId; phase: number }) {
   return <group>
     <group position={[-3.95, 0.08, 5.65]} rotation={[0, -0.12, 0]}>
       {[0.32, 1.02].map((y) => <RoundedBox key={y} args={[1.5, 0.12, 0.82]} radius={0.04} position={[0, y, 0]} castShadow><meshPhysicalMaterial color="#647481" metalness={0.8} roughness={0.25} clearcoat={0.28} /></RoundedBox>)}
@@ -406,6 +415,67 @@ function OperationsProps() {
       </group>
       {[-0.37, 0.37].map((x) => <mesh key={x} position={[x, 0.12, 0.72]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.1, 0.1, 0.08, 18]} /><meshStandardMaterial color="#151d23" roughness={0.75} /></mesh>)}
     </group>
+    <GasServiceBay active={scenarioId === 'facility'} accepted={scenarioId === 'facility' && phase >= 3} />
+    <SampleStagingRack />
+  </group>;
+}
+
+function GasServiceBay({ active, accepted }: { active: boolean; accepted: boolean }) {
+  const cylinderPositions = [-0.72, 0, 0.72];
+  const serviceColor = accepted ? '#68d4ad' : active ? '#d2a24e' : '#73a6c7';
+  return <group position={[4.42, 0.04, 1.58]}>
+    <RoundedBox args={[1.34, 0.06, 3.05]} radius={0.025} receiveShadow><meshStandardMaterial color="#263437" roughness={0.88} /></RoundedBox>
+    <Line points={[[0.61, 0.05, -1.42], [0.61, 0.05, 1.42], [-0.61, 0.05, 1.42], [-0.61, 0.05, -1.42], [0.61, 0.05, -1.42]]} color="#d6aa43" lineWidth={0.9} transparent opacity={0.78} />
+    {[-0.55, 0.55].flatMap((x) => [-1.35, 1.35].map((z) => <mesh key={`${x}-${z}`} position={[x, 1.22, z]} castShadow><boxGeometry args={[0.055, 2.4, 0.055]} /><meshStandardMaterial color="#4f6267" metalness={0.78} roughness={0.26} /></mesh>))}
+    {[-1.35, 1.35].map((z) => <mesh key={z} position={[0, 2.38, z]} castShadow><boxGeometry args={[1.18, 0.055, 0.055]} /><meshStandardMaterial color="#52666b" metalness={0.82} roughness={0.24} /></mesh>)}
+    <mesh position={[-0.53, 1.32, 0]} castShadow><boxGeometry args={[0.05, 2.08, 2.58]} /><meshStandardMaterial color="#394c51" metalness={0.62} roughness={0.44} wireframe /></mesh>
+    {cylinderPositions.map((z, index) => <group key={z} position={[-0.16, 0.12, z]}>
+      <mesh position={[0, 0.74, 0]} castShadow><cylinderGeometry args={[0.19, 0.2, 1.28, 26]} /><meshPhysicalMaterial color={index === 1 ? '#8ea5a2' : '#65777a'} metalness={0.62} roughness={0.3} clearcoat={0.28} /></mesh>
+      <mesh position={[0, 1.42, 0]} castShadow><sphereGeometry args={[0.17, 22, 12, 0, Math.PI * 2, 0, Math.PI / 2]} /><meshStandardMaterial color={index === 1 ? '#aab9b6' : '#77878a'} metalness={0.65} roughness={0.28} /></mesh>
+      <mesh position={[0, 1.57, 0]}><cylinderGeometry args={[0.065, 0.065, 0.16, 16]} /><meshStandardMaterial color="#34474a" metalness={0.82} roughness={0.2} /></mesh>
+      <mesh position={[0, 0.78, 0.205]} rotation={[0, 0, 0]}><planeGeometry args={[0.24, 0.33]} /><meshBasicMaterial color="#e8e5d5" /></mesh>
+      <mesh position={[0, 0.82, 0.21]}><planeGeometry args={[0.17, 0.025]} /><meshBasicMaterial color={index === 1 ? serviceColor : index === 0 ? '#b67c4d' : '#73a6c7'} /></mesh>
+      <Line points={[[-0.27, 1.05, 0.22], [0.27, 1.05, 0.22]]} color="#c8a24a" lineWidth={1.4} />
+    </group>)}
+    <group position={[0.17, 2.06, 0]}>
+      <mesh castShadow><cylinderGeometry args={[0.035, 0.035, 2.58, 16]} /><meshStandardMaterial color="#899a9d" metalness={0.9} roughness={0.16} /></mesh>
+      {cylinderPositions.map((z, index) => <group key={z} position={[0, 0, z]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh><cylinderGeometry args={[0.1, 0.1, 0.055, 18]} /><meshStandardMaterial color="#15232a" metalness={0.56} roughness={0.3} /></mesh>
+        <mesh position={[0, 0.031, 0]}><circleGeometry args={[0.075, 22]} /><meshBasicMaterial color="#d5dddc" /></mesh>
+        <Line points={[[0, 0.036, 0], [index === 1 ? (accepted ? 0.035 : -0.015) : -0.025, 0.038, -0.045]]} color={index === 1 ? serviceColor : '#c28f4e'} lineWidth={1.2} />
+      </group>)}
+    </group>
+    <group position={[0.53, 1.18, -1.02]} rotation={[0, Math.PI / 2, 0]}>
+      <RoundedBox args={[0.56, 0.92, 0.12]} radius={0.035} castShadow><meshStandardMaterial color="#25353b" metalness={0.68} roughness={0.34} /></RoundedBox>
+      <mesh position={[0, 0.2, 0.067]}><planeGeometry args={[0.38, 0.22]} /><meshBasicMaterial color="#07161a" /></mesh>
+      <mesh position={[0, 0.2, 0.071]}><planeGeometry args={[0.27, 0.024]} /><meshBasicMaterial color={serviceColor} /></mesh>
+      {[-0.17, 0, 0.17].map((x, index) => <mesh key={x} position={[x, -0.18, 0.07]}><circleGeometry args={[0.035, 14]} /><meshStandardMaterial color={index === 1 ? serviceColor : '#65777b'} emissive={index === 1 ? serviceColor : '#000000'} emissiveIntensity={index === 1 ? 0.8 : 0} /></mesh>)}
+    </group>
+    <mesh position={[0.52, 2.58, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[1.35, 0.24]} /><meshBasicMaterial color="#173a32" /></mesh>
+    <mesh position={[0.525, 2.58, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[0.94, 0.035]} /><meshBasicMaterial color={serviceColor} /></mesh>
+    {active && <pointLight position={[0.2, 2.15, 0]} intensity={accepted ? 1.4 : 0.9} distance={2.1} color={serviceColor} decay={2} />}
+  </group>;
+}
+
+function SampleStagingRack() {
+  return <group position={[-8.18, 0.04, 5.45]} rotation={[0, Math.PI / 2, 0]}>
+    {[-1.08, 1.08].flatMap((x) => [-0.24, 0.24].map((z) => <mesh key={`${x}-${z}`} position={[x, 1.18, z]} castShadow><boxGeometry args={[0.055, 2.32, 0.055]} /><meshStandardMaterial color="#69787d" metalness={0.86} roughness={0.22} /></mesh>))}
+    {[0.22, 0.82, 1.42, 2.02].map((y) => <RoundedBox key={y} args={[2.28, 0.075, 0.58]} radius={0.02} position={[0, y, 0]} castShadow><meshPhysicalMaterial color="#697b80" metalness={0.83} roughness={0.24} clearcoat={0.18} /></RoundedBox>)}
+    {[-0.72, 0, 0.72].map((x, index) => <group key={x} position={[x, 0.49, 0]}>
+      <RoundedBox args={[0.54, 0.38, 0.46]} radius={0.035} castShadow><meshPhysicalMaterial color={['#c3b77c', '#91aeb3', '#aa8d75'][index]} roughness={0.48} clearcoat={0.2} /></RoundedBox>
+      <mesh position={[0, 0.02, 0.235]}><planeGeometry args={[0.3, 0.12]} /><meshBasicMaterial color="#e7e8dc" /></mesh>
+      <mesh position={[0, 0.02, 0.239]}><planeGeometry args={[0.2, 0.018]} /><meshBasicMaterial color={index === 1 ? '#68d4ad' : '#627985'} /></mesh>
+    </group>)}
+    {[-0.76, -0.25, 0.25, 0.76].map((x, index) => <group key={x} position={[x, 1.08, 0]}>
+      <mesh castShadow><cylinderGeometry args={[0.095, 0.085, 0.37, 18]} /><meshPhysicalMaterial color={['#d1ab67', '#88b8c3', '#c98165', '#aa97bf'][index]} roughness={0.35} clearcoat={0.38} /></mesh>
+      <mesh position={[0, 0.2, 0]}><cylinderGeometry args={[0.075, 0.075, 0.04, 18]} /><meshStandardMaterial color="#d7e0e2" metalness={0.62} roughness={0.22} /></mesh>
+    </group>)}
+    {[-0.68, 0.68].map((x, index) => <group key={x} position={[x, 1.72, 0]}>
+      <RoundedBox args={[0.72, 0.38, 0.48]} radius={0.035} castShadow><meshStandardMaterial color={index ? '#334c54' : '#3e4a50'} metalness={0.22} roughness={0.58} /></RoundedBox>
+      <mesh position={[0, 0, 0.25]}><planeGeometry args={[0.42, 0.11]} /><meshBasicMaterial color={index ? '#8fd2c1' : '#d4bd72'} /></mesh>
+    </group>)}
+    <mesh position={[0, 2.34, 0.01]}><planeGeometry args={[1.52, 0.22]} /><meshBasicMaterial color="#233b3d" /></mesh>
+    <mesh position={[0, 2.34, 0.015]}><planeGeometry args={[1.08, 0.034]} /><meshBasicMaterial color="#8cb9b3" /></mesh>
   </group>;
 }
 
