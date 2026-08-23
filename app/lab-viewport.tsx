@@ -1,6 +1,6 @@
 'use client';
 
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LabCanvas } from './lab-canvas';
 import type { Station } from './sim-data';
@@ -21,6 +21,55 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
   const [lightingMode, setLightingMode] = useState<'inspection' | 'run'>('inspection');
   const [controlFeedback, setControlFeedback] = useState<Record<string, string[]>>({});
   const [immersive, setImmersive] = useState(false);
+  const [ambienceOn, setAmbienceOn] = useState(false);
+  const ambienceContext = useRef<AudioContext | null>(null);
+
+  const toggleAmbience = async () => {
+    if (ambienceContext.current) {
+      const context = ambienceContext.current;
+      ambienceContext.current = null;
+      setAmbienceOn(false);
+      await context.close();
+      return;
+    }
+    const context = new AudioContext();
+    const master = context.createGain();
+    master.gain.value = 0.035;
+    master.connect(context.destination);
+
+    const electricalHum = context.createOscillator();
+    const humGain = context.createGain();
+    electricalHum.type = 'sine';
+    electricalHum.frequency.value = 60;
+    humGain.gain.value = 0.055;
+    electricalHum.connect(humGain).connect(master);
+    electricalHum.start();
+
+    const airBuffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
+    const airData = airBuffer.getChannelData(0);
+    for (let index = 0; index < airData.length; index += 1) airData[index] = Math.random() * 2 - 1;
+    const airHandler = context.createBufferSource();
+    const airFilter = context.createBiquadFilter();
+    const airGain = context.createGain();
+    airHandler.buffer = airBuffer;
+    airHandler.loop = true;
+    airFilter.type = 'lowpass';
+    airFilter.frequency.value = 420;
+    airFilter.Q.value = 0.55;
+    airGain.gain.value = 0.075;
+    airHandler.connect(airFilter).connect(airGain).connect(master);
+    airHandler.start();
+
+    ambienceContext.current = context;
+    await context.resume();
+    setAmbienceOn(true);
+  };
+
+  useEffect(() => () => {
+    const context = ambienceContext.current;
+    ambienceContext.current = null;
+    if (context) void context.close();
+  }, []);
 
   useEffect(() => {
     if (!immersive) return;
@@ -101,6 +150,13 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
       aria-label={`Facility lighting: ${lightingMode === 'inspection' ? 'inspection light' : 'instrument run light'}. Activate to change lighting.`}
       aria-pressed={lightingMode === 'inspection'}
     ><span>{lightingMode === 'inspection' ? '☼' : '◐'}</span>{lightingMode === 'inspection' ? 'INSPECTION LIGHT' : 'RUN LIGHT'}</button>}
+    {mode === '3d' && <button
+      type="button"
+      className={`ambience-switch${ambienceOn ? ' is-on' : ''}`}
+      onClick={toggleAmbience}
+      aria-label={`Laboratory ambience ${ambienceOn ? 'on' : 'off'}. Activate to ${ambienceOn ? 'mute' : 'play'} the air-handler and electrical room tone.`}
+      aria-pressed={ambienceOn}
+    ><span>{ambienceOn ? '◖' : '○'}</span>{ambienceOn ? 'LAB HUM ON' : 'LAB AUDIO'}</button>}
     {mode === '3d' && !immersive && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>HUMAN-SCALE AISLE</small><i>→</i></button>}
     {mode === '3d'
       ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>

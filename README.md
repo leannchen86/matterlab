@@ -95,6 +95,8 @@ The 3D bay defaults to a neutral inspection-light state with visible overhead fi
 service hardware, and brighter epoxy-floor and wall materials. A technician can switch to an
 instrument-run state that lowers ambient and fixture light while preserving HMI, alarm, furnace,
 and station-state cues; both states are available in dashboard and immersive aisle views.
+An optional, user-initiated room tone combines a subdued 60 Hz electrical hum with filtered
+air-handler noise. It is generated in the browser, starts muted, and can be silenced immediately.
 Scenario routes move distinct physical carriers rather than a generic token: a six-position XRD
 tray, a four-tube gas-sorption rack, a refractory setter with crucibles, or a paired-pan carrier for
 thermal analysis. The facility shift instead moves the governed tote and powered jack together

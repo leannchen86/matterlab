@@ -718,6 +718,24 @@ workflow was not obvious.
   into the local HMI; the first control action remains disabled before the walkaround and enabled
   after the three physical checks are linked.
 
+## Critique 42: the walkable lab was visually rich but acoustically empty
+
+Human-scale movement, equipment clearances, lighting, and operating handoffs created physical
+presence, but the room remained unnaturally silent. Continuous ventilation and subdued electrical
+room tone are part of how an operating laboratory feels, especially when the interface is asking the
+user to inhabit the space rather than only read it.
+
+### Changes
+
+- Added an opt-in `Lab audio` control beside the facility lighting state in embedded and immersive
+  3D views.
+- Generated a low-level 60 Hz electrical component and filtered broadband air-handler component
+  entirely in the browser, avoiding external media or licensing dependencies.
+- Kept audio muted by default and started it only from an explicit user gesture, with a clearly
+  visible on state and immediate mute action.
+- Verified start, active state, mute, cleanup, console errors, and compact-screen placement; no
+  sound is left playing after QA.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
