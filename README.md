@@ -58,6 +58,9 @@ An immersive equipment-first mode expands the procedural bay over the full viewp
 station selection, overview/focus cameras, physical inspection points, and an explicit return to the
 shift console. It is designed to make the facility itself—not the surrounding text—the primary
 interface on both desktop and mobile.
+To keep that overview equipment-first, only the selected asset carries a persistent identity card;
+other asset cards disclose on hover, while the compact station selector and physical stack lights
+preserve the complete facility state.
 Its human-scale aisle mode moves the camera to technician eye height, supports WASD/arrow-key and
 touch-pad movement, and glides between selected stations along operating approaches. From the aisle,
 the selected instrument opens directly into its local HMI/SCADA, LES, LIMS, and CMMS console; physical

@@ -568,6 +568,22 @@ equipment lives, and where clean/controlled circulation begins without opening a
   first overview reveals the complete door, clean zone, emergency station, utilities, and aisle
   relationship at room scale.
 
+## Critique 33: digital labels obscured the room they were explaining
+
+The full-room overview finally exposed the facility boundary, but seven persistent station cards
+covered instrument silhouettes, valves, safety hardware, and one another. The annotation layer had
+become more prominent than the physical lab.
+
+### Changes
+
+- Kept a persistent identity card only on the selected station.
+- Made unselected station cards disclose on direct 3D hover rather than occupy the default room view.
+- Retained the complete seven-station selector, physical stack lights, selected digital perimeter,
+  and accessible station buttons, so decluttering did not remove status or navigation.
+- Compared the full equipment-first overview before and after the change and verified the controlled
+  door, shower/eyewash, robot cage, utilities, and instrument silhouettes are now simultaneously
+  legible.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

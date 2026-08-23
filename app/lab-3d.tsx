@@ -423,14 +423,15 @@ function StationCell({ station, index, position, selected, active, showHotspots,
   onSelect: (id: string) => void;
 }) {
   const tone = TONE_COLORS[station.tone];
+  const [hovered, setHovered] = useState(false);
   const setCursor = (cursor: string) => { document.body.style.cursor = cursor; };
   return (
     <group
       position={position}
       onClick={(event) => { event.stopPropagation(); onSelect(station.id); }}
       onDoubleClick={(event) => { event.stopPropagation(); onSelect(station.id); onFocus(); }}
-      onPointerOver={(event) => { event.stopPropagation(); setCursor('pointer'); }}
-      onPointerOut={() => setCursor('default')}
+      onPointerOver={(event) => { event.stopPropagation(); setHovered(true); setCursor('pointer'); }}
+      onPointerOut={() => { setHovered(false); setCursor('default'); }}
     >
       <RoundedBox args={[3.08, index === 3 || index === 4 ? 0.09 : 0.055, 2.72]} radius={0.045} smoothness={3} position={[0, index === 3 || index === 4 ? 0.045 : 0.028, 0]} receiveShadow>
         <meshPhysicalMaterial color={index === 3 || index === 4 ? '#27323b' : '#18212a'} emissive={selected ? '#16404b' : '#000000'} emissiveIntensity={selected ? 0.08 : 0} roughness={0.72} metalness={0.14} clearcoat={0.12} />
@@ -441,11 +442,11 @@ function StationCell({ station, index, position, selected, active, showHotspots,
       {showHotspots && <InspectionHotspots index={index} tone={tone} inspected={inspected} onInspect={onInspect} />}
       <StatusBeacon position={[1.32, 0.34, 1.08]} color={tone} active={active || selected} />
       <ControlProofLights count={controls.length} />
-      <Html center position={[index === 3 ? 0.5 : index === 2 ? -0.38 : 0, index < 3 ? 2.98 : 2.72, index < 3 ? -0.2 : 0.2]} distanceFactor={10.5} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
+      {(selected || hovered) && <Html center position={[index === 3 ? 0.5 : index === 2 ? -0.38 : 0, index < 3 ? 2.98 : 2.72, index < 3 ? -0.2 : 0.2]} distanceFactor={10.5} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
         <div className={`station-3d-label ${selected ? 'selected' : ''}`} style={{ '--station-tone': tone } as React.CSSProperties}>
           <span>{station.id}</span><b>{station.name}</b><i>{station.state}</i>
         </div>
-      </Html>
+      </Html>}
     </group>
   );
 }
