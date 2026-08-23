@@ -290,6 +290,18 @@ match the visual standard of the rest of the bay.
 - Added an independently animated wrist axis for active transfers while keeping a legible parked pose
   during recovery work.
 
+## Critique 18: reference help disappeared when the work order changed
+
+The field guide was available during the XRD shift but absent from BET and furnace headers. That
+made the least experienced users lose the systems and characterization reference precisely when a
+new workflow introduced unfamiliar equipment.
+
+### Changes
+
+- Extracted the field guide into a shared modal and exposed it from every playable shift.
+- Preserved the visual access-boundary map and optional deeper sources without adding text to the
+  default equipment view.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

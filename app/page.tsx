@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
+import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
-import { baseStations, fieldGuide, initialLog, sources, type Station } from './sim-data';
+import { baseStations, initialLog, type Station } from './sim-data';
 import { AlternateShift, PlannerPanel, ShiftDeckModal, type ScenarioId } from './scenario-shifts';
 import { StationAccess } from './station-access';
 
@@ -300,7 +301,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
       {modal === 'lineage' && <LineageModal scanned={labelsScanned} onScan={() => { setLabelsScanned(true); setFeedback('Mismatch found: manifest SPEC-184-06; physical label SPEC-148-06.'); appendLog('lineage', 'Carrier BC-184 scan found one identifier mismatch.', 3); }} feedback={feedback} onResolve={resolveLineage} onClose={() => setModal(null)} />}
       {modal === 'evidence' && <EvidenceModal feedback={feedback} onDecide={decideEvidence} onClose={() => setModal(null)} />}
       {modal === 'sem' && <SemEdsModal feedback={feedback} onDecide={decideSem} onClose={() => setModal(null)} />}
-      {modal === 'guide' && <GuideModal onClose={() => setModal(null)} />}
+      {modal === 'guide' && <FieldGuideModal onClose={() => setModal(null)} />}
       {modal === 'deck' && <ShiftDeckModal active="xrd" onChoose={onSwitch} onClose={() => setModal(null)} />}
       {modal === 'complete' && <CompleteModal scores={scores} logCount={log.length} exceptionCount={log.filter((event) => event.type === 'exception').length} onReset={resetShift} onClose={() => setModal(null)} />}
       {logOpen && <LedgerDrawer log={log} onClose={() => setLogOpen(false)} />}
@@ -359,24 +360,6 @@ function SemEdsModal({ feedback, onDecide, onClose }: { feedback: string; onDeci
   const grains = [[8, 15, 34, 27], [34, 9, 29, 36], [61, 12, 34, 25], [18, 41, 37, 30], [51, 38, 25, 26], [73, 39, 29, 33], [4, 70, 33, 24], [36, 67, 31, 28], [64, 72, 35, 22]];
   const peaks: [string, number, number][] = [['O', 24, 43], ['Si', 38, 72], ['Ca', 57, 88], ['Ti', 76, 64], ['Ti', 86, 31]];
   return <ModalShell title="SEM / EDS inclusion triage" kicker="CHARACTERIZATION FOLLOW-UP · SPEC-184-03" onClose={onClose} wide><p className="modal-intro">The XRD result contains an unassigned reflection. A backscattered-electron field reveals one bright inclusion; the local spectrum can guide follow-up, but not represent the bulk by itself.</p><div className="sem-evidence-grid"><div className="micrograph-panel"><div className="panel-heading"><span>BSE MICROGRAPH · FIELD 01</span><b>SEM-01 · SPEC-184-03</b></div><div className="micrograph" aria-label="Simulated SEM micrograph with a bright inclusion">{grains.map(([left, top, width, height], index) => <i key={index} style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }} />)}<span className="bright-inclusion" /><b className="feature-tag">EDS ROI 01</b><em className="scale-bar">20 µm</em><i className="scan-line" /></div><div className="field-strip"><span className="active"><i />F01<b>inclusion</b></span><span><i />F02<b>queued</b></span><span><i />F03<b>queued</b></span><span><i />F04<b>queued</b></span></div></div><div className="eds-panel"><div className="panel-heading"><span>LOCAL EDS SPECTRUM</span><b>ROI 01</b></div><div className="eds-spectrum" aria-label="Simulated local EDS spectrum">{peaks.map(([label, left, height], index) => <i key={`${label}-${index}`} className={label === 'Si' ? 'flagged' : ''} style={{ left: `${left}%`, height: `${height}%` }}><b>{label}</b></i>)}</div><div className="report-metric"><span>Matrix</span><b>Ca · Ti · O</b></div><div className="report-metric flagged-metric"><span>Inclusion</span><b>Si elevated</b></div><div className="report-status warn-status">LOCAL EVIDENCE ONLY</div><p>Elemental signal is spatially local and acquisition-context dependent.</p></div></div><div className="ai-proposal"><div><span>FOLLOW-UP QUESTION</span><h3>Does the Si-rich feature explain the unresolved XRD reflection?</h3><p>Current coverage: 1 field · representativeness not established</p></div><b>OPEN</b></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onDecide(true)}>Acquire 4 fields + EDS map · route interpretation</button><button type="button" className="secondary" onClick={() => onDecide(false)}>Report first field as bulk explanation</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
-}
-
-function GuideModal({ onClose }: { onClose: () => void }) {
-  return <ModalShell title="Technician field guide" kicker="SYSTEMS + CHARACTERIZATION" onClose={onClose} wide><p className="modal-intro">A compact map of what the terms in the job descriptions mean at the bench. This simulation is conceptual training, not an operating procedure.</p><AccessBoundaryMap /><div className="guide-grid">{fieldGuide.map((item) => <article key={item.term}><b>{item.term}</b><p>{item.role}</p><small>{item.atBench}</small></article>)}</div><div className="source-list"><p className="mini-label">RESEARCH SOURCES</p>{sources.map((source) => <a key={source.href} href={source.href} target="_blank" rel="noreferrer">{source.label}<span>↗</span></a>)}</div></ModalShell>;
-}
-
-function AccessBoundaryMap() {
-  const layers = [
-    { icon: '◫', code: 'PHYSICAL', title: 'ASSET + SAMPLE', detail: 'observe · identify · control' },
-    { icon: '⌁', code: 'SCADA / HMI', title: 'LIVE STATE', detail: 'alarms · interlocks · permissives' },
-    { icon: '✓', code: 'LES / LIMS', title: 'GOVERNED RECORD', detail: 'method · lineage · native data' },
-    { icon: '◇', code: 'AI PLANNER', title: 'PROPOSED NEXT', detail: 'recommend · never self-release' },
-  ];
-  return <div className="access-boundary-map" aria-label="Technician access boundary from physical asset to AI planner">
-    <header><span>TECHNICIAN ACCESS BOUNDARY</span><b>PHYSICAL TRUTH → AI-ELIGIBLE EVIDENCE</b></header>
-    <div>{layers.map((layer, index) => <article key={layer.code} className={index === 3 ? 'ai-boundary' : ''}><i>{layer.icon}</i><span>{layer.code}</span><b>{layer.title}</b><small>{layer.detail}</small>{index < layers.length - 1 && <em>→</em>}</article>)}</div>
-    <footer><span>TECH-07 CAN OBSERVE · ATTEST · HOLD · RELEASE WITHIN ROLE</span><i /><b>AI CAN PROPOSE · CANNOT OVERRIDE GATES</b></footer>
-  </div>;
 }
 
 function CompleteModal({ scores, logCount, exceptionCount, onReset, onClose }: { scores: Scores; logCount: number; exceptionCount: number; onReset: () => void; onClose: () => void }) {
