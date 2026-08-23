@@ -42,13 +42,24 @@ const HMI_OPERATIONS: Record<string, [string, string, string]> = {
   'TGA-01': ['Tare balance channel', 'Prove purge path', 'Home autosampler carousel'],
 };
 
+function getContextProfile(stationId: string, scenarioId: ScenarioId): typeof profiles[string] {
+  const profile = profiles[stationId] ?? profiles['XRD-03'];
+  if (scenarioId === 'facility' && stationId === 'PREP-01') return { ...profile, controller: 'MOVE-HMI / MES-A2', method: ['Scan both totes', 'Inspect powered jack', 'Secure load + route', 'Retain move receipt'], sample: ['LOT-3024-A', 'MOV-3024', 'REC-BET-02'], workOrder: 'MOV-3024', service: 'Powered-jack pre-use · current', supplies: ['restraint straps 6', 'spill kit sealed', 'tote covers 12'] };
+  if (scenarioId === 'facility' && stationId === 'ROBO-02') return { ...profile, method: ['Reserve cross-aisle', 'Park robot', 'Prove safeguarded boundary', 'Release move priority'], sample: ['MOV-3024', 'A2-RESERVE', 'BET-02'], workOrder: 'MOV-3024', service: 'Cross-aisle coordination · active' };
+  if (scenarioId === 'facility' && stationId === 'BET-02') return { ...profile, controller: 'BET-02 / GAS-MFD', method: ['Isolate service boundary', 'Verify GAS-41 identity', 'Run leak + control', 'Release data window'], sample: ['GAS-41', 'ALU-21', 'POST-GAS-41'], workOrder: 'GAS-41', service: 'N₂ service transition · active', health: 89 };
+  if (scenarioId === 'furnace' && stationId === 'ROBO-02') return { ...profile, method: ['Observe cell', 'Reconcile occupancy', 'Dry-cycle handshake', 'Park + retain state'], sample: ['BC-207', 'I-204', 'REC-HT44'], workOrder: 'WO-2954', service: 'Recovery inspection · active' };
+  if (scenarioId === 'xrd' && stationId === 'FURN-04') return { ...profile, method: ['Verify BC-184 occupancy', 'Load HT-1000', 'Ramp + dwell', 'Cool / release'], sample: ['BC-184', 'HT-1000', 'CA-TI-031'], workOrder: 'WO-2841', service: 'Campaign cycle · controlled' };
+  if (scenarioId === 'xrd' && stationId === 'SEM-01') return { ...profile, sample: ['SPEC-184-03', 'BSE-F01', 'MAP-04'], workOrder: 'WO-2841', service: 'Inclusion triage · active' };
+  return profile;
+}
+
 export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = [] }: { station: Station; scenarioId?: ScenarioId; physicalChecks?: string[] }) {
   const [open, setOpen] = useState(false);
   const [enteredFromLab, setEnteredFromLab] = useState(false);
   const [tab, setTab] = useState<Tab>('hmi');
   const [completed, setCompleted] = useState<Record<Tab, boolean>>({ hmi: false, les: false, lims: false, cmms: false });
   const [hmiOperations, setHmiOperations] = useState<string[]>([]);
-  const profile = profiles[station.id] ?? profiles['XRD-03'];
+  const profile = getContextProfile(station.id, scenarioId);
   const recordStationEvent = (type: string, text: string, action?: string) => window.dispatchEvent(new CustomEvent('mattershift:station-event', { detail: { stationId: station.id, type, text, action } }));
   const finish = () => {
     setCompleted((current) => ({ ...current, [tab]: true }));
@@ -97,7 +108,7 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
             <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>WALK <b>{physicalChecks.length}/3</b></span><span><i className={station.tone === 'warn' ? 'alarm' : station.tone === 'off' ? '' : 'online'} />{station.state}</span></div>
             {tab === 'hmi' && <HmiView station={station} profile={profile} physicalChecks={physicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
             {tab === 'les' && <LesView station={station} profile={profile} complete={completed.les} onComplete={finish} />}
-            {tab === 'lims' && <LimsView profile={profile} scenarioId={scenarioId} complete={completed.lims} onComplete={finish} />}
+            {tab === 'lims' && <LimsView station={station} profile={profile} scenarioId={scenarioId} complete={completed.lims} onComplete={finish} />}
             {tab === 'cmms' && <CmmsView profile={profile} complete={completed.cmms} onComplete={finish} />}
           </div>
         </div>
@@ -117,7 +128,7 @@ function HmiView({ station, profile, physicalChecks, operations, onOperation, co
   return <div className="console-view hmi-view">
     <div className="console-view-head"><div><p className="section-kicker">HMI / SCADA</p><h3>Equipment state + permissives</h3></div><span>REFRESH 250 ms</span></div>
     <div className="hmi-layout">
-      <div className="instrument-mimic"><InstrumentMimic stationId={station.id} tone={station.tone} /><div className="mimic-caption"><span>ASSET MIMIC</span><b>{station.id}</b><i>{station.state}</i></div></div>
+      <div className="instrument-mimic"><InstrumentMimic station={station} /><div className="mimic-caption"><span>ASSET MIMIC</span><b>{station.id}</b><i>{station.state}</i></div></div>
       <div className="live-readouts">{station.technicianView.map((item, index) => { const [key, value = '—'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b><i style={{ width: `${58 + index * 9}%` }} /></div>; })}</div>
       <div className="permissive-panel"><p className="mini-label">START PERMISSIVES</p>{profile.safe.map((item) => <div key={item}><i className="ok">✓</i><span>{item}</span><b>TRUE</b></div>)}<div><i className={walkaroundComplete ? 'ok' : 'attention'}>{walkaroundComplete ? '✓' : '!'}</i><span>physical walkaround evidence</span><b>{walkaroundComplete ? 'TRUE' : 'HOLD'}</b></div><div><i className={releaseBlocked ? 'attention' : 'ok'}>{releaseBlocked ? '!' : '✓'}</i><span>quality / service release</span><b>{releaseBlocked ? 'HOLD' : 'TRUE'}</b></div></div>
     </div>
@@ -138,10 +149,19 @@ function LesView({ station, profile, complete, onComplete }: { station: Station;
   </div>;
 }
 
-function LimsView({ profile, scenarioId, complete, onComplete }: { profile: typeof profiles[string]; scenarioId: ScenarioId; complete: boolean; onComplete: () => void }) {
+function LimsView({ station, profile, scenarioId, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; complete: boolean; onComplete: () => void }) {
+  const itemNotes = scenarioId === 'facility'
+    ? ['physical tag + declared target', 'governed move / service record', 'receipt + bounded data window']
+    : scenarioId === 'furnace'
+      ? ['physical load identity', 'interruption + recovery record', 'retained censored dataset']
+      : ['received + released', 'asset association', 'native result package'];
+  const facilityState = station.id === 'PREP-01'
+    ? station.state === 'BAY RELEASED' ? 'MOVE RECEIVED' : station.state === 'TRANSFER READY' ? 'MOVE RELEASED' : 'MOVE HOLD'
+    : station.state === 'READY' ? 'ELIGIBLE' : station.state === 'DATA REVIEW' ? 'WINDOW HOLD' : station.state === 'QC READY' ? 'CONTROL READY' : 'SERVICE HOLD';
+  const chainState = scenarioId === 'furnace' ? 'CENSORED' : scenarioId === 'bet' ? 'RECONCILE' : scenarioId === 'tga' ? 'PAN HOLD' : scenarioId === 'facility' ? facilityState : 'QC HOLD';
   return <div className="console-view">
     <div className="console-view-head"><div><p className="section-kicker">LIMS / SAMPLE IDENTITY</p><h3>Physical item ↔ digital record</h3></div><span>CHAIN LOCKED</span></div>
-    <div className="lims-layout"><div className="lims-chain">{profile.sample.map((item, index) => <div key={item}><span>{['SOURCE', 'SPECIMEN / RUN', 'DATASET'][index]}</span><b>{item}</b><Barcode seed={index + item.length} /><small>{index === 0 ? 'received + released' : index === 1 ? 'asset association' : 'native result package'}</small></div>)}</div><div className="lineage-connector"><i /><i /><span>{scenarioId === 'furnace' ? 'CENSORED' : scenarioId === 'bet' ? 'RECONCILE' : scenarioId === 'tga' ? 'PAN HOLD' : scenarioId === 'facility' ? 'MOVE HOLD' : 'QC HOLD'}</span></div><aside className="lims-facts"><p className="mini-label">REQUIRED LINKS</p><div><span>lot / batch</span><b>BOUND</b></div><div><span>operator</span><b>TECH-07</b></div><div><span>method revision</span><b>08</b></div><div><span>raw file hash</span><b>READY</b></div></aside></div>
+    <div className="lims-layout"><div className="lims-chain">{profile.sample.map((item, index) => <div key={item}><span>{['SOURCE', 'SPECIMEN / RUN', 'DATASET'][index]}</span><b>{item}</b><Barcode seed={index + item.length} /><small>{itemNotes[index]}</small></div>)}</div><div className="lineage-connector"><i /><i /><span>{chainState}</span></div><aside className="lims-facts"><p className="mini-label">REQUIRED LINKS</p><div><span>lot / batch</span><b>BOUND</b></div><div><span>operator</span><b>TECH-07</b></div><div><span>method revision</span><b>08</b></div><div><span>raw file hash</span><b>READY</b></div></aside></div>
     <ConsoleAction complete={complete} idle="SCAN + VERIFY ASSOCIATION" done="ASSOCIATION VERIFIED" note={complete ? 'Barcode, selected record, and asset context agree.' : 'A plausible neighboring record is still the wrong record.'} onClick={onComplete} />
   </div>;
 }
@@ -162,8 +182,11 @@ function Barcode({ seed }: { seed: number }) {
   return <div className="barcode" aria-hidden="true">{Array.from({ length: 28 }, (_, index) => <i key={index} style={{ width: `${(index * seed) % 3 + 1}px`, opacity: index % 4 === 0 ? .45 : 1 }} />)}</div>;
 }
 
-function InstrumentMimic({ stationId, tone }: { stationId: string; tone: Station['tone'] }) {
+function InstrumentMimic({ station }: { station: Station }) {
+  const stationId = station.id;
+  const tone = station.tone;
   const accent = tone === 'warn' ? '#f4b95f' : tone === 'run' ? '#4dd5ed' : '#51e19a';
+  const furnaceRecovered = stationId === 'FURN-04' && station.state === 'READY';
   return <svg viewBox="0 0 520 270" role="img" aria-label={`${stationId} live equipment mimic`} style={{ '--mimic': accent } as React.CSSProperties}>
     <defs><linearGradient id="metal" x1="0" x2="1"><stop stopColor="#536575" /><stop offset=".5" stopColor="#1b2b3b" /><stop offset="1" stopColor="#7b8992" /></linearGradient><pattern id="mgrid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="#1d3145" strokeWidth="1" /></pattern></defs>
     <rect width="520" height="270" fill="#071019" /><rect width="520" height="270" fill="url(#mgrid)" opacity=".75" />
@@ -171,7 +194,7 @@ function InstrumentMimic({ stationId, tone }: { stationId: string; tone: Station
     {stationId === 'SEM-01' && <g transform="translate(135 18)"><path d="M120 8 H170 L185 68 H105 Z" fill="#b9c5c9" /><rect x="124" y="0" width="42" height="70" fill="url(#metal)" /><path d="M92 62 H198 L225 112 H66 Z" fill="#667986" /><ellipse cx="145" cy="154" rx="105" ry="72" fill="url(#metal)" stroke="#a3b3ba" strokeWidth="3" /><circle cx="145" cy="154" r="48" fill="#071018" stroke="#375467" /><path d="M145 45 V154" stroke="var(--mimic)" strokeWidth="2" /><circle cx="145" cy="154" r="6" fill="var(--mimic)" /><rect x="265" y="55" width="92" height="82" fill="#101f2b" stroke="#3a5266" /><g fill="#91a6ad">{Array.from({ length: 12 }, (_, i) => <circle key={i} cx={278 + (i % 4) * 21} cy={70 + Math.floor(i / 4) * 23} r={2 + i % 3} />)}</g></g>}
     {stationId === 'BET-02' && <g transform="translate(80 18)"><rect width="300" height="225" rx="10" fill="url(#metal)" stroke="#647b89" /><rect x="42" y="24" width="210" height="150" rx="5" fill="#081820" stroke="#355062" />{[74, 120, 166, 212].map((x, i) => <g key={x}><path d={`M${x} 48 V135`} stroke="#c5d7da" strokeWidth="5" /><circle cx={x} cy="146" r="13" fill={i === 2 ? '#6c7d88' : 'var(--mimic)'} opacity={i === 2 ? .65 : .9} /><path d={`M${x} 48 V35 H150`} fill="none" stroke="#8398a3" /></g>)}<circle cx="360" cy="158" r="55" fill="#526978" stroke="#8599a2" /><rect x="347" y="68" width="26" height="82" fill="#6d8290" /><path d="M270 45 Q360 42 360 88" fill="none" stroke="var(--mimic)" strokeWidth="3" /></g>}
     {stationId === 'TGA-01' && <g transform="translate(72 22)"><rect x="20" y="75" width="275" height="135" rx="16" fill="url(#metal)" stroke="#a8b5ba" /><rect x="142" y="112" width="112" height="42" rx="5" fill="#07161d" stroke="#415b69" /><path d="M158 137 H226" stroke="var(--mimic)" strokeWidth="3" /><g transform="translate(92 76)"><ellipse cx="0" cy="0" rx="48" ry="23" fill="#6b7e88" stroke="#a7b4b8" /><ellipse cx="0" cy="0" rx="19" ry="11" fill="#2c3940" stroke="#f09a5d" /><path d="M0 -10 V-55" stroke="#778b96" strokeWidth="28" /><ellipse cx="0" cy="-55" rx="21" ry="9" fill="#c0c8ca" /></g><g transform="translate(350 96)"><ellipse rx="72" ry="32" fill="#566d7b" stroke="#9aabb1" />{Array.from({ length: 6 }, (_, index) => { const angle = index * Math.PI / 3; return <circle key={index} cx={Math.cos(angle) * 47} cy={Math.sin(angle) * 20} r="7" fill={index < 2 ? '#d4ae66' : '#d8dfe0'} />; })}<path d="M0 0 V-48" stroke="#788d98" strokeWidth="8" /></g><path d="M394 172 Q430 115 412 52" fill="none" stroke="#708b99" strokeWidth="4" /><rect x="400" y="105" width="23" height="98" fill="#506b7a" /></g>}
-    {stationId === 'FURN-04' && <g transform="translate(115 18)"><rect width="290" height="225" rx="8" fill="url(#metal)" stroke="#85939a" /><rect x="46" y="34" width="190" height="125" rx="5" fill="#120c09" stroke="#9ca7aa" strokeWidth="4" /><rect x="62" y="50" width="158" height="93" fill="#7a341b" /><circle cx="141" cy="96" r="54" fill="#f28f43" opacity=".55" /><rect x="57" y="180" width="115" height="24" fill="#07171d" /><path d="M67 196 H113" stroke="var(--mimic)" strokeWidth="3" /><path d="M250 55 V145" stroke="#c0c8c9" strokeWidth="7" /></g>}
+    {stationId === 'FURN-04' && <g transform="translate(115 18)"><rect width="290" height="225" rx="8" fill="url(#metal)" stroke="#85939a" /><rect x="46" y="34" width="190" height="125" rx="5" fill={furnaceRecovered ? '#081511' : '#120c09'} stroke="#9ca7aa" strokeWidth="4" /><rect x="62" y="50" width="158" height="93" fill={furnaceRecovered ? '#17392e' : '#7a341b'} /><circle cx="141" cy="96" r="54" fill={furnaceRecovered ? '#51e19a' : '#f28f43'} opacity={furnaceRecovered ? '.2' : '.55'} /><rect x="57" y="180" width="115" height="24" fill="#07171d" /><path d="M67 196 H113" stroke="var(--mimic)" strokeWidth="3" /><path d="M250 55 V145" stroke={furnaceRecovered ? '#64d49f' : '#c0c8c9'} strokeWidth="7" /></g>}
     {stationId === 'ROBO-02' && <g transform="translate(80 10)"><path d="M30 230 H395" stroke="#7f642d" strokeWidth="5" /><path d="M30 15 V230 M395 15 V230 M30 65 H395 M30 180 H395" stroke="#9a772c" strokeWidth="5" opacity=".85" /><ellipse cx="195" cy="220" rx="70" ry="22" fill="#304457" /><path d="M195 210 L165 146 L245 94 L310 133" fill="none" stroke="#d8e0e2" strokeWidth="25" strokeLinecap="round" strokeLinejoin="round" /><g fill="#5e7180" stroke="#a8b6bc" strokeWidth="3"><circle cx="165" cy="146" r="18" /><circle cx="245" cy="94" r="18" /><circle cx="310" cy="133" r="16" /></g><circle cx="310" cy="133" r="7" fill="var(--mimic)" /><path d="M316 139 l22 16 m-25 -12 l8 26" stroke="#a8b6bc" strokeWidth="6" /></g>}
     {stationId === 'PREP-01' && <g transform="translate(80 25)"><rect x="20" width="275" height="190" fill="url(#metal)" stroke="#82929c" /><rect x="55" y="25" width="205" height="105" fill="#0c1c24" stroke="#547081" /><rect x="65" y="35" width="185" height="85" fill="#78a5b0" opacity=".12" />{[95, 130, 165].map((x, i) => <g key={x}><rect x={x} y="87" width="20" height="33" fill={['#d2b269', '#c77c62', '#8db8c3'][i]} /><rect x={x + 3} y="80" width="14" height="8" fill="#d3dcde" /></g>)}<rect x="325" y="95" width="100" height="86" rx="5" fill="#293d4e" /><rect x="342" y="111" width="66" height="28" fill="#07171d" /><path d="M350 128 H394" stroke="var(--mimic)" strokeWidth="3" /><ellipse cx="375" cy="77" rx="52" ry="10" fill="#bbc5c8" /></g>}
     <g transform="translate(18 18)"><circle r="5" fill="var(--mimic)" /><text x="12" y="4" fill="#8fa3b3" fontSize="10" fontFamily="monospace">LIVE / {stationId}</text></g>

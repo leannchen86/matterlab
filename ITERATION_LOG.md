@@ -837,6 +837,27 @@ service and still see service isolation, or reconcile MOV-3024 and still inspect
 - Browser-tested a furnace robot HMI after recovery and the prep-bay lot observation before and
   after physical tote reconciliation; both changed with the work-order record.
 
+## Critique 48: local consoles leaked records from unrelated work orders
+
+Station HMI visuals were equipment-specific, but their LES, LIMS, and CMMS profiles were keyed only
+to the asset. Facility prep therefore exposed LOT-91 / BC-184, the facility BET console exposed the
+vendor-recommissioning record, and the XRD furnace inherited BC-207 recovery context.
+
+### Changes
+
+- Added active-work-order console profiles for facility prep, facility robot coordination, GAS-41
+  at BET-02, furnace-recovery robot work, the XRD campaign furnace, and SEM/EDS inclusion triage.
+- Gave MOV-3024 a dedicated LES path—scan both totes, inspect the powered jack, secure load and
+  route, retain the move receipt—and a LIMS chain of LOT-3024-A → MOV-3024 → REC-BET-02.
+- Made facility LIMS lifecycle labels follow the station state, including move hold, move released,
+  move received, service hold, control ready, window hold, and eligible.
+- Replaced generic lineage captions with move/service-specific and interrupted-run-specific evidence
+  meanings where the underlying artifact is not an ordinary specimen result.
+- Made the furnace HMI mimic show an empty green chamber and proven door chain when the station is
+  recovered instead of retaining its generic orange hot-zone graphic.
+- Browser-verified the facility LES procedure, LIMS identifiers, evidence meanings, and
+  `MOVE RELEASED` state after physical tote reconciliation.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
