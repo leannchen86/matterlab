@@ -8,7 +8,7 @@ import type { Station } from './sim-data';
 
 type OrbitControlsHandle = React.ComponentRef<typeof OrbitControls>;
 
-type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga';
+type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
 type CameraMode = 'overview' | 'walk' | 'focus';
 type LightingMode = 'inspection' | 'run';
 type WalkDirection = 'forward' | 'back' | 'left' | 'right';
@@ -857,7 +857,7 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
   const carrier = useRef<THREE.Group>(null);
   const current = useRef(0.03);
   const points = useMemo(() => {
-    const indexes = scenarioId === 'xrd' ? [0, 1, 2, 3] : scenarioId === 'bet' ? [0, 1, 5] : scenarioId === 'tga' ? [0, 6] : [1, 2];
+    const indexes = scenarioId === 'xrd' ? [0, 1, 2, 3] : scenarioId === 'bet' ? [0, 1, 5] : scenarioId === 'tga' ? [0, 6] : scenarioId === 'facility' ? [0, 1, 5] : [1, 2];
     return indexes.map((index) => {
       const [x, , z] = STATION_POSITIONS[index];
       return new THREE.Vector3(x, 0.18, z + 1.18);
@@ -865,7 +865,7 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
   }, [scenarioId]);
   const curve = useMemo(() => new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.15), [points]);
   const route = useMemo(() => curve.getPoints(50), [curve]);
-  const routeColor = scenarioId === 'bet' ? '#b48cff' : scenarioId === 'furnace' ? '#f39a62' : scenarioId === 'tga' ? '#e2a64f' : '#4dd5ed';
+  const routeColor = scenarioId === 'bet' ? '#b48cff' : scenarioId === 'furnace' ? '#f39a62' : scenarioId === 'tga' ? '#e2a64f' : scenarioId === 'facility' ? '#68d4ad' : '#4dd5ed';
   useFrame(({ clock }, delta) => {
     const maxStep = scenarioId === 'furnace' ? 2 : 4;
     const target = Math.min(0.96, 0.04 + (Math.min(phase, maxStep) / maxStep) * 0.9);
@@ -884,6 +884,16 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
 }
 
 function SampleCarrier({ scenarioId, routeColor }: { scenarioId: ScenarioId; routeColor: string }) {
+  if (scenarioId === 'facility') return <group rotation={[0, Math.PI / 4, 0]}>
+    <RoundedBox args={[0.72, 0.08, 0.52]} radius={0.025} position={[0, 0.04, 0]} castShadow><meshStandardMaterial color="#8c7652" roughness={0.72} /></RoundedBox>
+    {[-0.24, 0, 0.24].map((x) => <mesh key={x} position={[x, -0.01, 0]} castShadow><boxGeometry args={[0.13, 0.11, 0.58]} /><meshStandardMaterial color="#66533a" roughness={0.82} /></mesh>)}
+    <RoundedBox args={[0.5, 0.48, 0.39]} radius={0.055} position={[0, 0.32, 0]} castShadow><meshPhysicalMaterial color="#b8bbb3" roughness={0.52} clearcoat={0.16} /></RoundedBox>
+    <mesh position={[0, 0.56, 0]} castShadow><cylinderGeometry args={[0.11, 0.15, 0.09, 22]} /><meshStandardMaterial color="#475e58" metalness={0.5} roughness={0.32} /></mesh>
+    <mesh position={[0, 0.3, 0.205]}><planeGeometry args={[0.28, 0.15]} /><meshBasicMaterial color="#f3f1dd" /></mesh>
+    <mesh position={[0, 0.3, 0.208]}><planeGeometry args={[0.2, 0.025]} /><meshBasicMaterial color={routeColor} /></mesh>
+    <CarrierTag color={routeColor} />
+  </group>;
+
   if (scenarioId === 'tga') return <group rotation={[0, Math.PI / 4, 0]}>
     <RoundedBox args={[0.5, 0.07, 0.34]} radius={0.025} position={[0, 0.035, 0]} castShadow><meshStandardMaterial color="#4f5f67" metalness={0.78} roughness={0.26} /></RoundedBox>
     {[-0.13, 0.13].map((x, index) => <group key={x} position={[x, 0.09, 0]}>

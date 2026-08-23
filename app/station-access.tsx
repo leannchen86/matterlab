@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import type { Station } from './sim-data';
 
 type Tab = 'hmi' | 'les' | 'lims' | 'cmms';
-type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga';
+type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
 
 const TAB_META: Record<Tab, { icon: string; label: string; sub: string }> = {
   hmi: { icon: '⌁', label: 'HMI', sub: 'live control' },
@@ -141,7 +141,7 @@ function LesView({ station, profile, complete, onComplete }: { station: Station;
 function LimsView({ profile, scenarioId, complete, onComplete }: { profile: typeof profiles[string]; scenarioId: ScenarioId; complete: boolean; onComplete: () => void }) {
   return <div className="console-view">
     <div className="console-view-head"><div><p className="section-kicker">LIMS / SAMPLE IDENTITY</p><h3>Physical item ↔ digital record</h3></div><span>CHAIN LOCKED</span></div>
-    <div className="lims-layout"><div className="lims-chain">{profile.sample.map((item, index) => <div key={item}><span>{['SOURCE', 'SPECIMEN / RUN', 'DATASET'][index]}</span><b>{item}</b><Barcode seed={index + item.length} /><small>{index === 0 ? 'received + released' : index === 1 ? 'asset association' : 'native result package'}</small></div>)}</div><div className="lineage-connector"><i /><i /><span>{scenarioId === 'furnace' ? 'CENSORED' : scenarioId === 'bet' ? 'RECONCILE' : scenarioId === 'tga' ? 'PAN HOLD' : 'QC HOLD'}</span></div><aside className="lims-facts"><p className="mini-label">REQUIRED LINKS</p><div><span>lot / batch</span><b>BOUND</b></div><div><span>operator</span><b>TECH-07</b></div><div><span>method revision</span><b>08</b></div><div><span>raw file hash</span><b>READY</b></div></aside></div>
+    <div className="lims-layout"><div className="lims-chain">{profile.sample.map((item, index) => <div key={item}><span>{['SOURCE', 'SPECIMEN / RUN', 'DATASET'][index]}</span><b>{item}</b><Barcode seed={index + item.length} /><small>{index === 0 ? 'received + released' : index === 1 ? 'asset association' : 'native result package'}</small></div>)}</div><div className="lineage-connector"><i /><i /><span>{scenarioId === 'furnace' ? 'CENSORED' : scenarioId === 'bet' ? 'RECONCILE' : scenarioId === 'tga' ? 'PAN HOLD' : scenarioId === 'facility' ? 'MOVE HOLD' : 'QC HOLD'}</span></div><aside className="lims-facts"><p className="mini-label">REQUIRED LINKS</p><div><span>lot / batch</span><b>BOUND</b></div><div><span>operator</span><b>TECH-07</b></div><div><span>method revision</span><b>08</b></div><div><span>raw file hash</span><b>READY</b></div></aside></div>
     <ConsoleAction complete={complete} idle="SCAN + VERIFY ASSOCIATION" done="ASSOCIATION VERIFIED" note={complete ? 'Barcode, selected record, and asset context agree.' : 'A plausible neighboring record is still the wrong record.'} onClick={onComplete} />
   </div>;
 }

@@ -1,4 +1,4 @@
-type Scenario = 'xrd' | 'bet' | 'furnace' | 'tga';
+type Scenario = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 
 const trails: Record<Scenario, { label: string; detail: string }[]> = {
@@ -29,6 +29,13 @@ const trails: Record<Scenario, { label: string; detail: string }[]> = {
     { label: 'BLANK PASSED', detail: 'paired pans' },
     { label: 'ARTIFACT FLAGGED', detail: 'purge step' },
     { label: 'REPEAT QUEUED', detail: 'AI held' },
+  ],
+  facility: [
+    { label: 'LOAD SECURED', detail: 'route proven' },
+    { label: 'TOTE BOUND', detail: 'LOT-3024' },
+    { label: 'BOUNDARY PROVEN', detail: 'gas service' },
+    { label: 'CONTROL LINKED', detail: 'post-change' },
+    { label: 'AI GATED', detail: 'transition held' },
   ],
 };
 

@@ -11,7 +11,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
   stations: Station[];
   selectedId: string;
   phase: number;
-  scenarioId?: 'xrd' | 'bet' | 'furnace' | 'tga';
+  scenarioId?: 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
   inspectionState?: Record<string, string[]>;
   onInspectionChange?: (stationId: string, checks: string[]) => void;
   onSelect: (id: string) => void;
@@ -64,6 +64,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
 
   const toggleImmersive = () => {
     if (!immersive) setMode('3d');
+    else if (cameraMode === 'walk') setCameraMode('overview');
     setImmersive((value) => !value);
   };
 

@@ -5,7 +5,7 @@ import type { Station } from './sim-data';
 
 type HitBox = { id: string; x: number; y: number; w: number; h: number };
 
-export function LabCanvas({ stations, selectedId, phase, scenarioId = 'xrd', onSelect }: { stations: Station[]; selectedId: string; phase: number; scenarioId?: 'xrd' | 'bet' | 'furnace' | 'tga'; onSelect: (id: string) => void }) {
+export function LabCanvas({ stations, selectedId, phase, scenarioId = 'xrd', onSelect }: { stations: Station[]; selectedId: string; phase: number; scenarioId?: 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility'; onSelect: (id: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hitsRef = useRef<HitBox[]>([]);
   const hoveredIdRef = useRef<string | null>(null);
@@ -312,8 +312,9 @@ function drawTga(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.fillStyle = '#526b78'; ctx.fillRect(x + w * .87, y + h * .36, w * .06, h * .32);
 }
 
-function drawMaterialRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number, scenarioId: 'xrd' | 'bet' | 'furnace' | 'tga') {
+function drawMaterialRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number, scenarioId: 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility') {
   if (hits.length < 6) return;
+  if (scenarioId === 'facility') { drawFacilityRoute(ctx, hits, phase, now); return; }
   if (scenarioId === 'bet') { drawBetRoute(ctx, hits, phase, now); return; }
   if (scenarioId === 'furnace') { drawFurnaceRoute(ctx, hits, phase, now); return; }
   if (scenarioId === 'tga') { drawTgaRoute(ctx, hits, phase, now); return; }
@@ -340,6 +341,28 @@ function drawMaterialRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase:
   ctx.fillRect(-13, -13, 26, 26); ctx.strokeRect(-13.5, -13.5, 27, 27);
   ctx.rotate(-Math.PI / 4);
   ctx.fillStyle = '#76dcef'; ctx.textAlign = 'center'; ctx.font = '700 6px ui-monospace, monospace'; ctx.fillText('BC-184', 0, 2);
+  ctx.restore();
+}
+
+function drawFacilityRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number) {
+  const start = { x: hits[0].x + hits[0].w * .7, y: hits[0].y + hits[0].h * .57 };
+  const bend = { x: hits[1].x + hits[1].w * .5, y: hits[1].y + hits[1].h * .8 };
+  const end = { x: hits[5].x + hits[5].w * .28, y: hits[5].y + hits[5].h * .53 };
+  const points = [start, bend, end];
+  ctx.save();
+  ctx.setLineDash([5, 6]); ctx.strokeStyle = '#3b806d'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(bend.x, bend.y); ctx.lineTo(end.x, end.y); ctx.stroke(); ctx.setLineDash([]);
+  const target = Math.min(1, .04 + Math.min(phase, 3) / 3 * .92);
+  const movement = phase === 2 ? target + Math.sin(now / 720) * .025 : target;
+  const segment = movement < .5 ? 0 : 1;
+  const local = segment === 0 ? movement * 2 : (movement - .5) * 2;
+  const from = points[segment]; const to = points[segment + 1];
+  const cx = from.x + (to.x - from.x) * local; const cy = from.y + (to.y - from.y) * local;
+  ctx.translate(cx, cy); ctx.shadowColor = '#68d4adaa'; ctx.shadowBlur = phase === 2 ? 17 : 9;
+  ctx.fillStyle = '#273528'; ctx.strokeStyle = '#68d4ad'; ctx.lineWidth = 1;
+  roundRect(ctx, -20, -12, 40, 24, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#aeb7aa'; roundRect(ctx, -13, -8, 26, 13, 3); ctx.fill();
+  ctx.fillStyle = '#d5f4e8'; ctx.textAlign = 'center'; ctx.font = '700 5px ui-monospace, monospace'; ctx.fillText('LOT-3024', 0, 2);
   ctx.restore();
 }
 

@@ -8,6 +8,7 @@ import { baseStations, initialLog, type Station } from './sim-data';
 import { AlternateShift, PlannerPanel, ShiftDeckModal, type ScenarioId } from './scenario-shifts';
 import { StationAccess } from './station-access';
 import { TgaShift } from './tga-shift';
+import { FacilityShift } from './facility-shift';
 
 type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'guide' | 'deck' | 'complete' | null;
 type LogItem = { time: string; type: string; text: string };
@@ -24,6 +25,7 @@ export default function Home() {
   };
 
   if (scenario === 'tga') return <TgaShift key={`tga-${runKey}`} onSwitch={chooseScenario} />;
+  if (scenario === 'facility') return <FacilityShift key={`facility-${runKey}`} onSwitch={chooseScenario} />;
   if (scenario !== 'xrd') return <AlternateShift key={`${scenario}-${runKey}`} scenarioId={scenario} onSwitch={chooseScenario} />;
   return <XrdShift key={`xrd-${runKey}`} onSwitch={chooseScenario} />;
 }
@@ -216,7 +218,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
           <div><b>DAY SHIFT</b><small>{formatTime(minute)} · MENLO PARK SIM</small></div>
         </div>
         <div className="header-actions">
-          <button className="deck-button" type="button" onClick={() => setModal('deck')}>SHIFT DECK <span>4</span></button>
+          <button className="deck-button" type="button" onClick={() => setModal('deck')}>SHIFT DECK <span>5</span></button>
           <button type="button" onClick={() => setModal('guide')}>FIELD GUIDE</button>
           <button type="button" onClick={() => setLogOpen(true)}>EVENT LEDGER <span>{log.length}</span></button>
           <div className="operator-chip"><span>LC</span><b>TECH-07</b></div>
