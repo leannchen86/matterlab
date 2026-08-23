@@ -88,6 +88,14 @@ button { font: inherit; }
 .legend .ready { background: var(--green); }.legend .run { background: var(--cyan); }.legend .warn { background: var(--amber); }
 .lab-viewport { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #080d15; }
 .lab-viewport > .lab-canvas-wrap, .lab-viewport > .lab-3d { width: 100%; height: 100%; }
+.lab-viewport.is-immersive { position: fixed; z-index: 240; inset: 0; width: 100vw; height: 100dvh; background: #050911; animation: immersive-in .24s ease-out; }
+.lab-viewport.is-immersive::before { content: ''; position: absolute; z-index: 38; inset: 8px; border: 1px solid #31485f99; box-shadow: inset 0 0 70px #02050a99; pointer-events: none; }
+.lab-viewport.is-immersive::after { content: 'EQUIPMENT-FIRST VIEW · ESC TO RETURN TO SHIFT CONSOLE'; position: absolute; z-index: 39; left: 24px; bottom: 18px; color: #70869a; font: 650 6px var(--font-geist-mono); letter-spacing: .1em; pointer-events: none; text-shadow: 0 2px 8px #000; }
+.lab-viewport.is-immersive .view-switch { top: 18px; right: 20px; }
+.lab-viewport.is-immersive .camera-switch { top: 58px; right: 20px; }
+.lab-viewport.is-immersive .scene-corner-top { top: 24px; left: 25px; }
+.lab-viewport.is-immersive .scene-corner-bottom { left: 25px; bottom: 34px; }
+.lab-viewport.is-immersive .scene-station-picker { right: 22px; bottom: 20px; }
 .lab-canvas-wrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #080d15; }
 .lab-canvas-wrap canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
 .lab-canvas-wrap canvas:focus-visible { outline: 1px solid var(--cyan); outline-offset: -2px; }
@@ -105,6 +113,7 @@ button { font: inherit; }
 .view-switch button:hover, .view-switch button:focus-visible { color: #c4d2df; outline: none; }
 .view-switch button.active { background: #173044; color: var(--cyan); box-shadow: inset 0 0 0 1px #3e8393; }
 .view-switch button.active span { color: var(--cyan); }
+.view-switch button.immersive-toggle { min-width: 76px; border-left: 1px solid #22374c; }
 .camera-switch { position: absolute; z-index: 34; top: 47px; right: 11px; display: flex; border: 1px solid #263a50; background: #080e17d4; box-shadow: 0 8px 24px #0007; backdrop-filter: blur(9px); }
 .camera-switch button { height: 25px; padding: 0 8px; border: 0; border-right: 1px solid #26384c; background: transparent; color: #5e7085; font: 650 6px var(--font-geist-mono); cursor: pointer; }.camera-switch button:last-child { border-right: 0; }.camera-switch button:hover, .camera-switch button:focus-visible { color: #b5c5d3; outline: none; }.camera-switch button.active { background: #112838; color: var(--cyan); }
 .scene-corner { position: absolute; z-index: 25; pointer-events: none; color: #6d7f94; font: 600 7px var(--font-geist-mono); letter-spacing: .08em; text-shadow: 0 2px 8px #000; }
@@ -485,6 +494,7 @@ button { font: inherit; }
 @keyframes scene-boot-spin { to { transform: rotate(360deg); } }
 @keyframes scene-boot-pulse { from { border-color: #263e53; opacity: .52; } to { border-color: #3d7086; opacity: .92; } }
 @keyframes design-pulse { from { filter: drop-shadow(0 0 1px var(--design-accent)); } to { filter: drop-shadow(0 0 5px var(--design-accent)); } }
+@keyframes immersive-in { from { opacity: .55; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
 
 @media (max-width: 1100px) {
   .workspace { grid-template-columns: 240px minmax(480px, 1fr) 290px; }
@@ -525,6 +535,10 @@ button { font: inherit; }
   .view-switch { right: 8px; top: 8px; }
   .camera-switch { right: 8px; top: 42px; }
   .view-switch button { min-width: 66px; }
+  .view-switch button.immersive-toggle { min-width: 60px; }
+  .lab-viewport.is-immersive .view-switch { top: 12px; right: 12px; }
+  .lab-viewport.is-immersive .camera-switch { top: 52px; right: 12px; }
+  .lab-viewport.is-immersive::after { left: 17px; bottom: 14px; max-width: 190px; line-height: 1.5; }
   .station-3d-label { width: 98px; padding: 5px 6px; }
   .station-3d-label:not(.selected) { display: none; }
   .scene-station-picker { top: 76px; right: 8px; bottom: auto; grid-template-columns: repeat(2, 1fr); }

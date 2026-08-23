@@ -323,6 +323,23 @@ without experiencing the measurement-control decisions that make its data scient
 - Exercised both unsafe branches in the browser, verified that they remain as recovered exceptions,
   and rechecked the full debrief at 390 × 844.
 
+## Critique 20: the digital twin still competed with its dashboard
+
+The procedural facility had become the strongest visual element, but the default desktop grid kept
+it confined between two dense columns. That hierarchy made the experience read as an operations
+dashboard containing a 3D illustration instead of an equipment simulator with an attached console.
+
+### Changes
+
+- Added a full-viewport equipment-first mode that preserves the live Three.js scene rather than
+  replacing it with a separate showcase render.
+- Kept overview and technician-scale focus cameras, live station selection, scenario carriers, and
+  physical walkaround checks available inside the immersive view.
+- Added a deliberate exit control, Escape-key handling, scroll locking, and restoration of the
+  selected asset and camera state when returning to the shift console.
+- Rechecked the wide establishing shot, XRD focus, cross-station transition to TGA/DSC, and the
+  equipment-focused layout at 390 × 844.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

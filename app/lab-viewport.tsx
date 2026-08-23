@@ -1,6 +1,7 @@
 'use client';
 
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { LabCanvas } from './lab-canvas';
 import type { Station } from './sim-data';
 
@@ -16,10 +17,36 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', o
 }) {
   const [mode, setMode] = useState<'3d' | '2d'>('3d');
   const [cameraMode, setCameraMode] = useState<'overview' | 'focus'>('overview');
-  return <div className={`lab-viewport mode-${mode}`}>
+  const [immersive, setImmersive] = useState(false);
+
+  useEffect(() => {
+    if (!immersive) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setImmersive(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [immersive]);
+
+  const toggleImmersive = () => {
+    if (!immersive) setMode('3d');
+    setImmersive((value) => !value);
+  };
+
+  const viewport = <div
+    className={`lab-viewport mode-${mode}${immersive ? ' is-immersive' : ''}`}
+    aria-label={immersive ? 'Immersive facility view' : undefined}
+    style={immersive ? { position: 'fixed', zIndex: 240, inset: 0, width: '100vw', height: '100dvh', background: '#050911' } : undefined}
+  >
     <div className="view-switch" role="group" aria-label="Facility map view">
       <button type="button" className={mode === '3d' ? 'active' : ''} onClick={() => setMode('3d')} aria-pressed={mode === '3d'}><span>◇</span> 3D TWIN</button>
       <button type="button" className={mode === '2d' ? 'active' : ''} onClick={() => setMode('2d')} aria-pressed={mode === '2d'}><span>⌗</span> 2D MAP</button>
+      <button type="button" className={immersive ? 'active immersive-toggle' : 'immersive-toggle'} onClick={toggleImmersive} aria-pressed={immersive}><span>{immersive ? '×' : '⛶'}</span> {immersive ? 'EXIT' : 'EXPAND'}</button>
     </div>
     {mode === '3d' && <div className="camera-switch" role="group" aria-label="3D camera mode">
       <button type="button" className={cameraMode === 'overview' ? 'active' : ''} onClick={() => setCameraMode('overview')} aria-pressed={cameraMode === 'overview'}>⌂ OVERVIEW</button>
@@ -29,6 +56,8 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', o
       ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} cameraMode={cameraMode} onCameraMode={setCameraMode} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
       : <LabCanvas stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} onSelect={onSelect} />}
   </div>;
+
+  return immersive && typeof document !== 'undefined' ? createPortal(viewport, document.body) : viewport;
 }
 
 function SceneBoot() {

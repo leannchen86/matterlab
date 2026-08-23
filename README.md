@@ -35,6 +35,10 @@ The 3D view also supports a technician-scale focus camera and physical walkaroun
 three inspection points—such as an XRD shutter/holder/HMI, BET ports/vacuum/N₂, or furnace
 interlock/controller/chamber. Those checks are written to the event ledger and become an explicit
 HMI permissive; safe-state attestation stays disabled until physical and digital state are linked.
+An immersive equipment-first mode expands the procedural bay over the full viewport while retaining
+station selection, overview/focus cameras, physical inspection points, and an explicit return to the
+shift console. It is designed to make the facility itself—not the surrounding text—the primary
+interface on both desktop and mobile.
 Every point captures a concise local observation and distinguishes normal evidence from an attention
 state; completing a walkaround does not erase a separate quality, service, or process hold.
 The shared bay includes overhead cable routing, gas/vacuum service panels, emergency controls,
