@@ -401,27 +401,43 @@ function RobotArm({ active }: { active: boolean }) {
   const base = useRef<THREE.Group>(null);
   const shoulder = useRef<THREE.Group>(null);
   const elbow = useRef<THREE.Group>(null);
+  const wrist = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     if (base.current) base.current.rotation.y = active ? -0.2 + Math.sin(t * 0.55) * 0.46 : -0.42;
     if (shoulder.current) shoulder.current.rotation.z = active ? -0.58 + Math.sin(t * 0.72) * 0.18 : -0.62;
     if (elbow.current) elbow.current.rotation.z = active ? -1.02 + Math.sin(t * 0.92 + 1.2) * 0.23 : -0.94;
+    if (wrist.current) wrist.current.rotation.y = active ? Math.sin(t * 1.15) * 0.7 : 0.18;
   });
   return <group position={[-0.15, 0.08, 0.08]} ref={base}>
-    <mesh castShadow><cylinderGeometry args={[0.46, 0.55, 0.25, 32]} /><meshPhysicalMaterial color="#7d8992" metalness={0.84} roughness={0.22} clearcoat={0.55} /></mesh>
+    <mesh castShadow><cylinderGeometry args={[0.46, 0.55, 0.25, 32]} /><meshPhysicalMaterial color="#53626c" metalness={0.82} roughness={0.25} clearcoat={0.32} /></mesh>
+    <mesh position={[0, 0.16, 0]} castShadow><cylinderGeometry args={[0.35, 0.4, 0.14, 32]} /><meshStandardMaterial color="#202e37" metalness={0.78} roughness={0.28} /></mesh>
+    <mesh position={[0, 0.245, 0]}><torusGeometry args={[0.29, 0.025, 10, 32]} /><meshStandardMaterial color="#4c8795" metalness={0.68} roughness={0.26} /></mesh>
     <group ref={shoulder} position={[0, 0.23, 0]}>
-      <mesh position={[0, 0.12, 0]} castShadow><sphereGeometry args={[0.31, 24, 16]} /><meshStandardMaterial color="#e4e8e8" metalness={0.68} roughness={0.24} /></mesh>
+      <mesh position={[0, 0.12, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.31, 0.31, 0.42, 28]} /><meshPhysicalMaterial color="#c4cbcc" metalness={0.63} roughness={0.31} clearcoat={0.28} /></mesh>
+      <mesh position={[0, 0.12, 0.23]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.19, 0.19, 0.045, 24]} /><meshStandardMaterial color="#344650" metalness={0.8} roughness={0.24} /></mesh>
+      <mesh position={[0, 0.12, 0.258]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.055, 0.055, 0.02, 18]} /><meshStandardMaterial color="#8b9ba1" metalness={0.9} roughness={0.16} /></mesh>
       <RoundedBox args={[0.38, 1.28, 0.38]} radius={0.18} smoothness={4} position={[0, 0.75, 0]} castShadow>
-        <meshPhysicalMaterial color="#cdd4d6" metalness={0.74} roughness={0.2} clearcoat={0.5} />
+        <meshPhysicalMaterial color="#b8c1c3" metalness={0.66} roughness={0.28} clearcoat={0.32} />
       </RoundedBox>
+      <Line points={[[0.23, 0.25, -0.16], [0.23, 1.18, -0.16], [0.12, 1.32, -0.16]]} color="#273740" lineWidth={1.6} />
       <group ref={elbow} position={[0, 1.39, 0]}>
-        <mesh castShadow><sphereGeometry args={[0.28, 24, 16]} /><meshStandardMaterial color="#647484" metalness={0.82} roughness={0.2} /></mesh>
+        <mesh rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.28, 0.28, 0.38, 28]} /><meshStandardMaterial color="#40525e" metalness={0.8} roughness={0.24} /></mesh>
+        <mesh position={[0, 0, 0.21]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.2, 0.027, 10, 28]} /><meshStandardMaterial color="#6e828b" metalness={0.84} roughness={0.2} /></mesh>
         <RoundedBox args={[0.3, 1.05, 0.3]} radius={0.14} smoothness={4} position={[0, 0.61, 0]} castShadow>
-          <meshPhysicalMaterial color="#d7dcdd" metalness={0.75} roughness={0.19} clearcoat={0.55} />
+          <meshPhysicalMaterial color="#c6cdce" metalness={0.68} roughness={0.26} clearcoat={0.32} />
         </RoundedBox>
-        <group position={[0, 1.18, 0]}>
-          <mesh castShadow><sphereGeometry args={[0.22, 20, 14]} /><meshStandardMaterial color="#4dd5ed" emissive="#177e93" emissiveIntensity={0.7} metalness={0.45} roughness={0.28} /></mesh>
-          {[-0.11, 0.11].map((x) => <mesh key={x} position={[x, 0.27, 0]} castShadow><boxGeometry args={[0.07, 0.42, 0.11]} /><meshStandardMaterial color="#1a2530" metalness={0.7} roughness={0.3} /></mesh>)}
+        <Line points={[[0.18, 0.16, -0.12], [0.18, 1.0, -0.12], [0.08, 1.1, -0.12]]} color="#253740" lineWidth={1.45} />
+        <group ref={wrist} position={[0, 1.18, 0]}>
+          <mesh rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.2, 0.22, 0.28, 24]} /><meshStandardMaterial color="#435a65" metalness={0.78} roughness={0.24} /></mesh>
+          <mesh position={[0, 0.15, 0]} castShadow><cylinderGeometry args={[0.13, 0.16, 0.22, 22]} /><meshPhysicalMaterial color="#aeb9bc" metalness={0.72} roughness={0.24} clearcoat={0.24} /></mesh>
+          <mesh position={[0, 0.27, 0]}><cylinderGeometry args={[0.16, 0.16, 0.045, 22]} /><meshStandardMaterial color="#263841" metalness={0.83} roughness={0.2} /></mesh>
+          <mesh position={[0, 0.3, 0]} castShadow><boxGeometry args={[0.34, 0.16, 0.25]} /><meshStandardMaterial color="#26343d" metalness={0.76} roughness={0.3} /></mesh>
+          {[-0.12, 0.12].map((x) => <group key={x} position={[x, 0.52, 0]}>
+            <mesh castShadow><boxGeometry args={[0.065, 0.38, 0.1]} /><meshStandardMaterial color="#151f26" metalness={0.72} roughness={0.32} /></mesh>
+            <mesh position={[-Math.sign(x) * 0.025, 0.17, 0]}><boxGeometry args={[0.11, 0.05, 0.12]} /><meshStandardMaterial color="#65747b" metalness={0.82} roughness={0.22} /></mesh>
+          </group>)}
+          <mesh position={[0, 0.3, 0.13]}><circleGeometry args={[0.035, 18]} /><meshStandardMaterial color={active ? '#51e19a' : '#4f6670'} emissive={active ? '#24744f' : '#132029'} emissiveIntensity={active ? 0.6 : 0.12} /></mesh>
         </group>
       </group>
     </group>
@@ -576,7 +592,7 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
     const indexes = scenarioId === 'xrd' ? [0, 1, 2, 3] : scenarioId === 'bet' ? [0, 1, 5] : [1, 2];
     return indexes.map((index) => {
       const [x, , z] = STATION_POSITIONS[index];
-      return new THREE.Vector3(x, 0.28, z);
+      return new THREE.Vector3(x, 0.02, z + 1.58);
     });
   }, [scenarioId]);
   const curve = useMemo(() => new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.15), [points]);
@@ -591,10 +607,48 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
     if (carrier.current) carrier.current.position.copy(point);
   });
   return <group>
-    <Line points={route} color={routeColor} lineWidth={0.75} dashed dashSize={0.18} gapSize={0.13} transparent opacity={0.52} />
+    <Line points={route} color={routeColor} lineWidth={0.52} dashed dashSize={0.18} gapSize={0.16} transparent opacity={0.34} />
     <group ref={carrier}>
-      <mesh castShadow rotation={[0, Math.PI / 4, 0]}><boxGeometry args={[0.4, 0.12, 0.4]} /><meshPhysicalMaterial color={routeColor} emissive={routeColor} emissiveIntensity={0.48} metalness={0.72} roughness={0.2} clearcoat={0.5} /></mesh>
-      <pointLight position={[0, 0.18, 0]} intensity={2.4} distance={1.5} color={routeColor} />
+      <SampleCarrier scenarioId={scenarioId} routeColor={routeColor} />
+      <pointLight position={[0, 0.16, 0]} intensity={0.45} distance={0.65} color={routeColor} />
     </group>
+  </group>;
+}
+
+function SampleCarrier({ scenarioId, routeColor }: { scenarioId: ScenarioId; routeColor: string }) {
+  if (scenarioId === 'bet') return <group rotation={[0, Math.PI / 4, 0]}>
+    <RoundedBox args={[0.54, 0.08, 0.38]} radius={0.025} position={[0, 0.04, 0]} castShadow><meshStandardMaterial color="#4a5d69" metalness={0.78} roughness={0.27} /></RoundedBox>
+    {[-0.18, -0.06, 0.06, 0.18].map((x, index) => <group key={x} position={[x, 0.23, 0]}>
+      <mesh castShadow><cylinderGeometry args={[0.025, 0.035, 0.34, 14]} /><meshPhysicalMaterial color="#bdd1d5" transparent opacity={0.7} roughness={0.08} transmission={0.12} /></mesh>
+      <mesh position={[0, -0.13, 0]}><sphereGeometry args={[0.043, 14, 10]} /><meshStandardMaterial color={index === 2 ? '#7d6b7d' : '#a68b63'} roughness={0.58} /></mesh>
+      <mesh position={[0, 0.185, 0]}><cylinderGeometry args={[0.035, 0.035, 0.035, 14]} /><meshStandardMaterial color="#b8c2c5" metalness={0.75} roughness={0.2} /></mesh>
+    </group>)}
+    <CarrierTag color={routeColor} />
+  </group>;
+
+  if (scenarioId === 'furnace') return <group rotation={[0, Math.PI / 4, 0]}>
+    <RoundedBox args={[0.54, 0.07, 0.43]} radius={0.025} position={[0, 0.035, 0]} castShadow><meshStandardMaterial color="#a9a8a1" metalness={0.12} roughness={0.83} /></RoundedBox>
+    {[-0.14, 0.14].flatMap((x) => [-0.105, 0.105].map((z, index) => <group key={`${x}-${z}`} position={[x, 0.105, z]}>
+      <mesh castShadow><cylinderGeometry args={[0.065, 0.052, 0.13, 18]} /><meshStandardMaterial color="#dad5c8" roughness={0.78} /></mesh>
+      <mesh position={[0, 0.07, 0]}><torusGeometry args={[0.052, 0.012, 8, 18]} /><meshStandardMaterial color="#ece6d8" roughness={0.75} /></mesh>
+      <mesh position={[0, 0.075, 0]}><circleGeometry args={[0.038, 16]} /><meshStandardMaterial color={x > 0 && index > 0 ? '#705247' : '#9e7e61'} roughness={0.85} /></mesh>
+    </group>))}
+    <CarrierTag color={routeColor} />
+  </group>;
+
+  return <group rotation={[0, Math.PI / 4, 0]}>
+    <RoundedBox args={[0.58, 0.08, 0.42]} radius={0.025} position={[0, 0.04, 0]} castShadow><meshPhysicalMaterial color="#6f7d84" metalness={0.84} roughness={0.22} clearcoat={0.28} /></RoundedBox>
+    {[-0.17, 0, 0.17].flatMap((x) => [-0.105, 0.105].map((z, index) => <group key={`${x}-${z}`} position={[x, 0.105, z]}>
+      <mesh castShadow><cylinderGeometry args={[0.055, 0.06, 0.09, 18]} /><meshStandardMaterial color="#c8d0d2" metalness={0.72} roughness={0.22} /></mesh>
+      <mesh position={[0, 0.05, 0]}><circleGeometry args={[0.045, 18]} /><meshStandardMaterial color={x === 0 && index === 1 ? '#b76756' : '#d1ad69'} roughness={0.68} /></mesh>
+    </group>))}
+    <CarrierTag color={routeColor} />
+  </group>;
+}
+
+function CarrierTag({ color }: { color: string }) {
+  return <group position={[0, 0.07, 0.225]} rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh><planeGeometry args={[0.22, 0.07]} /><meshBasicMaterial color="#101820" /></mesh>
+    <mesh position={[0, 0, 0.002]}><planeGeometry args={[0.16, 0.012]} /><meshBasicMaterial color={color} /></mesh>
   </group>;
 }

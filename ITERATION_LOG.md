@@ -253,11 +253,44 @@ equipment close-ups.
   emission restrained under the scene's PBR lighting.
 - Rechecked the TGA/DSC focus view, where the foreground beacon now retains material and state detail.
 
+## Critique 15: a recovered mistake looked indistinguishable from a flawless shift
+
+The adversarial furnace regression proved that an unsafe resume attempt was blocked, logged, and
+penalized, but the debrief still rendered a uniformly green evidence path. That conflated evidence
+completeness with execution quality. The debrief now preserves the green retained-evidence chain
+while adding an amber recovered-attempt lane, with the count explicitly linked to the event ledger.
+
+## Critique 16: every material workflow moved the same glowing game token
+
+A generic luminous cube made sample movement visible but weakened the equipment-first realism and
+hid the fact that different characterization workflows use different carrier hardware.
+
+### Changes
+
+- Replaced the cube with a six-position metal XRD specimen tray, a four-tube gas-sorption rack, or a
+  refractory setter with four crucibles, depending on the active shift.
+- Added small physical details such as loaded powders, tube caps, crucible rims, and carrier ID tags.
+- Moved route endpoints from asset centers to front-of-instrument loading zones so the carrier remains
+  visible and spatially plausible instead of disappearing beneath equipment.
+- Reduced route-line brightness so the line reads as a digital-twin overlay while the carrier reads
+  as the physical object the technician controls.
+
+## Critique 17: the robot wrist still read as an overbright primitive
+
+The first robot close-up after carrier staging showed that sample hardware had become more credible
+than the manipulator handling it. Spherical joints, a glowing cyan wrist, and two bare bars did not
+match the visual standard of the rest of the bay.
+
+### Changes
+
+- Rebuilt the procedural arm around rotary servo housings, joint caps, a base collar, dressed cable
+  runs, a wrist axis, tool flange, gripper body, jaws, and replaceable contact pads.
+- Added restrained joint and tool-state accents while removing the overexposed emissive wrist.
+- Added an independently animated wrist axis for active transfers while keeping a legible parked pose
+  during recovery work.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
 covered a wide desktop viewport and a 390 × 844 mobile viewport, including the scenario deck and a
 stacked instrument workbench. TypeScript, lint, and production build checks are run before publish.
-### Critique 15 — A recovered mistake looked indistinguishable from a flawless shift
-
-The adversarial furnace regression proved that an unsafe resume attempt was blocked, logged, and penalized, but the debrief still rendered a uniformly green evidence path. That conflated evidence completeness with execution quality. The debrief now preserves the green retained-evidence chain while adding an amber recovered-attempt lane, with the count explicitly linked to the event ledger.
