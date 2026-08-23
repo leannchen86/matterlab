@@ -27,6 +27,7 @@ const STATION_POSITIONS: [number, number, number][] = [
   [-5.25, 0, 1.75],
   [-1.75, 0, 1.75],
   [1.75, 0, 1.75],
+  [1.75, 0, 5.35],
 ];
 
 const TONE_COLORS: Record<Station['tone'], string> = {
@@ -55,7 +56,7 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onC
     });
   };
   return (
-    <div className={`lab-3d camera-${cameraMode}`} aria-label="Orbitable 3D digital twin of six materials laboratory stations">
+    <div className={`lab-3d camera-${cameraMode}`} aria-label="Orbitable 3D digital twin of seven materials laboratory stations">
       <Canvas
         shadows
         dpr={[1, 1.55]}
@@ -245,7 +246,7 @@ function OperationsProps() {
       {[-0.62, 0.62].flatMap((x) => [-0.28, 0.28].map((z) => <mesh key={`w-${x}-${z}`} position={[x, 0.12, z]} rotation={[Math.PI / 2, 0, 0]} castShadow><torusGeometry args={[0.09, 0.035, 10, 18]} /><meshStandardMaterial color="#111921" roughness={0.75} /></mesh>))}
       {[-0.42, 0, 0.42].map((x, i) => <mesh key={x} position={[x, 1.17, 0]} castShadow><cylinderGeometry args={[0.1, 0.09, 0.26, 18]} /><meshStandardMaterial color={['#d7b66e', '#90b9c3', '#c97860'][i]} roughness={0.4} /></mesh>)}
     </group>
-    <group position={[2.18, 0.07, 5.7]} rotation={[0, 0.18, 0]}>
+    <group position={[-0.32, 0.07, 6.15]} rotation={[0, -0.08, 0]}>
       {[-0.28, 0.28].map((x) => <RoundedBox key={x} args={[0.16, 0.1, 1.75]} radius={0.04} position={[x, 0.12, -0.25]} castShadow><meshStandardMaterial color="#d59f38" metalness={0.52} roughness={0.38} /></RoundedBox>)}
       <RoundedBox args={[0.82, 0.17, 0.52]} radius={0.06} position={[0, 0.18, 0.58]} castShadow><meshStandardMaterial color="#b78632" metalness={0.58} roughness={0.34} /></RoundedBox>
       <group position={[0, 0.32, 0.72]} rotation={[0.42, 0, 0]}>
@@ -304,7 +305,8 @@ function Equipment({ index, active, tone, focused }: { index: number; active: bo
   if (index === 2) return <Furnace active={active} />;
   if (index === 3) return <Xrd active={active} />;
   if (index === 4) return <SemEds active={active} />;
-  return <Bet active={active} tone={tone} />;
+  if (index === 5) return <Bet active={active} tone={tone} />;
+  return <TgaDsc active={active} />;
 }
 
 type InspectionPoint = { position: [number, number, number]; label: string; observation: string; state: 'pass' | 'attention' };
@@ -316,6 +318,7 @@ const HOTSPOTS: InspectionPoint[][] = [
   [{ position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: 'surface clean · specimen flat', state: 'pass' }, { position: [0.9, 0.7, 0.92], label: 'HMI', observation: 'reference drift +0.17° 2θ', state: 'attention' }, { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', observation: 'closed feedback TRUE', state: 'pass' }],
   [{ position: [-0.25, 1.2, 0.82], label: 'CHAMBER', observation: 'vacuum 2.1e−5 Pa · stable', state: 'pass' }, { position: [-0.25, 2.08, 0.42], label: 'COLUMN', observation: 'HV standby · aperture seated', state: 'pass' }, { position: [0.95, 1.32, 0.3], label: 'BSE / EDS', observation: 'EDS dead time 27% · detector ready', state: 'pass' }],
   [{ position: [-0.3, 1.45, 0.88], label: 'PORTS', observation: 'analysis ports mechanically locked', state: 'attention' }, { position: [0.98, 1.42, 0.34], label: 'N₂', observation: 'supply normal · regulator stable', state: 'pass' }, { position: [-0.6, 0.62, 0.84], label: 'VACUUM', observation: 'service isolation active · pump off', state: 'attention' }],
+  [{ position: [-0.58, 1.12, 0.76], label: 'PAN', observation: 'matched empty-pan pair · clean', state: 'pass' }, { position: [0.82, 0.78, 0.7], label: 'PURGE', observation: 'N₂ flow stable · outlet clear', state: 'pass' }, { position: [0.08, 1.28, 0.82], label: 'FURNACE', observation: '28 °C · baseline check due', state: 'attention' }],
 ];
 
 function InspectionHotspots({ index, tone, inspected, onInspect }: { index: number; tone: string; inspected: string[]; onInspect: (label: string) => void }) {
@@ -509,6 +512,31 @@ function Bet({ active, tone }: { active: boolean; tone: string }) {
     <mesh position={[0.98, 0.7, 0.08]} castShadow><cylinderGeometry args={[0.32, 0.36, 1.2, 28]} /><meshPhysicalMaterial color="#607788" metalness={0.72} roughness={0.25} clearcoat={0.4} /></mesh>
     <mesh position={[0.98, 1.35, 0.08]}><cylinderGeometry args={[0.1, 0.1, 0.12, 18]} /><meshStandardMaterial color="#aab7bc" metalness={0.86} /></mesh>
     <Line points={[[0.98, 1.39, 0.1], [0.8, 1.92, 0.1], [0.3, 1.98, 0.1]]} color={tone} lineWidth={0.8} transparent opacity={0.55} />
+  </group>;
+}
+
+function TgaDsc({ active }: { active: boolean }) {
+  return <group position={[0, 0.18, 0]}>
+    <LabBench position={[0, 0, 0.28]} width={2.66} />
+    <RoundedBox args={[1.7, 0.76, 1.05]} radius={0.12} smoothness={4} position={[-0.15, 0.82, 0.06]} castShadow>
+      <meshPhysicalMaterial color="#d0d5d6" metalness={0.76} roughness={0.21} clearcoat={0.48} />
+    </RoundedBox>
+    <RoundedBox args={[0.96, 0.38, 0.08]} radius={0.04} position={[0.2, 0.82, 0.59]}><meshBasicMaterial color="#07161d" /></RoundedBox>
+    <mesh position={[0.2, 0.87, 0.635]}><planeGeometry args={[0.68, 0.035]} /><meshBasicMaterial color={active ? '#4dd5ed' : '#f4b95f'} /></mesh>
+    <group position={[-0.46, 1.26, 0.14]}>
+      <mesh castShadow><cylinderGeometry args={[0.3, 0.38, 0.42, 32]} /><meshPhysicalMaterial color="#71828d" metalness={0.86} roughness={0.18} clearcoat={0.35} /></mesh>
+      <mesh position={[0, 0.25, 0]}><cylinderGeometry args={[0.18, 0.25, 0.12, 28]} /><meshStandardMaterial color="#b8c1c4" metalness={0.86} roughness={0.16} /></mesh>
+      <mesh position={[0, 0.34, 0]}><torusGeometry args={[0.14, 0.025, 10, 28]} /><meshStandardMaterial color="#293943" emissive="#c45b2e" emissiveIntensity={active ? 1.7 : 0.24} /></mesh>
+      <pointLight position={[0, 0.38, 0]} intensity={active ? 4 : 0.6} distance={1.5} color="#ff8b4d" />
+    </group>
+    <group position={[0.78, 1.12, 0.1]}>
+      <mesh castShadow><cylinderGeometry args={[0.42, 0.42, 0.1, 36]} /><meshPhysicalMaterial color="#647681" metalness={0.82} roughness={0.2} clearcoat={0.34} /></mesh>
+      {Array.from({ length: 6 }, (_, index) => { const angle = index * Math.PI / 3; return <group key={index} position={[Math.cos(angle) * 0.26, 0.09, Math.sin(angle) * 0.26]}><mesh><cylinderGeometry args={[0.055, 0.07, 0.035, 18]} /><meshStandardMaterial color="#d7dfe0" metalness={0.88} roughness={0.14} /></mesh>{index < 2 && <mesh position={[0, 0.028, 0]}><cylinderGeometry args={[0.038, 0.045, 0.012, 18]} /><meshStandardMaterial color="#cfa65d" roughness={0.45} /></mesh>}</group>; })}
+      <mesh position={[0, 0.2, 0]} castShadow><cylinderGeometry args={[0.07, 0.09, 0.34, 18]} /><meshStandardMaterial color="#51646f" metalness={0.78} roughness={0.22} /></mesh>
+    </group>
+    <Line points={[[0.82, 0.7, 0.55], [1.12, 1.02, 0.48], [1.12, 1.52, 0.12], [0.92, 1.66, 0.08]]} color="#6c8795" lineWidth={1.1} />
+    <mesh position={[1.14, 0.76, 0.22]} castShadow><cylinderGeometry args={[0.13, 0.15, 0.78, 24]} /><meshStandardMaterial color="#57717f" metalness={0.72} roughness={0.28} /></mesh>
+    <mesh position={[1.14, 1.18, 0.22]}><cylinderGeometry args={[0.05, 0.05, 0.09, 18]} /><meshStandardMaterial color="#b0bec3" metalness={0.84} /></mesh>
   </group>;
 }
 

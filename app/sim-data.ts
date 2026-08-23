@@ -72,6 +72,16 @@ export const baseStations: Station[] = [
     technicianView: ['Analysis ports: locked', 'Vacuum pump: service', 'N₂ supply: normal', 'Ticket: MX-233'],
     dataProducts: ['adsorption isotherm', 'BET fit window', 'degassing record'],
   },
+  {
+    id: 'TGA-01',
+    name: 'TGA / DSC',
+    state: 'BASELINE DUE',
+    tone: 'warn',
+    meta: 'Empty-pan baseline · 13:30',
+    purpose: 'Tracks mass change and heat-flow response while retaining sample mass, pan, purge, and programmed thermal history.',
+    technicianView: ['Furnace: 28 °C', 'Purge N₂: stable', 'Pan pair: empty', 'Baseline: due'],
+    dataProducts: ['mass-change trace', 'heat-flow trace', 'thermal event context'],
+  },
 ];
 
 export const fieldGuide = [

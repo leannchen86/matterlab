@@ -220,6 +220,25 @@ the rest of the product.
 - Kept the detailed field-guide definitions and sources below the diagram for users who want depth.
 - Verified the four-layer map at desktop and in a two-by-two mobile composition at 390 × 844.
 
+## Critique 13: TGA/DSC existed only as a glossary term
+
+The job descriptions call out thermal characterization alongside XRD, SEM/EDS, and BET. The guide
+explained TGA/DSC, but the equipment-first environment gave users no physical or digital station to
+inspect.
+
+### Changes
+
+- Added a seventh thermal-analysis station with a procedural 3D benchtop analyzer, furnace, paired
+  pans, autosampler carousel, purge routing, and local display.
+- Added pan, purge, and furnace walkaround observations, including an empty-pan baseline attention
+  state.
+- Added a dedicated HMI/SCADA mimic, permissives, LES method, LIMS chain, CMMS state, supplies, and
+  data products for mass change, heat flow, and thermal-event context.
+- Added a bespoke Canvas2D fallback rendering and made the fallback grid calculate its row count from
+  the number of stations.
+- Repositioned the pallet jack after introducing the foreground asset; verified the seven-station 3D
+  establishing shot, TGA/DSC close-up, 2D map, and mobile overview.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

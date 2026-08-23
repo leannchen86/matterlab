@@ -8,7 +8,7 @@ thermal run. Each path ends at a scientific or AI data gate rather than at equip
 
 The interface is intentionally modeled after a real technician environment rather than a generic
 materials-science lesson. Its default facility view is an orbitable Three.js digital twin with
-procedurally modeled XRD, SEM/EDS, BET, furnace, powder-prep, and robotic-workcell equipment. It also
+procedurally modeled XRD, SEM/EDS, BET, TGA/DSC, furnace, powder-prep, and robotic-workcell equipment. It also
 includes work orders, handoff state, instrument readiness, QC controls, sample custody, automation
 gates, alarms, shift health, and a chronological event record.
 

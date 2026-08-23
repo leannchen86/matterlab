@@ -43,7 +43,7 @@ export function LabCanvas({ stations, selectedId, phase, scenarioId = 'xrd', onS
 
       const compact = width < 600;
       const columns = compact ? 2 : 3;
-      const rows = compact ? 3 : 2;
+      const rows = Math.ceil(stations.length / columns);
       const gapX = compact ? 10 : 16;
       const gapY = compact ? 16 : 24;
       const marginX = compact ? 12 : 20;
@@ -91,7 +91,7 @@ export function LabCanvas({ stations, selectedId, phase, scenarioId = 'xrd', onS
   };
 
   return <div className="lab-canvas-wrap">
-    <canvas ref={canvasRef} tabIndex={0} aria-label="Interactive rendered map of six materials laboratory stations" onClick={(event) => { const hit = hitAt(event.clientX, event.clientY); if (hit) onSelect(hit.id); }} onPointerMove={(event) => { const hit = hitAt(event.clientX, event.clientY); hoveredIdRef.current = hit?.id ?? null; event.currentTarget.style.cursor = hit ? 'pointer' : 'crosshair'; }} onPointerLeave={(event) => { hoveredIdRef.current = null; event.currentTarget.style.cursor = 'crosshair'; }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelect(selectedId); }} />
+    <canvas ref={canvasRef} tabIndex={0} aria-label="Interactive rendered map of seven materials laboratory stations" onClick={(event) => { const hit = hitAt(event.clientX, event.clientY); if (hit) onSelect(hit.id); }} onPointerMove={(event) => { const hit = hitAt(event.clientX, event.clientY); hoveredIdRef.current = hit?.id ?? null; event.currentTarget.style.cursor = hit ? 'pointer' : 'crosshair'; }} onPointerLeave={(event) => { hoveredIdRef.current = null; event.currentTarget.style.cursor = 'crosshair'; }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelect(selectedId); }} />
     <div className="canvas-a11y">{stations.map((station) => <button key={station.id} type="button" onClick={() => onSelect(station.id)}>{station.name}: {station.state}</button>)}</div>
   </div>;
 }
@@ -193,6 +193,7 @@ function drawEquipment(ctx: CanvasRenderingContext2D, index: number, x: number, 
   if (index === 3) drawXrd(ctx, x, y, w, h, station.tone === 'run' ? pulse : .45);
   if (index === 4) drawSem(ctx, x, y, w, h, pulse);
   if (index === 5) drawBet(ctx, x, y, w, h, station.tone === 'run' ? pulse : .3);
+  if (index === 6) drawTga(ctx, x, y, w, h, station.tone === 'run' ? pulse : .28);
   ctx.restore();
 }
 
@@ -294,6 +295,21 @@ function drawBet(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.strokeStyle = '#8095a5'; ctx.beginPath(); ctx.moveTo(x + w * .52, y + h * .26); ctx.quadraticCurveTo(x + w * .72, y + h * .18, x + w * .72, y + h * .5); ctx.stroke();
   ctx.fillStyle = '#5d7180'; ctx.fillRect(x + w * .84, y + h * .24, w * .06, h * .44);
   ctx.fillStyle = '#657b8a'; ctx.beginPath(); ctx.arc(x + w * .87, y + h * .24, w * .03, Math.PI, 0); ctx.fill();
+}
+
+function drawTga(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, pulse: number) {
+  ctx.fillStyle = '#aab3b7'; ctx.fillRect(x + w * .12, y + h * .34, w * .57, h * .34);
+  ctx.strokeStyle = '#d2d9db'; ctx.strokeRect(x + w * .12 + .5, y + h * .34 + .5, w * .57 - 1, h * .34 - 1);
+  ctx.fillStyle = '#07141b'; ctx.fillRect(x + w * .36, y + h * .42, w * .25, h * .11);
+  ctx.fillStyle = '#f4b95f'; ctx.fillRect(x + w * .39, y + h * .47, w * .14, 2);
+  const furnaceX = x + w * .24, furnaceY = y + h * .31;
+  ctx.fillStyle = '#566b78'; ctx.beginPath(); ctx.ellipse(furnaceX, furnaceY, w * .1, h * .08, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = `rgba(244,126,66,${.25 + pulse})`; ctx.beginPath(); ctx.arc(furnaceX, furnaceY, w * .045, 0, Math.PI * 2); ctx.fill();
+  const carouselX = x + w * .75, carouselY = y + h * .43;
+  ctx.fillStyle = '#536a79'; ctx.beginPath(); ctx.ellipse(carouselX, carouselY, w * .16, h * .08, 0, 0, Math.PI * 2); ctx.fill();
+  for (let index = 0; index < 6; index++) { const angle = index * Math.PI / 3; ctx.fillStyle = index < 2 ? '#d4b36b' : '#d5dfe1'; ctx.beginPath(); ctx.arc(carouselX + Math.cos(angle) * w * .1, carouselY + Math.sin(angle) * h * .045, Math.max(2, w * .018), 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = '#718b98'; ctx.beginPath(); ctx.moveTo(x + w * .84, y + h * .65); ctx.lineTo(x + w * .91, y + h * .29); ctx.lineTo(x + w * .75, y + h * .34); ctx.stroke();
+  ctx.fillStyle = '#526b78'; ctx.fillRect(x + w * .87, y + h * .36, w * .06, h * .32);
 }
 
 function drawMaterialRoute(ctx: CanvasRenderingContext2D, hits: HitBox[], phase: number, now: number, scenarioId: 'xrd' | 'bet' | 'furnace') {
