@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { LabCanvas } from './lab-canvas';
+import { LabViewport } from './lab-viewport';
 import { baseStations, fieldGuide, initialLog, sources, type Station } from './sim-data';
 import { AlternateShift, PlannerPanel, ShiftDeckModal, type ScenarioId } from './scenario-shifts';
+import { StationAccess } from './station-access';
 
 type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'guide' | 'deck' | 'complete' | null;
 type LogItem = { time: string; type: string; text: string };
@@ -245,7 +246,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
             <div className="legend"><span><i className="ready" />ready</span><span><i className="run" />active</span><span><i className="warn" />attention</span></div>
           </div>
 
-          <LabCanvas stations={stations} selectedId={selectedId} phase={phase} onSelect={setSelectedId} />
+          <LabViewport stations={stations} selectedId={selectedId} phase={phase} onSelect={setSelectedId} />
 
           <footer className="facility-footer">
             <div><span>ENV</span><b>22.1 °C</b><small>41% RH</small></div>
@@ -266,6 +267,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
             </div>
             <p className="mini-label">OUTPUTS</p>
             <div className="tag-list">{selected.dataProducts.map((item) => <span key={item}>{item}</span>)}</div>
+            <StationAccess station={selected} scenarioId="xrd" phase={phase} />
           </section>
 
           <PlannerPanel scenario="xrd" phase={phase} />

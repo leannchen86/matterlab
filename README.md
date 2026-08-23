@@ -7,8 +7,10 @@ BET service acceptance and pretreatment lineage, and robot–furnace recovery af
 thermal run. Each path ends at a scientific or AI data gate rather than at equipment uptime alone.
 
 The interface is intentionally modeled after a real technician environment rather than a generic
-materials-science lesson. It includes work orders, handoff state, instrument readiness, QC controls,
-sample custody, automation gates, alarms, shift health, and a chronological event record.
+materials-science lesson. Its default facility view is an orbitable Three.js digital twin with
+procedurally modeled XRD, SEM/EDS, BET, furnace, powder-prep, and robotic-workcell equipment. It also
+includes work orders, handoff state, instrument readiness, QC controls, sample custody, automation
+gates, alarms, shift health, and a chronological event record.
 
 ## Playable shifts
 
@@ -19,9 +21,14 @@ sample custody, automation gates, alarms, shift health, and a chronological even
 - **Interrupted thermal run:** preserve the thermal trace, reconcile robot and furnace occupancy,
   verify empty-cell recovery, and censor a compromised run without deleting it.
 
-The shift deck and facility map are responsive down to a phone-sized viewport. All instrument
-graphics, traces, micrographs, spectra, and equipment routes are drawn in the app without external
-image assets.
+Selecting an asset exposes a simulated local workstation with four technician-facing boundaries:
+HMI/SCADA state and permissives, LES method execution, LIMS identity and lineage, and CMMS service
+evidence. Each station has its own instrument mimic, interlocks, method, sample identifiers,
+maintenance state, and point-of-use supplies.
+
+The shift deck, 3D facility, 2D fallback map, and station consoles are responsive down to a
+phone-sized viewport. All instrument geometry, traces, micrographs, spectra, and equipment routes
+are drawn in the app without external image assets.
 
 ## Run locally
 

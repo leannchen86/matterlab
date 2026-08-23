@@ -90,3 +90,19 @@ demo and dependable daily operation.
   technician and scientist review process to receive trustworthy, contextualized results.
 - The simulation uses fictional identifiers and simplified values. It is not affiliated with or an
   internal representation of Periodic Labs.
+
+## Spatial interaction references
+
+The visual iteration studied [Dilum Sanjaya's public work](https://github.com/dilums), especially the
+[hexapod robot simulator](https://github.com/dilums/hexapod-robot-simulator) and his
+[AI SDK + Three.js starter](https://github.com/dilums/aisdk-threejs-starter). The transferable design
+principle was scene-first composition: the spatial machine remains dominant, live controls stay
+compact, and motion explains state. MatterShift applies that principle to a laboratory layout while
+using original equipment geometry, interaction design, and visual styling.
+
+The digital twin uses React Three Fiber, Drei, and Three.js. The scene graph makes each instrument a
+real hierarchical object rather than a background illustration, which supports articulated robot
+joints, status-dependent materials, equipment picking, physical inspection hotspots, shadows, and
+scenario-specific carrier motion. Three.js's own
+[fundamentals guide](https://threejs.org/manual/en/fundamentals.html) informed the camera, scene,
+lighting, mesh, and material structure.
