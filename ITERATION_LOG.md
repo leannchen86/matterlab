@@ -756,6 +756,26 @@ decision.
 - Exercised the wrong branch, the complete governed acquisition, the in-control verdict, the
   handoff into service-transition eligibility review, and the stacked compact-screen layout.
 
+## Critique 44: matched-pan identity was standing in for measurement control
+
+The TGA/DSC work order correctly reconciled the governed platinum-pan pair, but its next action
+jumped from “matched pair” to lot release. A physical match makes the consumables traceable; it does
+not establish that the coupled mass and heat-flow channels are stable under the current method and
+purge conditions.
+
+### Changes
+
+- Added a paired-pan blank workbench with explicit pan-set identity, empty-position condition, and
+  retained purge/method-revision checks.
+- Added a visual coupled blank for mass, DSC heat flow, and nitrogen flow, including method bands,
+  native acquisition state, and a joint in-control verdict.
+- Added a blocked branch that attempts release from matched-pan identity alone; the lot remains held
+  and the data-integrity exception is recorded.
+- Retained the accepted +0.03 mg mass offset and +0.04 mW heat-flow slope with the blank record before
+  releasing LOT-91-T into execution.
+- Exercised the blocked shortcut, governed acquisition, accepted release, phase transition, desktop
+  composition, and stacked compact-screen layout in the running application.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
