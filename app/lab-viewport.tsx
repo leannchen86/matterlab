@@ -19,6 +19,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
   const [mode, setMode] = useState<'3d' | '2d'>('3d');
   const [cameraMode, setCameraMode] = useState<'overview' | 'walk' | 'focus'>('overview');
   const [lightingMode, setLightingMode] = useState<'inspection' | 'run'>('inspection');
+  const [controlFeedback, setControlFeedback] = useState<Record<string, string[]>>({});
   const [immersive, setImmersive] = useState(false);
 
   useEffect(() => {
@@ -34,6 +35,19 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
       window.removeEventListener('keydown', closeOnEscape);
     };
   }, [immersive]);
+
+  useEffect(() => {
+    const retainControlFeedback = (event: Event) => {
+      const request = event as CustomEvent<{ stationId?: string; type?: string; action?: string }>;
+      if (request.detail?.type !== 'control' || !request.detail.stationId || !request.detail.action) return;
+      setControlFeedback((current) => ({
+        ...current,
+        [request.detail.stationId as string]: Array.from(new Set([...(current[request.detail.stationId as string] ?? []), request.detail.action as string])),
+      }));
+    };
+    window.addEventListener('mattershift:station-event', retainControlFeedback);
+    return () => window.removeEventListener('mattershift:station-event', retainControlFeedback);
+  }, []);
 
   useEffect(() => {
     const returnToAsset = (event: Event) => {
@@ -81,7 +95,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
       aria-pressed={lightingMode === 'inspection'}
     ><span>{lightingMode === 'inspection' ? '☼' : '◐'}</span>{lightingMode === 'inspection' ? 'INSPECTION LIGHT' : 'RUN LIGHT'}</button>}
     {mode === '3d'
-      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
+      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
       : <LabCanvas stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} onSelect={onSelect} />}
   </div>;
 

@@ -49,7 +49,7 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   const [completed, setCompleted] = useState<Record<Tab, boolean>>({ hmi: false, les: false, lims: false, cmms: false });
   const [hmiOperations, setHmiOperations] = useState<string[]>([]);
   const profile = profiles[station.id] ?? profiles['XRD-03'];
-  const recordStationEvent = (type: string, text: string) => window.dispatchEvent(new CustomEvent('mattershift:station-event', { detail: { stationId: station.id, type, text } }));
+  const recordStationEvent = (type: string, text: string, action?: string) => window.dispatchEvent(new CustomEvent('mattershift:station-event', { detail: { stationId: station.id, type, text, action } }));
   const finish = () => {
     setCompleted((current) => ({ ...current, [tab]: true }));
     recordStationEvent('attestation', `${station.id} ${TAB_META[tab].label} ${tab === 'hmi' ? 'safe-state attestation' : 'operator action'} retained with TECH-07 and the active record revision.`);
@@ -57,7 +57,7 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   const commitHmiOperation = (operation: string) => {
     if (hmiOperations.includes(operation)) return;
     setHmiOperations((current) => [...current, operation]);
-    recordStationEvent('control', `${station.id} local control: ${operation}; equipment feedback retained.`);
+    recordStationEvent('control', `${station.id} local control: ${operation}; equipment feedback retained.`, operation);
   };
 
   useEffect(() => {

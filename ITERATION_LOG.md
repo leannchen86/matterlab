@@ -491,6 +491,26 @@ but should be an intentional facility state rather than the only visual language
 - Compared TGA/DSC at overview and technician eye height in both modes, then verified the toggle,
   station selector, movement controls, and console handoff at 390 × 844 in immersive mode.
 
+## Critique 29: the HMI and physical twin acknowledged different realities
+
+The local workstation retained every control action, but returning to the asset showed the same
+static model as before the action. That made the spatial twin decorative at the exact moment it
+should help a technician reconcile commanded state with physical feedback.
+
+### Changes
+
+- Preserved the structured identity of every local HMI action in the viewport as well as the shift
+  ledger, without parsing human-readable audit text.
+- Added a three-channel control-proof indicator to every station model so subsystem feedback is
+  visible in overview, focus, and aisle modes.
+- Connected XRD stage-home, shutter-proof, and reference-position actions to the specimen-stage
+  position, beam-path color, HMI strip, and local indicators.
+- Connected TGA/DSC balance-tare, purge-proof, and carousel-home actions to the display, gas path,
+  gauges, carousel position, and local indicators.
+- Exercised both full three-control sequences, confirmed safe-state attestation still leaves their
+  separate QC holds in place, and verified an aisle → console → return-to-asset round trip retains
+  all physical feedback.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

@@ -41,6 +41,9 @@ attestation does not clear an independent quality or service hold. Every local c
 workstation attestation is retained in the active shift ledger with the instrument, operator, and
 simulated event time, so operating the equipment produces an auditable work record rather than
 ephemeral UI state.
+Control feedback also returns to the spatial twin: every station gains a three-channel local-proof
+indicator, while the XRD specimen stage/shutter/reference signals and TGA/DSC balance/purge/carousel
+settle into their proven physical states. Those states survive console-to-asset round trips.
 The Field Guide adds a visual authority map across physical equipment, supervisory controls,
 governed records, and the proposal-only AI planner.
 
