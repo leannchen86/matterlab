@@ -361,13 +361,11 @@ function StationCell({ station, index, position, selected, active, showHotspots,
       onPointerOver={(event) => { event.stopPropagation(); setCursor('pointer'); }}
       onPointerOut={() => setCursor('default')}
     >
-      <RoundedBox args={[3.18, 0.16, 2.82]} radius={0.08} smoothness={3} position={[0, 0.08, 0]} receiveShadow>
-        <meshStandardMaterial color={selected ? '#193247' : '#111b28'} emissive={selected ? '#1c91a6' : tone} emissiveIntensity={selected ? 0.25 : 0.035} roughness={0.63} metalness={0.32} />
+      <RoundedBox args={[3.08, index === 3 || index === 4 ? 0.09 : 0.055, 2.72]} radius={0.045} smoothness={3} position={[0, index === 3 || index === 4 ? 0.045 : 0.028, 0]} receiveShadow>
+        <meshPhysicalMaterial color={index === 3 || index === 4 ? '#27323b' : '#18212a'} emissive={selected ? '#16404b' : '#000000'} emissiveIntensity={selected ? 0.08 : 0} roughness={0.72} metalness={0.14} clearcoat={0.12} />
       </RoundedBox>
-      <mesh position={[0, 0.175, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[1.66, 1.71, 4]} />
-        <meshBasicMaterial color={selected ? '#4dd5ed' : tone} transparent opacity={selected ? 0.76 : 0.18} />
-      </mesh>
+      <Line points={[[-1.54, 0.082, -1.36], [1.54, 0.082, -1.36], [1.54, 0.082, 1.36], [-1.54, 0.082, 1.36], [-1.54, 0.082, -1.36]]} color={selected ? '#4dd5ed' : tone} lineWidth={selected ? 1.05 : 0.55} transparent opacity={selected ? 0.48 : 0.12} />
+      {[-1.36, 1.36].flatMap((x) => [-1.18, 1.18].map((z) => <mesh key={`${x}-${z}`} position={[x, 0.09, z]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.035, 0.055, 16]} /><meshStandardMaterial color="#687681" metalness={0.78} roughness={0.26} /></mesh>))}
       <Equipment index={index} active={active} tone={tone} focused={showHotspots} />
       {showHotspots && <InspectionHotspots index={index} tone={tone} inspected={inspected} onInspect={onInspect} />}
       <StatusBeacon position={[1.32, 0.34, 1.08]} color={tone} active={active || selected} />

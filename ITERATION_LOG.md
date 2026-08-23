@@ -401,6 +401,22 @@ between its embedded and full-viewport presentation.
 - Verified an XRD sequence with 3/3 physical observations, HMI attestation, return to the green
   physical markers, re-entry to the attested HMI, and the full mobile header layout.
 
+## Critique 24: identical luminous pads made the lab feel like a showroom
+
+The equipment models and human-scale camera had become more realistic, but every asset still stood
+on a thick cyan-emissive platform with a bright diamond selection ring. At close range those shapes
+read as game pedestals rather than installed lab infrastructure or a restrained digital overlay.
+
+### Changes
+
+- Replaced the universal glowing platforms with low, dark installation pads and heavier
+  anti-vibration slabs beneath XRD and SEM/EDS.
+- Reduced selected-state emission and moved identity emphasis to a thin rectangular digital-twin
+  perimeter.
+- Added small physical leveling/anchor points at the equipment-zone corners.
+- Rechecked XRD at technician scale and the full-bay composition; equipment now shares the epoxy
+  floor visually while retaining a legible selected asset.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

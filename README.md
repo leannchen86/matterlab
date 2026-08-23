@@ -57,6 +57,9 @@ state; completing a walkaround does not erase a separate quality, service, or pr
 The shared bay includes overhead cable routing, gas/vacuum service panels, emergency controls,
 mobile handling equipment, point-of-work tools, and a compact keyboard-accessible station selector
 so the instruments read as one operational facility rather than isolated product models.
+Characterization systems sit on subdued installation or anti-vibration slabs with leveling points
+and thin digital-twin perimeters; the selection treatment is intentionally an overlay, not a glowing
+physical platform.
 Scenario routes move distinct physical carriers rather than a generic token: a six-position XRD
 tray, a four-tube gas-sorption rack, a refractory setter with crucibles, or a paired-pan carrier for
 thermal analysis. Loading zones sit in front of each instrument, and the procedural robot includes
