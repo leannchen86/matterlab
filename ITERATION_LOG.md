@@ -736,6 +736,26 @@ user to inhabit the space rather than only read it.
 - Verified start, active state, mute, cleanup, console errors, and compact-screen placement; no
   sound is left playing after QA.
 
+## Critique 43: the post-change BET control was an instant result
+
+The facility shift correctly required a control after gas-service acceptance, but one button jumped
+from “reference ready” to 181 m²/g. That erased the distinction between reference-material identity,
+current sample context, native isotherm evidence, method-owned fitting, and the actual control
+decision.
+
+### Changes
+
+- Added a dedicated post-change BET workbench for ALU-21 with separate physical/LIMS identity,
+  pretreatment and dry-mass context, and accepted GAS-41/analysis-port linkage.
+- Added a visual adsorption isotherm, a method-controlled fit region, retained native acquisition
+  state, a 181 m²/g result, and a 173–191 m²/g control-band gauge.
+- Added a blocked branch that attempts to substitute the reference certificate's assigned value for
+  a current analyzer-control measurement; the workbench stays held and records the exception.
+- Kept method-specific dosing, equilibrium, preparation, and acceptance details outside the
+  simulation boundary while preserving the scientific evidence structure.
+- Exercised the wrong branch, the complete governed acquisition, the in-control verdict, the
+  handoff into service-transition eligibility review, and the stacked compact-screen layout.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

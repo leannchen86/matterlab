@@ -10,7 +10,7 @@ import { StationAccess } from './station-access';
 
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 type LogItem = { time: string; type: string; text: string };
-type Modal = 'deck' | 'guide' | 'move' | 'gas' | 'evidence' | 'complete' | null;
+type Modal = 'deck' | 'guide' | 'move' | 'gas' | 'control' | 'evidence' | 'complete' | null;
 
 const tasks = [
   { title: 'Read transfer handoff', pending: 'MOV-3024 assigned', done: 'Move + gas scope read' },
@@ -37,6 +37,8 @@ export function FacilityShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void
   const [scanned, setScanned] = useState(false);
   const [gasChecks, setGasChecks] = useState<Record<string, boolean>>({});
   const [leakRan, setLeakRan] = useState(false);
+  const [controlChecks, setControlChecks] = useState<Record<string, boolean>>({});
+  const [controlRan, setControlRan] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [scores, setScores] = useState<Scores>({ safety: 82, traceability: 71, integrity: 74, uptime: 78 });
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
@@ -92,13 +94,17 @@ export function FacilityShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void
     if (!correct) { penalize('safety', 17); penalize('integrity', 10); setFeedback('Cylinder color and supply pressure are not identity or boundary evidence. The analyzer remains isolated.'); appendLog('exception', 'Attempted GAS-41 acceptance from cylinder color and pressure alone; service release blocked.', 2); return; }
     setPhase(3); reward({ safety: scores.safety + 12, integrity: scores.integrity + 8 }); appendLog('control', 'GAS-41 physical service tag, certificate link, isolation proof, and automated leak result accepted as one boundary record.', 11); window.setTimeout(() => setModal(null), 650);
   };
-  const runControl = () => { setPhase(4); setSelectedId('BET-02'); reward({ uptime: scores.uptime + 7 }); appendLog('qc', 'Post-change ALU-21 reference completed at 181 m²/g inside the 173–191 m²/g control band; native isotherm linked.', 42); setFeedback(''); setModal('evidence'); };
+  const acquireControl = () => { setFeedback(''); setControlRan(true); appendLog('measurement', 'ALU-21 post-change adsorption isotherm acquired under the accepted GAS-41 boundary; native pressure, dose, and equilibrium records retained.', 38); };
+  const finishControl = (correct: boolean) => {
+    if (!correct) { penalize('integrity', 14); setFeedback('A certificate supports reference-material identity and assigned value; it is not a current analyzer-control measurement. The post-change window remains held.'); appendLog('exception', 'Prior ALU-21 certificate value offered in place of a current BET-02 control acquisition; release blocked.', 2); return; }
+    setPhase(4); setSelectedId('BET-02'); reward({ uptime: scores.uptime + 7, integrity: scores.integrity + 6 }); appendLog('qc', 'Post-change ALU-21 reference completed at 181 m²/g inside the 173–191 m²/g control band; native isotherm and governed fit retained.', 4); setFeedback(''); setModal('evidence');
+  };
   const finishEvidence = (correct: boolean) => {
     if (!correct) { penalize('integrity', 19); setFeedback('A passing reference proves the post-change state; it does not retroactively validate samples measured across the service transition.'); appendLog('exception', 'Mixed pre-proof and post-proof adsorption results offered to the planner as one comparable batch; export blocked.', 3); return; }
     setPhase(5); reward({ integrity: scores.integrity + 15, traceability: scores.traceability + 5 }); appendLog('decision', 'Two service-transition results held; post-proof window released to the planner with GAS-41 and ALU-21 evidence attached.', 5); setFeedback(''); setModal('complete');
   };
 
-  const actions = [() => open('move', 'PREP-01'), executeMove, () => open('gas', 'BET-02'), runControl, () => open('evidence', 'BET-02'), () => open('complete')];
+  const actions = [() => open('move', 'PREP-01'), executeMove, () => open('gas', 'BET-02'), () => open('control', 'BET-02'), () => open('evidence', 'BET-02'), () => open('complete')];
   const action = getFacilityAction(phase, actions);
 
   return <main className="shell scenario-shell scenario-facility" style={{ '--scenario-accent': '#68d4ad' } as React.CSSProperties}>
@@ -110,6 +116,7 @@ export function FacilityShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void
     {modal === 'guide' && <FieldGuideModal onClose={() => setModal(null)} />}
     {modal === 'move' && <MoveBayModal checks={moveChecks} setChecks={setMoveChecks} scanned={scanned} setScanned={setScanned} feedback={feedback} appendLog={appendLog} onFinish={finishMove} onClose={() => setModal(null)} />}
     {modal === 'gas' && <GasBoundaryModal checks={gasChecks} setChecks={setGasChecks} leakRan={leakRan} setLeakRan={setLeakRan} feedback={feedback} appendLog={appendLog} onFinish={finishGas} onClose={() => setModal(null)} />}
+    {modal === 'control' && <BetControlModal checks={controlChecks} setChecks={setControlChecks} acquired={controlRan} onAcquire={acquireControl} feedback={feedback} onFinish={finishControl} onClose={() => setModal(null)} />}
     {modal === 'evidence' && <FacilityEvidenceModal feedback={feedback} onFinish={finishEvidence} onClose={() => setModal(null)} />}
     {modal === 'complete' && <FacilityCompleteModal scores={scores} logCount={log.length} exceptionCount={log.filter((event) => event.type === 'exception').length} onDeck={() => setModal('deck')} onClose={() => setModal(null)} />}
     {logOpen && <LedgerDrawer log={log} onClose={() => setLogOpen(false)} />}
@@ -161,6 +168,26 @@ function GasManifoldVisual({ checks, leakRan }: { checks: Record<string, boolean
     {[220, 305, 390].map((x, index) => <g key={x} transform={`translate(${x} 151)`}><circle r="17" fill="#111e28" stroke={checks.isolation || index === 0 ? '#68d4ad' : '#71818d'} strokeWidth="3" /><path d="M-10-10L10 10M10-10L-10 10" stroke="#9aacb1" strokeWidth="4" /><text y="43" textAnchor="middle">{['SOURCE', 'TEST', 'PORTS'][index]}</text></g>)}
     <g transform="translate(492 151)"><rect x="-37" y="-47" width="82" height="94" rx="8" fill="#26343f" stroke={leakRan ? '#68d4ad' : '#7f8e93'} /><circle cx="4" cy="-12" r="22" fill="#09131a" stroke="#687c83" /><path d="M4-12L16-25" stroke={leakRan ? '#68d4ad' : '#d0a252'} strokeWidth="3" /><rect x="-18" y="22" width="44" height="11" fill="#081217" /><path d="M-13 28H21" stroke={leakRan ? '#68d4ad' : '#66767e'} /><text x="4" y="68" textAnchor="middle">BET-02</text></g>
     <g transform="translate(183 276)"><path d="M0 28H360" stroke="#354a58" /><path d={leakRan ? 'M0 3 C70 5 103 18 150 22 S270 25 360 25' : checks.trend ? 'M0 3 C60 5 105 8 170 9 S285 10 360 10' : 'M0 25H360'} fill="none" stroke={leakRan ? '#68d4ad' : '#d0a252'} strokeWidth="3" filter="url(#glow)" /><text x="0" y="48">ISOLATED PRESSURE DECAY</text><text x="360" y="48" textAnchor="end">{leakRan ? 'PASS · 0.7 µbar·L/s' : 'AWAITING TEST'}</text></g>
+  </svg>;
+}
+
+function BetControlModal({ checks, setChecks, acquired, onAcquire, feedback, onFinish, onClose }: { checks: Record<string, boolean>; setChecks: React.Dispatch<React.SetStateAction<Record<string, boolean>>>; acquired: boolean; onAcquire: () => void; feedback: string; onFinish: (correct: boolean) => void; onClose: () => void }) {
+  const items = [['identity', 'ALU-21 physical reference ↔ LIMS lot'], ['prep', 'Pretreatment + dry-mass record current'], ['boundary', 'GAS-41 boundary + analysis port linked']];
+  const ready = items.every(([key]) => checks[key]);
+  return <ModalShell title="Post-change BET control" kicker="MEASUREMENT CONTROL · BET-02 / ALU-21" onClose={onClose} wide><div className="facility-workbench bet-control-workbench"><div className="facility-visual-panel"><div className="panel-heading"><span>ADSORPTION ISOTHERM · GOVERNED METHOD</span><b>{acquired ? 'CONTROL PASS' : ready ? 'ACQUISITION READY' : 'MEASUREMENT HELD'}</b></div><BetControlVisual acquired={acquired} /><div className="gas-readout bet-control-readout"><span>REFERENCE<b>ALU-21</b></span><span>RESULT<b>{acquired ? '181 m²/g' : '—'}</b></span><span>BAND<b>173–191</b></span></div></div><div className="facility-control-panel"><p className="modal-intro">Establish a post-service measurement boundary with a current control—not a certificate value copied forward.</p><div className="compact-checks">{items.map(([key, label]) => <label key={key} className={checks[key] ? 'checked' : ''}><input type="checkbox" checked={Boolean(checks[key])} onChange={() => setChecks((value) => ({ ...value, [key]: !value[key] }))} /><i>{checks[key] ? '✓' : ''}</i><b>{label}</b></label>)}</div><button className="modal-run" type="button" disabled={!ready || acquired} onClick={onAcquire}>{acquired ? 'NATIVE ISOTHERM RETAINED' : 'ACQUIRE ALU-21 CONTROL'}</button>{!acquired && <button className="control-certificate-shortcut" type="button" onClick={() => onFinish(false)}>Use certificate value as current control</button>}{acquired && <div className="control-verdict"><span>METHOD FIT</span><b>QUALITY CRITERIA MET</b><i>IN CONTROL</i></div>}{acquired && <div className="decision-stack"><button type="button" onClick={() => onFinish(true)}>Retain control · review result window</button></div>}</div></div>{feedback && <p className="feedback bad">{feedback}</p>}<p className="concept-note">Conceptual training · actual preparation, dosing, equilibrium, and acceptance criteria remain method- and instrument-specific.</p></ModalShell>;
+}
+
+function BetControlVisual({ acquired }: { acquired: boolean }) {
+  const points = [[72,270],[105,254],[137,232],[169,202],[204,164],[240,132],[278,106],[320,86],[366,72],[416,61],[470,52]];
+  return <svg className="bet-control-svg" viewBox="0 0 620 360" role="img" aria-label={acquired ? 'ALU-21 adsorption isotherm and method-controlled BET fit window, result 181 square metres per gram inside control limits' : 'Empty adsorption isotherm acquisition grid awaiting ALU-21 control'}>
+    <defs><linearGradient id="betBand" x1="0" x2="1"><stop stopColor="#375f6c" stopOpacity=".16" /><stop offset="1" stopColor="#68d4ad" stopOpacity=".28" /></linearGradient><filter id="pointGlow"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
+    <path className="grid" d="M56 36H510M56 88H510M56 140H510M56 192H510M56 244H510M56 296H510M56 36V296M132 36V296M208 36V296M284 36V296M360 36V296M436 36V296M510 36V296" />
+    <path d="M56 296H530M56 296V24" className="axis" />
+    <rect x="116" y="36" width="146" height="260" fill="url(#betBand)" stroke="#4f8b87" strokeDasharray="6 5" opacity={acquired ? 1 : .35} />
+    {acquired && <><path className="isotherm-line" d={`M${points.map(([x,y]) => `${x} ${y}`).join('L')}`} />{points.map(([x,y], index) => <circle key={index} className="isotherm-point" cx={x} cy={y} r={index > 7 ? 5 : 4} filter="url(#pointGlow)" />)}<path className="fit-line" d="M126 239L250 118" /></>}
+    {!acquired && <path className="awaiting-trace" d="M72 270H470" />}
+    <text x="58" y="20">QUANTITY ADSORBED</text><text x="530" y="320" textAnchor="end">RELATIVE PRESSURE →</text><text x="189" y="55" textAnchor="middle">METHOD FIT WINDOW</text>
+    <g transform="translate(535 72)"><rect width="64" height="180" rx="5" fill="#0b151c" stroke="#314858" /><rect x="18" y="25" width="28" height="125" fill="#182a31" /><rect x="18" y="58" width="28" height="60" fill="#245443" opacity=".8" /><path d="M10 90H54" stroke={acquired ? '#68d4ad' : '#6c7b82'} strokeWidth="3" /><circle cx="32" cy={acquired ? 86 : 138} r="7" fill={acquired ? '#68d4ad' : '#d0a252'} /><text x="32" y="166" textAnchor="middle">QC BAND</text></g>
   </svg>;
 }
 
