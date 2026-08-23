@@ -617,6 +617,52 @@ const HOTSPOTS: InspectionPoint[][] = [
 ];
 
 function getInspectionPoints(index: number, scenarioId: ScenarioId, phase: number): InspectionPoint[] {
+  if (scenarioId === 'xrd' && index === 3 && phase >= 1) return [
+    { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: phase >= 4 ? 'run holder clear · specimen record retained' : 'NIST Si seated · surface clean', state: 'pass' },
+    { position: [0.9, 0.7, 0.92], label: 'HMI', observation: phase >= 4 ? 'CA-TI-031 complete · anomaly review open' : 'current reference +0.02° 2θ · in control', state: phase >= 4 ? 'attention' : 'pass' },
+    { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', observation: 'closed feedback TRUE · interlock chain healthy', state: 'pass' },
+  ];
+  if (scenarioId === 'xrd' && index === 1 && phase >= 2) return [
+    { position: [-1.32, 1.45, 1.06], label: 'GATE', observation: 'CH1 interlock closed · route authorized', state: 'pass' },
+    { position: [1.08, 1.48, 0.18], label: 'GRIPPER', observation: phase === 3 ? 'BC-184 seated · transfer in progress' : 'jaws clear · BC-184 handoff retained', state: 'pass' },
+    { position: [1.05, 0.92, -0.32], label: 'HMI', observation: phase === 3 ? 'AUTO route active · 5 eligible specimens' : 'route complete · quarantined specimen excluded', state: 'pass' },
+  ];
+  if (scenarioId === 'xrd' && index === 4 && phase >= 5) return [
+    { position: [-0.25, 1.2, 0.82], label: 'CHAMBER', observation: 'SPEC-184-03 loaded · vacuum stable', state: 'pass' },
+    { position: [-0.25, 2.08, 0.42], label: 'COLUMN', observation: 'BSE conditions retained · working distance linked', state: 'pass' },
+    { position: [0.95, 1.32, 0.3], label: 'BSE / EDS', observation: phase >= 6 ? '4 fields + EDS map retained' : 'field 01 inclusion · coverage incomplete', state: phase >= 6 ? 'pass' : 'attention' },
+  ];
+  if ((scenarioId === 'bet' || scenarioId === 'facility') && index === 5) {
+    if (scenarioId === 'bet' && phase === 0) return HOTSPOTS[index];
+    const analyzing = scenarioId === 'bet' && phase === 3;
+    const resultReview = scenarioId === 'bet' && phase >= 4;
+    const serviceAccepted = scenarioId === 'facility' && phase >= 3;
+    const facilityReceivingHold = scenarioId === 'facility' && phase < 2;
+    const facilityUtilityHold = scenarioId === 'facility' && phase === 2;
+    return [
+      { position: [-0.3, 1.45, 0.88], label: 'PORTS', observation: analyzing ? 'analysis ports engaged · ADS-77 batch active' : resultReview ? 'ALU-21 run complete · ports isolated' : serviceAccepted ? 'analysis boundary released · reference staged' : facilityReceivingHold ? 'sample ports isolated · receiving release pending' : facilityUtilityHold ? 'ports isolated · GAS-41 proof pending' : 'ports available · tube eligibility gate active', state: facilityReceivingHold || facilityUtilityHold ? 'attention' : 'pass' },
+      { position: [0.98, 1.42, 0.34], label: 'N₂', observation: serviceAccepted ? 'GAS-41 N₂ 5.0 · certificate + tag linked' : facilityUtilityHold ? 'GAS-41 connected · identity + boundary unproven' : facilityReceivingHold ? 'service changeover staged · analyzer isolated' : 'N₂ supply verified · regulator stable', state: facilityReceivingHold || facilityUtilityHold ? 'attention' : 'pass' },
+      { position: [-0.6, 0.62, 0.84], label: 'VACUUM', observation: resultReview ? 'native isotherm retained · low control under review' : serviceAccepted ? 'leak 0.7 µbar·L/s · accepted' : facilityReceivingHold ? 'receiving bay clear · analyzer isolation active' : facilityUtilityHold ? 'automated leak check due · release held' : 'blank/leak acceptance retained · pump ready', state: resultReview || facilityReceivingHold || facilityUtilityHold ? 'attention' : 'pass' },
+    ];
+  }
+  if (scenarioId === 'tga' && index === 6) {
+    if (phase === 0) return HOTSPOTS[index];
+    return [
+      { position: [-0.58, 1.12, 0.76], label: 'PAN', observation: phase === 1 ? 'mixed Pt/Al pair · association held' : phase === 2 ? 'PANSET-14 Pt/Pt · blank pending' : 'PANSET-14 linked · specimen position retained', state: phase === 1 ? 'attention' : 'pass' },
+      { position: [0.82, 0.78, 0.7], label: 'PURGE', observation: phase >= 4 ? 'transient at 412.5 °C · review required' : 'N₂ 60 mL/min · stable trend retained', state: phase >= 4 ? 'attention' : 'pass' },
+      { position: [0.08, 1.28, 0.82], label: 'FURNACE', observation: phase === 2 ? '28 °C · paired-pan blank ready' : phase === 3 ? 'THM-208 active · LOT-91-T at 64%' : phase >= 4 ? 'run complete · coupled channels retained' : 'method hold · baseline failure retained', state: phase >= 4 ? 'attention' : 'pass' },
+    ];
+  }
+  if (scenarioId === 'facility' && index === 0) return [
+    { position: [-0.65, 1.25, 0.68], label: 'SASH', observation: 'prep enclosure clear · dry-powder boundary normal', state: 'pass' },
+    { position: [0.86, 0.97, 0.55], label: 'BALANCE', observation: 'gross load 184 kg · move ticket reconciled', state: phase === 0 ? 'attention' : 'pass' },
+    { position: [-0.15, 0.68, 0.58], label: 'LOT', observation: phase === 0 ? 'two totes present · target identity unresolved' : 'LOT-3024-A physical ID + departure scan linked', state: phase === 0 ? 'attention' : 'pass' },
+  ];
+  if (scenarioId === 'furnace' && index === 1) return [
+    { position: [-1.32, 1.45, 1.06], label: 'GATE', observation: phase >= 2 ? 'recovery boundary clear · safeguard ready' : 'cell held · motion inhibited', state: phase >= 2 ? 'pass' : 'attention' },
+    { position: [1.08, 1.48, 0.18], label: 'GRIPPER', observation: 'gripper empty · BC-207 disposition retained', state: 'pass' },
+    { position: [1.05, 0.92, -0.32], label: 'HMI', observation: phase >= 3 ? 'recovery handshake complete · robot parked' : phase >= 2 ? 'recovery mode armed · dry cycle pending' : 'digital transfer state conflicts with furnace occupancy', state: phase >= 2 ? 'pass' : 'attention' },
+  ];
   if (index !== 2 || scenarioId !== 'furnace') return HOTSPOTS[index];
   if (phase >= 3) return [
     { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: 'access loop closed · dry-cycle proof linked', state: 'pass' },

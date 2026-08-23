@@ -816,6 +816,27 @@ continued to report a hot load after the workcell was returned to ready.
 - Visually inspected the recovered furnace in equipment focus and exercised all three updated
   physical observations through the local-console handoff.
 
+## Critique 47: physical observations were frozen at first-shift conditions
+
+The walkaround system was interactive, but most hotspot text came from one static equipment
+snapshot. A technician could pass XRD control and still read the failed reference, accept BET
+service and still see service isolation, or reconcile MOV-3024 and still inspect an unrelated lot.
+
+### Changes
+
+- Made XRD, robot, and SEM/EDS observations follow reference control, automated transfer, result
+  review, and representative follow-up phases.
+- Made BET port, gas, and vacuum observations follow service isolation, acceptance, acquisition,
+  facility changeover, and result-exception states.
+- Made TGA pan, purge, and furnace observations follow mixed-pan hold, matched blank, specimen run,
+  and coupled-event review states.
+- Made facility prep observations name the real MOV-3024 boundary and LOT-3024-A instead of the
+  unrelated default prep lot; added phase-aware facility BET isolation and GAS-41 proof text.
+- Made robot recovery observations follow unresolved occupancy, armed dry-cycle state, and the
+  completed parked/handshake state.
+- Browser-tested a furnace robot HMI after recovery and the prep-bay lot observation before and
+  after physical tote reconciliation; both changed with the work-order record.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
