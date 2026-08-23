@@ -17,6 +17,7 @@ type SceneProps = {
   stations: Station[];
   selectedId: string;
   phase: number;
+  campaignStage: number;
   scenarioId: ScenarioId;
   cameraMode: CameraMode;
   lightingMode: LightingMode;
@@ -59,7 +60,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, campaignStage, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -67,15 +68,18 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
   const [walkCommand, setWalkCommand] = useState<WalkCommand>({ id: 0, direction: 'forward' });
   const selectedIndex = Math.max(0, stations.findIndex((station) => station.id === selectedId));
   const selectedStation = stations[selectedIndex];
-  const selectedHotspots = getInspectionPoints(selectedIndex, scenarioId, phase);
-  const inspected = visited[selectedId] ?? [];
+  const campaignIndex = getCampaignStationIndex(campaignStage);
+  const inspectionKey = getInspectionKey(selectedId, selectedIndex, campaignStage);
+  const selectedHotspots = getInspectionPoints(selectedIndex, scenarioId, phase, campaignStage);
+  const inspected = visited[inspectionKey] ?? [];
   const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? observationRecord.point : null;
+  const campaignState = getCampaignRoomState(campaignStage);
   const inspect = (label: string) => {
     const point = selectedHotspots.find((hotspot) => hotspot.label === label);
     if (point) setObservationRecord({ stationId: selectedId, point });
-    const checks = Array.from(new Set([...(visited[selectedId] ?? []), label]));
-    if (!inspectionState) setLocalVisited((current) => ({ ...current, [selectedId]: checks }));
-    onInspectionChange?.(selectedId, checks);
+    const checks = Array.from(new Set([...(visited[inspectionKey] ?? []), label]));
+    if (!inspectionState) setLocalVisited((current) => ({ ...current, [inspectionKey]: checks }));
+    onInspectionChange?.(inspectionKey, checks);
   };
   return (
     <div className={`lab-3d camera-${cameraMode}`} aria-label="Orbitable 3D digital twin of seven materials laboratory stations">
@@ -94,6 +98,7 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
         <LabArchitecture lightingMode={lightingMode} />
         <OperationsProps scenarioId={scenarioId} phase={phase} />
         <MaterialRoute scenarioId={scenarioId} phase={phase} />
+        <CampaignMaterialRoute stage={campaignStage} />
         {stations.map((station, index) => (cameraMode !== 'focus' || selectedId === station.id) ? (
           <StationCell
             key={station.id}
@@ -101,10 +106,12 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
             index={index}
             position={STATION_POSITIONS[index]}
             selected={selectedId === station.id}
-            active={station.tone === 'run'}
+            active={station.tone === 'run' || campaignIndex === index}
+            toneOverride={campaignIndex === index ? campaignState.color : undefined}
+            stateOverride={campaignIndex === index ? campaignState.label : undefined}
             showHotspots={selectedId === station.id && cameraMode === 'focus'}
-            inspected={visited[station.id] ?? []}
-            inspectionPoints={getInspectionPoints(index, scenarioId, phase)}
+            inspected={visited[getInspectionKey(station.id, index, campaignStage)] ?? []}
+            inspectionPoints={getInspectionPoints(index, scenarioId, phase, campaignStage)}
             controls={controlFeedback?.[station.id] ?? []}
             scenarioId={scenarioId}
             phase={phase}
@@ -132,10 +139,11 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
         />
       </Canvas>
       <nav className="scene-station-picker" aria-label="Select a lab station">
-        {stations.map((station) => <button key={station.id} type="button" className={selectedId === station.id ? 'active' : ''} style={{ '--station-tone': TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => onSelect(station.id)} onDoubleClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
+        {stations.map((station, index) => <button key={station.id} type="button" className={`${selectedId === station.id ? 'active ' : ''}${campaignIndex === index ? 'campaign-active' : ''}`} style={{ '--station-tone': campaignIndex === index ? campaignState.color : TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => onSelect(station.id)} onDoubleClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
       </nav>
       <div className="scene-corner scene-corner-top"><span>LIVE SPATIAL TWIN</span><b>LAB 04 · BAY A/B</b></div>
       <div className="scene-corner scene-corner-bottom">{cameraMode === 'walk' ? <><span>WASD</span> MOVE <i>·</i> <span>DRAG</span> LOOK <i>·</i> <span>SELECT</span> APPROACH</> : <><span>DRAG</span> ORBIT <i>·</i> <span>SCROLL</span> ZOOM <i>·</i> <span>CLICK</span> INSPECT</>}</div>
+      {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN TWIN · RUN-042</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? 'VALID NEGATIVE' : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
       {cameraMode === 'walk' && <div className="walk-hud">
         <header><span>HUMAN-SCALE AISLE</span><b>{selectedStation.id} · {selectedStation.name}</b></header>
         <div className="walk-pad" role="group" aria-label="Aisle movement controls">
@@ -549,12 +557,14 @@ function SampleStagingRack() {
   </group>;
 }
 
-function StationCell({ station, index, position, selected, active, showHotspots, inspected, inspectionPoints, controls, scenarioId, phase, onInspect, onFocus, onSelect }: {
+function StationCell({ station, index, position, selected, active, toneOverride, stateOverride, showHotspots, inspected, inspectionPoints, controls, scenarioId, phase, onInspect, onFocus, onSelect }: {
   station: Station;
   index: number;
   position: [number, number, number];
   selected: boolean;
   active: boolean;
+  toneOverride?: string;
+  stateOverride?: string;
   showHotspots: boolean;
   inspected: string[];
   inspectionPoints: InspectionPoint[];
@@ -565,7 +575,7 @@ function StationCell({ station, index, position, selected, active, showHotspots,
   onFocus: () => void;
   onSelect: (id: string) => void;
 }) {
-  const tone = TONE_COLORS[station.tone];
+  const tone = toneOverride ?? TONE_COLORS[station.tone];
   const [hovered, setHovered] = useState(false);
   const setCursor = (cursor: string) => { document.body.style.cursor = cursor; };
   return (
@@ -587,7 +597,7 @@ function StationCell({ station, index, position, selected, active, showHotspots,
       <ControlProofLights count={controls.length} />
       {(selected || hovered) && <Html center position={[index === 3 ? 0.5 : index === 2 ? -0.38 : 0, index < 3 ? 2.98 : 2.72, index < 3 ? -0.2 : 0.2]} distanceFactor={10.5} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
         <div className={`station-3d-label ${selected ? 'selected' : ''}`} style={{ '--station-tone': tone } as React.CSSProperties}>
-          <span>{station.id}</span><b>{station.name}</b><i>{station.state}</i>
+          <span>{station.id}</span><b>{station.name}</b><i>{stateOverride ?? station.state}</i>
         </div>
       </Html>}
     </group>
@@ -616,7 +626,33 @@ const HOTSPOTS: InspectionPoint[][] = [
   [{ position: [-0.58, 1.12, 0.76], label: 'PAN', observation: 'matched empty-pan pair · clean', state: 'pass' }, { position: [0.82, 0.78, 0.7], label: 'PURGE', observation: 'N₂ flow stable · outlet clear', state: 'pass' }, { position: [0.08, 1.28, 0.82], label: 'FURNACE', observation: '28 °C · baseline check due', state: 'attention' }],
 ];
 
-function getInspectionPoints(index: number, scenarioId: ScenarioId, phase: number): InspectionPoint[] {
+function getCampaignInspectionPoints(index: number, stage: number): InspectionPoint[] | null {
+  if (stage === 1 && index === 0) return [
+    { position: [-0.65, 1.25, 0.68], label: 'SASH', observation: '420 mm opening · LEV airflow proven', state: 'pass' },
+    { position: [0.86, 0.97, 0.55], label: 'BALANCE', observation: 'zero 0.000 g · C-42 target 24.00 g', state: 'pass' },
+    { position: [-0.15, 0.68, 0.58], label: 'LOT', observation: 'Ca + Ti precursor lots match RUN-042-P', state: 'pass' },
+  ];
+  if (stage >= 2 && stage <= 3 && index === 1) return [
+    { position: [-1.32, 1.45, 1.06], label: 'GATE', observation: 'CH1 safeguard closed · scanner field clear', state: 'pass' },
+    { position: [1.08, 1.48, 0.18], label: 'GRIPPER', observation: stage === 2 ? 'residue witness visible · cleaning proof required' : 'clean witness passed · jaws seated on BC-042', state: stage === 2 ? 'attention' : 'pass' },
+    { position: [1.05, 0.92, -0.32], label: 'HMI', observation: stage === 2 ? 'RUN-042 held before dosing · motion inhibited' : 'RUN-042 dosing 6 crucibles · route active', state: stage === 2 ? 'attention' : 'pass' },
+  ];
+  if (stage >= 4 && stage <= 5 && index === 2) return [
+    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: stage === 4 ? 'door closed · RUN-039 cycle owns chamber' : 'door chain closed · 980 °C profile active', state: 'pass' },
+    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? 'RUN-039 remaining 62 min · RUN-042 Q01' : 'C42-980-4H · ramp/dwell trace recording', state: stage === 4 ? 'attention' : 'pass' },
+    { position: stage === 4 ? [0, 0.42, 1.04] : [0, 1.38, 0.94], label: 'CARRIER', observation: stage === 4 ? 'BC-042 parked at marked queue stand · seal intact' : 'BC-042 chamber occupancy confirmed', state: stage === 4 ? 'attention' : 'pass' },
+  ];
+  if (stage >= 6 && index === 3) return [
+    { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: stage === 6 ? 'NIST Si reference seated · RUN-042-T held' : 'RUN-042-T flat · reference accepted', state: 'pass' },
+    { position: [0.9, 0.7, 0.92], label: 'HMI', observation: stage === 6 ? 'reference interval overdue · specimen release inhibited' : '+0.01° 2θ · 95.8% target phase', state: stage === 6 ? 'attention' : 'pass' },
+    { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', observation: 'closed feedback TRUE · radiation chain healthy', state: 'pass' },
+  ];
+  return null;
+}
+
+function getInspectionPoints(index: number, scenarioId: ScenarioId, phase: number, campaignStage = 0): InspectionPoint[] {
+  const campaignPoints = getCampaignInspectionPoints(index, campaignStage);
+  if (campaignPoints) return campaignPoints;
   if (scenarioId === 'xrd' && index === 3 && phase >= 1) return [
     { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: phase >= 4 ? 'run holder clear · specimen record retained' : 'NIST Si seated · surface clean', state: 'pass' },
     { position: [0.9, 0.7, 0.92], label: 'HMI', observation: phase >= 4 ? 'CA-TI-031 complete · anomaly review open' : 'current reference +0.02° 2θ · in control', state: phase >= 4 ? 'attention' : 'pass' },
@@ -1066,6 +1102,58 @@ function StatusBeacon({ position, color, active }: { position: [number, number, 
       <mesh position={[0, index === 2 ? 0.043 : -0.043, 0]}><cylinderGeometry args={[0.067, 0.067, 0.012, 18]} /><meshStandardMaterial color="#27343c" metalness={0.76} roughness={0.26} /></mesh>
     </group>)}
     <mesh position={[0, 0.44, 0]}><cylinderGeometry args={[0.066, 0.058, 0.025, 18]} /><meshStandardMaterial color="#52616a" metalness={0.82} roughness={0.2} /></mesh>
+  </group>;
+}
+
+function getCampaignStationIndex(stage: number) {
+  if (stage <= 0) return -1;
+  if (stage === 1) return 0;
+  if (stage <= 3) return 1;
+  if (stage <= 5) return 2;
+  return 3;
+}
+
+function getInspectionKey(stationId: string, stationIndex: number, campaignStage: number) {
+  return getCampaignStationIndex(campaignStage) === stationIndex ? `${stationId}:MAT-042:S${campaignStage}` : stationId;
+}
+
+function getCampaignRoomState(stage: number) {
+  if (stage === 1) return { station: 'PREP-01', label: 'RUN-042 PREP', color: '#4dd5ed', tone: 'running' };
+  if (stage === 2) return { station: 'ROBO-02', label: 'CLEANLINESS FAULT', color: '#f4b95f', tone: 'held' };
+  if (stage === 3) return { station: 'ROBO-02', label: 'ROBOT DOSING', color: '#4dd5ed', tone: 'running' };
+  if (stage === 4) return { station: 'FURN-04', label: 'QUEUE 01', color: '#f4b95f', tone: 'held' };
+  if (stage === 5) return { station: 'FURN-04', label: '980 °C PROFILE', color: '#ff955c', tone: 'running' };
+  if (stage === 6) return { station: 'XRD-03', label: 'QC HOLD', color: '#f4b95f', tone: 'held' };
+  if (stage >= 7) return { station: 'XRD-03', label: '95.8% · TARGET MISSED', color: '#8fcf8f', tone: 'complete' };
+  return { station: 'PREP-01', label: 'CAMPAIGN READY', color: '#4dd5ed', tone: 'running' };
+}
+
+function CampaignMaterialRoute({ stage }: { stage: number }) {
+  const carrier = useRef<THREE.Group>(null);
+  const current = useRef(0.02);
+  const points = useMemo(() => [0, 1, 2, 3].map((index) => {
+    const [x, , z] = STATION_POSITIONS[index];
+    return new THREE.Vector3(x, 0.26, z + 0.86);
+  }), []);
+  const curve = useMemo(() => new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.12), [points]);
+  const route = useMemo(() => curve.getPoints(64), [curve]);
+  const target = stage <= 1 ? 0.02 : stage <= 3 ? 0.34 : stage <= 5 ? 0.66 : 0.98;
+  const state = getCampaignRoomState(stage);
+  useFrame(({ clock }, delta) => {
+    current.current = THREE.MathUtils.damp(current.current, target, 3.2, delta);
+    const activity = [1, 3, 5].includes(stage) ? Math.sin(clock.elapsedTime * 1.7) * 0.006 : 0;
+    if (carrier.current) carrier.current.position.copy(curve.getPointAt(THREE.MathUtils.clamp(current.current + activity, 0.01, 0.99)));
+  });
+  if (stage <= 0) return null;
+  return <group>
+    <Line points={route} color={state.color} lineWidth={0.72} dashed dashSize={0.14} gapSize={0.11} transparent opacity={0.58} />
+    <group ref={carrier}>
+      <SampleCarrier scenarioId="xrd" routeColor={state.color} />
+      <pointLight position={[0, 0.18, 0]} intensity={stage === 2 || stage === 4 || stage === 6 ? 1.1 : 0.7} distance={1.1} color={state.color} />
+      <Html center position={[0, 0.78, 0]} distanceFactor={9.5} zIndexRange={[18, 0]} style={{ pointerEvents: 'none' }}>
+        <div className={`campaign-carrier-label ${state.tone}`}><span>RUN-042</span><b>{state.label}</b></div>
+      </Html>
+    </group>
   </group>;
 }
 

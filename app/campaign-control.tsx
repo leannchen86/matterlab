@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type Recipe = {
   id: string;
@@ -56,25 +56,29 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
     });
   };
 
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('mattershift:campaign-state', { detail: run }));
+  }, [run]);
+
   const recipe = recipes.find((candidate) => candidate.id === run.selected) ?? recipes[0];
   const fault = run.stage === 2 ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 6 ? 'qc' : null;
   const primary = getPrimaryAction(run.stage);
 
   const advance = () => {
     if (run.stage === 0) updateRun({ stage: 1, message: `${recipe.id} released as RUN-042. Powder prep has the governed formulation.` });
-    else if (run.stage === 1) updateRun({ stage: 2, elapsed: 12, message: 'Prep is complete. ROBO-02 stopped on a gripper cleanliness fault before dosing.' });
-    else if (run.stage === 2) updateRun({ stage: 3, elapsed: run.elapsed + 18, insight: run.insight - 8, message: 'Gripper cleaned and witness coupon passed. Robot synthesis resumed with lineage intact.' });
-    else if (run.stage === 3) updateRun({ stage: 4, elapsed: run.elapsed + 14, message: 'Carrier assembled. FURN-04 is occupied by RUN-039; RUN-042 is now queue constrained.' });
-    else if (run.stage === 4) updateRun({ stage: 5, elapsed: run.elapsed + 62, message: 'RUN-039 cooled and unloaded. RUN-042 entered the validated 980 °C profile.' });
-    else if (run.stage === 5) updateRun({ stage: 6, elapsed: run.elapsed + 94, message: 'Thermal cycle complete. XRD release is held because the Si reference is overdue.' });
-    else if (run.stage === 6) updateRun({ stage: 7, elapsed: run.elapsed + 18, insight: run.insight + 46, message: 'Reference passed at +0.01° 2θ. RUN-042 measured 95.8% target phase: valid evidence, but 0.2 percentage point below objective.' });
-    else updateRun({ ...initialRun, insight: run.insight, selected: run.selected, message: 'Campaign lane cleared. Select the next candidate.' });
+    else if (run.stage >= 7) updateRun({ ...initialRun, insight: run.insight, selected: run.selected, message: 'Campaign lane cleared. Select the next candidate.' });
   };
 
   const rejectShortcut = (kind: 'robot' | 'furnace') => {
     updateRun({ message: kind === 'robot'
       ? 'Command blocked: bypassing the cleanliness witness would make contamination indistinguishable from material behavior.'
       : 'Command blocked: shortening another run violates its governed thermal profile. RUN-042 remains queued.' });
+  };
+
+  const viewInLab = () => {
+    const stationId = run.stage <= 1 ? 'PREP-01' : run.stage <= 3 ? 'ROBO-02' : run.stage <= 5 ? 'FURN-04' : 'XRD-03';
+    onClose();
+    window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:return-to-lab', { detail: { stationId } })));
   };
 
   return <div className="modal-backdrop campaign-backdrop" role="presentation">
@@ -153,7 +157,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
         <div><span>PLAYER COMMAND</span><b>{primary.hint}</b></div>
         {run.stage === 2 && <button type="button" className="secondary" onClick={() => rejectShortcut('robot')}>BYPASS WITNESS</button>}
         {run.stage === 4 && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace')}>SHORTEN RUN-039</button>}
-        <button type="button" onClick={advance}>{primary.label}<span>→</span></button>
+        <button type="button" onClick={run.stage > 0 && run.stage < 7 ? viewInLab : advance}>{primary.label}<span>→</span></button>
       </footer>
     </section>
   </div>;
@@ -176,12 +180,12 @@ function routeState(stage: number, active: number, complete: number) {
 function getPrimaryAction(stage: number) {
   return [
     { label: 'QUEUE GOVERNED RUN', hint: 'Release the selected recipe to PREP-01' },
-    { label: 'ADVANCE 12 MIN', hint: 'Allow powder preparation to complete' },
-    { label: 'CLEAN + QUALIFY GRIPPER', hint: 'Recover the robot without losing sample context' },
-    { label: 'COMPLETE ROBOT DOSING', hint: 'Assemble and transfer the crucible carrier' },
-    { label: 'HOLD QUEUE + ADVANCE 62 MIN', hint: 'Respect the active furnace profile' },
-    { label: 'COMPLETE THERMAL CYCLE', hint: 'Retain temperature, atmosphere, and carrier history' },
-    { label: 'RUN SI REFERENCE FIRST', hint: 'Restore measurement control before the specimen' },
+    { label: 'OPERATE PREP-01', hint: 'Walk down the setup, then prove the preparation controls' },
+    { label: 'RECOVER ROBO-02', hint: 'Inspect, clean, and qualify the gripper at the cell' },
+    { label: 'OPERATE ROBO-02', hint: 'Prove the carrier and execute six-position dosing' },
+    { label: 'OPERATE FURN-04', hint: 'Verify occupancy, Q01, and the physical hold location' },
+    { label: 'START FURN-04 PROFILE', hint: 'Prove the load and start the governed thermal cycle' },
+    { label: 'QUALIFY XRD-03', hint: 'Run the Si control before measuring RUN-042' },
     { label: 'START NEXT CAMPAIGN', hint: 'AI-eligible result · objective missed by 0.2 percentage point' },
   ][stage] ?? { label: 'START NEXT CAMPAIGN', hint: 'Clear the completed lane' };
 }

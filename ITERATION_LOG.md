@@ -933,6 +933,70 @@ like an uncomplicated win even though the material objective was missed.
   scientifically valid negative experiment.
 - Clarified that the throughput readout is lab-wide rather than the elapsed time of one serial run.
 
+## Critique 53: the campaign route disappeared when the player returned to the room
+
+Campaign Lab could model a robot fault and furnace queue, but closing it returned to a 3D room that
+still showed only the unrelated incident route. The machine system and the physical environment
+were therefore telling two different stories.
+
+### Changes
+
+- Broadcast campaign stage changes into the spatial twin and restored them from the persisted run
+  when the room mounts.
+- Added a second, explicitly labeled `RUN-042` physical route from PREP-01 through ROBO-02,
+  FURN-04, and XRD-03, with an animated crucible carrier at the actual active asset.
+- Made the active asset beacon, floor boundary, station picker, 3D label, and machine animation adopt
+  the campaign run state, including amber cleanliness/QC holds and furnace queue state.
+- Added a compact campaign HUD to the room that identifies the current machine, route stage, and
+  valid-negative terminal state without opening another text panel.
+- Added `VIEW IN 3D TWIN` to Campaign Lab; it closes the planner, selects the correct physical asset,
+  enters the human-scale aisle, and preserves the campaign state.
+- Browser-verified the handoff at the ROBO-02 cleanliness fault and the FURN-04 capacity queue. In
+  both cases the camera arrived at the correct equipment, the carrier occupied the expected floor
+  position, and the campaign fault label remained visible in the room.
+
+## Critique 54: the local machine console reverted to an unrelated incident
+
+The RUN-042 carrier and campaign hold were visible in the room, but opening a machine still loaded
+the selected incident's controller, method, samples, and generic HMI sequence. The illusion broke at
+the exact moment the player tried to operate the asset.
+
+### Changes
+
+- Made PREP-01, ROBO-02, FURN-04, and XRD-03 consoles adopt the active RUN-042 stage, including
+  campaign controller IDs, live states, readouts, governed methods, and sample lineage.
+- Added stage-specific HMI control sequences for formulation preparation, gripper recovery,
+  six-position robot dosing, a capacity-one furnace queue, thermal-profile startup, and XRD Si
+  qualification.
+- Added stage-specific LES steps and LIMS chains from C-42 through BC-042, C42-980-4H, XRD-042, and
+  PAT-042, with contamination, queue, QC, and valid-negative states preserved.
+- Isolated console completion by campaign stage so an attestation from an incident or an earlier
+  RUN-042 operation cannot satisfy a later operation.
+- Browser-verified the furnace queue HMI, LES, and LIMS views against the physical carrier and
+  confirmed RUN-039 occupancy, Q01, 62-minute remaining time, and BC-042 identity remained aligned.
+
+## Critique 55: campaign progress could bypass the laboratory
+
+The campaign planner could advance time and clear faults with one footer button. That demonstrated
+the route, but it did not make the player behave like a scientist or technician operating a real
+room. Machine interaction was optional scenery.
+
+### Changes
+
+- Replaced planner-side stage advancement with asset commands that enter the 3D lab at the active
+  station.
+- Added campaign-specific physical observations to every route stage: precursor and balance checks,
+  robot gate/gripper/HMI state, furnace occupancy/queue/carrier state, and XRD holder/reference/
+  shutter state.
+- Scoped physical inspection evidence by campaign stage and required the console to be entered from
+  the completed 3D walkaround; stale checks and direct console entry cannot unlock campaign HMI
+  controls.
+- Made ordered HMI feedback and a safe-state attestation advance the persisted campaign, account for
+  recovery or cycle time, and return the player to the next physical asset automatically.
+- Browser-played the complete FURN-04 queue transition: three physical checks unlocked the queue HMI,
+  its ordered control sequence advanced the run by 62 minutes, and the room returned with a fresh
+  0/3 walkaround under the active 980 °C profile.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

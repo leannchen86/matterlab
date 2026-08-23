@@ -22,6 +22,10 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
   const [controlFeedback, setControlFeedback] = useState<Record<string, string[]>>({});
   const [immersive, setImmersive] = useState(false);
   const [ambienceOn, setAmbienceOn] = useState(false);
+  const [campaignStage, setCampaignStage] = useState(() => {
+    if (typeof window === 'undefined') return 0;
+    try { return Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').stage ?? 0); } catch { return 0; }
+  });
   const ambienceContext = useRef<AudioContext | null>(null);
 
   const toggleAmbience = async () => {
@@ -69,6 +73,15 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
     const context = ambienceContext.current;
     ambienceContext.current = null;
     if (context) void context.close();
+  }, []);
+
+  useEffect(() => {
+    const followCampaign = (event: Event) => {
+      const stage = Number((event as CustomEvent<{ stage?: number }>).detail?.stage ?? 0);
+      setCampaignStage(stage);
+    };
+    window.addEventListener('mattershift:campaign-state', followCampaign);
+    return () => window.removeEventListener('mattershift:campaign-state', followCampaign);
   }, []);
 
   useEffect(() => {
@@ -124,8 +137,11 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
   };
 
   const openSelectedConsole = () => {
+    const campaignStationId = campaignStage === 1 ? 'PREP-01' : campaignStage <= 3 ? 'ROBO-02' : campaignStage <= 5 ? 'FURN-04' : 'XRD-03';
+    const inspectionKey = campaignStage > 0 && campaignStationId === selectedId ? `${selectedId}:MAT-042:S${campaignStage}` : selectedId;
+    const physicalChecks = inspectionState?.[inspectionKey] ?? [];
     setImmersive(false);
-    window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:open-console', { detail: { stationId: selectedId } })));
+    window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:open-console', { detail: { stationId: selectedId, physicalChecks } })));
   };
 
   const viewport = <div
@@ -159,7 +175,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
     ><span>{ambienceOn ? '◖' : '○'}</span>{ambienceOn ? 'LAB HUM ON' : 'LAB AUDIO'}</button>}
     {mode === '3d' && !immersive && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>HUMAN-SCALE AISLE</small><i>→</i></button>}
     {mode === '3d'
-      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
+      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={campaignStage} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
       : <LabCanvas stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} onSelect={onSelect} />}
   </div>;
 
