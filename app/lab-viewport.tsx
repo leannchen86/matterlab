@@ -30,6 +30,10 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
     if (typeof window === 'undefined') return 'C-42';
     try { return String(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').selected ?? 'C-42'); } catch { return 'C-42'; }
   });
+  const [campaignRunNumber, setCampaignRunNumber] = useState(() => {
+    if (typeof window === 'undefined') return 42;
+    try { return Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').runNumber ?? 42); } catch { return 42; }
+  });
   const ambienceContext = useRef<AudioContext | null>(null);
 
   const toggleAmbience = async () => {
@@ -81,10 +85,11 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
 
   useEffect(() => {
     const followCampaign = (event: Event) => {
-      const detail = (event as CustomEvent<{ stage?: number; selected?: string }>).detail;
+      const detail = (event as CustomEvent<{ stage?: number; selected?: string; runNumber?: number }>).detail;
       const stage = Number(detail?.stage ?? 0);
       setCampaignStage(stage);
       if (detail?.selected) setCampaignSelected(String(detail.selected));
+      if (detail?.runNumber) setCampaignRunNumber(Number(detail.runNumber));
     };
     window.addEventListener('mattershift:campaign-state', followCampaign);
     return () => window.removeEventListener('mattershift:campaign-state', followCampaign);
@@ -144,7 +149,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
 
   const openSelectedConsole = () => {
     const campaignStationId = campaignStage === 1 ? 'PREP-01' : campaignStage <= 3 ? 'ROBO-02' : campaignStage <= 5 ? 'FURN-04' : 'XRD-03';
-    const inspectionKey = campaignStage > 0 && campaignStationId === selectedId ? `${selectedId}:MAT-042:${campaignSelected}:S${campaignStage}` : selectedId;
+    const inspectionKey = campaignStage > 0 && campaignStationId === selectedId ? `${selectedId}:RUN-${campaignRunNumber}:${campaignSelected}:S${campaignStage}` : selectedId;
     const physicalChecks = inspectionState?.[inspectionKey] ?? [];
     setImmersive(false);
     window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:open-console', { detail: { stationId: selectedId, physicalChecks } })));
@@ -181,7 +186,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
     ><span>{ambienceOn ? '◖' : '○'}</span>{ambienceOn ? 'LAB HUM ON' : 'LAB AUDIO'}</button>}
     {mode === '3d' && !immersive && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>HUMAN-SCALE AISLE</small><i>→</i></button>}
     {mode === '3d'
-      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={campaignStage} campaignSelected={campaignSelected} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
+      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={campaignStage} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
       : <LabCanvas stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} onSelect={onSelect} />}
   </div>;
 

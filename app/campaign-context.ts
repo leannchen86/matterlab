@@ -1,0 +1,78 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { getCampaignIdentity, getCampaignSpec } from './campaign-spec';
+import type { Station } from './sim-data';
+
+export type CampaignSnapshot = {
+  stage: number;
+  selected: string;
+  runNumber: number;
+};
+
+const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42 };
+
+function readCampaign(): CampaignSnapshot {
+  if (typeof window === 'undefined') return fallbackCampaign;
+  try {
+    const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}');
+    return {
+      stage: Number(stored.stage ?? fallbackCampaign.stage),
+      selected: String(stored.selected ?? fallbackCampaign.selected),
+      runNumber: Number(stored.runNumber ?? fallbackCampaign.runNumber),
+    };
+  } catch {
+    return fallbackCampaign;
+  }
+}
+
+export function getCampaignStationId(stage: number) {
+  if (stage === 1) return 'PREP-01';
+  if (stage >= 2 && stage <= 3) return 'ROBO-02';
+  if (stage >= 4 && stage <= 5) return 'FURN-04';
+  if (stage >= 6) return 'XRD-03';
+  return '';
+}
+
+export function getCampaignStationView(station: Station, stage: number, selected: string, runNumber: number): Station {
+  const spec = getCampaignSpec(selected);
+  const identity = getCampaignIdentity(runNumber);
+  if (stage === 1) return { ...station, state: 'CAMPAIGN PREP', tone: 'run', meta: `${spec.id} formulation · ${identity.runId}`, technicianView: [`Formula: ${spec.formula}`, `Run: ${identity.runId}`, `Target mass: ${spec.targetMass}`, `Carrier: ${identity.carrier}`] };
+  if (stage === 2) return { ...station, state: 'CLEANLINESS HOLD', tone: 'warn', meta: 'Gripper witness required', technicianView: [`Run: ${identity.runId}`, 'Cell boundary: proven', 'Gripper: cleanliness fault', 'Witness coupon: due'] };
+  if (stage === 3) return { ...station, state: 'DOSING', tone: 'run', meta: `${identity.carrier} · crucible dosing`, technicianView: [`Run: ${identity.runId}`, `Carrier: ${identity.carrier}`, 'Dose positions: 6', 'Gripper witness: passed'] };
+  if (stage === 4) return { ...station, state: 'QUEUE HOLD', tone: 'warn', meta: 'Q01 · RUN-039 active', technicianView: [`Run: ${identity.runId}`, 'Queue position: 01', 'Active profile: RUN-039', 'Estimated wait: 62 min'] };
+  if (stage === 5) return { ...station, state: 'HEATING', tone: 'run', meta: `${spec.temperature} · ${spec.dwell} profile`, technicianView: [`Run: ${identity.runId}`, `Profile: ${spec.profile}`, 'Atmosphere: air', `Carrier: ${identity.carrier}`] };
+  if (stage === 6) return { ...station, state: 'QC HOLD', tone: 'warn', meta: 'Si reference overdue', technicianView: [`Run: ${identity.runId}`, 'Reference: NIST Si', 'Control limit: ±0.05° 2θ', 'Specimen release: held'] };
+  return { ...station, state: 'RESULT REVIEW', tone: 'ready', meta: `${spec.measured}% · ${spec.objectiveMet ? 'target met' : 'valid target miss'}`, technicianView: ['Reference: +0.01° 2θ', `Run: ${identity.runId}`, `Target phase: ${spec.measured}%`, `Objective gap: ${spec.gap}`] };
+}
+
+export function useCampaignSnapshot() {
+  const [campaign, setCampaign] = useState<CampaignSnapshot>(readCampaign);
+
+  useEffect(() => {
+    const followCampaign = (event: Event) => {
+      const detail = (event as CustomEvent<Partial<CampaignSnapshot>>).detail ?? {};
+      setCampaign((current) => ({
+        stage: Number(detail.stage ?? current.stage),
+        selected: String(detail.selected ?? current.selected),
+        runNumber: Number(detail.runNumber ?? current.runNumber),
+      }));
+    };
+    const followStorage = () => setCampaign(readCampaign());
+    window.addEventListener('mattershift:campaign-state', followCampaign);
+    window.addEventListener('storage', followStorage);
+    return () => {
+      window.removeEventListener('mattershift:campaign-state', followCampaign);
+      window.removeEventListener('storage', followStorage);
+    };
+  }, []);
+
+  return campaign;
+}
+
+export function useCampaignStation(station: Station) {
+  const campaign = useCampaignSnapshot();
+  return getCampaignStationId(campaign.stage) === station.id
+    ? getCampaignStationView(station, campaign.stage, campaign.selected, campaign.runNumber)
+    : station;
+}

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getCampaignSpec } from './campaign-spec';
+import { getCampaignIdentity, getCampaignSpec } from './campaign-spec';
+import { getCampaignStationId, getCampaignStationView } from './campaign-context';
 import type { Station } from './sim-data';
 
 type Tab = 'hmi' | 'les' | 'lims' | 'cmms';
@@ -46,33 +47,16 @@ const HMI_OPERATIONS: Record<string, [string, string, string]> = {
   'TGA-01': ['Tare balance channel', 'Prove purge path', 'Home autosampler carousel'],
 };
 
-function getCampaignStationId(stage: number) {
-  if (stage === 1) return 'PREP-01';
-  if (stage >= 2 && stage <= 3) return 'ROBO-02';
-  if (stage >= 4 && stage <= 5) return 'FURN-04';
-  if (stage >= 6) return 'XRD-03';
-  return '';
-}
-
-function getCampaignConsoleStation(station: Station, stage: number, selected: string): Station {
+function getCampaignHmiOperations(stationId: string, stage: number, selected: string, runNumber: number): string[] | null {
   const spec = getCampaignSpec(selected);
-  if (stage === 1) return { ...station, state: 'CAMPAIGN PREP', tone: 'run', meta: `${spec.id} formulation · RUN-042`, technicianView: [`Formula: ${spec.formula}`, 'Run: RUN-042', `Target mass: ${spec.targetMass}`, 'Carrier: BC-042'] };
-  if (stage === 2) return { ...station, state: 'CLEANLINESS HOLD', tone: 'warn', meta: 'Gripper witness required', technicianView: ['Run: RUN-042', 'Cell boundary: proven', 'Gripper: cleanliness fault', 'Witness coupon: due'] };
-  if (stage === 3) return { ...station, state: 'DOSING', tone: 'run', meta: 'BC-042 · crucible dosing', technicianView: ['Run: RUN-042', 'Carrier: BC-042', 'Dose positions: 6', 'Gripper witness: passed'] };
-  if (stage === 4) return { ...station, state: 'QUEUE HOLD', tone: 'warn', meta: 'Q01 · RUN-039 active', technicianView: ['Run: RUN-042', 'Queue position: 01', 'Active profile: RUN-039', 'Estimated wait: 62 min'] };
-  if (stage === 5) return { ...station, state: 'HEATING', tone: 'run', meta: `${spec.temperature} · ${spec.dwell} profile`, technicianView: ['Run: RUN-042', `Profile: ${spec.profile}`, 'Atmosphere: air', 'Carrier: BC-042'] };
-  if (stage === 6) return { ...station, state: 'QC HOLD', tone: 'warn', meta: 'Si reference overdue', technicianView: ['Run: RUN-042', 'Reference: NIST Si', 'Control limit: ±0.05° 2θ', 'Specimen release: held'] };
-  return { ...station, state: 'RESULT REVIEW', tone: 'ready', meta: `${spec.measured}% · ${spec.objectiveMet ? 'target met' : 'valid target miss'}`, technicianView: ['Reference: +0.01° 2θ', 'Run: RUN-042', `Target phase: ${spec.measured}%`, `Objective gap: ${spec.gap}`] };
-}
-
-function getCampaignHmiOperations(stationId: string, stage: number, selected: string): string[] | null {
-  const spec = getCampaignSpec(selected);
+  const identity = getCampaignIdentity(runNumber);
   if (!stage) return null;
   if (stationId === 'ROBO-02' && stage === 2) return ['Verify safeguarded stop', 'Clean gripper tooling', 'Acquire witness coupon'];
-  if (stationId === 'ROBO-02') return ['Scan BC-042 carrier', 'Verify six dose positions', 'Execute crucible dosing'];
-  if (stationId === 'FURN-04' && stage === 4) return ['Read active profile state', 'Verify queue position', 'Confirm BC-042 hold location'];
+  if (stationId === 'ROBO-02') return [`Scan ${identity.carrier} carrier`, 'Verify six dose positions', 'Execute crucible dosing'];
+  if (stationId === 'FURN-04' && stage === 4) return ['Read active profile state', 'Verify queue position', `Confirm ${identity.carrier} hold location`];
   if (stationId === 'FURN-04') return ['Read overtemperature relay', 'Verify door chain', `Start ${spec.profile} profile`];
-  if (stationId === 'XRD-03') return ['Home specimen stage', 'Prove shutter feedback', 'Acquire Si reference'];
+  if (stationId === 'XRD-03' && stage === 6) return ['Home specimen stage', 'Prove shutter feedback', 'Acquire Si reference', `Acquire ${identity.runId} pattern`];
+  if (stationId === 'XRD-03') return ['Review Si control', 'Review phase fit', `Release ${identity.pattern} evidence`];
   return HMI_OPERATIONS[stationId] ?? null;
 }
 
@@ -85,21 +69,23 @@ function getCampaignMethodStep(stage: number) {
 function completeCampaignMachineStage(stage: number) {
   if (stage < 1 || stage > 6) return null;
   try {
-    const current = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; elapsed?: number; insight?: number; [key: string]: unknown };
+    const current = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; elapsed?: number; insight?: number; selected?: string; runNumber?: number; history?: unknown[]; [key: string]: unknown };
     if (Number(current.stage) !== stage) return null;
     const elapsed = Number(current.elapsed ?? 0);
     const insight = Number(current.insight ?? 248);
     const spec = getCampaignSpec(String(current.selected ?? 'C-42'));
+    const identity = getCampaignIdentity(Number(current.runNumber ?? 42));
     const transition = {
-      1: { stage: 2, elapsed: 12, insight, message: 'Prep evidence retained. ROBO-02 stopped on a gripper cleanliness fault before dosing.' },
+      1: { stage: 2, elapsed: 12, insight, message: `${identity.prepSample} evidence retained. ROBO-02 stopped on a gripper cleanliness fault before dosing.` },
       2: { stage: 3, elapsed: elapsed + 18, insight: insight - 8, message: 'Gripper cleaned and witness coupon passed. Robot synthesis resumed with lineage intact.' },
-      3: { stage: 4, elapsed: elapsed + 14, insight, message: 'Six crucibles dosed and BC-042 released. FURN-04 is occupied by RUN-039; RUN-042 is now queue constrained.' },
-      4: { stage: 5, elapsed: elapsed + 62, insight, message: `RUN-039 cooled and unloaded. Queue proof retained; RUN-042 entered ${spec.profile} at ${spec.temperature}.` },
+      3: { stage: 4, elapsed: elapsed + 14, insight, message: `Six crucibles dosed and ${identity.carrier} released. FURN-04 is occupied by RUN-039; ${identity.runId} is now queue constrained.` },
+      4: { stage: 5, elapsed: elapsed + 62, insight, message: `RUN-039 cooled and unloaded. Queue proof retained; ${identity.runId} entered ${spec.profile} at ${spec.temperature}.` },
       5: { stage: 6, elapsed: elapsed + spec.thermalMinutes, insight, message: `${spec.temperature} / ${spec.dwell} thermal trace retained. XRD specimen release is held because the Si reference is overdue.` },
       6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `Reference passed at +0.01° 2θ. ${spec.id} measured ${spec.measured}% target phase: valid evidence, ${spec.objectiveMet ? `${spec.gap} above the objective.` : `${spec.gap.replace('−', '')} below the objective.`}` },
     }[stage];
     if (!transition) return null;
-    const next = { ...current, ...transition };
+    const history = Array.isArray(current.history) ? current.history : [];
+    const next = { ...current, ...transition, history: stage === 6 ? [...history, { runNumber: identity.runNumber, candidate: spec.id, measured: spec.measured, gap: spec.gap, objectiveMet: spec.objectiveMet, elapsed: transition.elapsed }] : history };
     window.localStorage.setItem('mattershift-campaign-v2', JSON.stringify(next));
     window.dispatchEvent(new CustomEvent('mattershift:campaign-state', { detail: next }));
     return transition.stage;
@@ -108,13 +94,14 @@ function completeCampaignMachineStage(stage: number) {
   }
 }
 
-function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignStage = 0, selected = 'C-42'): typeof profiles[string] {
+function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignStage = 0, selected = 'C-42', runNumber = 42): typeof profiles[string] {
   const profile = profiles[stationId] ?? profiles['XRD-03'];
   const spec = getCampaignSpec(selected);
-  if (campaignStage === 1 && stationId === 'PREP-01') return { ...profile, controller: `BAL-01 / LES-${spec.id.replace('-', '')}`, method: ['Scan precursor lots', `Weigh ${spec.id} formulation`, 'Homogenize + seal', 'Release RUN-042'], sample: [spec.id, 'RUN-042-P', 'BC-042'], workOrder: 'MAT-042', service: 'Campaign preparation · active', supplies: [spec.precursorLabel, `target ${spec.targetMass}`, 'sealed liners 14'] };
-  if (campaignStage >= 2 && campaignStage <= 3 && stationId === 'ROBO-02') return { ...profile, controller: 'RC-02 / CAMPAIGN-PLC', safe: ['area scanner clear', 'gate chain closed', 'gripper witness valid'], method: ['Receive BC-042', 'Clean + witness gripper', 'Dose crucibles', 'Write carrier handshake'], sample: ['RUN-042-P', 'BC-042', 'FURN-Q042'], workOrder: 'MAT-042', service: campaignStage === 2 ? 'Gripper cleanliness recovery · active' : 'Campaign dosing · active', health: campaignStage === 2 ? 79 : 90 };
-  if (campaignStage >= 4 && campaignStage <= 5 && stationId === 'FURN-04') return { ...profile, controller: 'TC-04 / MES-Q042', method: ['Accept BC-042', 'Respect active queue', `Load ${spec.temperature} profile`, 'Cool + release'], sample: ['BC-042', spec.profile, 'RUN-042-T'], workOrder: 'MAT-042', service: campaignStage === 4 ? 'Queue 01 · RUN-039 active' : `${spec.profile} · active` };
-  if (campaignStage >= 6 && stationId === 'XRD-03') return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: ['Load NIST Si', 'Prove +0.01° 2θ', 'Acquire RUN-042', `Review ${spec.measured}% result`], sample: ['RUN-042-T', 'XRD-042', `PAT-${spec.id.replace('-', '')}`], workOrder: 'MAT-042', service: campaignStage === 6 ? 'Si reference · release hold' : `Valid result · target ${spec.objectiveMet ? 'met' : 'missed'}`, health: campaignStage === 6 ? 78 : 92 };
+  const identity = getCampaignIdentity(runNumber);
+  if (campaignStage === 1 && stationId === 'PREP-01') return { ...profile, controller: `BAL-01 / LES-${spec.id.replace('-', '')}`, method: ['Scan precursor lots', `Weigh ${spec.id} formulation`, 'Homogenize + seal', `Release ${identity.runId}`], sample: [spec.id, identity.prepSample, identity.carrier], workOrder: `MAT-${identity.suffix}`, service: 'Campaign preparation · active', supplies: [spec.precursorLabel, `target ${spec.targetMass}`, 'sealed liners 14'] };
+  if (campaignStage >= 2 && campaignStage <= 3 && stationId === 'ROBO-02') return { ...profile, controller: 'RC-02 / CAMPAIGN-PLC', safe: ['area scanner clear', 'gate chain closed', 'gripper witness valid'], method: [`Receive ${identity.carrier}`, 'Clean + witness gripper', 'Dose crucibles', 'Write carrier handshake'], sample: [identity.prepSample, identity.carrier, identity.furnaceQueue], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 2 ? 'Gripper cleanliness recovery · active' : 'Campaign dosing · active', health: campaignStage === 2 ? 79 : 90 };
+  if (campaignStage >= 4 && campaignStage <= 5 && stationId === 'FURN-04') return { ...profile, controller: `TC-04 / MES-Q${identity.suffix}`, method: [`Accept ${identity.carrier}`, 'Respect active queue', `Load ${spec.temperature} profile`, 'Cool + release'], sample: [identity.carrier, spec.profile, identity.thermalSample], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 4 ? 'Queue 01 · RUN-039 active' : `${spec.profile} · active` };
+  if (campaignStage >= 6 && stationId === 'XRD-03') return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: ['Load NIST Si', 'Prove +0.01° 2θ', `Acquire ${identity.runId}`, `Review ${spec.measured}% result`], sample: [identity.thermalSample, identity.xrdDataset, identity.pattern], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 6 ? 'Si reference · release hold' : `Valid result · target ${spec.objectiveMet ? 'met' : 'missed'}`, health: campaignStage === 6 ? 78 : 92 };
   if (scenarioId === 'facility' && stationId === 'PREP-01') return { ...profile, controller: 'MOVE-HMI / MES-A2', method: ['Scan both totes', 'Inspect powered jack', 'Secure load + route', 'Retain move receipt'], sample: ['LOT-3024-A', 'MOV-3024', 'REC-BET-02'], workOrder: 'MOV-3024', service: 'Powered-jack pre-use · current', supplies: ['restraint straps 6', 'spill kit sealed', 'tote covers 12'] };
   if (scenarioId === 'facility' && stationId === 'ROBO-02') return { ...profile, method: ['Reserve cross-aisle', 'Park robot', 'Prove safeguarded boundary', 'Release move priority'], sample: ['MOV-3024', 'A2-RESERVE', 'BET-02'], workOrder: 'MOV-3024', service: 'Cross-aisle coordination · active' };
   if (scenarioId === 'facility' && stationId === 'BET-02') return { ...profile, controller: 'BET-02 / GAS-MFD', method: ['Isolate service boundary', 'Verify GAS-41 identity', 'Run leak + control', 'Release data window'], sample: ['GAS-41', 'ALU-21', 'POST-GAS-41'], workOrder: 'GAS-41', service: 'N₂ service transition · active', health: 89 };
@@ -138,13 +125,17 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
     if (typeof window === 'undefined') return 'C-42';
     try { return String(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').selected ?? 'C-42'); } catch { return 'C-42'; }
   });
+  const [campaignRunNumber, setCampaignRunNumber] = useState(() => {
+    if (typeof window === 'undefined') return 42;
+    try { return Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').runNumber ?? 42); } catch { return 42; }
+  });
   const campaignActive = getCampaignStationId(campaignStage) === station.id;
-  const contextKey = campaignActive ? `${station.id}:MAT-042:${campaignSelected}:S${campaignStage}` : station.id;
-  const consoleStation = campaignActive ? getCampaignConsoleStation(station, campaignStage, campaignSelected) : station;
+  const contextKey = campaignActive ? `${station.id}:RUN-${campaignRunNumber}:${campaignSelected}:S${campaignStage}` : station.id;
+  const consoleStation = campaignActive ? getCampaignStationView(station, campaignStage, campaignSelected, campaignRunNumber) : station;
   const session = sessions[contextKey] ?? emptyConsoleSession();
   const completed = session.completed;
   const hmiOperations = session.hmiOperations;
-  const profile = getContextProfile(station.id, scenarioId, campaignActive ? campaignStage : 0, campaignSelected);
+  const profile = getContextProfile(station.id, scenarioId, campaignActive ? campaignStage : 0, campaignSelected, campaignRunNumber);
   const activePhysicalChecks = campaignActive ? (enteredFromLab ? enteredChecks : []) : physicalChecks;
   const recordStationEvent = (type: string, text: string, action?: string) => window.dispatchEvent(new CustomEvent('mattershift:station-event', { detail: { stationId: station.id, type, text, action } }));
   const finish = () => {
@@ -175,9 +166,10 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
 
   useEffect(() => {
     const followCampaign = (event: Event) => {
-      const detail = (event as CustomEvent<{ stage?: number; selected?: string }>).detail;
+      const detail = (event as CustomEvent<{ stage?: number; selected?: string; runNumber?: number }>).detail;
       setCampaignStage(Number(detail?.stage ?? 0));
       if (detail?.selected) setCampaignSelected(String(detail.selected));
+      if (detail?.runNumber) setCampaignRunNumber(Number(detail.runNumber));
     };
     window.addEventListener('mattershift:campaign-state', followCampaign);
     return () => window.removeEventListener('mattershift:campaign-state', followCampaign);
@@ -221,7 +213,7 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
           </nav>
           <div className="console-main">
             <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>WALK <b>{activePhysicalChecks.length}/3</b></span><span><i className={consoleStation.tone === 'warn' ? 'alarm' : consoleStation.tone === 'off' ? '' : 'online'} />{consoleStation.state}</span></div>
-            {tab === 'hmi' && <HmiView station={consoleStation} profile={profile} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
+            {tab === 'hmi' && <HmiView station={consoleStation} profile={profile} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
             {tab === 'les' && <LesView station={consoleStation} profile={profile} campaignStage={campaignActive ? campaignStage : 0} complete={completed.les} onComplete={finish} />}
             {tab === 'lims' && <LimsView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} complete={completed.lims} onComplete={finish} />}
             {tab === 'cmms' && <CmmsView profile={profile} complete={completed.cmms} onComplete={finish} />}
@@ -232,10 +224,10 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   </>;
 }
 
-function HmiView({ station, profile, campaignStage, campaignSelected, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; profile: typeof profiles[string]; campaignStage: number; campaignSelected: string; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
+function HmiView({ station, profile, campaignStage, campaignSelected, campaignRunNumber, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; profile: typeof profiles[string]; campaignStage: number; campaignSelected: string; campaignRunNumber: number; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
   const releaseBlocked = station.tone === 'warn' || station.tone === 'off' || station.tone === 'hold';
   const walkaroundComplete = physicalChecks.length === 3;
-  const operationSteps = getCampaignHmiOperations(station.id, campaignStage, campaignSelected) ?? (station.id === 'FURN-04' && station.state !== 'READY'
+  const operationSteps = getCampaignHmiOperations(station.id, campaignStage, campaignSelected, campaignRunNumber) ?? (station.id === 'FURN-04' && station.state !== 'READY'
     ? ['Read overtemperature relay', 'Verify door chain', 'Confirm chamber occupancy']
     : HMI_OPERATIONS[station.id] ?? HMI_OPERATIONS['XRD-03']);
   const completedOperations = operationSteps.filter((operation) => operations.includes(operation)).length;
@@ -247,12 +239,58 @@ function HmiView({ station, profile, campaignStage, campaignSelected, physicalCh
       <div className="live-readouts">{station.technicianView.map((item, index) => { const [key, value = '—'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b><i style={{ width: `${58 + index * 9}%` }} /></div>; })}</div>
       <div className="permissive-panel"><p className="mini-label">START PERMISSIVES</p>{profile.safe.map((item) => <div key={item}><i className="ok">✓</i><span>{item}</span><b>TRUE</b></div>)}<div><i className={walkaroundComplete ? 'ok' : 'attention'}>{walkaroundComplete ? '✓' : '!'}</i><span>physical walkaround evidence</span><b>{walkaroundComplete ? 'TRUE' : 'HOLD'}</b></div><div><i className={releaseBlocked ? 'attention' : 'ok'}>{releaseBlocked ? '!' : '✓'}</i><span>quality / service release</span><b>{releaseBlocked ? 'HOLD' : 'TRUE'}</b></div></div>
     </div>
+    {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     <div className="hmi-operations">
       <div><p className="mini-label">LOCAL CONTROL SEQUENCE</p><span>{completedOperations} / {operationSteps.length} proven</span></div>
       {operationSteps.map((operation, index) => { const done = operations.includes(operation); const priorComplete = operationSteps.slice(0, index).every((prior) => operations.includes(prior)); const active = walkaroundComplete && priorComplete && !done; return <button key={operation} type="button" className={done ? 'done' : active ? 'active' : ''} disabled={!walkaroundComplete || !priorComplete || done} onClick={() => onOperation(operation)}><i>{done ? '✓' : `0${index + 1}`}</i><b>{operation}</b><small>{done ? 'feedback retained' : active ? 'ready at HMI' : walkaroundComplete ? 'sequence held' : 'walkaround held'}</small></button>; })}
     </div>
-    <ConsoleAction complete={complete} disabled={!walkaroundComplete || !operationsComplete} idle={!walkaroundComplete ? 'WALKAROUND REQUIRED' : operationsComplete ? 'ATTEST SAFE STATE' : 'COMPLETE CONTROL SEQUENCE'} done="SAFE STATE ATTESTED" note={complete ? 'Attestation staged for the LES record.' : !walkaroundComplete ? `${physicalChecks.length}/3 physical inspection points linked. Use 3D focus mode.` : operationsComplete ? 'Physical state and local feedback agree; quality or service holds remain independent.' : `${completedOperations}/3 local subsystem checks retained.`} onClick={onComplete} />
+    <ConsoleAction complete={complete} disabled={!walkaroundComplete || !operationsComplete} idle={!walkaroundComplete ? 'WALKAROUND REQUIRED' : operationsComplete ? 'ATTEST SAFE STATE' : 'COMPLETE CONTROL SEQUENCE'} done="SAFE STATE ATTESTED" note={complete ? 'Attestation staged for the LES record.' : !walkaroundComplete ? `${physicalChecks.length}/3 physical inspection points linked. Use 3D focus mode.` : operationsComplete ? 'Physical state and local feedback agree; quality or service holds remain independent.' : `${completedOperations}/${operationSteps.length} local subsystem checks retained.`} onClick={onComplete} />
   </div>;
+}
+
+const XRD_PEAKS: Record<string, Array<[number, number]>> = {
+  'C-42': [[23.2, .28], [33.1, 1], [40.8, .36], [47.6, .55], [59.2, .72], [69.4, .31]],
+  'Z-17': [[22.9, .22], [29.5, .27], [32.8, 1], [40.4, .41], [47.1, .61], [58.8, .78], [69.1, .38], [74.2, .18]],
+  'D-08': [[23.1, .25], [33.0, 1], [40.6, .34], [47.4, .49], [59.0, .68], [69.3, .29]],
+};
+
+function diffractionPath(peaks: Array<[number, number]>, baseline: number, amplitude: number) {
+  return Array.from({ length: 151 }, (_, index) => {
+    const angle = 10 + index * (70 / 150);
+    const intensity = peaks.reduce((sum, [center, height]) => sum + height * Math.exp(-0.5 * ((angle - center) / .34) ** 2), 0);
+    const x = 42 + index * (584 / 150);
+    const y = baseline - Math.min(1.06, intensity) * amplitude;
+    return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(' ');
+}
+
+function XrdCampaignPanel({ stage, selected, runNumber, operations }: { stage: number; selected: string; runNumber: number; operations: string[] }) {
+  const spec = getCampaignSpec(selected);
+  const identity = getCampaignIdentity(runNumber);
+  const referenceCaptured = stage >= 7 || operations.includes('Acquire Si reference');
+  const sampleCaptured = stage >= 7 || operations.includes(`Acquire ${identity.runId} pattern`);
+  const samplePeaks = XRD_PEAKS[spec.id] ?? XRD_PEAKS['C-42'];
+  return <section className={`campaign-xrd-console${sampleCaptured ? ' result-ready' : ''}`}>
+    <header><div><span>DIFFRACTION ACQUISITION</span><b>{identity.xrdDataset} · Cu Kα · 10–80° 2θ</b></div><em>{sampleCaptured ? 'PATTERN COMPLETE' : referenceCaptured ? 'REFERENCE PASS' : 'CONTROL REQUIRED'}</em></header>
+    <div className="campaign-xrd-layout">
+      <svg viewBox="0 0 660 210" role="img" aria-label={`${identity.runId} simulated XRD reference and diffraction pattern`}>
+        <defs><linearGradient id="xrdFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#4dd5ed" stopOpacity=".25" /><stop offset="1" stopColor="#4dd5ed" stopOpacity="0" /></linearGradient></defs>
+        {[42, 126, 210, 294, 378, 462, 546, 626].map((x) => <line key={`x-${x}`} x1={x} x2={x} y1="17" y2="186" className="grid" />)}
+        {[30, 64, 98, 132, 166].map((y) => <line key={`y-${y}`} x1="42" x2="626" y1={y} y2={y} className="grid" />)}
+        <line x1="42" x2="626" y1="76" y2="76" className="baseline" /><line x1="42" x2="626" y1="174" y2="174" className="baseline" />
+        <text x="48" y="24">NIST Si CONTROL</text><text x="48" y="116">{identity.runId} · {spec.id}</text>
+        {referenceCaptured ? <path d={diffractionPath([[28.44, 1], [47.3, .24], [56.1, .16]], 72, 42)} className="reference-trace" /> : <path d="M42 72 H626" className="awaiting-trace" />}
+        {sampleCaptured ? <><path d={`${diffractionPath(samplePeaks, 172, 58)} L626 174 L42 174 Z`} className="sample-fill" /><path d={diffractionPath(samplePeaks, 172, 58)} className="sample-trace" /></> : <path d="M42 172 H626" className="awaiting-trace" />}
+        {!sampleCaptured && referenceCaptured && <line x1="118" x2="118" y1="106" y2="176" className="scan-sweep" />}
+        <text x="38" y="198">10°</text><text x="324" y="198">2θ</text><text x="609" y="198">80°</text>
+      </svg>
+      <aside>
+        <div className={referenceCaptured ? 'pass' : 'hold'}><span>REFERENCE</span><b>{referenceCaptured ? '+0.01° 2θ' : 'OVERDUE'}</b><small>{referenceCaptured ? 'within ±0.05°' : 'specimen inhibited'}</small></div>
+        <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${spec.measured}%` : '—'}</b><small>{sampleCaptured ? `Rwp ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}%` : 'awaiting pattern'}</small></div>
+        <div className={sampleCaptured ? spec.objectiveMet ? 'pass' : 'miss' : 'waiting'}><span>OBJECTIVE</span><b>{sampleCaptured ? spec.gap : '≥ 96%'}</b><small>{sampleCaptured ? spec.objectiveMet ? 'target met' : 'valid negative' : 'campaign gate'}</small></div>
+      </aside>
+    </div>
+  </section>;
 }
 
 function LesView({ station, profile, campaignStage, complete, onComplete }: { station: Station; profile: typeof profiles[string]; campaignStage: number; complete: boolean; onComplete: () => void }) {

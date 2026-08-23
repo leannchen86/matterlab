@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
+import { useCampaignSnapshot, useCampaignStation } from './campaign-context';
+import { campaignSpecs, getCampaignIdentity, getCampaignSpec } from './campaign-spec';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
 import { baseStations, type Station } from './sim-data';
@@ -77,6 +79,17 @@ function EquipmentGlyph({ type }: { type: string }) {
 }
 
 export function PlannerPanel({ scenario, phase }: { scenario: ScenarioId; phase: number }) {
+  const campaign = useCampaignSnapshot();
+  if (campaign.stage > 0) {
+    const spec = getCampaignSpec(campaign.selected);
+    const identity = getCampaignIdentity(campaign.runNumber);
+    const cursor = campaign.stage >= 7 ? 3 : campaign.stage >= 6 ? 2 : 1;
+    const status = campaign.stage >= 7 ? spec.objectiveMet ? 'TARGET MET · LEARNING' : 'VALID NEGATIVE · LEARNING' : campaign.stage >= 6 ? 'MEASUREMENT GATE' : 'LAB EXECUTION';
+    const request = campaign.stage >= 7 ? `Assimilate ${identity.runId} · ${spec.measured}%` : `Execute ${spec.id} · ${spec.formula}`;
+    const gate = campaign.stage === 2 ? 'Robot cleanliness witness' : campaign.stage === 4 ? 'Capacity-one furnace queue' : campaign.stage === 6 ? 'NIST Si control required' : campaign.stage >= 7 ? `${spec.gap} objective gap · qualified result` : `${identity.runId} physical evidence`;
+    const next = campaign.stage >= 7 ? 'Archive result + propose next candidate' : campaign.stage >= 6 ? 'Acquire qualified diffraction pattern' : 'Advance governed material route';
+    return <section className="rail-section planner-panel campaign-planner"><div className="section-title-row"><p className="section-kicker">AI EXPERIMENT LOOP</p><span className={campaign.stage >= 7 ? 'held' : campaign.stage >= 6 ? 'review' : ''}>{status}</span></div><div className="planner-loop">{['PLAN', 'EXECUTE', 'MEASURE', 'LEARN'].map((label, index) => <div key={label} className={index < cursor ? 'passed' : index === cursor ? 'current' : ''}><i>{index < cursor ? '✓' : `0${index + 1}`}</i><span>{label}</span></div>)}</div><div className="design-space campaign-mini-space" style={{ '--design-accent': '#4dd5ed' } as React.CSSProperties}><div className="design-space-head"><span>CAMPAIGN SPACE</span><b>{identity.runId} · {spec.id}</b></div><svg viewBox="0 0 100 74" role="img" aria-label={`${spec.id} in the campaign composition and temperature design space`}><path className="space-contour" d="M10 59 C24 25, 50 14, 90 31 M8 68 C34 43, 64 32, 94 18" />{campaignSpecs.map((candidate) => <g key={candidate.id} className={candidate.id === spec.id ? 'proposal-point' : 'measured-point'} transform={`translate(${candidate.point[0] / 3.2} ${candidate.point[1] / 2.43})`}><circle r={candidate.id === spec.id ? 5.2 : 2.2} />{candidate.id === spec.id && <path d="M-3 0H3M0-3V3" />}</g>)}<text x="6" y="70">Ca-rich</text><text x="76" y="70">Ti-rich</text></svg></div><div className="planner-request"><span>MODEL / RUN REQUEST</span><b>{request}</b></div><div className="planner-gate"><i>{campaign.stage >= 7 ? 'MODEL GATE' : 'TECH GATE'}</i><div><b>{gate}</b><span>Next: {next}</span></div></div></section>;
+  }
   const states = {
     xrd: {
       request: 'Increase dwell · 4 h → 6 h', gate: 'Unresolved 36.1° reflection', next: 'SEM/EDS follow-up',
@@ -174,7 +187,8 @@ export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | '
     return station;
   }), [phase, scenarioId]);
 
-  const selected = stations.find((station) => station.id === selectedId) ?? stations[0];
+  const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[0];
+  const selected = useCampaignStation(selectedBase);
   const completed = phase >= 5 ? 5 : Math.min(4, phase + 1);
   const progress = Math.round((completed / 5) * 100);
   const appendLog = (type: string, text: string, add = 0) => {

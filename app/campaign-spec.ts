@@ -42,3 +42,18 @@ export const campaignSpecs: CampaignSpec[] = [
 export function getCampaignSpec(id?: string) {
   return campaignSpecs.find((candidate) => candidate.id === id) ?? campaignSpecs[0];
 }
+
+export function getCampaignIdentity(runNumber = 42) {
+  const suffix = String(runNumber).padStart(3, '0');
+  return {
+    runNumber,
+    suffix,
+    runId: `RUN-${suffix}`,
+    carrier: `BC-${suffix}`,
+    prepSample: `RUN-${suffix}-P`,
+    thermalSample: `RUN-${suffix}-T`,
+    xrdDataset: `XRD-${suffix}`,
+    pattern: `PAT-${suffix}`,
+    furnaceQueue: `FURN-Q${suffix}`,
+  };
+}

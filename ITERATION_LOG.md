@@ -1020,6 +1020,66 @@ interactive without producing a different experiment.
   a fresh 0/3 PREP walkaround, Zr-doped formula, 22.50 g mass target, Z17-1020-3H30 furnace profile,
   330-minute thermal cycle, and a green 96.7% target-met result at +454 minutes.
 
+## Critique 57: completed experiments did not become model memory
+
+A result changed insight points, but the next campaign looked like a reset of the same RUN-042.
+Measured outcomes did not appear in the design space, candidate cards, or a persistent campaign
+record, so the AI loop stopped at `LEARN` instead of actually learning across experiments.
+
+### Changes
+
+- Added a persistent campaign result history with run number, candidate, measured target fraction,
+  objective gap, validity outcome, and elapsed laboratory time.
+- Plotted recent campaign results directly in the composition/temperature design space and added a
+  compact model-memory ledger; candidate cards now distinguish predictions from measured outcomes.
+- Assigned a new governed identity to each experiment (`RUN-043`, `BC-043`, `RUN-043-P`,
+  `RUN-043-T`, `XRD-043`, and `PAT-043`) and propagated it through the room, queue, HMI operations,
+  LES/LIMS records, and schedule.
+- Included run number in physical-inspection and console-session keys so repeating the same candidate
+  cannot inherit completed evidence from its previous execution.
+- Browser-archived Z-17 / RUN-042 and confirmed the next planner opened as MAT-043 / RUN-043 with the
+  96.7% result plotted, the candidate marked measured, a model-memory row retained, and all route
+  equipment reset for a genuinely new experiment.
+
+## Critique 58: XRD measurement happened off-screen
+
+The XRD stage behaved like a generic equipment checklist and then revealed a result in the campaign
+planner. The player never saw a reference pattern, specimen acquisition, fit quality, or the evidence
+that separated a qualified measurement from a number appearing in the UI.
+
+### Changes
+
+- Added an instrument-native diffraction acquisition panel inside the XRD HMI with separate NIST Si
+  and specimen trace bands, 10–80° 2θ framing, and candidate-specific simulated peak patterns.
+- Expanded the governed sequence to home the specimen stage, prove shutter feedback, acquire the Si
+  reference, and only then acquire the campaign pattern; each step visibly changes the instrument
+  state and the specimen remains inhibited until the control passes.
+- Added reference offset and limit, fitted phase fraction, Rwp, objective gap, and explicit target-met
+  versus valid-negative verdicts without conflating scientific outcome with data validity.
+- Browser-ran D-08 / RUN-043 through preparation, robot recovery and dosing, furnace queue and 900 °C
+  six-hour profile, and XRD qualification. The console showed a +0.01° control pass followed by a
+  distinct 95.1% pattern at Rwp 8.1% and a valid −0.9 pp target miss, which then entered the campaign
+  design space and persistent two-run model memory.
+
+## Critique 59: the surrounding console contradicted the active campaign
+
+The 3D room and station modal understood the active run, but the persistent right rail could still
+show incident-era station readouts, a different QC excursion, and an unrelated model request. That
+made the same instrument appear to occupy two incompatible states.
+
+### Changes
+
+- Added a shared campaign-context adapter that converts the persisted run, candidate, and stage into
+  the station state and technician readouts used throughout every shift view.
+- Made the main station inspector and action card show the active campaign identity, current physical
+  gate, qualified result, and objective gap instead of the underlying incident when those overlap.
+- Replaced the generic planner panel during a campaign with a run-specific PLAN → EXECUTE → MEASURE →
+  LEARN state, candidate design-space marker, model request, and the actual robot, furnace, XRD, or
+  learning gate.
+- Browser-verified that D-08 / RUN-043 now appears consistently as a 95.1% valid negative in the 3D
+  twin, campaign action card, XRD inspector, and AI loop, with no stale +0.17° result or unrelated
+  six-hour proposal in the active right-rail context.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

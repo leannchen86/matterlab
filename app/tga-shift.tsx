@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
+import { useCampaignStation } from './campaign-context';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
 import { PlannerPanel, ShiftDeckModal, type ScenarioId } from './scenario-shifts';
@@ -63,7 +64,8 @@ export function TgaShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void }) {
     return { ...station, state: phase >= 5 ? 'RECHECK QUEUED' : 'REVIEW', tone: 'warn', meta: 'Mass step coincides with purge transient', technicianView: ['Mass onset: 412 °C', 'Heat-flow event: 438 °C', 'Purge transient: 412.5 °C', `AI eligibility: ${phase >= 5 ? 'held' : 'review'}`] };
   }), [phase]);
 
-  const selected = stations.find((station) => station.id === selectedId) ?? stations[6];
+  const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[6];
+  const selected = useCampaignStation(selectedBase);
   const completed = phase >= 5 ? 5 : phase + 1;
   const progress = Math.round(completed / 5 * 100);
   const appendLog = (type: string, text: string, add = 0) => { const next = minute + add; setMinute(next); setLog((items) => [...items, { time: formatTime(next), type, text }]); };

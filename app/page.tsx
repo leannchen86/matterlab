@@ -3,6 +3,8 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
+import { useCampaignSnapshot, useCampaignStation } from './campaign-context';
+import { getCampaignIdentity, getCampaignSpec } from './campaign-spec';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
 import { baseStations, initialLog, type Station } from './sim-data';
@@ -99,7 +101,8 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     return station;
   }), [phase]);
 
-  const selected = stations.find((station) => station.id === selectedId) ?? stations[0];
+  const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[0];
+  const selected = useCampaignStation(selectedBase);
   const completedTasks = phase === 0 ? 2 : phase === 1 ? 3 : phase === 2 ? 4 : phase === 3 ? 5 : phase === 4 ? 5 : phase === 5 ? 6 : 7;
   const progress = Math.round((completedTasks / 7) * 100);
   const allQcChecks = Object.values(qcChecks).every(Boolean);
@@ -294,7 +297,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         </section>
 
         <aside className="right-rail">
-          <ActionPanel phase={phase} onQc={openQc} onLineage={openLineage} onRelease={releaseCarrier} onAdvance={advanceRun} onEvidence={() => setModal('evidence')} onSem={() => { setSelectedId('SEM-01'); setModal('sem'); }} onComplete={() => setModal('complete')} />
+          <ActionPanel phase={phase} onCampaign={() => setModal('campaign')} onQc={openQc} onLineage={openLineage} onRelease={releaseCarrier} onAdvance={advanceRun} onEvidence={() => setModal('evidence')} onSem={() => { setSelectedId('SEM-01'); setModal('sem'); }} onComplete={() => setModal('complete')} />
 
           <section className="rail-section station-inspector">
             <div className="section-title-row"><p className="section-kicker">STATION INSPECTOR</p><span className={selected.tone}>{selected.state}</span></div>
@@ -347,7 +350,23 @@ function Score({ label, value }: { label: string; value: number }) {
   return <div className="score-row"><div><span>{label}</span><b>{value}</b></div><div className="score-track"><i style={{ width: `${value}%` }} /></div></div>;
 }
 
-function ActionPanel({ phase, onQc, onLineage, onRelease, onAdvance, onEvidence, onSem, onComplete }: { phase: number; onQc: () => void; onLineage: () => void; onRelease: () => void; onAdvance: () => void; onEvidence: () => void; onSem: () => void; onComplete: () => void }) {
+function ActionPanel({ phase, onCampaign, onQc, onLineage, onRelease, onAdvance, onEvidence, onSem, onComplete }: { phase: number; onCampaign: () => void; onQc: () => void; onLineage: () => void; onRelease: () => void; onAdvance: () => void; onEvidence: () => void; onSem: () => void; onComplete: () => void }) {
+  const campaign = useCampaignSnapshot();
+  if (campaign.stage > 0) {
+    const spec = getCampaignSpec(campaign.selected);
+    const identity = getCampaignIdentity(campaign.runNumber);
+    const campaignStates = {
+      1: { tag: 'CAMPAIGN EXECUTION', title: `${identity.runId} powder preparation`, body: `${spec.formula} is released to PREP-01. Physical lot, mass, and enclosure checks own the next gate.`, metric: spec.targetMass, tone: 'run' },
+      2: { tag: 'ROBOT CELL HOLD', title: 'Gripper cleanliness fault', body: 'The robot stopped before dosing. A cleaned gripper and witness coupon are required before material behavior can be trusted.', metric: identity.runId, tone: 'warn' },
+      3: { tag: 'ROBOT SYNTHESIS', title: `${identity.carrier} in dosing`, body: 'Six crucible positions are executing under the governed carrier handshake.', metric: '6 positions', tone: 'run' },
+      4: { tag: 'FURNACE BOTTLENECK', title: `${identity.runId} queued`, body: 'FURN-04 is capacity one. RUN-039 must complete and the carrier hold location must be proven.', metric: 'Q01 · 62 min', tone: 'warn' },
+      5: { tag: 'THERMAL EXECUTION', title: `${spec.profile} active`, body: `${identity.thermalSample} is under the full ${spec.temperature} / ${spec.dwell} governed thermal history.`, metric: `${spec.thermalMinutes} min`, tone: 'run' },
+      6: { tag: 'XRD QUALITY GATE', title: `${identity.runId} specimen held`, body: 'A current NIST Si reference must pass before the campaign diffraction pattern can be acquired.', metric: '±0.05° 2θ', tone: 'warn' },
+      7: { tag: spec.objectiveMet ? 'CAMPAIGN TARGET MET' : 'VALID NEGATIVE', title: `${identity.runId} · ${spec.measured}% phase`, body: `The Si control passed at +0.01° 2θ. This qualified result is retained for the next model proposal.`, metric: spec.gap, tone: 'ready' },
+    } as const;
+    const state = campaignStates[campaign.stage as keyof typeof campaignStates] ?? campaignStates[7];
+    return <section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>RUN-{identity.suffix}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={onCampaign}>OPEN CAMPAIGN CONTROL<span>→</span></button></section>;
+  }
   const states = [
     { tag: 'QC EXCURSION', title: 'XRD-03 position drift', body: 'Campaign results may be biased. Run the reference material check before releasing held samples.', metric: '+0.17° 2θ', action: 'OPEN QC WORKFLOW', fn: onQc, tone: 'warn' },
     { tag: 'IDENTITY GATE', title: 'Carrier BC-184 on hold', body: 'Robot handshake is blocked until all six physical labels reconcile to the work-order manifest.', metric: '6 specimens', action: 'SCAN CARRIER', fn: onLineage, tone: 'warn' },
