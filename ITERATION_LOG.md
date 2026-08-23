@@ -1080,6 +1080,39 @@ made the same instrument appear to occupy two incompatible states.
   twin, campaign action card, XRD inspector, and AI loop, with no stale +0.17° result or unrelated
   six-hour proposal in the active right-rail context.
 
+## Critique 60: robot synthesis was still a generic button sequence
+
+The 3D cell contained a convincing articulated arm, but its local HMI did not expose a cell program,
+material positions, carrier binding, or mass execution. The player could not read how the robot was
+actually turning a formulation into physical crucibles.
+
+### Changes
+
+- Added a robot-cell program view with a safeguarded boundary, articulated arm pose, gripper state,
+  carrier infeed, dotted motion path, and a six-position crucible deck.
+- Bound recovery and dosing visuals to the ordered HMI feedback: safeguard proof, tool cleaning,
+  witness acquisition, carrier scan, position proof, and final dose execution each change the cell.
+- Converted each candidate's total target mass into a per-position program and retained both values;
+  C-42 / RUN-044 therefore executes `4.00 g × 6` as a `24.00 g` total under BC-044.
+- Browser-verified recovery, the pre-execution program-proven state, the fully dosed six-position
+  state, and the stacked narrow-display console. Also separated cleaning-mode readiness from the
+  gripper witness so the recovery permissive no longer claims a not-yet-acquired witness is valid.
+
+## Critique 61: the furnace hid both the bottleneck and thermal history
+
+FURN-04 reported a queue and a profile name, but the capacity constraint and the scientific thermal
+history were not visible where the player operated the furnace.
+
+### Changes
+
+- Added a capacity-one queue HMI that shows RUN-039 physically occupying the chamber, RUN-044 / BC-044
+  in Q01, the 62-minute release boundary, hold-location proof, and the downstream time horizon.
+- Added candidate-specific ramp, dwell, and cool traces with setpoint versus actual curves, total
+  thermal duration, atmosphere, overtemperature feedback, door-chain proof, and a live start cursor.
+- Browser-ran C-42 through the queue and then loaded C42-980-4H, confirming the HMI changed from a
+  62-minute occupancy hold to a 980 °C / 4.0-hour / 360-minute profile and only displayed `PROFILE
+  ACTIVE` after all safety feedback and the explicit start command were retained.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

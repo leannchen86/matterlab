@@ -99,7 +99,7 @@ function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignSt
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
   if (campaignStage === 1 && stationId === 'PREP-01') return { ...profile, controller: `BAL-01 / LES-${spec.id.replace('-', '')}`, method: ['Scan precursor lots', `Weigh ${spec.id} formulation`, 'Homogenize + seal', `Release ${identity.runId}`], sample: [spec.id, identity.prepSample, identity.carrier], workOrder: `MAT-${identity.suffix}`, service: 'Campaign preparation · active', supplies: [spec.precursorLabel, `target ${spec.targetMass}`, 'sealed liners 14'] };
-  if (campaignStage >= 2 && campaignStage <= 3 && stationId === 'ROBO-02') return { ...profile, controller: 'RC-02 / CAMPAIGN-PLC', safe: ['area scanner clear', 'gate chain closed', 'gripper witness valid'], method: [`Receive ${identity.carrier}`, 'Clean + witness gripper', 'Dose crucibles', 'Write carrier handshake'], sample: [identity.prepSample, identity.carrier, identity.furnaceQueue], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 2 ? 'Gripper cleanliness recovery · active' : 'Campaign dosing · active', health: campaignStage === 2 ? 79 : 90 };
+  if (campaignStage >= 2 && campaignStage <= 3 && stationId === 'ROBO-02') return { ...profile, controller: 'RC-02 / CAMPAIGN-PLC', safe: campaignStage === 2 ? ['area scanner clear', 'gate chain closed', 'cleaning mode selected'] : ['area scanner clear', 'gate chain closed', 'gripper witness valid'], method: [`Receive ${identity.carrier}`, 'Clean + witness gripper', 'Dose crucibles', 'Write carrier handshake'], sample: [identity.prepSample, identity.carrier, identity.furnaceQueue], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 2 ? 'Gripper cleanliness recovery · active' : 'Campaign dosing · active', health: campaignStage === 2 ? 79 : 90 };
   if (campaignStage >= 4 && campaignStage <= 5 && stationId === 'FURN-04') return { ...profile, controller: `TC-04 / MES-Q${identity.suffix}`, method: [`Accept ${identity.carrier}`, 'Respect active queue', `Load ${spec.temperature} profile`, 'Cool + release'], sample: [identity.carrier, spec.profile, identity.thermalSample], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 4 ? 'Queue 01 · RUN-039 active' : `${spec.profile} · active` };
   if (campaignStage >= 6 && stationId === 'XRD-03') return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: ['Load NIST Si', 'Prove +0.01° 2θ', `Acquire ${identity.runId}`, `Review ${spec.measured}% result`], sample: [identity.thermalSample, identity.xrdDataset, identity.pattern], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 6 ? 'Si reference · release hold' : `Valid result · target ${spec.objectiveMet ? 'met' : 'missed'}`, health: campaignStage === 6 ? 78 : 92 };
   if (scenarioId === 'facility' && stationId === 'PREP-01') return { ...profile, controller: 'MOVE-HMI / MES-A2', method: ['Scan both totes', 'Inspect powered jack', 'Secure load + route', 'Retain move receipt'], sample: ['LOT-3024-A', 'MOV-3024', 'REC-BET-02'], workOrder: 'MOV-3024', service: 'Powered-jack pre-use · current', supplies: ['restraint straps 6', 'spill kit sealed', 'tote covers 12'] };
@@ -239,6 +239,8 @@ function HmiView({ station, profile, campaignStage, campaignSelected, campaignRu
       <div className="live-readouts">{station.technicianView.map((item, index) => { const [key, value = '—'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b><i style={{ width: `${58 + index * 9}%` }} /></div>; })}</div>
       <div className="permissive-panel"><p className="mini-label">START PERMISSIVES</p>{profile.safe.map((item) => <div key={item}><i className="ok">✓</i><span>{item}</span><b>TRUE</b></div>)}<div><i className={walkaroundComplete ? 'ok' : 'attention'}>{walkaroundComplete ? '✓' : '!'}</i><span>physical walkaround evidence</span><b>{walkaroundComplete ? 'TRUE' : 'HOLD'}</b></div><div><i className={releaseBlocked ? 'attention' : 'ok'}>{releaseBlocked ? '!' : '✓'}</i><span>quality / service release</span><b>{releaseBlocked ? 'HOLD' : 'TRUE'}</b></div></div>
     </div>
+    {campaignStage >= 2 && campaignStage <= 3 && station.id === 'ROBO-02' && <RobotCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
+    {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     <div className="hmi-operations">
       <div><p className="mini-label">LOCAL CONTROL SEQUENCE</p><span>{completedOperations} / {operationSteps.length} proven</span></div>
@@ -246,6 +248,96 @@ function HmiView({ station, profile, campaignStage, campaignSelected, campaignRu
     </div>
     <ConsoleAction complete={complete} disabled={!walkaroundComplete || !operationsComplete} idle={!walkaroundComplete ? 'WALKAROUND REQUIRED' : operationsComplete ? 'ATTEST SAFE STATE' : 'COMPLETE CONTROL SEQUENCE'} done="SAFE STATE ATTESTED" note={complete ? 'Attestation staged for the LES record.' : !walkaroundComplete ? `${physicalChecks.length}/3 physical inspection points linked. Use 3D focus mode.` : operationsComplete ? 'Physical state and local feedback agree; quality or service holds remain independent.' : `${completedOperations}/${operationSteps.length} local subsystem checks retained.`} onClick={onComplete} />
   </div>;
+}
+
+const CRUCIBLE_POSITIONS = [[362, 64], [408, 64], [454, 64], [362, 116], [408, 116], [454, 116]];
+
+function RobotCampaignPanel({ stage, selected, runNumber, operations }: { stage: number; selected: string; runNumber: number; operations: string[] }) {
+  const spec = getCampaignSpec(selected);
+  const identity = getCampaignIdentity(runNumber);
+  const recovery = stage === 2;
+  const boundaryProven = stage >= 3 || operations.includes('Verify safeguarded stop');
+  const toolClean = stage >= 3 || operations.includes('Clean gripper tooling');
+  const witnessPassed = stage >= 3 || operations.includes('Acquire witness coupon');
+  const carrierScanned = stage >= 3 && operations.includes(`Scan ${identity.carrier} carrier`);
+  const positionsProven = stage >= 3 && operations.includes('Verify six dose positions');
+  const dosingComplete = stage >= 3 && operations.includes('Execute crucible dosing');
+  const perPosition = `${(Number.parseFloat(spec.targetMass) / 6).toFixed(2)} g`;
+  const armPath = recovery
+    ? witnessPassed ? 'M178 96 L238 58 L302 83' : toolClean ? 'M178 96 L224 129 L302 126' : 'M178 96 L232 83 L278 104'
+    : dosingComplete ? 'M178 96 L272 52 L408 90' : positionsProven ? 'M178 96 L278 70 L362 64' : carrierScanned ? 'M178 96 L252 126 L322 132' : 'M178 96 L228 74 L270 92';
+  const endpoint = recovery
+    ? witnessPassed ? [302, 83] : toolClean ? [302, 126] : [278, 104]
+    : dosingComplete ? [408, 90] : positionsProven ? [362, 64] : carrierScanned ? [322, 132] : [270, 92];
+  const status = recovery ? witnessPassed ? 'WITNESS PASS' : toolClean ? 'CLEANING COMPLETE' : boundaryProven ? 'CLEANING ENABLED' : 'SAFEGUARD HOLD' : dosingComplete ? 'DOSE COMPLETE' : positionsProven ? 'PROGRAM PROVEN' : carrierScanned ? 'CARRIER BOUND' : 'IDENTITY REQUIRED';
+  return <section className={`campaign-robot-console${dosingComplete || witnessPassed ? ' operation-complete' : ''}`}>
+    <header><div><span>ROBOT CELL PROGRAM</span><b>RC-02 · MAT-{identity.suffix} · {spec.id}</b></div><em>{status}</em></header>
+    <div className="campaign-robot-layout">
+      <svg viewBox="0 0 520 180" role="img" aria-label={`${identity.runId} robotic ${recovery ? 'gripper recovery' : 'six-position dosing'} program`}>
+        <defs><pattern id="robotGrid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" className="grid" /></pattern><linearGradient id="robotArmMetal" x1="0" x2="1"><stop stopColor="#a9bac2" /><stop offset=".55" stopColor="#536977" /><stop offset="1" stopColor="#c8d3d6" /></linearGradient></defs>
+        <rect width="520" height="180" fill="url(#robotGrid)" />
+        <path d="M20 18 H488 V160 H20 Z" className={boundaryProven ? 'cell-boundary proven' : 'cell-boundary'} />
+        <path d="M24 150 H142 V119 H24" className="feed-zone" /><text x="32" y="139">{identity.carrier} INFEED</text>
+        <rect x="290" y="38" width="188" height="104" rx="4" className="dose-deck" /><text x="302" y="53">6-POSITION CRUCIBLE DECK</text>
+        {!recovery && <path d="M322 132 C349 125 350 73 362 64 S397 113 408 116 S442 72 454 64" className={positionsProven ? 'dose-path proven' : 'dose-path'} />}
+        {CRUCIBLE_POSITIONS.map(([x, y], index) => <g key={`${x}-${y}`} className={`crucible-position${positionsProven ? ' proven' : ''}${dosingComplete ? ' dosed' : ''}`}><circle cx={x} cy={y} r="13" /><circle cx={x} cy={y} r="6" /><text x={x - 4} y={y + 3}>{index + 1}</text></g>)}
+        <circle cx="178" cy="96" r="30" className="robot-base" /><circle cx="178" cy="96" r="15" className="robot-joint" />
+        <path d={armPath} className={`robot-arm-path${positionsProven && !dosingComplete ? ' executing' : ''}`} />
+        <circle cx="232" cy="83" r="10" className="robot-joint arm-joint" /><circle cx={endpoint[0]} cy={endpoint[1]} r="9" className="robot-joint tool-joint" />
+        <path d={`M${endpoint[0] - 9} ${endpoint[1] + 7} l-6 10 M${endpoint[0] + 9} ${endpoint[1] + 7} l6 10`} className={witnessPassed ? 'gripper clean' : 'gripper'} />
+        <text x="148" y="139">R6-850 ARM</text><text x="294" y="156">{spec.formula} · {perPosition} / POSITION</text>
+      </svg>
+      <aside>
+        <div className={carrierScanned || recovery ? recovery ? 'waiting' : 'pass' : 'hold'}><span>CARRIER</span><b>{recovery ? 'NOT LOADED' : identity.carrier}</b><small>{recovery ? 'recovery mode' : carrierScanned ? 'identity bound' : 'scan required'}</small></div>
+        <div className={witnessPassed ? 'pass' : toolClean ? 'review' : 'hold'}><span>TOOL WITNESS</span><b>{witnessPassed ? 'PASS' : toolClean ? 'DUE' : 'CONTAM'}</b><small>{witnessPassed ? 'coupon retained' : toolClean ? 'acquire coupon' : 'clean gripper'}</small></div>
+        <div className={dosingComplete ? 'pass' : positionsProven ? 'review' : 'waiting'}><span>MASS PROGRAM</span><b>{perPosition} × 6</b><small>{dosingComplete ? `${spec.targetMass} total` : positionsProven ? 'positions proven' : 'execution held'}</small></div>
+      </aside>
+    </div>
+  </section>;
+}
+
+function FurnaceCampaignPanel({ stage, selected, runNumber, operations }: { stage: number; selected: string; runNumber: number; operations: string[] }) {
+  const spec = getCampaignSpec(selected);
+  const identity = getCampaignIdentity(runNumber);
+  const queued = stage === 4;
+  const profileRead = operations.includes(queued ? 'Read active profile state' : 'Read overtemperature relay');
+  const secondGate = operations.includes(queued ? 'Verify queue position' : 'Verify door chain');
+  const finalGate = operations.includes(queued ? `Confirm ${identity.carrier} hold location` : `Start ${spec.profile} profile`);
+  const setpoint = Number.parseFloat(spec.temperature);
+  const dwellMinutes = Number.parseFloat(spec.dwell) * 60;
+  const dwellFraction = Math.min(.66, Math.max(.42, dwellMinutes / spec.thermalMinutes));
+  const rampEnd = 132;
+  const dwellEnd = rampEnd + dwellFraction * 300;
+  const temperatureY = 146 - Math.min(1, setpoint / 1100) * 108;
+  const thermalPath = `M42 146 C70 144 94 102 ${rampEnd} ${temperatureY} L${dwellEnd.toFixed(0)} ${temperatureY} C${(dwellEnd + 31).toFixed(0)} ${temperatureY + 8} 449 128 478 146`;
+  const actualPath = `M42 147 C70 145 96 105 ${rampEnd} ${temperatureY + 3} L${dwellEnd.toFixed(0)} ${temperatureY + 3} C${(dwellEnd + 35).toFixed(0)} ${temperatureY + 12} 452 132 478 147`;
+  const status = queued ? finalGate ? 'QUEUE PROVEN' : secondGate ? 'LOCATION CHECK' : profileRead ? 'Q01 CONFIRMED' : 'OCCUPANCY HOLD' : finalGate ? 'PROFILE ACTIVE' : secondGate ? 'START ENABLED' : profileRead ? 'SAFETY CHAIN' : 'RECIPE LOADED';
+  return <section className={`campaign-furnace-console${finalGate ? ' operation-complete' : ''}`}>
+    <header><div><span>THERMAL PROCESS CONTROL</span><b>TC-04 / OT-04 · MAT-{identity.suffix} · {spec.profile}</b></div><em>{status}</em></header>
+    <div className="campaign-furnace-layout">
+      <svg viewBox="0 0 520 180" role="img" aria-label={queued ? `${identity.runId} furnace queue behind RUN-039` : `${identity.runId} ${spec.temperature} ${spec.dwell} thermal profile`}>
+        <defs><pattern id="furnaceGrid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" className="grid" /></pattern><linearGradient id="furnaceGlow" x1="0" x2="1"><stop stopColor="#ff9a58" stopOpacity=".12" /><stop offset=".5" stopColor="#ff9a58" stopOpacity=".55" /><stop offset="1" stopColor="#ffca79" stopOpacity=".12" /></linearGradient></defs>
+        <rect width="520" height="180" fill="url(#furnaceGrid)" />
+        {queued ? <>
+          <text x="24" y="25">CAPACITY-ONE RESOURCE · PHYSICAL OCCUPANCY</text>
+          <rect x="26" y="42" width="170" height="91" rx="4" className="furnace-chamber" /><rect x="43" y="57" width="136" height="58" rx="3" className="furnace-hot-zone" /><path d="M54 103 C74 58 95 111 115 67 S153 105 169 64" className="heat-wave" /><text x="65" y="88">RUN-039 ACTIVE</text><text x="71" y="103">62 MIN REMAINING</text>
+          <path d="M204 87 H252" className={finalGate ? 'queue-arrow released' : 'queue-arrow'} /><rect x="258" y="53" width="205" height="70" rx="3" className={secondGate ? 'queue-carrier proven' : 'queue-carrier'} /><text x="278" y="77">Q01 · {identity.runId}</text><text x="278" y="93">{identity.carrier} · {spec.profile}</text><text x="278" y="108">HOLD LOCATION {finalGate ? 'PROVEN' : 'PENDING'}</text>
+          <line x1="28" y1="151" x2="470" y2="151" className="timeline" /><rect x="28" y="145" width="206" height="12" className="timeline-active" /><rect x="237" y="145" width="222" height="12" className={finalGate ? 'timeline-queued proven' : 'timeline-queued'} /><text x="32" y="171">NOW</text><text x="224" y="171">+62 MIN</text><text x="436" y="171">+{62 + spec.thermalMinutes} MIN</text>
+        </> : <>
+          {[42, 146, 250, 354, 478].map((x) => <line key={`fx-${x}`} x1={x} x2={x} y1="23" y2="148" className="plot-grid" />)}{[38, 74, 110, 146].map((y) => <line key={`fy-${y}`} x1="42" x2="478" y1={y} y2={y} className="plot-grid" />)}
+          <text x="12" y="42">{spec.temperature}</text><text x="18" y="149">23 °C</text><text x="40" y="169">0</text><text x="224" y="169">TIME · MIN</text><text x="460" y="169">{spec.thermalMinutes}</text>
+          <path d={thermalPath} className="thermal-setpoint" /><path d={actualPath} className={finalGate ? 'thermal-actual active' : 'thermal-actual'} />
+          <line x1={rampEnd} x2={rampEnd} y1="28" y2="151" className="phase-mark" /><line x1={dwellEnd} x2={dwellEnd} y1="28" y2="151" className="phase-mark" /><text x="75" y="27">RAMP</text><text x={rampEnd + 15} y="27">DWELL · {spec.dwell}</text><text x={dwellEnd + 14} y="27">COOL</text>
+          {finalGate && <g className="profile-cursor"><line x1="72" x2="72" y1="27" y2="151" /><circle cx="72" cy="131" r="4" /><text x="79" y="137">PROFILE STARTED</text></g>}
+        </>}
+      </svg>
+      <aside>
+        <div className={profileRead ? 'pass' : 'hold'}><span>{queued ? 'OCCUPANCY' : 'OVERTEMP'}</span><b>{queued ? 'RUN-039' : profileRead ? 'ARMED' : 'READ'}</b><small>{queued ? 'capacity 1 / 1' : profileRead ? 'relay feedback true' : 'proof required'}</small></div>
+        <div className={secondGate ? 'pass' : 'waiting'}><span>{queued ? 'QUEUE' : 'DOOR CHAIN'}</span><b>{queued ? 'Q01' : secondGate ? 'CLOSED' : '—'}</b><small>{queued ? identity.carrier : secondGate ? 'interlock proven' : 'awaiting sequence'}</small></div>
+        <div className={finalGate ? 'pass' : 'waiting'}><span>{queued ? 'RELEASE' : 'THERMAL DOSE'}</span><b>{queued ? '62 min' : spec.temperature}</b><small>{queued ? finalGate ? 'location proven' : 'carrier held' : `${spec.dwell} dwell · air`}</small></div>
+      </aside>
+    </div>
+  </section>;
 }
 
 const XRD_PEAKS: Record<string, Array<[number, number]>> = {
