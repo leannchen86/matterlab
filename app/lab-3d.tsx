@@ -98,7 +98,7 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
         ) : null)}
         <ContactShadows position={[0, 0.025, 0]} opacity={0.58} scale={22} blur={2.6} far={8} resolution={512} color="#000713" />
         <CameraDirector mode={cameraMode} selectedIndex={selectedIndex} controls={controlsRef} />
-        <AisleNavigator active={cameraMode === 'walk'} controls={controlsRef} command={walkCommand} />
+        <AisleNavigator active={cameraMode === 'walk'} controls={controlsRef} command={walkCommand} scenarioId={scenarioId} phase={phase} />
         <OrbitControls
           ref={controlsRef}
           makeDefault
@@ -212,7 +212,12 @@ function CameraDirector({ mode, selectedIndex, controls }: { mode: CameraMode; s
   return null;
 }
 
-function AisleNavigator({ active, controls, command }: { active: boolean; controls: React.RefObject<OrbitControlsHandle | null>; command: WalkCommand }) {
+function getPalletJackPosition(scenarioId: ScenarioId, phase: number): [number, number, number] {
+  if (scenarioId !== 'facility') return [-0.32, 0.07, 6.15];
+  return phase < 2 ? [-6.2, 0.07, -0.95] : [3.58, 0.07, 3.52];
+}
+
+function AisleNavigator({ active, controls, command, scenarioId, phase }: { active: boolean; controls: React.RefObject<OrbitControlsHandle | null>; command: WalkCommand; scenarioId: ScenarioId; phase: number }) {
   const { camera } = useThree();
   const keys = useRef(new Set<string>());
   const handledCommand = useRef(0);
@@ -260,10 +265,11 @@ function AisleNavigator({ active, controls, command }: { active: boolean; contro
     next.x = THREE.MathUtils.clamp(next.x, -8.1, 4.25);
     next.z = THREE.MathUtils.clamp(next.z, -3.8, 8.75);
     const occupied = (position: THREE.Vector3) => {
+      const [jackX, , jackZ] = getPalletJackPosition(scenarioId, phase);
       const station = STATION_POSITIONS.some(([stationX, , stationZ]) => Math.abs(position.x - stationX) < 1.72 && Math.abs(position.z - stationZ) < 1.58);
       const facilityProps = [
         { x: -3.95, z: 5.65, halfX: 0.98, halfZ: 0.66 },
-        { x: -0.32, z: 6.15, halfX: 0.72, halfZ: 1.18 },
+        { x: jackX, z: jackZ, halfX: scenarioId === 'facility' && phase < 2 ? 1.18 : 0.72, halfZ: scenarioId === 'facility' && phase < 2 ? 0.72 : 1.18 },
         { x: 4.42, z: 1.58, halfX: 0.72, halfZ: 1.62 },
         { x: -8.18, z: 5.45, halfX: 0.58, halfZ: 1.42 },
       ].some((box) => Math.abs(position.x - box.x) < box.halfX && Math.abs(position.z - box.z) < box.halfZ);
@@ -406,17 +412,45 @@ function OperationsProps({ scenarioId, phase }: { scenarioId: ScenarioId; phase:
       {[-0.62, 0.62].flatMap((x) => [-0.28, 0.28].map((z) => <mesh key={`w-${x}-${z}`} position={[x, 0.12, z]} rotation={[Math.PI / 2, 0, 0]} castShadow><torusGeometry args={[0.09, 0.035, 10, 18]} /><meshStandardMaterial color="#111921" roughness={0.75} /></mesh>))}
       {[-0.42, 0, 0.42].map((x, i) => <mesh key={x} position={[x, 1.17, 0]} castShadow><cylinderGeometry args={[0.1, 0.09, 0.26, 18]} /><meshStandardMaterial color={['#d7b66e', '#90b9c3', '#c97860'][i]} roughness={0.4} /></mesh>)}
     </group>
-    <group position={[-0.32, 0.07, 6.15]} rotation={[0, -0.08, 0]}>
-      {[-0.28, 0.28].map((x) => <RoundedBox key={x} args={[0.16, 0.1, 1.75]} radius={0.04} position={[x, 0.12, -0.25]} castShadow><meshStandardMaterial color="#d59f38" metalness={0.52} roughness={0.38} /></RoundedBox>)}
-      <RoundedBox args={[0.82, 0.17, 0.52]} radius={0.06} position={[0, 0.18, 0.58]} castShadow><meshStandardMaterial color="#b78632" metalness={0.58} roughness={0.34} /></RoundedBox>
-      <group position={[0, 0.32, 0.72]} rotation={[0.42, 0, 0]}>
-        <mesh position={[0, 0.72, 0]} castShadow><cylinderGeometry args={[0.045, 0.045, 1.45, 14]} /><meshStandardMaterial color="#566671" metalness={0.72} roughness={0.28} /></mesh>
-        <mesh position={[0, 1.45, 0]} rotation={[0, 0, Math.PI / 2]} castShadow><torusGeometry args={[0.22, 0.045, 12, 22, Math.PI]} /><meshStandardMaterial color="#2b3942" metalness={0.62} roughness={0.35} /></mesh>
-      </group>
-      {[-0.37, 0.37].map((x) => <mesh key={x} position={[x, 0.12, 0.72]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.1, 0.1, 0.08, 18]} /><meshStandardMaterial color="#151d23" roughness={0.75} /></mesh>)}
-    </group>
+    <PoweredPalletJack scenarioId={scenarioId} phase={phase} />
     <GasServiceBay active={scenarioId === 'facility'} accepted={scenarioId === 'facility' && phase >= 3} />
     <SampleStagingRack />
+  </group>;
+}
+
+function PoweredPalletJack({ scenarioId, phase }: { scenarioId: ScenarioId; phase: number }) {
+  const initial = useRef(new THREE.Vector3(...getPalletJackPosition(scenarioId, phase)));
+  const group = useRef<THREE.Group>(null);
+  const target = useMemo(() => new THREE.Vector3(...getPalletJackPosition(scenarioId, phase)), [scenarioId, phase]);
+  const active = scenarioId === 'facility' && phase < 2;
+  const released = scenarioId === 'facility' && phase >= 1;
+  const statusColor = active ? (released ? '#68d4ad' : '#d6a249') : '#6a7f88';
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    initial.current.x = THREE.MathUtils.damp(initial.current.x, target.x, 2.6, delta);
+    initial.current.z = THREE.MathUtils.damp(initial.current.z, target.z, 2.6, delta);
+    group.current.position.copy(initial.current);
+  });
+  return <group ref={group} rotation={[0, scenarioId === 'facility' && phase < 2 ? -Math.PI / 2 : -0.08, 0]}>
+    {[-0.28, 0.28].map((x) => <RoundedBox key={x} args={[0.16, 0.11, 1.78]} radius={0.04} position={[x, 0.12, -0.28]} castShadow><meshStandardMaterial color="#d7a13b" metalness={0.55} roughness={0.34} /></RoundedBox>)}
+    {[-0.28, 0.28].map((x) => <group key={`load-${x}`} position={[x, 0.09, -1.04]} rotation={[0, 0, Math.PI / 2]}><mesh castShadow><cylinderGeometry args={[0.075, 0.075, 0.11, 18]} /><meshStandardMaterial color="#161f24" roughness={0.72} /></mesh><mesh position={[0, 0.058, 0]}><circleGeometry args={[0.045, 16]} /><meshStandardMaterial color="#58676c" metalness={0.6} roughness={0.3} /></mesh></group>)}
+    <RoundedBox args={[0.9, 0.22, 0.58]} radius={0.08} position={[0, 0.2, 0.61]} castShadow><meshStandardMaterial color="#b9852e" metalness={0.6} roughness={0.31} /></RoundedBox>
+    <RoundedBox args={[0.68, 0.58, 0.48]} radius={0.075} position={[0, 0.53, 0.65]} castShadow><meshPhysicalMaterial color="#2c3a40" metalness={0.65} roughness={0.3} clearcoat={0.22} /></RoundedBox>
+    <mesh position={[0, 0.6, 0.898]} rotation={[-0.06, 0, 0]}><planeGeometry args={[0.42, 0.19]} /><meshBasicMaterial color="#071419" /></mesh>
+    <mesh position={[0, 0.61, 0.902]} rotation={[-0.06, 0, 0]}><planeGeometry args={[0.29, 0.026]} /><meshBasicMaterial color={statusColor} /></mesh>
+    <mesh position={[-0.23, 0.47, 0.9]}><circleGeometry args={[0.045, 18]} /><meshStandardMaterial color="#c13e3e" emissive="#5b1212" emissiveIntensity={0.65} roughness={0.35} /></mesh>
+    <group position={[0, 0.58, 0.73]} rotation={[0.38, 0, 0]}>
+      <mesh position={[0, 0.72, 0]} castShadow><cylinderGeometry args={[0.052, 0.052, 1.42, 16]} /><meshStandardMaterial color="#5e7078" metalness={0.78} roughness={0.24} /></mesh>
+      <RoundedBox args={[0.58, 0.22, 0.18]} radius={0.07} position={[0, 1.46, 0]} castShadow><meshStandardMaterial color="#27363c" metalness={0.55} roughness={0.36} /></RoundedBox>
+      {[-0.21, 0.21].map((x) => <mesh key={x} position={[x, 1.46, 0.11]}><circleGeometry args={[0.045, 18]} /><meshStandardMaterial color={x < 0 ? '#63757d' : statusColor} emissive={x > 0 ? statusColor : '#000000'} emissiveIntensity={x > 0 ? 0.65 : 0} /></mesh>)}
+      <mesh position={[0, 1.46, 0.115]}><planeGeometry args={[0.16, 0.055]} /><meshBasicMaterial color="#0a151a" /></mesh>
+      <mesh position={[0, 1.46, 0.119]}><planeGeometry args={[0.1, 0.012]} /><meshBasicMaterial color={statusColor} /></mesh>
+      <mesh position={[0, 1.31, 0.03]}><sphereGeometry args={[0.055, 16, 12]} /><meshStandardMaterial color="#d54f3f" emissive="#6f1c15" emissiveIntensity={0.65} /></mesh>
+    </group>
+    {[-0.37, 0.37].map((x) => <mesh key={x} position={[x, 0.15, 0.72]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.13, 0.13, 0.1, 20]} /><meshStandardMaterial color="#121b20" roughness={0.76} /></mesh>)}
+    <mesh position={[0, 0.1, 0.79]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.16, 0.16, 0.12, 22]} /><meshStandardMaterial color="#172228" roughness={0.7} /></mesh>
+    <mesh position={[0.42, 0.68, 0.64]}><cylinderGeometry args={[0.045, 0.06, 0.18, 16]} /><meshStandardMaterial color={statusColor} emissive={statusColor} emissiveIntensity={active ? 1 : 0.25} transparent opacity={0.9} /></mesh>
+    {active && <pointLight position={[0.42, 0.72, 0.64]} intensity={released ? 0.8 : 0.55} distance={1.3} color={statusColor} decay={2} />}
   </group>;
 }
 
@@ -937,7 +971,7 @@ function MaterialRoute({ scenarioId, phase }: { scenarioId: ScenarioId; phase: n
   const route = useMemo(() => curve.getPoints(50), [curve]);
   const routeColor = scenarioId === 'bet' ? '#b48cff' : scenarioId === 'furnace' ? '#f39a62' : scenarioId === 'tga' ? '#e2a64f' : scenarioId === 'facility' ? '#68d4ad' : '#4dd5ed';
   useFrame(({ clock }, delta) => {
-    const maxStep = scenarioId === 'furnace' ? 2 : 4;
+    const maxStep = scenarioId === 'furnace' || scenarioId === 'facility' ? 2 : 4;
     const target = Math.min(0.96, 0.04 + (Math.min(phase, maxStep) / maxStep) * 0.9);
     current.current = THREE.MathUtils.damp(current.current, target, 3.8, delta);
     const breathing = phase === 3 ? Math.sin(clock.elapsedTime * 1.6) * 0.008 : 0;
