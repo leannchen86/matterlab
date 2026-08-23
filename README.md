@@ -2,16 +2,17 @@
 
 MatterShift is a browser simulation of a lab technician's shift inside an AI-enabled,
 high-throughput materials laboratory. The primary experience is an equipment-first operations
-console with four playable work orders. The shifts cover XRD quality control and SEM/EDS follow-up,
+console with five playable work orders. The shifts cover XRD quality control and SEM/EDS follow-up,
 BET service acceptance and pretreatment lineage, robot–furnace recovery after an interrupted
-thermal run, and TGA/DSC measurement-control recovery. Each path ends at a scientific or AI data
-gate rather than at equipment uptime alone.
+thermal run, TGA/DSC measurement-control recovery, and a facility shift spanning powered material
+movement and controlled gas-service changeover. Each path ends at a scientific or AI data gate
+rather than at equipment uptime alone.
 
 The interface is intentionally modeled after a real technician environment rather than a generic
 materials-science lesson. Its default facility view is an orbitable Three.js digital twin with
 procedurally modeled XRD, SEM/EDS, BET, TGA/DSC, furnace, powder-prep, and robotic-workcell equipment. It also
 includes work orders, handoff state, instrument readiness, QC controls, sample custody, automation
-gates, alarms, shift health, and a chronological event record.
+gates, utility boundaries, MES moves, alarms, shift health, and a chronological event record.
 
 The characterization assets are assembled from instrument-scale subsystems rather than single
 silhouettes: goniometer and sample-stage hardware in XRD; column lenses, vacuum chamber, detector
@@ -29,10 +30,14 @@ TGA/DSC. These parts correspond to the boundaries a technician inspects, service
   verify empty-cell recovery, and censor a compromised run without deleting it.
 - **Thermal-analysis release:** retain a failed empty-pan baseline, reconcile a mixed physical pan
   pair, run a governed blank, and stop a purge-coupled event from steering the AI planner.
+- **Controlled gas changeover:** reconcile a dry-powder tote against its MES move ticket, inspect a
+  powered pallet jack and route, retain departure and arrival state, prove a gas-service boundary,
+  and keep service-transition data out of the AI loop until a post-change control is eligible.
 
-Selecting an asset exposes a simulated local workstation with four technician-facing boundaries:
-HMI/SCADA state and permissives, LES method execution, LIMS identity and lineage, and CMMS service
-evidence. Each station has its own instrument mimic, interlocks, method, sample identifiers,
+Selecting an asset exposes a simulated local workstation with technician-facing execution and
+record boundaries: MES moves, HMI/SCADA state and permissives, LES method execution, LIMS identity
+and lineage, and CMMS service evidence. Each station has its own instrument mimic, interlocks,
+method, sample identifiers,
 maintenance state, and point-of-use supplies.
 The HMI also requires an instrument-specific local control sequence after the physical walkaround:
 for example, XRD stage/shutter/reference checks, SEM vacuum/clearance/detector checks, BET
@@ -58,6 +63,8 @@ An immersive equipment-first mode expands the procedural bay over the full viewp
 station selection, overview/focus cameras, physical inspection points, and an explicit return to the
 shift console. It is designed to make the facility itself—not the surrounding text—the primary
 interface on both desktop and mobile.
+A direct `Enter lab` control opens that human-scale aisle in one action, rather than requiring users
+to discover a camera mode and a second expansion control before they can inhabit the room.
 To keep that overview equipment-first, only the selected asset carries a persistent identity card;
 other asset cards disclose on hover, while the compact station selector and physical stack lights
 preserve the complete facility state.
@@ -75,6 +82,9 @@ state; completing a walkaround does not erase a separate quality, service, or pr
 The shared bay includes overhead cable routing, gas/vacuum service panels, emergency controls,
 mobile handling equipment, point-of-work tools, and a compact keyboard-accessible station selector
 so the instruments read as one operational facility rather than isolated product models.
+The facility shift adds a three-cylinder service rack with gauges, tags, manifold branches, and a
+controlled floor zone; a sample-staging rack; and a powered pallet jack with a battery drive,
+control head, emergency-reverse surface, display, beacon, load wheels, and route-aware 3D movement.
 The room boundary includes a controlled access door with glazing and badge feedback, a clean-entry
 mat, emergency shower/eyewash, spill cabinet, alarm hardware, and floor safety markings. These are
 most legible in the full equipment-first overview and remain physically present in aisle mode.
@@ -87,7 +97,9 @@ instrument-run state that lowers ambient and fixture light while preserving HMI,
 and station-state cues; both states are available in dashboard and immersive aisle views.
 Scenario routes move distinct physical carriers rather than a generic token: a six-position XRD
 tray, a four-tube gas-sorption rack, a refractory setter with crucibles, or a paired-pan carrier for
-thermal analysis. Loading zones sit in front of each instrument, and the procedural robot includes
+thermal analysis. The facility shift instead moves the governed tote and powered jack together
+between prep and receiving bays. Loading zones sit in front of each instrument, and the procedural
+robot includes
 articulated servo housings, a wrist flange, gripper tooling, and dressed cabling.
 
 The AI experiment loop is visual rather than conversational: each shift plots retained measurements,

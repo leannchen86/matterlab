@@ -38,6 +38,19 @@ const STATION_POSITIONS: [number, number, number][] = [
   [1.75, 0, 5.35],
 ];
 
+// Technician approach points stay outside equipment clearances and preserve a readable working
+// face. Most stations are approached from the primary aisle; TGA/DSC is approached from its open
+// side because it sits at the front boundary of the modeled room.
+const WALK_APPROACH_OFFSETS: [number, number, number][] = [
+  [-2.35, 1.68, 2.15],
+  [-2.5, 1.68, 2.15],
+  [2.35, 1.68, 2.15],
+  [0, 1.68, 5.45],
+  [0, 1.68, 5.2],
+  [2.35, 1.68, 3.65],
+  [-4.45, 1.68, 1.65],
+];
+
 const TONE_COLORS: Record<Station['tone'], string> = {
   ready: '#51e19a',
   hold: '#718198',
@@ -68,7 +81,7 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
       <Canvas
         shadows
         dpr={[1, 1.55]}
-        camera={{ position: [10.5, 11.8, 19.5], fov: 50, near: 0.1, far: 90 }}
+        camera={{ position: [10.5, 11.8, 19.5], fov: 55, near: 0.1, far: 90 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
           gl.outputColorSpace = THREE.SRGBColorSpace;
@@ -107,7 +120,7 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
           dampingFactor={0.075}
           enablePan={cameraMode !== 'walk'}
           minDistance={cameraMode === 'focus' ? 3.8 : cameraMode === 'walk' ? 2.8 : 11}
-          maxDistance={cameraMode === 'walk' ? 4.4 : 34}
+          maxDistance={cameraMode === 'walk' ? 5.7 : 34}
           minPolarAngle={cameraMode === 'walk' ? 1.05 : 0.55}
           maxPolarAngle={cameraMode === 'walk' ? 1.55 : 1.36}
           minAzimuthAngle={-1.45}
@@ -186,7 +199,8 @@ function CameraDirector({ mode, selectedIndex, controls }: { mode: CameraMode; s
   }, [selectedIndex]);
   const walkPosition = useMemo(() => {
     const [x, , z] = STATION_POSITIONS[selectedIndex];
-    return selectedIndex === 6 ? new THREE.Vector3(x - 3.75, 1.68, z + 1.55) : new THREE.Vector3(x, 1.68, z + 4.45);
+    const [offsetX, height, offsetZ] = WALK_APPROACH_OFFSETS[selectedIndex];
+    return new THREE.Vector3(x + offsetX, height, z + offsetZ);
   }, [selectedIndex]);
   const walkTarget = useMemo(() => {
     const [x, , z] = STATION_POSITIONS[selectedIndex];

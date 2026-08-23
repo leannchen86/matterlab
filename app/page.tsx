@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
 import { baseStations, initialLog, type Station } from './sim-data';
 import { AlternateShift, PlannerPanel, ShiftDeckModal, type ScenarioId } from './scenario-shifts';
 import { StationAccess } from './station-access';
-import { TgaShift } from './tga-shift';
-import { FacilityShift } from './facility-shift';
+
+const TgaShift = lazy(() => import('./tga-shift').then((module) => ({ default: module.TgaShift })));
+const FacilityShift = lazy(() => import('./facility-shift').then((module) => ({ default: module.FacilityShift })));
 
 type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'guide' | 'deck' | 'complete' | null;
 type LogItem = { time: string; type: string; text: string };
@@ -24,10 +25,18 @@ export default function Home() {
     setRunKey((value) => value + 1);
   };
 
-  if (scenario === 'tga') return <TgaShift key={`tga-${runKey}`} onSwitch={chooseScenario} />;
-  if (scenario === 'facility') return <FacilityShift key={`facility-${runKey}`} onSwitch={chooseScenario} />;
+  if (scenario === 'tga') return <Suspense fallback={<ShiftBoot label="THERMAL ANALYSIS" />}><TgaShift key={`tga-${runKey}`} onSwitch={chooseScenario} /></Suspense>;
+  if (scenario === 'facility') return <Suspense fallback={<ShiftBoot label="FACILITY OPERATIONS" />}><FacilityShift key={`facility-${runKey}`} onSwitch={chooseScenario} /></Suspense>;
   if (scenario !== 'xrd') return <AlternateShift key={`${scenario}-${runKey}`} scenarioId={scenario} onSwitch={chooseScenario} />;
   return <XrdShift key={`xrd-${runKey}`} onSwitch={chooseScenario} />;
+}
+
+function ShiftBoot({ label }: { label: string }) {
+  return <main className="shift-boot" role="status" aria-label={`Loading ${label.toLowerCase()} work order`}>
+    <div className="shift-boot-mark">M<span>²</span></div>
+    <div className="shift-boot-rails" aria-hidden="true">{Array.from({ length: 7 }, (_, index) => <i key={index} />)}</div>
+    <div className="shift-boot-readout"><span /><div><b>CONFIGURING WORK ORDER</b><small>{label} · controlled state handoff</small></div></div>
+  </main>;
 }
 
 function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {

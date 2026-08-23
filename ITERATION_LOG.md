@@ -584,6 +584,121 @@ become more prominent than the physical lab.
   door, shower/eyewash, robot cage, utilities, and instrument silhouettes are now simultaneously
   legible.
 
+## Critique 34: characterization scenarios did not cover facility operations
+
+The four characterization-centered shifts taught instrument control, sample lineage, and scientific
+release well, but the target role also names powered handling, gas systems, LIMS/MES/SCADA, and the
+physical work that keeps a high-throughput lab supplied. Those responsibilities were visible as
+background props rather than playable technician decisions.
+
+### Changes
+
+- Added a fifth controlled-facility shift spanning handoff, physical tote reconciliation, powered
+  movement, gas-service acceptance, post-changeover control, and AI data eligibility.
+- Kept material identity and utility state as independent gates, so a correct tote cannot clear an
+  unproven gas boundary and a proven gas boundary cannot repair the wrong lot.
+- Added distinct failure branches for relabeling a physical tote from a ticket, accepting gas by
+  color and pressure alone, and merging service-transition data into a scientific trend.
+- Added a complete facility evidence chain and debrief so blocked mistakes remain visible as
+  recovered exceptions rather than disappearing after the right choice.
+
+## Critique 35: utilities and staging existed only as labels
+
+The new shift could describe gas service and sample staging, but the room still lacked enough
+physical infrastructure to make those decisions spatially believable.
+
+### Changes
+
+- Added a three-cylinder service rack with restraint structure, cylinder shoulders, gauges,
+  regulators, line tags, a branch manifold, status lighting, and a controlled floor zone.
+- Added a point-of-use sample rack and scenario-specific tote hardware instead of reusing an
+  abstract carrier.
+- Linked the gas-service bay and BET utility state to the facility shift so pending and accepted
+  boundaries change the same physical scene the technician is inspecting.
+- Verified the utility bay in overview, focus, human-scale aisle, and inspection/run lighting.
+
+## Critique 36: entering the lab was too indirect
+
+Human-scale walking existed, but reaching it required discovering a camera toggle and then expanding
+the view. The primary promise—feel like walking into a real lab—was hidden behind dashboard grammar.
+
+### Changes
+
+- Added a direct `Enter lab` control that opens the full-viewport aisle at technician eye height in
+  one action.
+- Kept overview, focus, lighting, station selection, collision-aware movement, walkaround evidence,
+  and local-console handoff available after entry.
+- Added an always-visible exit path that returns to the overview rather than leaving the user in an
+  ambiguous embedded camera state.
+- Verified the one-click transition and compact control placement at 390 × 844.
+
+## Critique 37: the material-handling asset read as a generic cart
+
+The facility scenario referenced a powered pallet jack, but its first 3D form did not communicate
+power, controls, load interface, or route occupancy convincingly enough.
+
+### Changes
+
+- Rebuilt the carrier as a compact electric pallet jack with a battery/drive housing, articulated
+  tiller, control head, emergency-reverse surface, operator display, beacon, load wheels, traction
+  wheel, forks, and restrained tote.
+- Staged the jack with the governed tote in prep and moved both through the controlled aisle to the
+  BET receiving bay after release.
+- Added a collision footprint while staged so human-scale movement respects the powered asset as
+  installed equipment rather than walking through it.
+- Tuned orientation and route interpolation so fork direction and load movement stay coherent at
+  both endpoints.
+
+## Critique 38: one checkbox compressed the powered-move inspection
+
+The first move console combined equipment condition and rated load in one vague assertion. It did
+not distinguish the observations a technician needs before linking physical readiness to a digital
+move ticket.
+
+### Changes
+
+- Separated power/brake/emergency-reverse state, forks/load wheels/capacity, tote restraint/pallet
+  condition, and aisle/door/receiving-bay clearance.
+- Exposed independent DRIVE, FORKS, LOAD, ROUTE, and LOT channels in the visual move bay.
+- Labeled the ticket as MES move execution while keeping physical inspection and scan evidence
+  separate from the system of record.
+- Exercised the held and released states on desktop and a 390 × 844 viewport; power travel remains
+  unavailable until every observation and both tote reads are complete.
+
+## Critique 39: human-scale entry did not guarantee a valid approach
+
+The aisle camera used one front-facing offset for almost every asset. That looked acceptable in the
+overview but sent the back-row prep, robot, and furnace views through the footprints of XRD, SEM,
+and BET. Several arrivals began against a cabinet or inside unrelated geometry.
+
+### Changes
+
+- Added station-specific technician approach points derived from the actual two-row room layout.
+- Routed prep, robot, and furnace through cross-aisle side approaches; preserved clear front
+  approaches for XRD and SEM; used a right-side BET approach to avoid TGA/DSC; and retained the
+  dedicated side approach for the front-boundary TGA/DSC bench.
+- Increased walk-mode orbit allowance and adopted a modestly wider human-scale field of view so the
+  working face, controls, and adjacent clearance remain visible on arrival.
+- Visually audited all seven assets in full-viewport aisle mode and confirmed no approach begins
+  inside another station or behind its cabinet.
+
+## Critique 40: optional work orders inflated the first console bundle
+
+The 3D scene was already lazy-loaded, but the TGA/DSC and facility scenario code shipped with the
+initial XRD console even when the user had not selected either work order. That added cost before the
+first equipment interaction and made future shift growth less scalable.
+
+### Changes
+
+- Split the TGA/DSC and facility shifts into on-demand client chunks while preserving the shared
+  scenario deck and instantaneous state handoff.
+- Added a restrained full-viewport work-order loader that mirrors the spatial-twin visual language
+  instead of flashing a blank page during a cold module fetch.
+- Reduced the main page chunk from roughly 184 KB to 32 KB; the optional TGA/DSC and facility chunks
+  are approximately 28 KB and 36 KB respectively.
+- Loaded both split scenarios through the real shift deck and confirmed their starting equipment,
+  controls, and work-order state render after the transition.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
