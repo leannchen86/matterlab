@@ -699,6 +699,25 @@ first equipment interaction and made future shift growth less scalable.
 - Loaded both split scenarios through the real shift deck and confirmed their starting equipment,
   controls, and work-order state render after the transition.
 
+## Critique 41: physical inspection and local operation were disconnected
+
+The local HMI already enforced three physical observations, but aisle mode only hinted that the user
+should find a separate camera control. After completing the walkaround, the user then had to reverse
+that navigation before they could operate the station. The evidence model was sound; the embodied
+workflow was not obvious.
+
+### Changes
+
+- Added a persistent `Inspect asset` action to the human-scale aisle HUD with live 0/3 evidence
+  progress for the selected station.
+- Routed that action directly into the selected asset's physical walkaround rather than asking the
+  user to interpret camera terminology.
+- Added a governed `Open local console` handoff when all three observations are captured, preserving
+  the same station, inspection record, and full-viewport context.
+- Exercised the complete XRD chain from aisle arrival through holder, HMI, and shutter observations
+  into the local HMI; the first control action remains disabled before the walkaround and enabled
+  after the three physical checks are linked.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

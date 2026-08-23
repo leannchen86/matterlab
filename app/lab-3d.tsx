@@ -141,12 +141,14 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, lig
           <button type="button" className="walk-right" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'right' }))} aria-label="Step right">→</button>
         </div>
         <button type="button" className="walk-console" onClick={onOpenConsole}>OPERATE LOCAL CONSOLE <i>↗</i></button>
-        <small>WASD / ARROWS · choose a station to approach · Focus to inspect</small>
+        <small>WASD / ARROWS · choose a station to approach</small>
+        <button type="button" className="walk-inspect" onClick={() => onCameraMode('focus')}>◎ INSPECT ASSET <i>{inspected.length}/{HOTSPOTS[selectedIndex].length}</i></button>
       </div>}
       {cameraMode === 'focus' && <div className="walkaround-panel">
         <header><div><span>PHYSICAL WALKAROUND</span><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspected.length} / {HOTSPOTS[selectedIndex].length}</em></header>
         <div>{HOTSPOTS[selectedIndex].map((hotspot) => <button key={hotspot.label} type="button" className={inspected.includes(hotspot.label) ? 'visited' : ''} onClick={() => inspect(hotspot.label)}><i>{inspected.includes(hotspot.label) ? '✓' : '○'}</i>{hotspot.label}</button>)}</div>
         {activeObservation && <div className={`walkaround-observation ${activeObservation.state}`}><span>{activeObservation.label} OBSERVATION</span><b>{activeObservation.observation}</b><em>{activeObservation.state === 'attention' ? 'ATTENTION' : 'CAPTURED'}</em></div>}
+        {inspected.length === HOTSPOTS[selectedIndex].length && <button type="button" className="walkaround-next" onClick={onOpenConsole}>OPEN LOCAL CONSOLE <i>→</i></button>}
         <small>{inspected.length === HOTSPOTS[selectedIndex].length ? 'Walkaround captured. Compare physical state with the local console.' : 'Select each marker on the asset or checklist.'}</small>
       </div>}
     </div>
