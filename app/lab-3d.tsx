@@ -40,14 +40,20 @@ const TONE_COLORS: Record<Station['tone'], string> = {
 export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onCameraMode, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [visited, setVisited] = useState<Record<string, string[]>>({});
+  const [observationRecord, setObservationRecord] = useState<{ stationId: string; point: InspectionPoint } | null>(null);
   const selectedIndex = Math.max(0, stations.findIndex((station) => station.id === selectedId));
   const selectedStation = stations[selectedIndex];
   const inspected = visited[selectedId] ?? [];
-  const inspect = (label: string) => setVisited((current) => {
-    const checks = Array.from(new Set([...(current[selectedId] ?? []), label]));
-    onInspectionChange?.(selectedId, checks);
-    return { ...current, [selectedId]: checks };
-  });
+  const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? observationRecord.point : null;
+  const inspect = (label: string) => {
+    const point = HOTSPOTS[selectedIndex].find((hotspot) => hotspot.label === label);
+    if (point) setObservationRecord({ stationId: selectedId, point });
+    setVisited((current) => {
+      const checks = Array.from(new Set([...(current[selectedId] ?? []), label]));
+      onInspectionChange?.(selectedId, checks);
+      return { ...current, [selectedId]: checks };
+    });
+  };
   return (
     <div className={`lab-3d camera-${cameraMode}`} aria-label="Orbitable 3D digital twin of six materials laboratory stations">
       <Canvas
@@ -128,6 +134,7 @@ export function Lab3D({ stations, selectedId, phase, scenarioId, cameraMode, onC
       {cameraMode === 'focus' && <div className="walkaround-panel">
         <header><div><span>PHYSICAL WALKAROUND</span><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspected.length} / {HOTSPOTS[selectedIndex].length}</em></header>
         <div>{HOTSPOTS[selectedIndex].map((hotspot) => <button key={hotspot.label} type="button" className={inspected.includes(hotspot.label) ? 'visited' : ''} onClick={() => inspect(hotspot.label)}><i>{inspected.includes(hotspot.label) ? '✓' : '○'}</i>{hotspot.label}</button>)}</div>
+        {activeObservation && <div className={`walkaround-observation ${activeObservation.state}`}><span>{activeObservation.label} OBSERVATION</span><b>{activeObservation.observation}</b><em>{activeObservation.state === 'attention' ? 'ATTENTION' : 'CAPTURED'}</em></div>}
         <small>{inspected.length === HOTSPOTS[selectedIndex].length ? 'Walkaround captured. Compare physical state with the local console.' : 'Select each marker on the asset or checklist.'}</small>
       </div>}
     </div>
@@ -300,13 +307,15 @@ function Equipment({ index, active, tone, focused }: { index: number; active: bo
   return <Bet active={active} tone={tone} />;
 }
 
-const HOTSPOTS: { position: [number, number, number]; label: string }[][] = [
-  [{ position: [-0.65, 1.25, 0.68], label: 'SASH' }, { position: [0.86, 0.97, 0.55], label: 'BALANCE' }, { position: [-0.15, 0.68, 0.58], label: 'LOT' }],
-  [{ position: [-1.32, 1.45, 1.06], label: 'GATE' }, { position: [1.08, 1.48, 0.18], label: 'GRIPPER' }, { position: [1.05, 0.92, -0.32], label: 'HMI' }],
-  [{ position: [0.82, 1.55, 0.93], label: 'INTERLOCK' }, { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER' }, { position: [0, 1.38, 0.94], label: 'CHAMBER' }],
-  [{ position: [-0.12, 1.23, 0.98], label: 'HOLDER' }, { position: [0.9, 0.7, 0.92], label: 'HMI' }, { position: [-0.58, 1.7, 0.92], label: 'SHUTTER' }],
-  [{ position: [-0.25, 1.2, 0.82], label: 'CHAMBER' }, { position: [-0.25, 2.08, 0.42], label: 'COLUMN' }, { position: [0.95, 1.32, 0.3], label: 'BSE / EDS' }],
-  [{ position: [-0.3, 1.45, 0.88], label: 'PORTS' }, { position: [0.98, 1.42, 0.34], label: 'N₂' }, { position: [-0.6, 0.62, 0.84], label: 'VACUUM' }],
+type InspectionPoint = { position: [number, number, number]; label: string; observation: string; state: 'pass' | 'attention' };
+
+const HOTSPOTS: InspectionPoint[][] = [
+  [{ position: [-0.65, 1.25, 0.68], label: 'SASH', observation: '420 mm opening · airflow normal', state: 'pass' }, { position: [0.86, 0.97, 0.55], label: 'BALANCE', observation: 'level centered · zero 0.000 g', state: 'pass' }, { position: [-0.15, 0.68, 0.58], label: 'LOT', observation: 'LOT-91 · physical ID legible', state: 'pass' }],
+  [{ position: [-1.32, 1.45, 1.06], label: 'GATE', observation: 'CH1 interlock closed · no bypass', state: 'pass' }, { position: [1.08, 1.48, 0.18], label: 'GRIPPER', observation: 'carrier jaws clear · tool seated', state: 'pass' }, { position: [1.05, 0.92, -0.32], label: 'HMI', observation: 'AUTO hold · route inhibited', state: 'attention' }],
+  [{ position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: 'door input closed · latch engaged', state: 'pass' }, { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'PV 982 °C · SP 1,000 °C', state: 'pass' }, { position: [0, 1.38, 0.94], label: 'CHAMBER', observation: 'load present · hot-zone active', state: 'attention' }],
+  [{ position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: 'surface clean · specimen flat', state: 'pass' }, { position: [0.9, 0.7, 0.92], label: 'HMI', observation: 'reference drift +0.17° 2θ', state: 'attention' }, { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', observation: 'closed feedback TRUE', state: 'pass' }],
+  [{ position: [-0.25, 1.2, 0.82], label: 'CHAMBER', observation: 'vacuum 2.1e−5 Pa · stable', state: 'pass' }, { position: [-0.25, 2.08, 0.42], label: 'COLUMN', observation: 'HV standby · aperture seated', state: 'pass' }, { position: [0.95, 1.32, 0.3], label: 'BSE / EDS', observation: 'EDS dead time 27% · detector ready', state: 'pass' }],
+  [{ position: [-0.3, 1.45, 0.88], label: 'PORTS', observation: 'analysis ports mechanically locked', state: 'attention' }, { position: [0.98, 1.42, 0.34], label: 'N₂', observation: 'supply normal · regulator stable', state: 'pass' }, { position: [-0.6, 0.62, 0.84], label: 'VACUUM', observation: 'service isolation active · pump off', state: 'attention' }],
 ];
 
 function InspectionHotspots({ index, tone, inspected, onInspect }: { index: number; tone: string; inspected: string[]; onInspect: (label: string) => void }) {

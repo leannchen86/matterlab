@@ -30,6 +30,8 @@ The 3D view also supports a technician-scale focus camera and physical walkaroun
 three inspection points—such as an XRD shutter/holder/HMI, BET ports/vacuum/N₂, or furnace
 interlock/controller/chamber. Those checks are written to the event ledger and become an explicit
 HMI permissive; safe-state attestation stays disabled until physical and digital state are linked.
+Every point captures a concise local observation and distinguishes normal evidence from an attention
+state; completing a walkaround does not erase a separate quality, service, or process hold.
 The shared bay includes overhead cable routing, gas/vacuum service panels, emergency controls,
 mobile handling equipment, point-of-work tools, and a compact keyboard-accessible station selector
 so the instruments read as one operational facility rather than isolated product models.

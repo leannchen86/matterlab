@@ -172,6 +172,24 @@ issuing a recipe rather than a proposal inside an evolving experimental space.
   execution, and result review; verified the chart at both proposal and gated states.
 - Verified the BET-specific design variables and compact visualization at 390 × 844.
 
+## Critique 10: walkaround points were binary collectibles
+
+The focus camera created a credible physical-to-digital sequence, but the first checklist still
+rewarded contact rather than observation. Three green markers alone did not teach what a technician
+might actually notice at the asset.
+
+### Changes
+
+- Added point-specific physical observations for all 18 inspection locations across six assets.
+- Distinguished normal captured evidence from attention states such as XRD reference drift, robot
+  route hold, hot furnace occupancy, and BET service isolation.
+- Kept the observations concise and site-neutral: they expose local state and comparison cues without
+  becoming hazardous operating instructions.
+- Preserved the governed behavior underneath the richer UI: three observations create a ledger event
+  and physical-evidence permissive, but they do not independently clear QC or service holds.
+- Verified attention and pass observations in XRD focus mode and confirmed the expanded panel fits at
+  390 × 844.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
