@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { DebriefVisual } from './debrief-visual';
 import { LabViewport } from './lab-viewport';
 import { baseStations, fieldGuide, initialLog, sources, type Station } from './sim-data';
 import { AlternateShift, PlannerPanel, ShiftDeckModal, type ScenarioId } from './scenario-shifts';
@@ -366,7 +367,7 @@ function GuideModal({ onClose }: { onClose: () => void }) {
 
 function CompleteModal({ scores, logCount, onReset, onClose }: { scores: Scores; logCount: number; onReset: () => void; onClose: () => void }) {
   const total = Math.round((scores.safety + scores.traceability + scores.integrity + scores.uptime) / 4);
-  return <ModalShell title="Shift debrief" kicker="WO-2841 · COMPLETE" onClose={onClose}><div className="debrief-score"><span>SHIFT RATING</span><b>{total}</b><i>/ 100</i></div><p className="modal-intro">You returned an instrument to control, quarantined a mislabeled specimen, released a robot workcell, challenged an AI plan, and built a representative SEM/EDS follow-up package.</p><div className="debrief-grid"><span>Safety<b>{scores.safety}</b></span><span>Traceability<b>{scores.traceability}</b></span><span>Data integrity<b>{scores.integrity}</b></span><span>Uptime<b>{scores.uptime}</b></span></div><div className="lesson-card"><b>What the technician role connects</b><p>Hands-on sample work, equipment health, controlled records, automation exceptions, and evidence that is fit for scientific and AI decisions.</p></div><p className="debrief-meta">{logCount} shift events captured · 1 specimen quarantined · 2 characterization gates reviewed</p><button className="modal-run" type="button" onClick={onReset}>REPLAY SHIFT</button></ModalShell>;
+  return <ModalShell title="Shift debrief" kicker="WO-2841 · COMPLETE" onClose={onClose}><div className="debrief-score"><span>SHIFT RATING</span><b>{total}</b><i>/ 100</i></div><p className="modal-intro">You returned an instrument to control, quarantined a mislabeled specimen, released a robot workcell, challenged an AI plan, and built a representative SEM/EDS follow-up package.</p><DebriefVisual scenario="xrd" scores={scores} /><div className="debrief-grid"><span>Safety<b>{scores.safety}</b></span><span>Traceability<b>{scores.traceability}</b></span><span>Data integrity<b>{scores.integrity}</b></span><span>Uptime<b>{scores.uptime}</b></span></div><div className="lesson-card"><b>What the technician role connects</b><p>Hands-on sample work, equipment health, controlled records, automation exceptions, and evidence that is fit for scientific and AI decisions.</p></div><p className="debrief-meta">{logCount} shift events captured · 1 specimen quarantined · 2 characterization gates reviewed</p><button className="modal-run" type="button" onClick={onReset}>REPLAY SHIFT</button></ModalShell>;
 }
 
 function LedgerDrawer({ log, onClose }: { log: LogItem[]; onClose: () => void }) {

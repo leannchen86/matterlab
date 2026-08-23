@@ -190,6 +190,21 @@ might actually notice at the asset.
 - Verified attention and pass observations in XRD focus mode and confirmed the expanded panel fits at
   390 × 844.
 
+## Critique 11: the debrief did not visualize what the player built
+
+The original completion screen reduced a complex shift to one rating, four scores, and a paragraph.
+It did not show how physical work became retained evidence or give repeat play a memorable target.
+
+### Changes
+
+- Added a visual shift profile spanning safety, traceability, data integrity, and uptime.
+- Added scenario-specific five-link evidence trails for XRD/SEM, BET, and interrupted-furnace work.
+- Made the trail's end state explicit: representative evidence, a queued reference recheck, or a
+  censored run and replacement plan.
+- Replayed the complete BET shift through independent service acceptance, pretreatment identity
+  correction, analysis, control failure, and held AI proposal to verify the debrief from real state.
+- Verified the full debrief composition at desktop and 390 × 844.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

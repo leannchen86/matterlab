@@ -41,6 +41,10 @@ an uncertainty field, and a proposed next experiment in a small scenario-specifi
 technician evidence gate can visibly hold that proposal when measurement context, reference control,
 or thermal history is not yet trustworthy.
 
+Each completed shift ends with a visual performance profile and a scenario-specific evidence trail,
+making the path from physical work through governed records to an AI-eligible—or deliberately
+censored—outcome clear enough to compare on replay.
+
 The shift deck, 3D facility, 2D fallback map, and station consoles are responsive down to a
 phone-sized viewport. All instrument geometry, traces, micrographs, spectra, and equipment routes
 are drawn in the app without external image assets.
