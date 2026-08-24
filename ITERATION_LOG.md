@@ -1522,6 +1522,24 @@ become strategic when several experiments are competing for the same equipment.
   reordered Z-17 ahead of C-42. The board retained the correct missions, recomputed RUN-043 through
   RUN-045, and exposed 1,170 minutes of thermal demand against one qualified lane as furnace congestion.
 
+## Critique 82: the planned shift disappeared outside campaign control
+
+Backlog planning was operationally useful, but closing campaign control made those future experiments
+vanish from the laboratory. A physical lab has WIP racks, traveler packets, labeled carriers, and a
+visible queue; technicians should be able to notice congestion while walking the floor.
+
+### Changes
+
+- Added a three-position stainless WIP rack to the 3D lab, with physical traveler boxes, mission-colored
+  identity bars, status beacons, empty-slot states, a rack sign, and a congestion-colored floor boundary.
+- Propagated persistent backlog identity through the shared campaign snapshot into the spatial twin,
+  so reprioritized candidate/mission plans change the physical rack without reopening a separate screen.
+- Added a compact operable backlog HUD to the lab view. It reports plan count and aggregate furnace
+  demand, safely exits immersive mode, and opens the same campaign-planning surface from the floor.
+- The first browser pass exposed a clipped projected label and unreliable activation near the canvas
+  edge. The rack was moved inward, the clipped label was removed, and interaction was separated into
+  a stable scene HUD. The corrected control opened campaign planning successfully in production QA.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

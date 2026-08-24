@@ -12,9 +12,10 @@ export type CampaignSnapshot = {
   missionId: CampaignMissionId;
   thermalBayLevel: number;
   inventory: { crucibles: number; liners: number; carbonTabs: number };
+  backlog: Array<{ runNumber: number; candidate: string; missionId: CampaignMissionId }>;
 };
 
-const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, missionId: 'purity', thermalBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 } };
+const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, missionId: 'purity', thermalBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 }, backlog: [] };
 const fallbackSerialized = JSON.stringify(fallbackCampaign);
 
 function readCampaign(): CampaignSnapshot {
@@ -32,6 +33,11 @@ function readCampaign(): CampaignSnapshot {
         liners: Number(stored.inventory?.liners ?? fallbackCampaign.inventory.liners),
         carbonTabs: Number(stored.inventory?.carbonTabs ?? fallbackCampaign.inventory.carbonTabs),
       },
+      backlog: Array.isArray(stored.backlog) ? stored.backlog.slice(0, 3).map((item: { runNumber?: number; candidate?: string; missionId?: string }, index: number) => ({
+        runNumber: Number(item.runNumber ?? Number(stored.runNumber ?? fallbackCampaign.runNumber) + index + 1),
+        candidate: String(item.candidate ?? 'C-42'),
+        missionId: item.missionId === 'low-energy' || item.missionId === 'throughput' ? item.missionId : 'purity',
+      })) : [],
     };
   } catch {
     return fallbackCampaign;

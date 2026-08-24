@@ -75,6 +75,12 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   }, []);
 
   useEffect(() => {
+    const openCampaign = () => setModal('campaign');
+    window.addEventListener('mattershift:open-campaign', openCampaign);
+    return () => window.removeEventListener('mattershift:open-campaign', openCampaign);
+  }, []);
+
+  useEffect(() => {
     const openMaterialStaging = () => {
       setSelectedId('PREP-01');
       setModal('campaign-inventory');

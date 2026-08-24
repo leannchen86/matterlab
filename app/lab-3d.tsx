@@ -25,6 +25,7 @@ type SceneProps = {
   campaignMissionId: CampaignMissionId;
   campaignThermalBayLevel: number;
   campaignInventory: { crucibles: number; liners: number; carbonTabs: number };
+  campaignBacklog: Array<{ runNumber: number; candidate: string; missionId: CampaignMissionId }>;
   scenarioId: ScenarioId;
   cameraMode: CameraMode;
   lightingMode: LightingMode;
@@ -32,6 +33,7 @@ type SceneProps = {
   onCameraMode: (mode: CameraMode) => void;
   onOpenConsole: () => void;
   onOpenInventory: () => void;
+  onOpenCampaign: () => void;
   inspectionState?: Record<string, string[]>;
   onInspectionChange?: (stationId: string, checks: string[]) => void;
   onSelect: (id: string) => void;
@@ -68,7 +70,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignThermalBayLevel, campaignInventory, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, onOpenInventory, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignThermalBayLevel, campaignInventory, campaignBacklog, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, onOpenInventory, onOpenCampaign, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -105,6 +107,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
 
         <LabArchitecture lightingMode={lightingMode} />
         <OperationsProps scenarioId={scenarioId} phase={phase} inventory={campaignInventory} onOpenInventory={onOpenInventory} />
+        <CampaignBacklogRack backlog={campaignBacklog} thermalBayLevel={campaignThermalBayLevel} onOpenCampaign={onOpenCampaign} />
         <MaterialRoute scenarioId={scenarioId} phase={phase} />
         <CampaignMaterialRoute stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} />
         {stations.map((station, index) => (cameraMode !== 'focus' || selectedId === station.id) ? (
@@ -155,7 +158,8 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
       <div className="scene-corner scene-corner-top"><span>LIVE SPATIAL TWIN</span><b>LAB 04 · BAY A/B</b></div>
       <div className="scene-corner scene-corner-bottom">{cameraMode === 'walk' ? <><span>WASD</span> MOVE <i>·</i> <span>DRAG</span> LOOK <i>·</i> <span>SELECT</span> APPROACH</> : <><span>DRAG</span> ORBIT <i>·</i> <span>SCROLL</span> ZOOM <i>·</i> <span>CLICK</span> INSPECT</>}</div>
       {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN TWIN · {getCampaignIdentity(campaignRunNumber).runId} · {campaignSelected}</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? campaignState.result : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
-      {selectedId === 'PREP-01' && <button type="button" className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}`} onClick={onOpenInventory}><span>OPERATE POINT-OF-USE RACK</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>OPEN →</i></button>}
+      {campaignBacklog.length > 0 && <button type="button" className={`campaign-backlog-hud${campaignStage > 0 ? ' with-campaign' : ''}`} onClick={onOpenCampaign}><span>OPERATE SHIFT BACKLOG</span><b>{campaignBacklog.length} PLANS · {campaignBacklog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0)} FURNACE MIN</b><i>OPEN →</i></button>}
+      {selectedId === 'PREP-01' && <button type="button" className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}${campaignBacklog.length ? ' with-backlog' : ''}`} onClick={onOpenInventory}><span>OPERATE POINT-OF-USE RACK</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>OPEN →</i></button>}
       {cameraMode === 'walk' && <div className="walk-hud">
         <header><span>HUMAN-SCALE AISLE</span><b>{selectedStation.id} · {selectedStation.name}</b></header>
         <div className="walk-pad" role="group" aria-label="Aisle movement controls">
@@ -177,6 +181,32 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
       </div>}
     </div>
   );
+}
+
+function CampaignBacklogRack({ backlog, thermalBayLevel, onOpenCampaign }: { backlog: Array<{ runNumber: number; candidate: string; missionId: CampaignMissionId }>; thermalBayLevel: number; onOpenCampaign: () => void }) {
+  const missionColors: Record<CampaignMissionId, string> = { purity: '#4dd5ed', 'low-energy': '#78bf89', throughput: '#9b91df' };
+  const thermalMinutes = backlog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0);
+  const congested = thermalMinutes > (thermalBayLevel >= 2 ? 720 : 360);
+  return <group position={[-6.65, 0.04, 4.65]} rotation={[0, Math.PI / 2, 0]} onClick={(event) => { event.stopPropagation(); onOpenCampaign(); }} onPointerOver={(event) => { event.stopPropagation(); document.body.style.cursor = 'pointer'; }} onPointerOut={() => { document.body.style.cursor = 'default'; }}>
+    <RoundedBox args={[1.72, 0.08, 0.72]} radius={0.025} position={[0, 0.08, 0]} castShadow><meshStandardMaterial color="#45565b" metalness={0.75} roughness={0.28} /></RoundedBox>
+    {[-0.79, 0.79].flatMap((x) => [-0.27, 0.27].map((z) => <mesh key={`${x}-${z}`} position={[x, 1.08, z]} castShadow><boxGeometry args={[0.055, 2.02, 0.055]} /><meshStandardMaterial color="#687a7f" metalness={0.88} roughness={0.2} /></mesh>))}
+    {[0.29, 0.86, 1.43].map((y) => <RoundedBox key={y} args={[1.65, 0.055, 0.66]} radius={0.016} position={[0, y, 0]} castShadow><meshPhysicalMaterial color="#63757a" metalness={0.84} roughness={0.24} clearcoat={0.16} /></RoundedBox>)}
+    {[0, 1, 2].map((slot) => {
+      const item = backlog[slot];
+      const y = 0.48 + slot * 0.57;
+      const color = item ? missionColors[item.missionId] : '#46565d';
+      return <group key={slot} position={[0, y, 0]}>
+        <RoundedBox args={[1.35, 0.3, 0.5]} radius={0.035} castShadow><meshStandardMaterial color={item ? '#26363b' : '#202b2f'} roughness={0.54} transparent opacity={item ? 1 : 0.54} /></RoundedBox>
+        <mesh position={[0, 0.02, 0.256]}><planeGeometry args={[0.88, 0.13]} /><meshBasicMaterial color={item ? '#d9ddd2' : '#3c494e'} /></mesh>
+        <mesh position={[-0.29, 0.02, 0.261]}><planeGeometry args={[0.19, 0.035]} /><meshBasicMaterial color={color} /></mesh>
+        <mesh position={[0.18, 0.02, 0.262]}><planeGeometry args={[0.42, 0.018]} /><meshBasicMaterial color={item ? '#45545a' : '#2c373b'} /></mesh>
+        {item && <StatusBeacon position={[0.57, 0.18, 0.2]} color={color} active />}
+      </group>;
+    })}
+    <mesh position={[0, 1.83, 0.02]}><planeGeometry args={[1.55, 0.3]} /><meshBasicMaterial color="#1c3339" /></mesh>
+    <mesh position={[0, 1.86, 0.026]}><planeGeometry args={[1.06, 0.035]} /><meshBasicMaterial color={congested ? '#f4b95f' : '#63c99c'} /></mesh>
+    <Line points={[[ -1.05, 0.01, -0.5], [1.05, 0.01, -0.5], [1.05, 0.01, 0.5], [-1.05, 0.01, 0.5], [-1.05, 0.01, -0.5]]} color={congested ? '#d6a241' : '#5c9b87'} lineWidth={0.8} transparent opacity={0.68} />
+  </group>;
 }
 
 function FacilityLighting({ mode }: { mode: LightingMode }) {

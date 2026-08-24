@@ -142,6 +142,11 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
     window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:open-material-staging')));
   };
 
+  const openCampaignPlanning = () => {
+    setImmersive(false);
+    window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:open-campaign')));
+  };
+
   const viewport = <div
     className={`lab-viewport mode-${mode}${immersive ? ' is-immersive' : ''}`}
     aria-label={immersive ? 'Immersive facility view' : undefined}
@@ -173,7 +178,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
     ><span>{ambienceOn ? '◖' : '○'}</span>{ambienceOn ? 'LAB HUM ON' : 'LAB AUDIO'}</button>}
     {mode === '3d' && !immersive && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>HUMAN-SCALE AISLE</small><i>→</i></button>}
     {mode === '3d'
-      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={activeCampaignStage} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaign.missionId} campaignThermalBayLevel={campaign.thermalBayLevel} campaignInventory={campaign.inventory} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} onOpenInventory={openMaterialStaging} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
+      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={activeCampaignStage} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaign.missionId} campaignThermalBayLevel={campaign.thermalBayLevel} campaignInventory={campaign.inventory} campaignBacklog={campaign.backlog} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} onOpenInventory={openMaterialStaging} onOpenCampaign={openCampaignPlanning} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
       : <LabCanvas stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} onSelect={onSelect} />}
   </div>;
 
