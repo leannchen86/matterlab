@@ -1422,6 +1422,41 @@ the laboratory feel scripted rather than like a shift with changing equipment co
   route through robot dosing, dual-furnace readiness, the thermal profile, the 3D XRD walkaround, and
   the native four-step reference-control console.
 
+## Critique 77: the scientist could not author an experiment
+
+The campaign connected AI proposals to physical execution, but the player could only choose from a
+fixed candidate tray. That made the lab feel like a procedural trainer when the intended game also
+needs to support scientists forming and testing their own materials hypotheses.
+
+### Changes
+
+- Added a full-screen scientist formulation workbench with a luminous perovskite lattice, visible
+  A/B-site substitution, a governed thermal-profile preview, and four compact controls for Ca excess,
+  Zr substitution, calcination temperature, and dwell time.
+- Made every authored combination reproducible rather than random. A compact candidate ID encodes the
+  four parameter choices and regenerates the formula, model prior, uncertainty, thermal occupancy,
+  throughput, predicted and measured phase fraction, objective gap, insight reward, and design-space
+  point wherever the candidate is later read.
+- Retained authored candidates as a persistent fourth tray slot. They can be selected, archived, and
+  re-run alongside AI and mechanism candidates, and their prior/result points participate in the same
+  campaign memory rather than opening a disconnected minigame.
+- Generated a mass-balanced precursor program for user formulations. The isolated browser run carried
+  U-2121 from the composer through campaign release, 3D PREP-01 walkaround, station inspector, and the
+  native balance record with distinct CaCO₃, TiO₂, and ZrO₂ lot masses totaling 24.00 g.
+
+## Critique 78: saved campaign state could disagree during hydration
+
+Returning from the isolated composer test exposed a server/client mismatch: station consoles read
+local storage during their initial client render while the server emitted the default campaign. The
+shift recovered, but a development error overlay appeared on a cold reload.
+
+### Changes
+
+- Made every station console begin from the same deterministic server defaults, then hydrate the saved
+  campaign after mount before responding to later campaign events.
+- Preserved RUN-047, station selection, and its XRD reference-due state across a cold reload without a
+  hydration warning, duplicate console, or stale default workcell state.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

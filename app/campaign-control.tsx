@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { campaignSpecs as recipes, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
-import type { CampaignOperations } from './campaign-spec';
+import { buildCustomCampaignSpec, campaignSpecs as recipes, customCompositionOptions, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import type { CampaignOperations, CampaignSpec, CustomComposition } from './campaign-spec';
 
 type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; diagnosis?: string };
 type CampaignInventory = { crucibles: number; liners: number; carbonTabs: number };
@@ -17,6 +17,7 @@ type CampaignRun = {
   message: string;
   runNumber: number;
   thermalBayLevel: number;
+  customCandidate?: string;
   inventory: CampaignInventory;
   history: CampaignResult[];
 };
@@ -38,6 +39,7 @@ const storageKey = 'mattershift-campaign-v2';
 export function CampaignControlModal({ autoOpenInventory = false, onClose }: { autoOpenInventory?: boolean; onClose: () => void }) {
   const [commissionOpen, setCommissionOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(autoOpenInventory);
+  const [composerOpen, setComposerOpen] = useState(false);
   const [run, setRun] = useState<CampaignRun>(() => {
     if (typeof window === 'undefined') return initialRun;
     try {
@@ -67,7 +69,8 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const history = Array.isArray(run.history) ? run.history : [];
   const adaptiveUnlocked = history.length >= 2;
   const diagnosisUnlocked = history.some((result) => result.candidate === 'D-08' && Boolean(result.diagnosis));
-  const availableRecipes = recipes.filter((candidate) => (candidate.id !== 'A-29' || adaptiveUnlocked) && (candidate.id !== 'R-31' || diagnosisUnlocked));
+  const customCandidate = run.customCandidate ? getCampaignSpec(run.customCandidate) : null;
+  const availableRecipes = [...recipes, ...(customCandidate ? [customCandidate] : [])].filter((candidate) => (candidate.id !== 'A-29' || adaptiveUnlocked) && (candidate.id !== 'R-31' || diagnosisUnlocked));
   const identity = getCampaignIdentity(currentRunNumber);
   const operations = getCampaignOperations(currentRunNumber, run.thermalBayLevel);
   const inventory = { ...initialInventory, ...run.inventory };
@@ -113,7 +116,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
         : [...history, { runNumber: currentRunNumber, candidate: recipe.id, measured: recipe.measured, gap: recipe.gap, objectiveMet: recipe.objectiveMet, elapsed: run.elapsed }];
       const mechanismRecovery = run.stage >= 9 && recipe.id === 'D-08' && archivedHistory.some((result) => result.runNumber === currentRunNumber && Boolean(result.diagnosis));
       const nextSelected = mechanismRecovery ? 'R-31' : run.selected;
-      updateRun({ ...initialRun, insight: run.insight, thermalBayLevel: run.thermalBayLevel, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, message: mechanismRecovery
+      updateRun({ ...initialRun, insight: run.insight, thermalBayLevel: run.thermalBayLevel, customCandidate: run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, message: mechanismRecovery
         ? `${identity.runId} diagnosis assimilated. R-31 raises thermal dose while preserving stoichiometry to test the incomplete-conversion hypothesis.`
         : `${identity.runId} archived. Select the next candidate.` });
     }
@@ -144,6 +147,11 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
       insight: run.insight - 35,
       message: 'Material issue MI-1186 received and reconciled. Crucibles, prep liners, and conductive tabs are released to their point-of-use locations.',
     });
+  };
+
+  const retainCustomCandidate = (candidate: CampaignSpec) => {
+    updateRun({ selected: candidate.id, customCandidate: candidate.id, message: `${candidate.id} authored and retained in the candidate tray. Review its predicted envelope before release.` });
+    setComposerOpen(false);
   };
 
   const commissionAuxiliaryChamber = () => {
@@ -180,7 +188,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
 
       <div className="campaign-workspace">
         <aside className="campaign-designer">
-          <div className="campaign-panel-head"><div><span>EXPERIMENT DESIGN</span><b>{diagnosisUnlocked ? 'MECHANISM CANDIDATES' : adaptiveUnlocked ? 'ADAPTIVE CANDIDATES' : 'AI CANDIDATES'}</b></div><em>{String(availableRecipes.length).padStart(2, '0')}</em></div>
+          <div className="campaign-panel-head"><div><span>EXPERIMENT DESIGN</span><b>{diagnosisUnlocked ? 'MECHANISM CANDIDATES' : adaptiveUnlocked ? 'ADAPTIVE CANDIDATES' : 'AI CANDIDATES'}</b></div><div className="campaign-panel-tools"><button type="button" disabled={run.stage > 0} onClick={() => setComposerOpen(true)}>＋ COMPOSE</button><em>{String(availableRecipes.length).padStart(2, '0')}</em></div></div>
           <div className="campaign-design-space" aria-label="Composition and temperature design space">
             <svg viewBox="0 0 320 180" role="img" aria-label={`${recipe.id} selected in the materials design space`}>
               <defs><radialGradient id="campaignHalo"><stop offset="0" stopColor="#4dd5ed" stopOpacity=".24" /><stop offset="1" stopColor="#4dd5ed" stopOpacity="0" /></radialGradient></defs>
@@ -207,7 +215,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
           <div className="candidate-list">
             {availableRecipes.map((candidate) => {
               const measured = [...history].reverse().find((result) => result.candidate === candidate.id);
-              return <button key={candidate.id} type="button" className={`${candidate.id === run.selected ? 'active ' : ''}${candidate.id === 'A-29' ? 'learned' : candidate.id === 'R-31' ? 'mechanism' : ''}`} disabled={run.stage > 0} onClick={() => updateRun({ selected: candidate.id, message: `${candidate.id} selected. Review its synthesis envelope before release.` })}>
+              return <button key={candidate.id} type="button" className={`${candidate.id === run.selected ? 'active ' : ''}${candidate.id === 'A-29' ? 'learned' : candidate.id === 'R-31' ? 'mechanism' : candidate.id.startsWith('U-') ? 'scientist' : ''}`} disabled={run.stage > 0} onClick={() => updateRun({ selected: candidate.id, message: `${candidate.id} selected. Review its synthesis envelope before release.` })}>
                 <span>{candidate.id}</span><div><b>{candidate.name}</b><small>{candidate.formula}</small></div><em>{measured ? `${measured.measured}% ${measured.objectiveMet ? '✓' : '·'}` : candidate.prediction}</em>
               </button>;
             })}
@@ -271,7 +279,63 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
     </section>
     {commissionOpen && <ThermalCommissioningModal alreadyQualified={run.thermalBayLevel >= 2} activeRun={operations.activeFurnaceRun} queueMinutes={getCampaignOperations(currentRunNumber, 2).queueMinutes} onComplete={() => { commissionAuxiliaryChamber(); setCommissionOpen(false); }} onClose={() => setCommissionOpen(false)} />}
     {inventoryOpen && <InventoryServiceModal inventory={inventory} budgetReady={run.insight >= 35} onComplete={() => { replenishInventory(); setInventoryOpen(false); }} onClose={() => setInventoryOpen(false)} />}
+    {composerOpen && <FormulationComposer initial={customCandidate?.composition} onRetain={retainCustomCandidate} onClose={() => setComposerOpen(false)} />}
   </div>;
+}
+
+function FormulationComposer({ initial, onRetain, onClose }: { initial?: CustomComposition; onRetain: (candidate: CampaignSpec) => void; onClose: () => void }) {
+  const [composition, setComposition] = useState<CustomComposition>(initial ?? { caExcess: 4, zrDopant: 2, temperature: 1000, dwell: 3.5 });
+  const candidate = buildCustomCampaignSpec(composition);
+  const zrSites = composition.zrDopant === 0 ? [] : composition.zrDopant <= 2 ? [3] : composition.zrDopant <= 4 ? [1, 6] : [1, 4, 7];
+  const update = (key: keyof CustomComposition, value: number) => setComposition((current) => ({ ...current, [key]: value }));
+  return <div className="formulation-composer-backdrop" role="presentation">
+    <section className="formulation-composer" role="dialog" aria-modal="true" aria-label="Scientist formulation composer">
+      <header><div><p className="section-kicker">SCIENTIST WORKBENCH · USER FORMULATION</p><h2>Compose a governed experiment</h2></div><button type="button" onClick={onClose} aria-label="Close formulation composer">×</button></header>
+      <div className="composer-status"><span>CANDIDATE<b>{candidate.id}</b></span><span>MODEL PRIOR<b>{candidate.prediction}</b></span><span>UNCERTAINTY<b>{candidate.uncertainty}</b></span><span>THERMAL OCCUPANCY<b>{candidate.thermalMinutes} MIN</b></span></div>
+      <div className="composer-workspace">
+        <div className="composer-visual">
+          <svg viewBox="0 0 560 330" role="img" aria-label={`${candidate.formula} lattice and thermal program preview`}>
+            <defs><pattern id="composerGrid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" className="grid" /></pattern><radialGradient id="composerAtom"><stop stopColor="#eaf8fa" /><stop offset=".42" stopColor="#81cedc" /><stop offset="1" stopColor="#264e5c" /></radialGradient></defs>
+            <rect width="560" height="330" fill="url(#composerGrid)" />
+            <text x="24" y="28">PEROVSKITE DESIGN CELL · A / B SITE SUBSTITUTION</text>
+            <g className="composer-lattice">
+              {[0, 1, 2].map((row) => [0, 1, 2].map((column) => {
+                const index = row * 3 + column;
+                const x = 65 + column * 74;
+                const y = 72 + row * 68;
+                const zr = zrSites.includes(index);
+                return <g key={`${row}-${column}`}><line x1={x} x2={x + 74} y1={y} y2={y} /><line x1={x} x2={x} y1={y} y2={y + 68} /><circle cx={x} cy={y} r={zr ? 15 : 13} className={zr ? 'zr' : 'ti'} /><text x={x - (zr ? 8 : 6)} y={y + 4}>{zr ? 'Zr' : 'Ti'}</text><circle cx={x + 37} cy={y + 34} r={composition.caExcess > 0 ? 11.5 : 10} className="ca" /><text x={x + 29} y={y + 38}>Ca</text><circle cx={x + 37} cy={y} r="5" className="oxygen" /><circle cx={x} cy={y + 34} r="5" className="oxygen" /></g>;
+              }))}
+            </g>
+            <g className="composer-thermal-preview">
+              <text x="322" y="72">GOVERNED THERMAL PROGRAM</text>
+              {[102, 150, 198, 246].map((y) => <line key={y} x1="322" x2="528" y1={y} y2={y} />)}
+              <path d={`M326 244 C350 238 368 ${226 - (composition.temperature - 900) * .48} 392 ${226 - (composition.temperature - 900) * .48} L${436 + composition.dwell * 8} ${226 - (composition.temperature - 900) * .48} C492 ${226 - (composition.temperature - 900) * .48} 505 230 526 244`} />
+              <circle cx="392" cy={226 - (composition.temperature - 900) * .48} r="4" />
+              <text x="326" y="270">23 °C</text><text x="470" y="270">{candidate.temperatureShort}</text>
+              <text x="326" y="298">RAMP</text><text x="397" y="298">{candidate.dwell} DWELL</text><text x="501" y="298">COOL</text>
+            </g>
+            <text x="24" y="306" className="composer-formula">{candidate.formula}</text>
+          </svg>
+          <div className="composer-envelope"><span><i style={{ width: `${Number.parseFloat(candidate.prediction)}%` }} />MODEL PRIOR<b>{candidate.prediction}</b></span><span><i style={{ width: `${Math.max(8, 100 - candidate.thermalMinutes / 5)}%` }} />THROUGHPUT<b>{candidate.throughput}</b></span></div>
+        </div>
+        <div className="composer-controls">
+          <p>Author the material and process together. The model prior guides the choice; the retained run remains the evidence.</p>
+          <CompositionControl label="CA A-SITE EXCESS" value={composition.caExcess} values={customCompositionOptions.caExcess} format={(value) => `${value >= 0 ? '+' : ''}${value} mol%`} onChange={(value) => update('caExcess', value)} />
+          <CompositionControl label="ZR B-SITE SUBSTITUTION" value={composition.zrDopant} values={customCompositionOptions.zrDopant} format={(value) => `${value} mol%`} onChange={(value) => update('zrDopant', value)} />
+          <CompositionControl label="CALCINATION SETPOINT" value={composition.temperature} values={customCompositionOptions.temperature} format={(value) => `${value.toLocaleString('en-US')} °C`} onChange={(value) => update('temperature', value)} />
+          <CompositionControl label="DWELL TIME" value={composition.dwell} values={customCompositionOptions.dwell} format={(value) => `${value.toFixed(1)} h`} onChange={(value) => update('dwell', value)} />
+          <div className="composer-custody"><i />RECIPE ID, MODEL PRIOR, AND FULL PARAMETER SET WILL BE LOCKED TO THE RUN RECORD.</div>
+          <button type="button" className="composer-retain" onClick={() => onRetain(candidate)}>RETAIN IN CANDIDATE TRAY<span>→</span></button>
+        </div>
+      </div>
+    </section>
+  </div>;
+}
+
+function CompositionControl({ label, value, values, format, onChange }: { label: string; value: number; values: readonly number[]; format: (value: number) => string; onChange: (value: number) => void }) {
+  const index = Math.max(0, values.indexOf(value));
+  return <label className="composition-control"><span>{label}<b>{format(value)}</b></span><input type="range" min="0" max={values.length - 1} step="1" value={index} onChange={(event) => onChange(values[Number(event.target.value)])} /><em>{values.map((option) => <i key={option} className={option === value ? 'active' : ''}>{format(option)}</i>)}</em></label>;
 }
 
 function InventoryServiceModal({ inventory, budgetReady, onComplete, onClose }: { inventory: CampaignInventory; budgetReady: boolean; onComplete: () => void; onClose: () => void }) {

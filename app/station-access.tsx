@@ -165,22 +165,10 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   const [enteredChecks, setEnteredChecks] = useState<string[]>([]);
   const [tab, setTab] = useState<Tab>('hmi');
   const [sessions, setSessions] = useState<Record<string, ConsoleSession>>({});
-  const [campaignStage, setCampaignStage] = useState(() => {
-    if (typeof window === 'undefined') return 0;
-    try { return Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').stage ?? 0); } catch { return 0; }
-  });
-  const [campaignSelected, setCampaignSelected] = useState(() => {
-    if (typeof window === 'undefined') return 'C-42';
-    try { return String(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').selected ?? 'C-42'); } catch { return 'C-42'; }
-  });
-  const [campaignRunNumber, setCampaignRunNumber] = useState(() => {
-    if (typeof window === 'undefined') return 42;
-    try { return Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').runNumber ?? 42); } catch { return 42; }
-  });
-  const [campaignThermalBayLevel, setCampaignThermalBayLevel] = useState(() => {
-    if (typeof window === 'undefined') return 1;
-    try { return Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').thermalBayLevel ?? 1); } catch { return 1; }
-  });
+  const [campaignStage, setCampaignStage] = useState(0);
+  const [campaignSelected, setCampaignSelected] = useState('C-42');
+  const [campaignRunNumber, setCampaignRunNumber] = useState(42);
+  const [campaignThermalBayLevel, setCampaignThermalBayLevel] = useState(1);
   const campaignActive = scenarioId === 'xrd' && getCampaignStationId(campaignStage) === station.id;
   const facilityConfigured = scenarioId === 'xrd' && station.id === 'FURN-04' && campaignThermalBayLevel >= 2;
   const contextKey = campaignActive ? `${station.id}:RUN-${campaignRunNumber}:${campaignSelected}:S${campaignStage}` : facilityConfigured ? `${station.id}:CONFIG-L2` : station.id;
@@ -216,6 +204,19 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
     });
     recordStationEvent('control', `${station.id} local control: ${operation}; equipment feedback retained.`, operation);
   };
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; selected?: string; runNumber?: number; thermalBayLevel?: number };
+        setCampaignStage(Number(stored.stage ?? 0));
+        setCampaignSelected(String(stored.selected ?? 'C-42'));
+        setCampaignRunNumber(Number(stored.runNumber ?? 42));
+        setCampaignThermalBayLevel(Number(stored.thermalBayLevel ?? 1));
+      } catch { /* preserve the deterministic server defaults */ }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     const followCampaign = (event: Event) => {
@@ -350,7 +351,17 @@ function PrepCampaignPanel({ selected, runNumber, operations }: { selected: stri
   const target = Number.parseFloat(spec.targetMass);
   const offset = spec.id === 'Z-17' ? -.0002 : spec.id === 'D-08' ? .0001 : .0002;
   const actual = (target + offset).toFixed(4);
-  const lots = PRECURSOR_PROGRAMS[spec.id] ?? PRECURSOR_PROGRAMS['C-42'];
+  const lots = spec.composition ? (() => {
+    const rawCa = 13.35 * (1 + spec.composition.caExcess / 100);
+    const rawTi = 10.65 * (1 - spec.composition.zrDopant / 100);
+    const rawZr = 0.1525 * spec.composition.zrDopant;
+    const scale = 24 / (rawCa + rawTi + rawZr);
+    return [
+      { lot: 'CA-21A', material: 'CaCO₃', mass: `${(rawCa * scale).toFixed(2)} g` },
+      { lot: 'TI-09C', material: 'TiO₂', mass: `${(rawTi * scale).toFixed(2)} g` },
+      ...(spec.composition.zrDopant > 0 ? [{ lot: 'ZR-04B', material: 'ZrO₂', mass: `${(rawZr * scale).toFixed(2)} g` }] : []),
+    ];
+  })() : PRECURSOR_PROGRAMS[spec.id] ?? PRECURSOR_PROGRAMS['C-42'];
   const status = antistatic ? 'PORTION RELEASED' : zeroed ? 'MASS STABLE' : airflowProven ? 'READY TO TARE' : 'ENCLOSURE HOLD';
   const massPath = zeroed ? 'M257 125 C276 124 287 126 301 124 S327 125 341 124 S366 126 383 124 S411 125 431 124 S456 123 479 124' : 'M257 146 H479';
   return <section className={`campaign-prep-console${antistatic ? ' operation-complete' : ''}`}>

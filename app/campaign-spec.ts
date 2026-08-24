@@ -1,4 +1,11 @@
-export type CampaignCandidateId = 'C-42' | 'Z-17' | 'D-08' | 'A-29' | 'R-31';
+export type CampaignCandidateId = 'C-42' | 'Z-17' | 'D-08' | 'A-29' | 'R-31' | `U-${string}`;
+
+export type CustomComposition = {
+  caExcess: number;
+  zrDopant: number;
+  temperature: number;
+  dwell: number;
+};
 
 export type CampaignSpec = {
   id: CampaignCandidateId;
@@ -19,6 +26,7 @@ export type CampaignSpec = {
   thermalMinutes: number;
   throughput: string;
   point: [number, number];
+  composition?: CustomComposition;
 };
 
 export type CampaignOperations = {
@@ -63,7 +71,82 @@ export const campaignSpecs: CampaignSpec[] = [
 ];
 
 export function getCampaignSpec(id?: string) {
+  if (id?.startsWith('U-')) return parseCustomCampaignSpec(id);
   return campaignSpecs.find((candidate) => candidate.id === id) ?? campaignSpecs[0];
+}
+
+export const customCompositionOptions = {
+  caExcess: [-4, 0, 4, 8],
+  zrDopant: [0, 2, 4, 6],
+  temperature: [900, 950, 1000, 1050],
+  dwell: [2.5, 3.5, 4.5, 6],
+} as const;
+
+function nearestIndex(options: readonly number[], value: number) {
+  return options.reduce((best, option, index) => Math.abs(option - value) < Math.abs(options[best] - value) ? index : best, 0);
+}
+
+function customFormula({ caExcess, zrDopant }: CustomComposition) {
+  const subscript = (value: string) => value.replace(/[0-9.]/g, (character) => ({ '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', '.': '.' })[character] ?? character);
+  const tiFraction = (1 - zrDopant / 100).toFixed(2);
+  const zrFraction = (zrDopant / 100).toFixed(2);
+  const lattice = zrDopant > 0 ? `CaTi${subscript(tiFraction)}Zr${subscript(zrFraction)}O₃` : 'CaTiO₃';
+  return caExcess === 0 ? lattice : `${lattice} · ${caExcess > 0 ? '+' : ''}${caExcess} mol% Ca`;
+}
+
+export function buildCustomCampaignSpec(input: CustomComposition): CampaignSpec {
+  const caIndex = nearestIndex(customCompositionOptions.caExcess, input.caExcess);
+  const zrIndex = nearestIndex(customCompositionOptions.zrDopant, input.zrDopant);
+  const temperatureIndex = nearestIndex(customCompositionOptions.temperature, input.temperature);
+  const dwellIndex = nearestIndex(customCompositionOptions.dwell, input.dwell);
+  const composition: CustomComposition = {
+    caExcess: customCompositionOptions.caExcess[caIndex],
+    zrDopant: customCompositionOptions.zrDopant[zrIndex],
+    temperature: customCompositionOptions.temperature[temperatureIndex],
+    dwell: customCompositionOptions.dwell[dwellIndex],
+  };
+  const id: CampaignCandidateId = `U-${caIndex}${zrIndex}${temperatureIndex}${dwellIndex}`;
+  const temperatureScore = -Math.abs(composition.temperature - 1000) * 0.024;
+  const caScore = 1.15 - Math.abs(composition.caExcess - 4) * 0.19;
+  const zrScore = composition.zrDopant * 0.3;
+  const dwellScore = (composition.dwell - 2.5) * 0.32;
+  const predictionValue = Math.max(90.2, Math.min(98.4, 93.8 + temperatureScore + caScore + zrScore + dwellScore));
+  const deterministicOffset = [-0.7, 0.2, -0.3, 0.6][(caIndex + zrIndex * 2 + temperatureIndex * 3 + dwellIndex) % 4];
+  const measuredValue = Math.max(89.5, Math.min(99.1, predictionValue + deterministicOffset));
+  const objectiveGap = measuredValue - 96;
+  const thermalMinutes = Math.round(composition.dwell * 60 + 120);
+  return {
+    id,
+    name: `${composition.zrDopant}% Zr · ${composition.caExcess >= 0 ? '+' : ''}${composition.caExcess}% Ca`,
+    formula: customFormula(composition),
+    precursorLabel: `Ca + Ti${composition.zrDopant > 0 ? ' + Zr' : ''} user-selected lots`,
+    targetMass: '24.00 g',
+    temperature: `${composition.temperature.toLocaleString('en-US')} °C`,
+    temperatureShort: `${composition.temperature} °C`,
+    dwell: `${composition.dwell.toFixed(1)} h`,
+    prediction: `${predictionValue.toFixed(1)}%`,
+    uncertainty: '±2.1%',
+    profile: `USR-${composition.temperature}-${Math.round(composition.dwell * 60)}M`,
+    measured: measuredValue.toFixed(1),
+    gap: `${objectiveGap >= 0 ? '+' : '−'}${Math.abs(objectiveGap).toFixed(1)} pp`,
+    objectiveMet: objectiveGap >= 0,
+    insightReward: 54 + zrIndex * 3,
+    thermalMinutes,
+    throughput: `${(60 / thermalMinutes).toFixed(2)} runs / h`,
+    point: [150 + composition.zrDopant * 18 + composition.caExcess * 2.5, 132 - (composition.temperature - 900) * 0.27 - composition.dwell * 3],
+    composition,
+  };
+}
+
+function parseCustomCampaignSpec(id: string) {
+  const encoded = id.match(/^U-(\d)(\d)(\d)(\d)$/);
+  if (!encoded) return campaignSpecs[0];
+  return buildCustomCampaignSpec({
+    caExcess: customCompositionOptions.caExcess[Number(encoded[1])] ?? 0,
+    zrDopant: customCompositionOptions.zrDopant[Number(encoded[2])] ?? 0,
+    temperature: customCompositionOptions.temperature[Number(encoded[3])] ?? 1000,
+    dwell: customCompositionOptions.dwell[Number(encoded[4])] ?? 3.5,
+  });
 }
 
 export function getCampaignOperations(runNumber = 42, thermalBayLevel = 1): CampaignOperations {
