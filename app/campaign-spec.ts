@@ -96,6 +96,34 @@ export function evaluateCampaignMission(spec: CampaignSpec, missionId: CampaignM
   };
 }
 
+export type CampaignMissionForecast = {
+  tone: 'fit' | 'uncertain' | 'risk';
+  status: 'ROBUST FIT' | 'MODEL EDGE' | 'PHASE RISK' | 'TEMP RISK' | 'TIME RISK';
+  detail: string;
+};
+
+export function forecastCampaignMission(spec: CampaignSpec, missionId: CampaignMissionId = 'purity'): CampaignMissionForecast {
+  const prediction = Number.parseFloat(spec.prediction);
+  const uncertainty = Number.parseFloat(spec.uncertainty.replace(/[^\d.]/g, ''));
+  const conservativePhase = prediction - uncertainty;
+  const temperature = spec.composition?.temperature ?? Number(spec.temperature.replace(/[^\d]/g, ''));
+  const phaseFloor = missionId === 'low-energy' ? 94.5 : missionId === 'throughput' ? 95.5 : 96;
+
+  if (missionId === 'low-energy' && temperature > 950) {
+    return { tone: 'risk', status: 'TEMP RISK', detail: `${temperature - 950} °C above mission ceiling` };
+  }
+  if (missionId === 'throughput' && spec.thermalMinutes > 360) {
+    return { tone: 'risk', status: 'TIME RISK', detail: `${spec.thermalMinutes - 360} min above occupancy ceiling` };
+  }
+  if (conservativePhase >= phaseFloor) {
+    return { tone: 'fit', status: 'ROBUST FIT', detail: `${conservativePhase.toFixed(1)}% lower confidence bound` };
+  }
+  if (prediction >= phaseFloor) {
+    return { tone: 'uncertain', status: 'MODEL EDGE', detail: `${prediction.toFixed(1)} ± ${uncertainty.toFixed(1)}% crosses phase floor` };
+  }
+  return { tone: 'risk', status: 'PHASE RISK', detail: `${(phaseFloor - prediction).toFixed(1)} pp below predicted floor` };
+}
+
 export const campaignSpecs: CampaignSpec[] = [
   {
     id: 'C-42', name: 'Ca-rich edge', formula: 'CaTiO₃ + 8.3 mol% Ca excess', precursorLabel: 'Ca + Ti precursor lots', targetMass: '24.00 g',

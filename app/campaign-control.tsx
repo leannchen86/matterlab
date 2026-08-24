@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { buildCustomCampaignSpec, campaignMissions, campaignSpecs as recipes, customCompositionOptions, evaluateCampaignMission, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import { buildCustomCampaignSpec, campaignMissions, campaignSpecs as recipes, customCompositionOptions, evaluateCampaignMission, forecastCampaignMission, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import type { CampaignMissionId, CampaignOperations, CampaignSpec, CustomComposition } from './campaign-spec';
 
 type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; missionId?: CampaignMissionId; diagnosis?: string };
@@ -77,6 +77,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const operations = getCampaignOperations(currentRunNumber, run.thermalBayLevel);
   const mission = getCampaignMission(run.missionId);
   const evaluation = evaluateCampaignMission(recipe, run.missionId);
+  const selectedForecast = forecastCampaignMission(recipe, run.missionId);
   const phaseFloor = run.missionId === 'low-energy' ? 94.5 : run.missionId === 'throughput' ? 95.5 : 96;
   const needsMicroscopy = Number(recipe.measured) < phaseFloor;
   const inventory = { ...initialInventory, ...run.inventory };
@@ -226,13 +227,15 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
           <div className="candidate-list">
             {availableRecipes.map((candidate) => {
               const measured = [...history].reverse().find((result) => result.candidate === candidate.id);
+              const forecast = forecastCampaignMission(candidate, run.missionId);
               return <button key={candidate.id} type="button" className={`${candidate.id === run.selected ? 'active ' : ''}${candidate.id === 'A-29' ? 'learned' : candidate.id === 'R-31' ? 'mechanism' : candidate.id.startsWith('U-') ? 'scientist' : ''}`} disabled={run.stage > 0} onClick={() => updateRun({ selected: candidate.id, message: `${candidate.id} selected. Review its synthesis envelope before release.` })}>
-                <span>{candidate.id}</span><div><b>{candidate.name}</b><small>{candidate.formula}</small></div><em>{measured ? `${measured.measured}% ${measured.objectiveMet ? '✓' : '·'}` : candidate.prediction}</em>
+                <span>{candidate.id}</span><div><b>{candidate.name}</b><small>{candidate.formula}</small></div><div className="candidate-outcome"><em>{measured ? `${measured.measured}%` : candidate.prediction}</em><u className={measured ? measured.objectiveMet ? 'fit' : 'risk' : forecast.tone}>{measured ? measured.objectiveMet ? 'PASS' : 'MISS' : forecast.status}</u></div>
               </button>;
             })}
             {!adaptiveUnlocked && <div className="candidate-lock"><span>◇</span><div><b>ADAPTIVE SLOT LOCKED</b><small>retain 2 qualified results</small></div><em>{history.length} / 2</em></div>}
           </div>
           <div className="recipe-envelope"><span>SYNTHESIS ENVELOPE</span><div><b>{recipe.temperature}</b><small>calcination</small></div><div><b>{recipe.dwell}</b><small>dwell</small></div><div><b>{recipe.prediction}</b><small>predicted phase</small></div></div>
+          <div className={`mission-forecast ${selectedForecast.tone}`}><span>MISSION FORECAST · {mission.shortLabel}</span><b>{selectedForecast.status}</b><small>{selectedForecast.detail}</small><i /></div>
           {history.length > 0 && <div className="campaign-history"><span>MODEL MEMORY</span>{history.slice(-3).map((result) => <div key={result.runNumber}><b>RUN-{String(result.runNumber).padStart(3, '0')}</b><i>{result.candidate}{result.diagnosis ? ' · DIAG' : ''}</i><em className={result.objectiveMet ? 'hit' : 'miss'}>{result.measured}%</em></div>)}</div>}
         </aside>
 

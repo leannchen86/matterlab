@@ -1480,6 +1480,26 @@ the scientist a reason to trade a little purity for lower energy or higher throu
   objective to ≥94.5% / ≤950 °C while retaining its 900 °C, six-hour process and 480-minute physical
   furnace demand for the eventual multi-constraint result.
 
+## Critique 80: mission selection still required hidden arithmetic
+
+The mission rail created real tradeoffs, but candidate cards still showed only a point prediction. A
+player had to remember every threshold, subtract the uncertainty mentally, and inspect process details
+elsewhere to judge whether a proposal was a credible mission fit.
+
+### Changes
+
+- Added a prospective mission forecast that uses the model prediction, uncertainty interval, calcination
+  temperature, and true furnace occupancy while keeping the deterministic measured outcome hidden.
+- Classified each unrun candidate as a robust fit, model-edge choice, phase risk, temperature risk, or
+  time risk. Completed candidates keep their historical pass/miss under the mission they actually ran;
+  they are never silently rejudged when a later mission changes.
+- Added tiny telemetry badges to the candidate tray and a mission-forecast strip under the selected
+  synthesis envelope. The compact green/amber/red language makes tradeoffs scannable without turning
+  experiment design into a tutorial page.
+- Verified mission-dependent behavior in a clean production campaign: C-42 and Z-17 became temperature
+  risks under the low-energy mission, while D-08 became a model-edge option because its 900 °C route
+  passes the hard energy constraint but its confidence interval crosses the phase floor.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
