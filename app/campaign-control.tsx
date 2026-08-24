@@ -1,9 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { campaignSpecs as recipes, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 
 type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; diagnosis?: string };
+type CampaignInventory = { crucibles: number; liners: number; carbonTabs: number };
+
+const initialInventory: CampaignInventory = { crucibles: 7, liners: 2, carbonTabs: 1 };
 
 type CampaignRun = {
   stage: number;
@@ -13,6 +16,7 @@ type CampaignRun = {
   message: string;
   runNumber: number;
   thermalBayLevel: number;
+  inventory: CampaignInventory;
   history: CampaignResult[];
 };
 
@@ -23,6 +27,7 @@ const initialRun: CampaignRun = {
   insight: 248,
   runNumber: 42,
   thermalBayLevel: 1,
+  inventory: initialInventory,
   history: [],
   message: 'Select a candidate and release one governed experiment into the lab.',
 };
@@ -31,11 +36,14 @@ const storageKey = 'mattershift-campaign-v2';
 
 export function CampaignControlModal({ onClose }: { onClose: () => void }) {
   const [commissionOpen, setCommissionOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   const [run, setRun] = useState<CampaignRun>(() => {
     if (typeof window === 'undefined') return initialRun;
     try {
       const saved = window.localStorage.getItem(storageKey);
-      return saved ? { ...initialRun, ...JSON.parse(saved) } : initialRun;
+      if (!saved) return initialRun;
+      const parsed = JSON.parse(saved) as Partial<CampaignRun>;
+      return { ...initialRun, ...parsed, inventory: { ...initialInventory, ...parsed.inventory } };
     } catch {
       return initialRun;
     }
@@ -61,18 +69,27 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
   const availableRecipes = recipes.filter((candidate) => (candidate.id !== 'A-29' || adaptiveUnlocked) && (candidate.id !== 'R-31' || diagnosisUnlocked));
   const identity = getCampaignIdentity(currentRunNumber);
   const operations = getCampaignOperations(currentRunNumber, run.thermalBayLevel);
+  const inventory = { ...initialInventory, ...run.inventory };
+  const inventoryLow = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
   const fault = run.stage === 2 ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 6 ? 'qc' : null;
   const primary = getPrimaryAction(run.stage, identity.runId);
 
   const advance = () => {
-    if (run.stage === 0) updateRun({ stage: 1, message: `${recipe.id} released as ${identity.runId}. Powder prep has the governed formulation.` });
+    if (run.stage === 0) {
+      if (inventory.crucibles < 6 || inventory.liners < 1) {
+        updateRun({ message: `Release blocked: ${identity.runId} requires six clean alumina crucibles and one sealed prep liner. Replenish the point-of-use rack before material issue.` });
+        setInventoryOpen(true);
+        return;
+      }
+      updateRun({ stage: 1, inventory: { ...inventory, crucibles: inventory.crucibles - 6, liners: inventory.liners - 1 }, message: `${recipe.id} released as ${identity.runId}. Six crucibles and one prep liner are lot-bound to the material issue record.` });
+    }
     else if (run.stage >= 7) {
       const archivedHistory = history.some((result) => result.runNumber === currentRunNumber)
         ? history
         : [...history, { runNumber: currentRunNumber, candidate: recipe.id, measured: recipe.measured, gap: recipe.gap, objectiveMet: recipe.objectiveMet, elapsed: run.elapsed }];
       const mechanismRecovery = run.stage >= 9 && recipe.id === 'D-08' && archivedHistory.some((result) => result.runNumber === currentRunNumber && Boolean(result.diagnosis));
       const nextSelected = mechanismRecovery ? 'R-31' : run.selected;
-      updateRun({ ...initialRun, insight: run.insight, thermalBayLevel: run.thermalBayLevel, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, message: mechanismRecovery
+      updateRun({ ...initialRun, insight: run.insight, thermalBayLevel: run.thermalBayLevel, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, message: mechanismRecovery
         ? `${identity.runId} diagnosis assimilated. R-31 raises thermal dose while preserving stoichiometry to test the incomplete-conversion hypothesis.`
         : `${identity.runId} archived. Select the next candidate.` });
     }
@@ -84,7 +101,24 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
       : `Command blocked: shortening ${operations.activeFurnaceRun} violates its governed thermal profile. ${identity.runId} remains queued.` });
   };
 
-  const startDiagnosis = () => updateRun({ stage: 8, message: `${identity.thermalSample} routed to SEM-01. Four representative BSE fields and an EDS map are required before assigning a mechanism.` });
+  const startDiagnosis = () => {
+    if (inventory.carbonTabs < 1) {
+      updateRun({ message: `SEM route blocked: no released conductive carbon tabs remain at point of use. Replenish and reconcile the consumable lot before mounting ${identity.thermalSample}.` });
+      setInventoryOpen(true);
+      return;
+    }
+    updateRun({ stage: 8, inventory: { ...inventory, carbonTabs: inventory.carbonTabs - 1 }, message: `${identity.thermalSample} routed to SEM-01. Carbon-tab lot CT-88 is bound to the stub; four representative BSE fields and an EDS map are required before assigning a mechanism.` });
+  };
+
+  const replenishInventory = () => {
+    if (run.insight < 35) return;
+    updateRun({
+      inventory: { crucibles: Math.min(24, inventory.crucibles + 12), liners: Math.min(10, inventory.liners + 4), carbonTabs: Math.min(12, inventory.carbonTabs + 6) },
+      elapsed: run.elapsed + 26,
+      insight: run.insight - 35,
+      message: 'Material issue MI-1186 received and reconciled. Crucibles, prep liners, and conductive tabs are released to their point-of-use locations.',
+    });
+  };
 
   const commissionAuxiliaryChamber = () => {
     if (run.thermalBayLevel >= 2 || run.stage > 3 || run.insight < 120) return;
@@ -107,7 +141,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
     <section className="modal-card campaign-control" role="dialog" aria-modal="true" aria-label="Materials campaign control">
       <header>
         <div><p className="section-kicker">SANDBOX CAMPAIGN · MAT-{identity.suffix}</p><h2>Materials campaign control</h2></div>
-        <button type="button" onClick={onClose} aria-label="Close dialog">×</button>
+        <div className="campaign-header-actions"><button type="button" className={inventoryLow ? 'inventory-low' : ''} onClick={() => setInventoryOpen(true)}><i />MATERIAL STAGING<b>{inventory.crucibles} CRUC · {inventory.liners} LIN · {inventory.carbonTabs} TAB</b></button><button type="button" onClick={onClose} aria-label="Close dialog">×</button></div>
       </header>
 
       <div className="campaign-hud">
@@ -210,7 +244,56 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
       </footer>
     </section>
     {commissionOpen && <ThermalCommissioningModal alreadyQualified={run.thermalBayLevel >= 2} activeRun={operations.activeFurnaceRun} queueMinutes={getCampaignOperations(currentRunNumber, 2).queueMinutes} onComplete={() => { commissionAuxiliaryChamber(); setCommissionOpen(false); }} onClose={() => setCommissionOpen(false)} />}
+    {inventoryOpen && <InventoryServiceModal inventory={inventory} budgetReady={run.insight >= 35} onComplete={() => { replenishInventory(); setInventoryOpen(false); }} onClose={() => setInventoryOpen(false)} />}
   </div>;
+}
+
+function InventoryServiceModal({ inventory, budgetReady, onComplete, onClose }: { inventory: CampaignInventory; budgetReady: boolean; onComplete: () => void; onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const [feedback, setFeedback] = useState('');
+  const accepted = step >= 3;
+  const execute = (target: number) => {
+    if (target !== step + 1) return;
+    setFeedback('');
+    setStep(target);
+  };
+  return <div className="inventory-service-backdrop" role="presentation">
+    <section className="inventory-service" role="dialog" aria-modal="true" aria-label="Point-of-use material staging">
+      <header><div><p className="section-kicker">MATERIAL ISSUE · MI-1186</p><h2>Point-of-use replenishment</h2></div><button type="button" onClick={onClose} aria-label="Close material staging">×</button></header>
+      <div className="inventory-status"><span>MOVE TOTE<b>MAT-MOV-1186</b></span><span>RECEIPT STATE<b>{accepted ? 'RECONCILED' : step >= 1 ? 'IN PROCESS' : 'AWAITING SCAN'}</b></span><span>LAB IMPACT<b>26 MIN · 35 RP</b></span></div>
+      <div className="inventory-workspace">
+        <div className="inventory-rack" aria-label="Point-of-use consumables rack">
+          <header><span>PREP / CHARACTERIZATION CONSUMABLES</span><b>{accepted ? 'RELEASE READY' : 'CURRENT + INBOUND'}</b></header>
+          <div className="stock-bins">
+            <StockBin kind="crucibles" label="ALUMINA CRUCIBLES" lot="ALC-806" count={inventory.crucibles} inbound={12} capacity={24} active={step >= 2} />
+            <StockBin kind="liners" label="SEALED PREP LINERS" lot="PL-219" count={inventory.liners} inbound={4} capacity={10} active={step >= 2} />
+            <StockBin kind="tabs" label="CONDUCTIVE TABS" lot="CT-88" count={inventory.carbonTabs} inbound={6} capacity={12} active={step >= 2} />
+          </div>
+          <div className="material-flow"><i className={step >= 1 ? 'active' : ''} /><span>RECEIVING</span><i className={step >= 2 ? 'active' : ''} /><span>LOT RECONCILE</span><i className={step >= 3 ? 'active' : ''} /><span>POINT OF USE</span></div>
+        </div>
+        <div className="inventory-controls">
+          <p className="modal-intro">Receive the material tote against its move record, reconcile each physical lot, then release the bins to point of use. Stock counts do not change until the receipt is retained.</p>
+          <ol>
+            <InventoryStep number="01" title="Scan move tote + destination" note="MAT-MOV-1186 · PREP-01" done={step >= 1} active={step === 0} onClick={() => execute(1)} />
+            <InventoryStep number="02" title="Reconcile lots + quantities" note="12 crucibles · 4 liners · 6 tabs" done={step >= 2} active={step === 1} onClick={() => execute(2)} />
+            <InventoryStep number="03" title="Inspect seals + release bins" note="packaging intact · locations matched" done={step >= 3} active={step === 2} onClick={() => execute(3)} />
+          </ol>
+          {!accepted && <button type="button" className="inventory-shortcut" onClick={() => setFeedback('Blocked: an unscanned tote can place the correct-looking material under the wrong lot, location, or expiry state.')}>RECEIVE WITHOUT SCAN</button>}
+          {feedback && <p className="inventory-feedback">{feedback}</p>}
+          <button type="button" className="inventory-accept" disabled={!accepted || !budgetReady} onClick={onComplete}>{!budgetReady ? '35 RP OPERATIONS BUDGET REQUIRED' : accepted ? 'RETAIN RECEIPT · RELEASE STOCK' : 'COMPLETE MATERIAL RECEIPT'}</button>
+        </div>
+      </div>
+    </section>
+  </div>;
+}
+
+function StockBin({ kind, label, lot, count, inbound, capacity, active }: { kind: string; label: string; lot: string; count: number; inbound: number; capacity: number; active: boolean }) {
+  const projected = Math.min(capacity, count + inbound);
+  return <article className={`stock-bin ${kind} ${active ? 'receiving' : ''}`}><div className="stock-bin-visual"><div>{Array.from({ length: Math.min(projected, 12) }, (_, index) => <i key={index} className={index >= Math.min(count, 12) ? 'inbound' : ''} />)}</div><em style={{ '--stock': `${Math.min(100, (projected / capacity) * 100)}%` } as CSSProperties} /></div><span>{label}</span><b>{count} <small>+ {active ? inbound : 0}</small></b><footer>{lot} · MAX {capacity}</footer></article>;
+}
+
+function InventoryStep({ number, title, note, done, active, onClick }: { number: string; title: string; note: string; done: boolean; active: boolean; onClick: () => void }) {
+  return <li className={done ? 'done' : active ? 'active' : ''}><button type="button" disabled={!active || done} onClick={onClick}><i>{done ? '✓' : number}</i><span><b>{title}</b><small>{done ? 'physical + digital state retained' : note}</small></span></button></li>;
 }
 
 function ThermalCommissioningModal({ alreadyQualified, activeRun, queueMinutes, onComplete, onClose }: { alreadyQualified: boolean; activeRun: string; queueMinutes: number; onComplete: () => void; onClose: () => void }) {

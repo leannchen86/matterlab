@@ -1322,6 +1322,29 @@ feel like a campaign modifier instead of a persistent, governed change to the la
 - Updated local-console naming and accessibility context to follow the configured asset rather than the
   original base catalog entry.
 
+## Critique 72: equipment capacity existed without material availability
+
+The player could qualify new furnace capacity, but every run still assumed that clean crucibles, prep
+liners, and microscopy consumables would appear on demand. That removed a major laboratory operations
+constraint and made repeated campaigns less like running a physical facility.
+
+### Changes
+
+- Added persistent point-of-use inventory for alumina crucibles, sealed prep liners, and conductive
+  carbon tabs. Releasing a governed run now reserves six crucibles and one liner by lot; routing a
+  valid-negative result to SEM reserves a conductive tab.
+- Added real execution gates. A run cannot leave the planning state without sufficient clean ware, and
+  microscopy cannot begin without a released mounting consumable; both blocks route the player to the
+  physical replenishment workflow instead of silently manufacturing stock.
+- Added a visual material-staging workbench with shaped bins, live/projected fill states, lot IDs,
+  capacity bars, a three-stage material flow, and a compact low-stock indicator in campaign control.
+- Made replenishment operable: scan the move tote and destination, reconcile three lots and quantities,
+  inspect packaging and locations, then retain the receipt before counts change. An unscanned-receipt
+  shortcut is blocked because visually plausible stock can still carry the wrong identity or expiry.
+- Persisted inventory between campaigns and attached a 26-minute / 35-RP operations tradeoff, creating
+  a second player-controlled bottleneck alongside furnace capacity without turning the main lab view
+  into an inventory spreadsheet.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
