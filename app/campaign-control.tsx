@@ -62,9 +62,15 @@ function authoredFollowUp(spec: CampaignSpec, missionId: CampaignMissionId) {
     return options[Math.max(0, Math.min(options.length - 1, current + direction))] ?? value;
   };
   const composition: CustomComposition = { ...spec.composition };
-  if (missionId === 'throughput') composition.dwell = step(customCompositionOptions.dwell, composition.dwell, -1);
-  else if (missionId === 'low-energy') composition.temperature = step(customCompositionOptions.temperature, composition.temperature, -1);
-  else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
+  const measured = Number.parseFloat(spec.measured);
+  if (missionId === 'throughput') {
+    if (measured >= 95.5 && composition.dwell > customCompositionOptions.dwell[0]) composition.dwell = step(customCompositionOptions.dwell, composition.dwell, -1);
+    else if (measured < 95.5 && composition.zrDopant < customCompositionOptions.zrDopant.at(-1)!) composition.zrDopant = step(customCompositionOptions.zrDopant, composition.zrDopant, 1);
+    else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
+  } else if (missionId === 'low-energy') {
+    if (measured >= 94.5) composition.temperature = step(customCompositionOptions.temperature, composition.temperature, -1);
+    else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
+  } else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, measured >= 96 ? -1 : 1);
   const followUp = buildCustomCampaignSpec(composition);
   return followUp.id === spec.id ? null : followUp;
 }
@@ -135,9 +141,16 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const counterfactualElapsed = retainedElapsed - retainedCycle.queue + alternateOperations.queueMinutes;
   const counterfactualEvaluation = evaluateCampaignMission(recipe, 'throughput', counterfactualElapsed);
   const capacityDelta = Math.abs(alternateOperations.queueMinutes - retainedCycle.queue);
+  const cycleWithinTarget = retainedElapsed <= 420;
   const followUp = authoredFollowUp(recipe, run.missionId);
   const followUpQueued = Boolean(followUp && backlog.some((item) => item.candidate === followUp.id));
   const modelResidual = Number.parseFloat(recipe.measured) - Number.parseFloat(recipe.prediction);
+  const followUpLever = !followUp?.composition || !recipe.composition ? 'MISSION-DIRECTED STEP'
+    : followUp.composition.dwell < recipe.composition.dwell ? 'SHORTER DWELL'
+      : followUp.composition.dwell > recipe.composition.dwell ? 'EXTEND DWELL'
+        : followUp.composition.temperature < recipe.composition.temperature ? 'LOWER SETPOINT'
+          : followUp.composition.temperature > recipe.composition.temperature ? 'RAISE SETPOINT'
+            : followUp.composition.zrDopant > recipe.composition.zrDopant ? 'INCREASE ZR' : 'COMPOSITION STEP';
   const selectedForecast = forecastCampaignMission(recipe, run.missionId);
   const backlogThermalMinutes = backlog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0);
   const backlogCapacityMinutes = run.thermalBayLevel >= 2 ? 720 : 360;
@@ -394,8 +407,8 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
             <p>{run.message}</p>
           </div>
 
-          {run.stage >= 7 && run.missionId === 'throughput' && <div className={`cycle-ledger ${evaluation.met ? 'within' : 'over'}`}>
-            <header><div><span>RELEASE-TO-RESULT CYCLE</span><b>ACTUAL LOSS BUDGET · RETAINED RESULT</b></div><em>{evaluation.met ? `${420 - retainedElapsed} MIN MARGIN` : `${retainedElapsed - 420} MIN OVER`}</em></header>
+          {run.stage >= 7 && run.missionId === 'throughput' && <div className={`cycle-ledger ${cycleWithinTarget ? 'within' : 'over'}`}>
+            <header><div><span>RELEASE-TO-RESULT CYCLE</span><b>ACTUAL LOSS BUDGET · RETAINED RESULT</b></div><em>{cycleWithinTarget ? `${420 - retainedElapsed} MIN TIME MARGIN` : `${retainedElapsed - 420} MIN OVER`}</em></header>
             <div className="cycle-ledger-bar" aria-label={`${retainedElapsed} minute campaign cycle broken down by handling, queue, recovery, thermal processing, measurement, and operator decisions`}>
               {cycleBreakdown.map((item) => <i key={item.id} className={item.id} style={{ width: `${item.minutes / retainedElapsed * 100}%` }} />)}
               <u style={{ left: `${Math.min(100, 420 / retainedElapsed * 100)}%` }}><span>420</span></u>
@@ -410,8 +423,8 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
 
           {run.stage >= 7 && recipe.composition && followUp && <div className="authored-learning">
             <header><div><span>MODEL UPDATE · AUTHORED MATERIAL</span><b>{recipe.id} → {followUp.id}</b></div><em>{modelResidual >= 0 ? '+' : '−'}{Math.abs(modelResidual).toFixed(1)} pp RESIDUAL</em></header>
-            <div className="learning-posterior"><span>PRIOR<b>{recipe.prediction}</b></span><i><u style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.prediction) - 90) * 10))}%` }} /><u className="measured" style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.measured) - 90) * 10))}%` }} /></i><span>MEASURED<b>{recipe.measured}%</b></span><span>UNCERTAINTY<b>±2.1 → ±1.4%</b></span></div>
-            <div className="learning-proposal"><div><span>NEXT MISSION LEVER</span><b>{run.missionId === 'throughput' ? 'SHORTER DWELL' : run.missionId === 'low-energy' ? 'LOWER SETPOINT' : 'LONGER DWELL'}</b></div><dl><div><dt>RECIPE</dt><dd>{followUp.id}</dd></div><div><dt>PROGRAM</dt><dd>{followUp.temperatureShort} · {followUp.dwell}</dd></div><div><dt>MODEL</dt><dd>{followUp.prediction} · {followUp.uncertainty}</dd></div></dl><button type="button" disabled={followUpQueued || backlog.length >= 3} onClick={queueAuthoredFollowUp}>{followUpQueued ? '✓ FOLLOW-UP QUEUED' : 'QUEUE FOLLOW-UP →'}</button></div>
+            <div className="learning-posterior"><span>PRIOR<b>{recipe.prediction}</b></span><i><u style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.prediction) - 90) * 10))}%` }} /><u className="measured" style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.measured) - 90) * 10))}%` }} /></i><span>MEASURED<b>{recipe.measured}%</b></span><span>CURRENT POINT<b>±2.1 → ±1.4%</b></span></div>
+            <div className="learning-proposal"><div><span>NEXT MISSION LEVER</span><b>{followUpLever}</b></div><dl><div><dt>RECIPE</dt><dd>{followUp.id}</dd></div><div><dt>PROGRAM</dt><dd>{followUp.temperatureShort} · {followUp.dwell}</dd></div><div><dt>MODEL</dt><dd>{followUp.prediction} · {followUp.uncertainty}</dd></div></dl><button type="button" disabled={followUpQueued || backlog.length >= 3} onClick={queueAuthoredFollowUp}>{followUpQueued ? '✓ FOLLOW-UP QUEUED' : 'QUEUE FOLLOW-UP →'}</button></div>
           </div>}
 
           <div className={`shift-backlog ${backlog.length ? 'populated' : ''}`}>

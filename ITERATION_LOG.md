@@ -1781,6 +1781,29 @@ The player still had to leave the result, reopen the composer, and remember whic
 - Browser QA caught a percent-string parsing error that rendered the first residual as NaN and collapsed
   its posterior markers. Numeric parsing now handles displayed percent units explicitly.
 
+## Critique 94: the learning policy and loss bar confused different constraints
+
+The first rate follow-up shortened dwell correctly, but a policy that always shortens dwell would either
+stop at the minimum or keep ignoring a lost phase floor. Its 331-minute result also exposed a separate
+display error: because the overall mission failed, the cycle bar mislabeled an 89-minute time margin as
+an overrun.
+
+### Changes
+
+- Made authored follow-ups outcome-aware. A rate result that clears the phase floor explores shorter
+  dwell; a shortened route that misses phase instead steps Zr chemistry, then restores thermal dose if
+  the composition boundary is exhausted. Energy and purity routes likewise change direction when their
+  scientific floor is not met.
+- Replayed U-2120 through its 1,000 °C / 2.5 h route. The result was fast at 331 minutes but measured
+  95.3%, missing the rate mission’s phase floor by 0.2 percentage points. The posterior correctly changed
+  its next lever from SHORTER DWELL to INCREASE ZR and proposed U-2220 at the same thermal occupancy.
+- Separated the cycle-time verdict from the composite mission verdict. A phase-limited miss now keeps a
+  green 89-minute time margin while the result and model gate remain amber on phase; only an actual cycle
+  overrun marks the loss budget as over target.
+- Clarified that uncertainty contraction belongs to the measured current point. The untested follow-up
+  keeps its own wider prior rather than implying that one observation eliminated uncertainty everywhere
+  in the nearby design space.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
