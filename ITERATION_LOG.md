@@ -2427,6 +2427,21 @@ while the 3D gate was visibly open and before the player executed the motion com
 - Add `Execute transfer` as a fifth generic robot command after gate, safeguard, home, and gripper proof; browser
   QA found that the safer motion gate otherwise had no valid non-campaign path to turn green and run the arm.
 
+## Critique 130: a held asset could execute while its release input stayed red
+
+The generic robot sequence made the new transfer command reachable, but the base asset was correctly in `HOLD`
+while awaiting a carrier. Its permissive panel displayed `quality / service release · HOLD`, yet the HMI still
+enabled `Execute transfer` and allowed green autonomous motion.
+
+### Changes
+
+- Treat `Execute`, `Start`, and `Acquire` commands as process-start actions that require a true quality/service
+  release, instead of rendering that release as an informational permissive.
+- Keep setup, inspection, reset, homing, and proof actions available while the asset is held so the player can
+  establish a safe machine state and diagnose the blocker.
+- Render the first blocked process-start command as an amber HMI tile with `quality / service hold`; it cannot
+  be clicked until the station is released by the active scenario or campaign.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
