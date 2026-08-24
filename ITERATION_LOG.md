@@ -2001,6 +2001,23 @@ rather than a change to the place where experiments happen.
 - Browser QA confirmed the blueprint is visually equipment-first, shows both qualified furnace chambers in
   the progressed campaign, and opens the already-retained commissioning evidence from the build view.
 
+## Critique 105: the floor plan behaved like a poster
+
+The facility blueprint made the laboratory legible, but none of its installed equipment could be entered.
+That split the construction layer from the strongest part of the simulation: walking up to and operating a
+specific machine.
+
+### Changes
+
+- Made every installed asset on the blueprint an accessible interaction target with hover, focus, pointer,
+  Enter, and Space behavior.
+- Selecting PREP-01, ROBO-02, FURN-04, XRD-03, SEM-01, BET-02, or TGA-01 now closes the planning layers and
+  transfers the player directly into that asset's human-scale 3D aisle view.
+- Added a compact `SELECT ASSET · WALK TO EQUIPMENT` affordance without covering the floor plan in tutorial
+  copy.
+- Browser QA selected SEM-01 from the blueprint and confirmed the simulator entered the immersive SEM/EDS
+  aisle with the correct equipment model, station selection, walk controls, and local-console action.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
