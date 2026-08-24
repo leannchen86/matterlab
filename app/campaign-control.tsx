@@ -130,7 +130,10 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const followUp = getAuthoredCampaignFollowUp(observedRecipe, run.missionId, retainedResult?.diagnosis);
   const followUpQueued = Boolean(followUp && backlog.some((item) => item.candidate === followUp.id));
   const confirmationQueued = backlog.some((item) => item.candidate === recipe.id);
-  const modelResidual = Number.parseFloat(observedMeasured) - Number.parseFloat(recipe.prediction);
+  const recipeObservations = history.filter((result) => result.candidate === recipe.id && result.runNumber <= currentRunNumber);
+  const observationMean = recipeObservations.length ? recipeObservations.reduce((total, result) => total + Number(result.measured), 0) / recipeObservations.length : Number(observedMeasured);
+  const modelResidual = observationMean - Number.parseFloat(recipe.prediction);
+  const posteriorUncertainty = Math.max(.7, 2 / Math.sqrt(recipeObservations.length + 1)).toFixed(1);
   const followUpLever = !followUp?.composition || !recipe.composition ? 'MISSION-DIRECTED STEP'
     : followUp.composition.dwell < recipe.composition.dwell ? 'SHORTER DWELL'
       : followUp.composition.dwell > recipe.composition.dwell ? 'EXTEND DWELL'
@@ -473,8 +476,8 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
           </div>}
 
           {run.stage >= 7 && recipe.composition && followUp && <div className="authored-learning">
-            <header><div><span>{retainedResult?.diagnosis ? 'EVIDENCE UPDATE · SEM / EDS INFORMED' : 'MODEL UPDATE · AUTHORED MATERIAL'}</span><b>{recipe.id} → {followUp.id}</b></div><em>{modelResidual >= 0 ? '+' : '−'}{Math.abs(modelResidual).toFixed(1)} pp RESIDUAL</em></header>
-            <div className="learning-posterior"><span>PRIOR<b>{recipe.prediction}</b></span><i><u style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.prediction) - 90) * 10))}%` }} /><u className="measured" style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(observedMeasured) - 90) * 10))}%` }} /></i><span>MEASURED<b>{observedMeasured}%</b></span><span>CURRENT POINT<b>±2.1 → ±1.4%</b></span></div>
+            <header><div><span>{retainedResult?.diagnosis ? 'EVIDENCE UPDATE · SEM / EDS INFORMED' : 'MODEL UPDATE · AUTHORED MATERIAL'}</span><b>{recipe.id} → {followUp.id}</b></div><em>{recipeObservations.length > 1 ? 'MEAN ' : ''}{modelResidual >= 0 ? '+' : '−'}{Math.abs(modelResidual).toFixed(1)} pp RESIDUAL</em></header>
+            <div className="learning-posterior"><span>PRIOR<b>{recipe.prediction}</b></span><i><u style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.prediction) - 90) * 10))}%` }} />{recipeObservations.slice(-3).map((result) => <u key={result.runNumber} className={result.runNumber === currentRunNumber ? 'measured' : 'replicate'} style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(result.measured) - 90) * 10))}%` }} />)}</i><span>{recipeObservations.length > 1 ? 'MEAN' : 'MEASURED'}<b>{recipeObservations.length > 1 ? observationMean.toFixed(1) : observedMeasured}%</b></span><span>{recipeObservations.length > 1 ? `n = ${recipeObservations.length} REPEATS` : 'CURRENT POINT'}<b>±2.1 → ±{posteriorUncertainty}%</b></span></div>
             <div className="learning-proposal"><div><span>NEXT MISSION LEVER</span><b>{followUpLever}</b></div><dl><div><dt>RECIPE</dt><dd>{followUp.id}</dd></div><div><dt>PROGRAM</dt><dd>{followUp.temperatureShort} · {followUp.dwell}</dd></div><div><dt>MODEL</dt><dd>{followUp.prediction} · {followUp.uncertainty}</dd></div></dl><button type="button" disabled>✓ CANDIDATE GENERATED</button></div>
           </div>}
 

@@ -1008,6 +1008,7 @@ button { font: inherit; }
 .learning-posterior > i::before { content: '90%'; left: 0; }.learning-posterior > i::after { content: '100%'; right: 0; }
 .learning-posterior > i u { position: absolute; top: -5px; width: 1px; height: 13px; border-left: 1px dashed #a9b3e8; text-decoration: none; }
 .learning-posterior > i u.measured { border-left: 2px solid var(--cyan); filter: drop-shadow(0 0 4px #4dd5ed); }
+.learning-posterior > i u.replicate { border-left: 2px solid var(--amber); filter: drop-shadow(0 0 3px #f4b95f88); }
 .learning-proposal { min-height: 48px; display: grid; grid-template-columns: 150px minmax(0, 1fr) 150px; align-items: stretch; }
 .learning-proposal > div:first-child { display: flex; flex-direction: column; justify-content: center; padding: 8px 10px; border-right: 1px solid #303a5c; }
 .learning-proposal span { color: #6673a2; font: 750 5px var(--font-geist-mono); letter-spacing: .07em; }

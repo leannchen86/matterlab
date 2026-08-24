@@ -1962,6 +1962,24 @@ actually demonstrated.
 - Browser QA confirmed the additional evidence remains a compact instrument-style strip rather than a
   narrative explanation, preserving the low-text control-room aesthetic.
 
+## Critique 103: the posterior forgot the first replicate
+
+After RUN-047, the learning panel moved its measured marker to 95.3% and reported that run's residual as if
+RUN-046 at 95.5% no longer existed. The reproducibility panel remembered both observations while the model
+view learned from only one.
+
+### Changes
+
+- Aggregate retained observations for the active authored recipe before rendering its posterior. The panel
+  now reports the two-run mean, repeat count, and mean residual against the recipe prior.
+- Plot the prior, earlier replicate, and current result as distinct markers on the 90–100% phase axis. The
+  current result remains cyan while retained replicate evidence is amber.
+- Make posterior uncertainty respond to observation count while keeping the untested follow-up at its wider
+  recipe prior. U-2220 now shows a 95.4% mean, `n = 2 REPEATS`, a −0.8 percentage-point mean residual, and
+  uncertainty contracting from ±2.1% to ±1.2%.
+- Browser visual QA confirmed the richer posterior remains compact and that the next U-2320 candidate still
+  carries ±2.1% uncertainty rather than inheriting confidence from a different composition.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
