@@ -75,6 +75,29 @@
   .inventory-service-backdrop { align-items: start; padding: 4px; overflow-y: auto; }.inventory-service > header { position: sticky; z-index: 3; top: 0; }.inventory-status { grid-template-columns: 1fr; }.inventory-status span { border-right: 0; border-bottom: 1px solid #393321; }.inventory-workspace { padding: 8px; }.stock-bins { grid-template-columns: 1fr; }.stock-bin-visual { height: 115px; }
 }
 
+.quick-guide { width: min(820px, 100%); }
+.quick-guide > .modal-intro { max-width: 620px; font-size: 13px; line-height: 1.6; }
+.quick-guide-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 16px 17px 0; }
+.quick-guide-steps article { display: grid; grid-template-columns: 34px 1fr; gap: 10px; padding: 14px; border: 1px solid #2c455d; background: linear-gradient(145deg, #102130, #0a131d); }
+.quick-guide-steps i { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #3e8192; border-radius: 50%; color: var(--cyan); font: 700 8px var(--font-geist-mono); font-style: normal; }
+.quick-guide-steps b { color: #c6d4e1; font-size: 12px; }
+.quick-guide-steps p { margin: 5px 0 0; color: #8fa0b4; font-size: 10px; line-height: 1.5; }
+.quick-guide-tip { display: flex; align-items: center; gap: 12px; margin: 10px 17px 0; padding: 11px 13px; border-left: 2px solid var(--amber); background: #1b160e; }
+.quick-guide-tip span { color: var(--amber); font: 700 7px var(--font-geist-mono); }
+.quick-guide-tip b { color: #c6b99f; font-size: 10px; font-weight: 550; }
+.beginner-glossary { margin: 18px 17px; }
+.beginner-glossary > div { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; margin-top: 8px; border: 1px solid #24364c; background: #24364c; }
+.beginner-glossary article { padding: 11px 12px; background: #0b131e; }
+.beginner-glossary b { color: var(--cyan); font-size: 10px; }
+.beginner-glossary p { margin: 4px 0 0; color: #8b9caf; font-size: 10px; line-height: 1.45; }
+
+@media (max-width: 860px) {
+  .quick-guide-steps { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .beginner-glossary > div { grid-template-columns: 1fr; }
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); }
 body { font-family: var(--font-geist-sans), Arial, sans-serif; }
@@ -1086,3 +1109,42 @@ button { font: inherit; }
   .storage-commissioning-backdrop { align-items: start; padding: 4px; }.storage-commissioning > header { position: sticky; z-index: 3; top: 0; }.storage-commissioning-status { grid-template-columns: 1fr; }.storage-commissioning-status span { border-right: 0; border-bottom: 1px solid #293c35; }.storage-commissioning-workspace { grid-template-columns: 1fr; padding: 8px; }.carousel-chain { min-height: 170px; padding: 10px 42px; }
 }
 @media (max-width: 520px) { .facility-blueprint footer span:nth-child(2) { display: none; }.storage-commissioning-status { display: none; }.carousel-chain { padding: 9px 25px; } }
+
+/* Final beginner-HUD overrides live last so legacy simulation styles cannot re-expand it. */
+.workspace { grid-template-columns: 248px minmax(560px, 1fr) 292px; }
+.handoff-note, .system-boundary, .score-panel, .lineage-card, .planner-panel, .facility-footer, .operator-chip { display: none !important; }
+.left-rail > .rail-section:first-child .wo-title { display: none; }
+.left-rail > .rail-section:first-child .section-kicker,
+.left-rail > .rail-section:nth-child(2) > .section-kicker,
+.station-inspector .section-title-row .section-kicker { font-size: 0; }
+.left-rail > .rail-section:first-child .section-kicker::after { content: 'CURRENT MISSION'; font-size: 9px; }
+.left-rail > .rail-section:nth-child(2) > .section-kicker::after { content: 'MISSION STEPS'; font-size: 9px; }
+.station-inspector .section-title-row .section-kicker::after { content: 'SELECTED EQUIPMENT'; font-size: 9px; }
+.shift-card h2, .alert-card h2 { font-size: 17px; line-height: 1.25; }
+.shift-card > p:not(.section-kicker), .alert-card > p { color: #a7b5c7; font-size: 12px; line-height: 1.55; }
+.task-list li.pending { display: none; }
+.task-list li.done { padding-block: 6px; }
+.task-list li.done small { display: none; }
+.task-list li.active { padding-block: 11px; }
+.task-list li.active b { font-size: 11px; }
+.task-list li.active small { margin-top: 4px; color: #93a2b6; font: 500 9px/1.4 var(--font-geist-sans); }
+.alert-head span { font-size: 8px; }
+.metric-row { margin-top: 10px; }
+.primary-action { min-height: 40px; align-items: center; }
+.station-inspector > .mini-label, .station-inspector > .tag-list { display: none; }
+.station-inspector .readout-list > div:nth-child(n+4) { display: none; }
+.station-inspector > p:not(.mini-label) { color: #91a2b7; font-size: 11px; line-height: 1.55; }
+.lab-view { grid-template-rows: auto 1fr; }
+.lab-heading { height: 58px; }
+.lab-heading .section-kicker, .lab-heading h2 { font-size: 0; }
+.lab-heading .section-kicker::after { content: 'EXPLORE THE LAB'; font-size: 9px; }
+.lab-heading h2::after { content: 'Select a station to see what it does'; font-size: 14px; }
+.scenario-tga .shift-card h2, .scenario-tga .shift-card > p:not(.section-kicker),
+.scenario-facility .shift-card h2, .scenario-facility .shift-card > p:not(.section-kicker) { font-size: 0; }
+.scenario-tga .shift-card h2::after { content: 'Fix the thermal-analysis baseline'; font-size: 17px; }
+.scenario-tga .shift-card > p:not(.section-kicker)::after { content: 'Correct the setup, match the sample pans, and decide whether the result is trustworthy.'; font-size: 12px; }
+.scenario-facility .shift-card h2::after { content: 'Move material and change the analyzer gas'; font-size: 17px; }
+.scenario-facility .shift-card > p:not(.section-kicker)::after { content: 'Move the correct container, connect the right gas, and check the analyzer afterward.'; font-size: 12px; }
+@media (max-width: 1100px) { .workspace { grid-template-columns: 225px minmax(480px, 1fr) 275px; } }
+@media (max-width: 860px) { .right-rail { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 620px) { .right-rail { display: block; } }

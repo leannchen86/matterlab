@@ -320,36 +320,35 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         <div className="brand-block">
           <span className="brand-mark">M<span>²</span></span>
           <div>
-            <p className="eyebrow">Materials operations simulator</p>
-            <h1>SHIFT CONSOLE <span>{'// LAB 04'}</span></h1>
+            <p className="eyebrow">Explore · experiment · learn</p>
+            <h1>MATTERSHIFT</h1>
           </div>
         </div>
         <div className="shift-readout">
           <span className="live-dot" />
-          <div><b>DAY SHIFT</b><small>{formatTime(minute)} · MENLO PARK SIM</small></div>
+          <div><b>LAB ONLINE</b><small>{formatTime(minute)} · SIMULATION</small></div>
         </div>
         <div className="header-actions">
-          <button className="campaign-button" type="button" onClick={() => setModal('campaign')}>CAMPAIGN LAB</button>
-          <button className="deck-button" type="button" onClick={() => setModal('deck')}>SHIFT DECK <span>5</span></button>
-          <button type="button" onClick={() => setModal('guide')}>SYSTEMS ATLAS</button>
-          <button type="button" onClick={() => setLogOpen(true)}>EVENT LEDGER <span>{log.length}</span></button>
-          <div className="operator-chip"><span>LC</span><b>TECH-07</b></div>
+          <button className="campaign-button" type="button" onClick={() => setModal('campaign')}>ADVANCED MODE</button>
+          <button className="deck-button" type="button" onClick={() => setModal('deck')}>SCENARIOS <span>5</span></button>
+          <button type="button" onClick={() => setModal('guide')}>HOW TO PLAY</button>
+          <button type="button" onClick={() => setLogOpen(true)}>ACTIVITY <span>{log.length}</span></button>
         </div>
       </header>
 
       <div className="workspace">
         <aside className="left-rail">
           <section className="rail-section shift-card">
-            <p className="section-kicker">ACTIVE WORK ORDER</p>
+            <p className="section-kicker">CURRENT MISSION</p>
             <div className="wo-title"><span>{campaignActive ? campaignIdentity.runId : 'WO-2841'}</span><em>{campaignActive ? campaign.stage >= 9 ? 'DIAG READY' : 'ACTIVE' : phase >= 6 ? 'CLOSED' : 'PRIORITY 1'}</em></div>
-            <h2>{campaignActive ? campaignSpec.name : 'Phase-purity recovery'}</h2>
-            <p>{campaignActive ? `${campaignSpec.formula} · ${campaignMission.label}: ${campaignMission.target}. Preserve one traceable material history from lots to evidence.` : 'Restore the Ca–Ti oxide campaign after an XRD reference check exceeded its control limit.'}</p>
+            <h2>{campaignActive ? campaignSpec.name : 'Get the XRD station back on track'}</h2>
+            <p>{campaignActive ? `Make ${campaignSpec.formula}, test it, and decide whether the result meets the goal.` : 'Check the instrument, fix one label problem, then review the result.'}</p>
             <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
             <div className="progress-meta"><span>{displayedCompletedTasks} / 7 tasks</span><span>{progress}%</span></div>
           </section>
 
           <section className="rail-section">
-            <p className="section-kicker">SHIFT CHECKLIST</p>
+            <p className="section-kicker">MISSION STEPS</p>
             <ol className="task-list">
               {campaignActive ? campaignTasks.map((task) => {
                 const status = campaign.stage >= task.complete ? 'done' : campaign.stage >= task.start ? 'active' : 'pending';
@@ -385,7 +384,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
 
         <section className="lab-view">
           <div className="lab-heading">
-            <div><p className="section-kicker">LIVE FACILITY MAP</p><h2>High-throughput materials bay</h2></div>
+            <div><p className="section-kicker">EXPLORE THE LAB</p><h2>Select a station to see what it does</h2></div>
             <div className="legend"><span><i className="ready" />ready</span><span><i className="run" />active</span><span><i className="warn" />attention</span></div>
           </div>
 
@@ -403,8 +402,9 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
           <ActionPanel phase={phase} onCampaign={() => setModal('campaign')} onQc={openQc} onLineage={openLineage} onRelease={releaseCarrier} onAdvance={advanceRun} onEvidence={() => setModal('evidence')} onSem={() => { setSelectedId('SEM-01'); setModal('sem'); }} onComplete={() => setModal('complete')} />
 
           <section className="rail-section station-inspector">
-            <div className="section-title-row"><p className="section-kicker">STATION INSPECTOR</p><span className={selected.tone}>{selected.state}</span></div>
+            <div className="section-title-row"><p className="section-kicker">SELECTED EQUIPMENT</p><span className={selected.tone}>{selected.state}</span></div>
             <div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div>
+            <p>{selected.purpose}</p>
             <div className="readout-list">
               {selected.technicianView.map((item) => { const [key, value] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b></div>; })}
             </div>
@@ -491,16 +491,16 @@ function ActionPanel({ phase, onCampaign, onQc, onLineage, onRelease, onAdvance,
     return <section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>RUN-{identity.suffix}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={onCampaign}>OPEN CAMPAIGN CONTROL<span>→</span></button></section>;
   }
   const states = [
-    { tag: 'QC EXCURSION', title: 'XRD-03 position drift', body: 'Campaign results may be biased. Run the reference material check before releasing held samples.', metric: '+0.17° 2θ', action: 'OPEN QC WORKFLOW', fn: onQc, tone: 'warn' },
-    { tag: 'IDENTITY GATE', title: 'Carrier BC-184 on hold', body: 'Robot handshake is blocked until all six physical labels reconcile to the work-order manifest.', metric: '6 specimens', action: 'SCAN CARRIER', fn: onLineage, tone: 'warn' },
-    { tag: 'READY TO RELEASE', title: 'Workcell gates satisfied', body: 'Instrument QC, material eligibility, and carrier custody are clear. One quarantined specimen is excluded.', metric: '5 eligible', action: 'RELEASE CARRIER', fn: onRelease, tone: 'ready' },
-    { tag: 'AUTOMATED RUN', title: 'BC-184 in execution', body: 'The robot is moving the eligible set through heating, cool-down, and XRD reacquisition.', metric: '82 sim min', action: 'ADVANCE TO RESULTS', fn: onAdvance, tone: 'run' },
-    { tag: 'RESULT REVIEW', title: 'Unexpected XRD peak', body: 'The phase result passes the target threshold, but the diffraction pattern contains an unresolved peak.', metric: '1 anomaly', action: 'REVIEW RESULTS', fn: onEvidence, tone: 'warn' },
-    { tag: 'FOLLOW-UP QUEUE', title: 'SEM / EDS triage requested', body: 'The unresolved diffraction peak now needs local morphology and elemental evidence without overgeneralizing one field of view.', metric: 'SPEC-184-03', action: 'OPEN SEM / EDS', fn: onSem, tone: 'warn' },
-    { tag: 'SHIFT COMPLETE', title: 'Campaign safely advanced', body: 'Equipment, samples, automation, and characterization evidence are ready for the next scientific decision.', metric: '7 / 7', action: 'VIEW DEBRIEF', fn: onComplete, tone: 'ready' },
+    { tag: 'NEXT STEP', title: 'Check the XRD reading', body: 'The last test was off target. Run a reference sample to see whether the machine is accurate.', metric: 'Needs a check', action: 'CHECK THE XRD', fn: onQc, tone: 'warn' },
+    { tag: 'NEXT STEP', title: 'One sample label does not match', body: 'Scan the carrier and find the sample that was labeled incorrectly.', metric: '6 samples', action: 'SCAN THE SAMPLES', fn: onLineage, tone: 'warn' },
+    { tag: 'NEXT STEP', title: 'The samples are ready', body: 'The machine check passed and the mislabeled sample is safely set aside.', metric: '5 ready', action: 'START THE ROBOT', fn: onRelease, tone: 'ready' },
+    { tag: 'IN PROGRESS', title: 'The robot is running the test', body: 'Advance when you are ready to inspect the new result.', metric: '82 min', action: 'SEE THE RESULT', fn: onAdvance, tone: 'run' },
+    { tag: 'NEXT STEP', title: 'There is an unexpected peak', body: 'The main result looks good, but the chart contains one signal we cannot yet explain.', metric: '1 unknown peak', action: 'REVIEW THE RESULT', fn: onEvidence, tone: 'warn' },
+    { tag: 'NEXT STEP', title: 'Take a closer look', body: 'Use the microscope to check whether the unusual feature appears across the sample.', metric: 'Microscope ready', action: 'USE THE MICROSCOPE', fn: onSem, tone: 'warn' },
+    { tag: 'MISSION COMPLETE', title: 'Good work', body: 'You checked the machine, protected the sample record, and investigated the unexpected result.', metric: '7 / 7', action: 'VIEW SUMMARY', fn: onComplete, tone: 'ready' },
   ];
   const state = states[phase] ?? states[6];
-  return <section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>{phase === 0 ? 'ACKNOWLEDGED' : 'ACTIVE'}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={state.fn}>{state.action}<span>→</span></button></section>;
+  return <section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>{phase >= 6 ? 'DONE' : 'ACTIVE'}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Status</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={state.fn}>{state.action}<span>→</span></button></section>;
 }
 
 function ModalShell({ title, kicker, children, onClose, wide = false }: { title: string; kicker: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
@@ -509,18 +509,18 @@ function ModalShell({ title, kicker, children, onClose, wide = false }: { title:
 
 function QcModal({ checks, setChecks, allChecked, ran, feedback, onRun, onDisposition, onClose }: { checks: { holder: boolean; standard: boolean; interlock: boolean }; setChecks: React.Dispatch<React.SetStateAction<{ holder: boolean; standard: boolean; interlock: boolean }>>; allChecked: boolean; ran: boolean; feedback: string; onRun: () => void; onDisposition: (correct: boolean) => void; onClose: () => void }) {
   const items = [
-    { key: 'holder' as const, title: 'Inspect and clean holder', note: 'Avoid a specimen-preparation artifact masquerading as instrument drift.' },
-    { key: 'standard' as const, title: 'Verify reference identity', note: 'Use the governed silicon reference linked to this QC method.' },
-    { key: 'interlock' as const, title: 'Confirm enclosure interlock', note: 'Instrument readiness is separate from scientific readiness.' },
+    { key: 'holder' as const, title: 'Clean the sample holder', note: 'Dust can distort the reading.' },
+    { key: 'standard' as const, title: 'Check the reference sample', note: 'Make sure it is the correct silicon standard.' },
+    { key: 'interlock' as const, title: 'Close the safety cover', note: 'The instrument will not run while it is open.' },
   ];
-  return <ModalShell title="XRD position verification" kicker="QC WORKFLOW · XRD-03" onClose={onClose} wide>
-    <div className="modal-grid qc-grid"><div><p className="modal-intro">The last reference result was outside the ±0.05° 2θ control limit. Complete the pre-run checks, measure the governed reference, then disposition both the instrument and affected results.</p><div className="check-stack">{items.map((item) => <label key={item.key} className={checks[item.key] ? 'checked' : ''}><input type="checkbox" checked={checks[item.key]} onChange={() => setChecks((current) => ({ ...current, [item.key]: !current[item.key] }))} /><span>{checks[item.key] ? '✓' : ''}</span><div><b>{item.title}</b><small>{item.note}</small></div></label>)}</div><button className="modal-run" type="button" disabled={!allChecked || ran} onClick={onRun}>{ran ? 'REFERENCE COMPLETE' : 'RUN SI REFERENCE · 8 MIN'}</button></div><div className="control-card"><p className="mini-label">PEAK-POSITION CONTROL</p><div className="control-chart"><i className="limit top" /><i className="center" /><i className="limit bottom" /><span style={{ left: '12%', top: '43%' }} /><span style={{ left: '28%', top: '51%' }} /><span style={{ left: '46%', top: '47%' }} /><span className="bad" style={{ left: '64%', top: '8%' }} />{ran && <span className="new" style={{ left: '84%', top: '40%' }} />}</div><div className="control-legend"><span>−0.05°</span><b>0.00°</b><span>+0.05°</span></div><div className="result-box"><span>PREVIOUS</span><b>+0.17°</b><span>CURRENT</span><b>{ran ? '+0.02°' : '—'}</b></div>{ran && <div className="decision-stack"><p className="mini-label">DISPOSITION AFFECTED RESULTS</p><button type="button" onClick={() => onDisposition(true)}>Invalidate + reacquire held results</button><button type="button" className="secondary" onClick={() => onDisposition(false)}>Release prior results as reported</button></div>}</div></div>{feedback && <p className={`feedback ${feedback.startsWith('Unsafe') ? 'bad' : ''}`}>{feedback}</p>}
+  return <ModalShell title="Check the XRD" kicker="STEP 1 · MACHINE CHECK" onClose={onClose} wide>
+    <div className="modal-grid qc-grid"><div><p className="modal-intro">The last reading was outside the safe range. Complete these three checks, then test the machine with a known sample.</p><div className="check-stack">{items.map((item) => <label key={item.key} className={checks[item.key] ? 'checked' : ''}><input type="checkbox" checked={checks[item.key]} onChange={() => setChecks((current) => ({ ...current, [item.key]: !current[item.key] }))} /><span>{checks[item.key] ? '✓' : ''}</span><div><b>{item.title}</b><small>{item.note}</small></div></label>)}</div><button className="modal-run" type="button" disabled={!allChecked || ran} onClick={onRun}>{ran ? 'CHECK COMPLETE' : 'RUN REFERENCE CHECK · 8 MIN'}</button></div><div className="control-card"><p className="mini-label">READING VS. SAFE RANGE</p><div className="control-chart"><i className="limit top" /><i className="center" /><i className="limit bottom" /><span style={{ left: '12%', top: '43%' }} /><span style={{ left: '28%', top: '51%' }} /><span style={{ left: '46%', top: '47%' }} /><span className="bad" style={{ left: '64%', top: '8%' }} />{ran && <span className="new" style={{ left: '84%', top: '40%' }} />}</div><div className="control-legend"><span>LOW</span><b>TARGET</b><span>HIGH</span></div><div className="result-box"><span>BEFORE</span><b>OUT OF RANGE</b><span>NOW</span><b>{ran ? 'PASS' : '—'}</b></div>{ran && <div className="decision-stack"><p className="mini-label">WHAT SHOULD HAPPEN TO THE OLD RESULTS?</p><button type="button" onClick={() => onDisposition(true)}>Discard them and test again</button><button type="button" className="secondary" onClick={() => onDisposition(false)}>Keep them without retesting</button></div>}</div></div>{feedback && <p className={`feedback ${feedback.startsWith('Unsafe') ? 'bad' : ''}`}>{feedback}</p>}
   </ModalShell>;
 }
 
 function LineageModal({ scanned, onScan, feedback, onResolve, onClose }: { scanned: boolean; onScan: () => void; feedback: string; onResolve: (correct: boolean) => void; onClose: () => void }) {
   const samples = ['184-01', '184-02', '184-03', '184-04', '184-05', scanned ? '148-06' : '184-06'];
-  return <ModalShell title="Carrier identity reconciliation" kicker="MATERIAL CONTROL · BC-184" onClose={onClose} wide><p className="modal-intro">The carrier cannot enter the robot cell until physical labels, manifest identifiers, and specimen count agree.</p><div className="manifest-summary"><span>WORK ORDER<b>WO-2841</b></span><span>SOURCE LOT<b>LOT-91</b></span><span>EXPECTED<b>6 SPECIMENS</b></span><span>ROUTE<b>PREP → FURN → XRD</b></span></div><div className="sample-tray">{samples.map((id, index) => <div key={index} className={scanned && index === 5 ? 'mismatch' : ''}><i>{index + 1}</i><b>SPEC-{id}</b><small>{scanned && index === 5 ? 'MANIFEST: 184-06' : 'identity matched'}</small></div>)}</div>{!scanned ? <button className="modal-run" type="button" onClick={onScan}>SCAN PHYSICAL CARRIER</button> : <div className="decision-stack horizontal"><button type="button" onClick={() => onResolve(true)}>Quarantine + reconcile source</button><button type="button" className="secondary" onClick={() => onResolve(false)}>Reprint label from manifest</button></div>}{feedback && <p className={`feedback ${feedback.includes('can be wrong') ? 'bad' : ''}`}>{feedback}</p>}</ModalShell>;
+  return <ModalShell title="Find the mismatched label" kicker="STEP 2 · SAMPLE CHECK" onClose={onClose} wide><p className="modal-intro">All six labels should match the sample list. Scan the carrier, then decide what to do with any mismatch.</p><div className="manifest-summary"><span>BATCH<b>WO-2841</b></span><span>STARTING MATERIAL<b>LOT-91</b></span><span>EXPECTED<b>6 SAMPLES</b></span><span>PATH<b>PREP → HEAT → XRD</b></span></div><div className="sample-tray">{samples.map((id, index) => <div key={index} className={scanned && index === 5 ? 'mismatch' : ''}><i>{index + 1}</i><b>SPEC-{id}</b><small>{scanned && index === 5 ? 'EXPECTED: 184-06' : 'matches'}</small></div>)}</div>{!scanned ? <button className="modal-run" type="button" onClick={onScan}>SCAN ALL SAMPLES</button> : <div className="decision-stack horizontal"><button type="button" onClick={() => onResolve(true)}>Set aside and investigate</button><button type="button" className="secondary" onClick={() => onResolve(false)}>Print a new label without checking</button></div>}{feedback && <p className={`feedback ${feedback.includes('can be wrong') ? 'bad' : ''}`}>{feedback}</p>}</ModalShell>;
 }
 
 function EvidenceModal({ feedback, onDecide, onClose }: { feedback: string; onDecide: (correct: boolean) => void; onClose: () => void }) {
