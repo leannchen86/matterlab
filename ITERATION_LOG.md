@@ -1282,6 +1282,26 @@ incident response, not the facility-building tradeoff that makes an operations g
   and occupied while chamber B is separately indicated as qualified and ready. Desktop focus view and
   the 390 × 844 campaign layout were visually checked after the live upgrade.
 
+## Critique 70: commissioning was still a single abstract button
+
+The facility decision changed real state, but one click claimed that an empty cycle, uniformity survey,
+and qualification record all existed. That contradicted the simulator's strongest principle: physical
+and measurement evidence should be operated, inspected, and retained by the player.
+
+### Changes
+
+- Replaced instant commissioning with a dedicated FURN-04B IQ / OQ workbench. The player must isolate
+  chamber B without disturbing chamber A, prove physical emptiness and the door chain, run a 990 °C
+  empty cycle, and retain a nine-point thermal-uniformity survey in order.
+- Added a live dual-chamber visualization, ramp / dwell / cool trace, all nine measured temperatures,
+  989.5 °C mean, 7.4 °C span, and an explicit ≤ 8.0 °C acceptance limit.
+- Added an unsafe shortcut that attempts to copy chamber A's calibration. The workflow blocks it and
+  explains that one chamber's calibration cannot prove the other's controller accuracy or uniformity.
+- Kept commissioning effects behind the final evidence gate: research points, elapsed time, throughput,
+  route assignment, and the 3D asset change only after the IQ / OQ record is accepted.
+- Added a persistent read-only qualification view after commissioning, and visually checked the full
+  record at desktop and 390 × 844 widths with its stacked mobile control sequence.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

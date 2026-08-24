@@ -30,6 +30,7 @@ const initialRun: CampaignRun = {
 const storageKey = 'mattershift-campaign-v2';
 
 export function CampaignControlModal({ onClose }: { onClose: () => void }) {
+  const [commissionOpen, setCommissionOpen] = useState(false);
   const [run, setRun] = useState<CampaignRun>(() => {
     if (typeof window === 'undefined') return initialRun;
     try {
@@ -195,7 +196,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
               <article className={run.thermalBayLevel >= 2 ? 'online auxiliary' : 'offline'}><i /><span>CHAMBER B</span><b>{run.thermalBayLevel >= 2 ? 'QUALIFIED' : 'NOT COMMISSIONED'}</b><small>{run.thermalBayLevel >= 2 ? `${operations.queueMinutes} min readiness · independent TC` : 'empty cycle + 9-point survey required'}</small></article>
             </div>
             <div className="thermal-capacity-metrics"><span>QUALIFICATION<b>{run.thermalBayLevel >= 2 ? 'IQ / OQ RETAINED' : '120 RP · 48 MIN'}</b></span><span>CAMPAIGN WAIT<b>{operations.queueMinutes} MIN</b></span><span>RATE<b>{run.thermalBayLevel >= 2 ? '0.31 RUNS / H' : recipe.throughput.toUpperCase()}</b></span></div>
-            {run.thermalBayLevel < 2 && <button type="button" disabled={run.stage > 3 || run.insight < 120} onClick={commissionAuxiliaryChamber}>{run.stage > 3 ? 'COMMISSIONING WINDOW CLOSED' : run.insight < 120 ? '120 RP REQUIRED' : 'COMMISSION CHAMBER B'}<span>→</span></button>}
+            <button type="button" disabled={run.thermalBayLevel < 2 && (run.stage > 3 || run.insight < 120)} onClick={() => setCommissionOpen(true)}>{run.thermalBayLevel >= 2 ? 'VIEW IQ / OQ RECORD' : run.stage > 3 ? 'COMMISSIONING WINDOW CLOSED' : run.insight < 120 ? '120 RP REQUIRED' : 'OPEN COMMISSIONING'}<span>→</span></button>
           </div>
         </section>
       </div>
@@ -208,7 +209,64 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
         <button type="button" onClick={run.stage > 0 && (run.stage < 7 || run.stage === 8) ? viewInLab : advance}>{primary.label}<span>→</span></button>
       </footer>
     </section>
+    {commissionOpen && <ThermalCommissioningModal alreadyQualified={run.thermalBayLevel >= 2} activeRun={operations.activeFurnaceRun} queueMinutes={getCampaignOperations(currentRunNumber, 2).queueMinutes} onComplete={() => { commissionAuxiliaryChamber(); setCommissionOpen(false); }} onClose={() => setCommissionOpen(false)} />}
   </div>;
+}
+
+function ThermalCommissioningModal({ alreadyQualified, activeRun, queueMinutes, onComplete, onClose }: { alreadyQualified: boolean; activeRun: string; queueMinutes: number; onComplete: () => void; onClose: () => void }) {
+  const [isolated, setIsolated] = useState(false);
+  const [emptyProven, setEmptyProven] = useState(false);
+  const [cycleRan, setCycleRan] = useState(false);
+  const [surveyRetained, setSurveyRetained] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const isolationReady = alreadyQualified || isolated;
+  const emptyReady = alreadyQualified || emptyProven;
+  const cycleReady = alreadyQualified || cycleRan;
+  const surveyReady = alreadyQualified || surveyRetained;
+  const temperatures = [988.1, 991.4, 986.8, 989.7, 993.2, 987.6, 990.8, 985.8, 992.1];
+  const execute = (step: 'isolate' | 'empty' | 'cycle' | 'survey') => {
+    setFeedback('');
+    if (step === 'isolate') setIsolated(true);
+    if (step === 'empty' && isolated) setEmptyProven(true);
+    if (step === 'cycle' && isolated && emptyProven) setCycleRan(true);
+    if (step === 'survey' && cycleRan) setSurveyRetained(true);
+  };
+  return <div className="commissioning-backdrop" role="presentation">
+    <section className="thermal-commissioning" role="dialog" aria-modal="true" aria-label="FURN-04B commissioning workflow">
+      <header><div><p className="section-kicker">ASSET COMMISSIONING · FURN-04B</p><h2>Auxiliary chamber IQ / OQ</h2></div><button type="button" onClick={onClose} aria-label="Close commissioning workflow">×</button></header>
+      <div className="commissioning-status"><span>CHAMBER A<b>{activeRun} · GOVERNED</b></span><span>CHAMBER B<b>{surveyReady ? 'QUALIFIED' : cycleReady ? 'SURVEY REVIEW' : 'COMMISSIONING HOLD'}</b></span><span>PROJECTED GATE<b>{queueMinutes} MIN</b></span></div>
+      <div className="commissioning-workspace">
+        <div className="commissioning-visual">
+          <div className="commissioning-visual-head"><span>EMPTY-CYCLE THERMAL UNIFORMITY</span><b>{surveyReady ? 'IQ / OQ ACCEPTED' : cycleReady ? '9-POINT DATA READY' : 'NO QUALIFIED TRACE'}</b></div>
+          <svg viewBox="0 0 620 310" role="img" aria-label="Dual chamber furnace commissioning with empty-cycle trace and nine-point uniformity survey">
+            <defs><pattern id="commissionGrid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" className="grid" /></pattern><radialGradient id="commissionHeat"><stop stopColor="#ffb268" stopOpacity=".7" /><stop offset="1" stopColor="#a34d20" stopOpacity=".08" /></radialGradient></defs>
+            <rect width="620" height="310" fill="url(#commissionGrid)" />
+            <rect x="28" y="38" width="238" height="160" rx="7" className="commission-cabinet" /><rect x="49" y="63" width="196" height="104" rx="4" className="commission-chamber active" /><ellipse cx="147" cy="114" rx="78" ry="40" fill="url(#commissionHeat)" /><text x="92" y="119">CHAMBER A</text><text x="93" y="139">{activeRun}</text>
+            <rect x="354" y="38" width="238" height="160" rx="7" className={isolationReady ? 'commission-cabinet proven' : 'commission-cabinet'} /><rect x="375" y="63" width="196" height="104" rx="4" className={cycleReady ? 'commission-chamber qualified' : 'commission-chamber'} />
+            <text x="434" y="91">CHAMBER B</text>{temperatures.map((temperature, index) => { const x = 409 + (index % 3) * 64; const y = 113 + Math.floor(index / 3) * 22; return <g key={temperature} className={cycleReady ? 'survey-point ready' : 'survey-point'}><circle cx={x} cy={y} r="7" /><text x={x + 10} y={y + 3}>{cycleReady ? temperature.toFixed(1) : '—'}</text></g>; })}
+            <line x1="28" x2="592" y1="237" y2="237" className="commission-axis" /><path d={cycleReady ? 'M32 278 C92 277 112 254 146 246 S205 238 244 238 L432 238 C470 239 498 247 520 262 S560 278 588 279' : 'M32 279 H588'} className={cycleReady ? 'commission-trace ready' : 'commission-trace'} /><text x="30" y="300">23 °C</text><text x="272" y="300">990 °C EMPTY CYCLE</text><text x="546" y="300">COOL</text>
+          </svg>
+          <div className="commissioning-result-strip"><span>SETPOINT<b>990.0 °C</b></span><span>MEAN<b>{cycleReady ? '989.5 °C' : '—'}</b></span><span>SPAN<b>{cycleReady ? '7.4 °C' : '—'}</b></span><span>LIMIT<b>≤ 8.0 °C</b></span></div>
+        </div>
+        <div className="commissioning-controls">
+          <p className="modal-intro">Qualify chamber B without disturbing the governed run in chamber A. Each proof is independent; copied calibration values are not current equipment evidence.</p>
+          <ol>
+            <CommissionStep number="01" title="Isolate chamber B outputs" note="Independent controller + contactor state" done={isolationReady} active={!isolationReady} onClick={() => execute('isolate')} />
+            <CommissionStep number="02" title="Prove empty chamber + door" note="No carrier · latch chain closed" done={emptyReady} active={isolationReady && !emptyReady} onClick={() => execute('empty')} />
+            <CommissionStep number="03" title="Run 990 °C empty cycle" note="Ramp · dwell · controlled cool" done={cycleReady} active={emptyReady && !cycleReady} onClick={() => execute('cycle')} />
+            <CommissionStep number="04" title="Retain nine-point survey" note="Span ≤ 8.0 °C · independent TC" done={surveyReady} active={cycleReady && !surveyReady} onClick={() => execute('survey')} />
+          </ol>
+          {!alreadyQualified && !cycleReady && <button type="button" className="commission-shortcut" onClick={() => setFeedback('Blocked: chamber A calibration does not prove chamber B uniformity, controller accuracy, or current empty-cycle behavior.')}>COPY CHAMBER A CALIBRATION</button>}
+          {feedback && <p className="commission-feedback">{feedback}</p>}
+          <button type="button" className="commission-accept" disabled={!surveyReady} onClick={alreadyQualified ? onClose : onComplete}>{alreadyQualified ? 'CLOSE QUALIFICATION RECORD' : surveyReady ? 'ACCEPT IQ / OQ · RELEASE CHAMBER B' : 'COMPLETE COMMISSIONING SEQUENCE'}</button>
+        </div>
+      </div>
+    </section>
+  </div>;
+}
+
+function CommissionStep({ number, title, note, done, active, onClick }: { number: string; title: string; note: string; done: boolean; active: boolean; onClick: () => void }) {
+  return <li className={done ? 'done' : active ? 'active' : ''}><button type="button" disabled={!active || done} onClick={onClick}><i>{done ? '✓' : number}</i><span><b>{title}</b><small>{done ? 'equipment feedback retained' : note}</small></span></button></li>;
 }
 
 function RouteCell({ code, label, cycle, state, current, job }: { code: string; label: string; cycle: string; state: string; current: boolean; job: string }) {
