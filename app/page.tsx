@@ -19,6 +19,7 @@ type LogItem = { time: string; type: string; text: string };
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 
 const formatTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+const ledgerStorageKey = 'mattershift-event-ledger-v1';
 
 export default function Home() {
   const [scenario, setScenario] = useState<ScenarioId>('xrd');
@@ -56,6 +57,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const selectedId = selectedOverride || getCampaignStationId(campaign.stage) || 'XRD-03';
   const [minute, setMinute] = useState(8 * 60 + 16);
   const [log, setLog] = useState<LogItem[]>(initialLog);
+  const [ledgerHydrated, setLedgerHydrated] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [qcChecks, setQcChecks] = useState({ holder: false, standard: false, interlock: false });
   const [qcRan, setQcRan] = useState(false);
@@ -63,6 +65,27 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const [feedback, setFeedback] = useState('');
   const [scores, setScores] = useState<Scores>({ safety: 100, traceability: 82, integrity: 68, uptime: 91 });
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const hydrateLedger = window.setTimeout(() => {
+      try {
+        const retained = JSON.parse(window.localStorage.getItem(ledgerStorageKey) ?? '[]') as LogItem[];
+        if (Array.isArray(retained) && retained.length) {
+          const bounded = retained.slice(-80);
+          setLog(bounded);
+          const [hours, minutes] = bounded.at(-1)!.time.split(':').map(Number);
+          if (Number.isFinite(hours) && Number.isFinite(minutes)) setMinute(hours * 60 + minutes);
+        }
+      } catch { /* no-op */ }
+      setLedgerHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(hydrateLedger);
+  }, []);
+
+  useEffect(() => {
+    if (!ledgerHydrated) return;
+    try { window.localStorage.setItem(ledgerStorageKey, JSON.stringify(log.slice(-80))); } catch { /* no-op */ }
+  }, [ledgerHydrated, log]);
 
   useEffect(() => {
     const followCampaignStation = (event: Event) => {
@@ -281,7 +304,10 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     setFeedback('');
   };
 
-  const resetShift = () => window.location.reload();
+  const resetShift = () => {
+    try { window.localStorage.removeItem(ledgerStorageKey); } catch { /* no-op */ }
+    window.location.reload();
+  };
 
   return (
     <main className="shell">

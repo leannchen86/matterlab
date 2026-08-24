@@ -1804,6 +1804,25 @@ an overrun.
   keeps its own wider prior rather than implying that one observation eliminated uncertainty everywhere
   in the nearby design space.
 
+## Critique 95: reload preserved results but erased the operator audit trail
+
+Campaign state and retained evidence survived reloads, while the event ledger returned to three tutorial
+entries. That created an impossible lab state: a qualified result with no durable record of the physical
+checks, control actions, failed shortcuts, or planning decisions that produced it.
+
+### Changes
+
+- Persist the XRD/campaign event ledger independently from the active run, bounded to the latest 80
+  entries. Reload restores both event text and the shift clock from the latest retained timestamp.
+- Added campaign-control decisions to the same event stream as station operations. Candidate releases,
+  inventory receipts, rejected shortcuts, capacity qualification, dispatch changes, and AI-generated
+  follow-up queues now become chronological campaign events rather than transient panel messages.
+- Kept replay behavior explicit: replaying the original guided incident clears its ledger, while normal
+  navigation, reload, and multi-run campaign work preserve it.
+- Verified persistence by queuing U-2220 from the U-2120 result. The ledger advanced from three to four
+  events, recorded the follow-up and immutable source result at 08:17, then reloaded with all four entries
+  intact.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

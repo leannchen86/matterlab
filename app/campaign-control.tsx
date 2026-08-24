@@ -92,11 +92,13 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   });
 
   const updateRun = (patch: Partial<CampaignRun>) => {
+    const decisionMessage = patch.message && patch.message !== run.message ? patch.message : '';
     setRun((current) => {
       const next = { ...current, ...patch };
       try { window.localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* no-op */ }
       return next;
     });
+    if (decisionMessage) window.queueMicrotask(() => window.dispatchEvent(new CustomEvent('mattershift:station-event', { detail: { type: 'campaign', text: decisionMessage } })));
   };
 
   useEffect(() => {
