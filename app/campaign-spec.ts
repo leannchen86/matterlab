@@ -174,6 +174,30 @@ function nearestIndex(options: readonly number[], value: number) {
   return options.reduce((best, option, index) => Math.abs(option - value) < Math.abs(options[best] - value) ? index : best, 0);
 }
 
+export function getAuthoredCampaignFollowUp(spec: CampaignSpec, missionId: CampaignMissionId, diagnosis?: string) {
+  if (!spec.composition) return null;
+  const step = (options: readonly number[], value: number, direction: -1 | 1) => {
+    const current = Math.max(0, options.indexOf(value));
+    return options[Math.max(0, Math.min(options.length - 1, current + direction))] ?? value;
+  };
+  const composition: CustomComposition = { ...spec.composition };
+  const measured = Number.parseFloat(spec.measured);
+  if (diagnosis?.includes('Ca-rich') && composition.caExcess > customCompositionOptions.caExcess[0]) {
+    composition.caExcess = step(customCompositionOptions.caExcess, composition.caExcess, -1);
+  } else if (diagnosis?.includes('Ti-rich') && composition.dwell < customCompositionOptions.dwell.at(-1)!) {
+    composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
+  } else if (missionId === 'throughput') {
+    if (measured >= 95.5 && composition.dwell > customCompositionOptions.dwell[0]) composition.dwell = step(customCompositionOptions.dwell, composition.dwell, -1);
+    else if (measured < 95.5 && composition.zrDopant < customCompositionOptions.zrDopant.at(-1)!) composition.zrDopant = step(customCompositionOptions.zrDopant, composition.zrDopant, 1);
+    else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
+  } else if (missionId === 'low-energy') {
+    if (measured >= 94.5) composition.temperature = step(customCompositionOptions.temperature, composition.temperature, -1);
+    else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
+  } else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, measured >= 96 ? -1 : 1);
+  const followUp = buildCustomCampaignSpec(composition);
+  return followUp.id === spec.id ? null : followUp;
+}
+
 function customFormula({ caExcess, zrDopant }: CustomComposition) {
   const subscript = (value: string) => value.replace(/[0-9.]/g, (character) => ({ '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', '.': '.' })[character] ?? character);
   const tiFraction = (1 - zrDopant / 100).toFixed(2);

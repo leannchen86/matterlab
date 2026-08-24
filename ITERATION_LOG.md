@@ -1823,6 +1823,48 @@ checks, control actions, failed shortcuts, or planning decisions that produced i
   events, recorded the follow-up and immutable source result at 08:17, then reloaded with all four entries
   intact.
 
+## Critique 96: a marginal XRD miss offered actions without a scientific decision
+
+The completed U-2120 result exposed both ROUTE TO SEM / EDS and START NEXT CAMPAIGN as footer buttons.
+Those controls were individually valid, but they hid the central research decision: pay for more evidence
+or accept model risk and make another material.
+
+### Changes
+
+- Added a visual post-result evidence gate for qualified custom results below their phase floor. A retained
+  specimen sits between two explicit routes: correlated SEM / EDS microscopy or the model-authored next
+  synthesis.
+- Made the routes consequential. Microscopy consumes one conductive tab and 26 shift minutes to obtain a
+  mechanism hypothesis; direct synthesis consumes no current shift time but commits the unverified model
+  lever and six clean crucibles at its next material issue.
+- Blocked campaign rollover until the scientist chooses an evidence route. The model panel generates a
+  candidate but no longer queues it implicitly; the scientist owns the commit decision.
+- Kept backward compatibility for retained campaigns that had already queued a follow-up before the gate
+  existed, treating that backlog commitment as the selected direct-synthesis route.
+- Browser QA covered both the uncommitted fork and the direct-synthesis state. The new micrograph and
+  lattice previews remain equipment-like and legible without adding another paragraph-heavy modal.
+
+## Critique 97: microscopy evidence did not change the proposed chemistry
+
+The diagnostic branch ran correctly but revealed a scientific contradiction. SEM / EDS assigned Ca-rich
+secondary grains, while the mission-only throughput policy still proposed increasing Zr. Paying for
+mechanism evidence had no effect on the experiment policy.
+
+### Changes
+
+- Added evidence priority to custom follow-up design. Ca-rich secondary grains now reduce Ca excess by one
+  governed formulation step; Ti-rich cores extend dwell to test incomplete conversion. Mission-only rate,
+  energy, and purity policies remain the fallback when microscopy is absent.
+- Verified the policy independently at the recipe boundary: U-2120 produces model-only U-2220, Ca-rich
+  evidence produces U-1120, and Ti-rich evidence produces U-2121.
+- Labeled diagnosed posteriors as SEM / EDS-informed evidence updates and retain the representative phase
+  map as the next formulation's mechanism basis.
+- Exercised the entire diagnostic route in the browser: enter SEM-01 through the 3D walkaround, inspect the
+  chamber, column, and BSE/EDS detectors, establish vacuum, acquire four representative BSE fields, retain
+  the EDS map, attest safe state, and return the diagnosis to campaign control.
+- Verified that the diagnosis consumes the carbon tab, adds the 26-minute microscopy cycle, retains
+  `Ca-rich secondary grains` as a hypothesis rather than proof, and unlocks a governed next experiment.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

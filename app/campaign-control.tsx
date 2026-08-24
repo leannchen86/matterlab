@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { buildCustomCampaignSpec, campaignMissions, campaignSpecs as recipes, customCompositionOptions, evaluateCampaignMission, forecastCampaignMission, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import { buildCustomCampaignSpec, campaignMissions, campaignSpecs as recipes, customCompositionOptions, evaluateCampaignMission, forecastCampaignMission, getAuthoredCampaignFollowUp, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import type { CampaignMissionId, CampaignOperations, CampaignSpec, CustomComposition } from './campaign-spec';
 
 type CampaignCycle = { handling: number; queue: number; recovery: number; thermal: number; measure: number; decisions: number };
@@ -25,6 +25,7 @@ type CampaignRun = {
   history: CampaignResult[];
   backlog: CampaignBacklogItem[];
   plannedThermalUpgrade?: boolean;
+  resultDecision?: 'diagnose' | 'synthesize';
 };
 
 const initialRun: CampaignRun = {
@@ -53,26 +54,6 @@ function meanThermalCompletion(items: CampaignBacklogItem[], lanes: number) {
     return laneLoads[laneIndex];
   });
   return Math.round(completions.reduce((total, completion) => total + completion, 0) / completions.length);
-}
-
-function authoredFollowUp(spec: CampaignSpec, missionId: CampaignMissionId) {
-  if (!spec.composition) return null;
-  const step = (options: readonly number[], value: number, direction: -1 | 1) => {
-    const current = Math.max(0, options.indexOf(value));
-    return options[Math.max(0, Math.min(options.length - 1, current + direction))] ?? value;
-  };
-  const composition: CustomComposition = { ...spec.composition };
-  const measured = Number.parseFloat(spec.measured);
-  if (missionId === 'throughput') {
-    if (measured >= 95.5 && composition.dwell > customCompositionOptions.dwell[0]) composition.dwell = step(customCompositionOptions.dwell, composition.dwell, -1);
-    else if (measured < 95.5 && composition.zrDopant < customCompositionOptions.zrDopant.at(-1)!) composition.zrDopant = step(customCompositionOptions.zrDopant, composition.zrDopant, 1);
-    else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
-  } else if (missionId === 'low-energy') {
-    if (measured >= 94.5) composition.temperature = step(customCompositionOptions.temperature, composition.temperature, -1);
-    else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
-  } else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, measured >= 96 ? -1 : 1);
-  const followUp = buildCustomCampaignSpec(composition);
-  return followUp.id === spec.id ? null : followUp;
 }
 
 export function CampaignControlModal({ autoOpenInventory = false, onClose }: { autoOpenInventory?: boolean; onClose: () => void }) {
@@ -144,7 +125,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const counterfactualEvaluation = evaluateCampaignMission(recipe, 'throughput', counterfactualElapsed);
   const capacityDelta = Math.abs(alternateOperations.queueMinutes - retainedCycle.queue);
   const cycleWithinTarget = retainedElapsed <= 420;
-  const followUp = authoredFollowUp(recipe, run.missionId);
+  const followUp = getAuthoredCampaignFollowUp(recipe, run.missionId, retainedResult?.diagnosis);
   const followUpQueued = Boolean(followUp && backlog.some((item) => item.candidate === followUp.id));
   const modelResidual = Number.parseFloat(recipe.measured) - Number.parseFloat(recipe.prediction);
   const followUpLever = !followUp?.composition || !recipe.composition ? 'MISSION-DIRECTED STEP'
@@ -152,7 +133,9 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
       : followUp.composition.dwell > recipe.composition.dwell ? 'EXTEND DWELL'
         : followUp.composition.temperature < recipe.composition.temperature ? 'LOWER SETPOINT'
           : followUp.composition.temperature > recipe.composition.temperature ? 'RAISE SETPOINT'
-            : followUp.composition.zrDopant > recipe.composition.zrDopant ? 'INCREASE ZR' : 'COMPOSITION STEP';
+            : followUp.composition.zrDopant > recipe.composition.zrDopant ? 'INCREASE ZR'
+              : followUp.composition.caExcess < recipe.composition.caExcess ? 'REDUCE CA EXCESS'
+                : followUp.composition.caExcess > recipe.composition.caExcess ? 'INCREASE CA EXCESS' : 'COMPOSITION STEP';
   const selectedForecast = forecastCampaignMission(recipe, run.missionId);
   const backlogThermalMinutes = backlog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0);
   const backlogCapacityMinutes = run.thermalBayLevel >= 2 ? 720 : 360;
@@ -160,6 +143,8 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const backlogMeanCompletion = meanThermalCompletion(backlog, run.thermalBayLevel);
   const phaseFloor = run.missionId === 'low-energy' ? 94.5 : run.missionId === 'throughput' ? 95.5 : 96;
   const needsMicroscopy = Number(recipe.measured) < phaseFloor;
+  const resultDecision = run.resultDecision ?? (followUpQueued ? 'synthesize' : undefined);
+  const evidenceDecisionOpen = run.stage === 7 && !evaluation.met && needsMicroscopy && Boolean(recipe.composition && followUp) && !resultDecision;
   const inventory = { ...initialInventory, ...run.inventory };
   const inventoryLow = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
   const fault = run.stage === 2 && operations.robotConstraint ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 5 && operations.furnaceConstraint ? 'thermal' : run.stage === 6 && operations.referenceConstraint ? 'qc' : null;
@@ -205,12 +190,14 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
         ? history
         : [...history, { runNumber: currentRunNumber, candidate: recipe.id, measured: recipe.measured, gap: evaluation.gap, objectiveMet: evaluation.met, elapsed: run.elapsed, missionId: run.missionId }];
       const mechanismRecovery = run.stage >= 9 && recipe.id === 'D-08' && archivedHistory.some((result) => result.runNumber === currentRunNumber && Boolean(result.diagnosis));
-      const nextPlan = !mechanismRecovery ? backlog[0] : undefined;
-      const nextSelected = mechanismRecovery ? 'R-31' : nextPlan?.candidate ?? run.selected;
+      const diagnosticFollowUp = run.stage >= 9 && recipe.composition ? followUp : null;
+      const nextPlan = !mechanismRecovery && !diagnosticFollowUp ? backlog[0] : undefined;
+      const nextSelected = mechanismRecovery ? 'R-31' : diagnosticFollowUp?.id ?? nextPlan?.candidate ?? run.selected;
       const nextMission = nextPlan?.missionId ?? run.missionId;
       const remainingBacklog = (nextPlan ? backlog.slice(1) : backlog).map((item, index) => ({ ...item, runNumber: currentRunNumber + index + 2 }));
-      updateRun({ ...initialRun, insight: run.insight, missionId: nextMission, thermalBayLevel: run.plannedThermalUpgrade ? 2 : run.thermalBayLevel, customCandidate: nextSelected.startsWith('U-') ? nextSelected : run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, backlog: remainingBacklog, plannedThermalUpgrade: false, message: mechanismRecovery
+      updateRun({ ...initialRun, insight: run.insight, missionId: nextMission, thermalBayLevel: run.plannedThermalUpgrade ? 2 : run.thermalBayLevel, customCandidate: nextSelected.startsWith('U-') ? nextSelected : run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, backlog: remainingBacklog, plannedThermalUpgrade: false, resultDecision: undefined, message: mechanismRecovery
         ? `${identity.runId} diagnosis assimilated. R-31 raises thermal dose while preserving stoichiometry to test the incomplete-conversion hypothesis.`
+        : diagnosticFollowUp ? `${identity.runId} SEM / EDS evidence assimilated. ${diagnosticFollowUp.id} changes one governed lever (${followUpLever.toLowerCase()}) while retaining the measured phase map as its mechanism basis.`
         : nextPlan ? `${identity.runId} archived. RUN-${String(currentRunNumber + 1).padStart(3, '0')} loaded from the shift backlog: ${nextPlan.candidate} · ${getCampaignMission(nextPlan.missionId).shortLabel}.`
           : `${identity.runId} archived. Select the next candidate.` });
     }
@@ -234,7 +221,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
       setInventoryOpen(true);
       return;
     }
-    updateRun({ stage: 8, inventory: { ...inventory, carbonTabs: inventory.carbonTabs - 1 }, message: `${identity.thermalSample} routed to SEM-01. Carbon-tab lot CT-88 is bound to the stub; four representative BSE fields and an EDS map are required before assigning a mechanism.` });
+    updateRun({ stage: 8, resultDecision: 'diagnose', inventory: { ...inventory, carbonTabs: inventory.carbonTabs - 1 }, message: `${identity.thermalSample} routed to SEM-01. Carbon-tab lot CT-88 is bound to the stub; four representative BSE fields and an EDS map are required before assigning a mechanism.` });
   };
 
   const replenishInventory = () => {
@@ -263,7 +250,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const queueAuthoredFollowUp = () => {
     if (!followUp || followUpQueued || backlog.length >= 3 || run.stage < 7) return;
     const next = reindexBacklog([...backlog, { runNumber: 0, candidate: followUp.id, missionId: run.missionId }]);
-    updateRun({ backlog: next, message: `${followUp.id} queued as a governed follow-up to ${recipe.id}. The completed ${identity.runId} result remains retained; the next run changes only the mission-directed process lever.` });
+    updateRun({ backlog: next, resultDecision: 'synthesize', message: `${followUp.id} queued as a governed follow-up to ${recipe.id}. The completed ${identity.runId} result remains retained; the next run changes only the mission-directed process lever.` });
   };
 
   const moveBacklog = (index: number, direction: -1 | 1) => {
@@ -423,10 +410,29 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
             </div>
           </div>}
 
+          {run.stage === 7 && !evaluation.met && needsMicroscopy && recipe.composition && followUp && <div className={`evidence-fork ${resultDecision ? `committed-${resultDecision}` : ''}`}>
+            <header><div><span>POST-RESULT EVIDENCE GATE</span><b>XRD VALID · PHASE FLOOR MISSED</b></div><em>{resultDecision ? 'ROUTE COMMITTED' : 'SCIENTIST DECISION'}</em></header>
+            <div className="evidence-fork-body">
+              <article className="diagnose-path">
+                <div className="fork-preview sem-preview" aria-hidden="true"><i /><i /><i /><i /><u /></div>
+                <span>RESOLVE MECHANISM</span><b>SEM / EDS</b>
+                <dl><div><dt>SHIFT COST</dt><dd>+26 MIN</dd></div><div><dt>CONSUMABLE</dt><dd>1 × TAB</dd></div><div><dt>EVIDENCE</dt><dd>GRAIN MAP</dd></div></dl>
+                <button type="button" disabled={Boolean(resultDecision)} onClick={startDiagnosis}>{resultDecision === 'diagnose' ? '✓ ROUTED TO SEM-01' : 'INVESTIGATE PHASE →'}</button>
+              </article>
+              <div className="fork-junction" aria-hidden="true"><i /><b>{identity.thermalSample}</b><span>VALID<br />NEGATIVE</span><u /><u /></div>
+              <article className="synthesize-path">
+                <div className="fork-preview synthesis-preview" aria-hidden="true"><i /><i /><i /><i /><u /></div>
+                <span>ACCEPT MODEL RISK</span><b>NEXT SYNTHESIS</b>
+                <dl><div><dt>SHIFT COST</dt><dd>+0 MIN</dd></div><div><dt>NEXT ISSUE</dt><dd>6 × CRUC</dd></div><div><dt>LEVER</dt><dd>{followUpLever}</dd></div></dl>
+                <button type="button" disabled={Boolean(resultDecision) || followUpQueued || backlog.length >= 3} onClick={queueAuthoredFollowUp}>{resultDecision === 'synthesize' || followUpQueued ? `✓ ${followUp.id} COMMITTED` : `COMMIT ${followUp.id} →`}</button>
+              </article>
+            </div>
+          </div>}
+
           {run.stage >= 7 && recipe.composition && followUp && <div className="authored-learning">
-            <header><div><span>MODEL UPDATE · AUTHORED MATERIAL</span><b>{recipe.id} → {followUp.id}</b></div><em>{modelResidual >= 0 ? '+' : '−'}{Math.abs(modelResidual).toFixed(1)} pp RESIDUAL</em></header>
+            <header><div><span>{retainedResult?.diagnosis ? 'EVIDENCE UPDATE · SEM / EDS INFORMED' : 'MODEL UPDATE · AUTHORED MATERIAL'}</span><b>{recipe.id} → {followUp.id}</b></div><em>{modelResidual >= 0 ? '+' : '−'}{Math.abs(modelResidual).toFixed(1)} pp RESIDUAL</em></header>
             <div className="learning-posterior"><span>PRIOR<b>{recipe.prediction}</b></span><i><u style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.prediction) - 90) * 10))}%` }} /><u className="measured" style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.measured) - 90) * 10))}%` }} /></i><span>MEASURED<b>{recipe.measured}%</b></span><span>CURRENT POINT<b>±2.1 → ±1.4%</b></span></div>
-            <div className="learning-proposal"><div><span>NEXT MISSION LEVER</span><b>{followUpLever}</b></div><dl><div><dt>RECIPE</dt><dd>{followUp.id}</dd></div><div><dt>PROGRAM</dt><dd>{followUp.temperatureShort} · {followUp.dwell}</dd></div><div><dt>MODEL</dt><dd>{followUp.prediction} · {followUp.uncertainty}</dd></div></dl><button type="button" disabled={followUpQueued || backlog.length >= 3} onClick={queueAuthoredFollowUp}>{followUpQueued ? '✓ FOLLOW-UP QUEUED' : 'QUEUE FOLLOW-UP →'}</button></div>
+            <div className="learning-proposal"><div><span>NEXT MISSION LEVER</span><b>{followUpLever}</b></div><dl><div><dt>RECIPE</dt><dd>{followUp.id}</dd></div><div><dt>PROGRAM</dt><dd>{followUp.temperatureShort} · {followUp.dwell}</dd></div><div><dt>MODEL</dt><dd>{followUp.prediction} · {followUp.uncertainty}</dd></div></dl><button type="button" disabled>✓ CANDIDATE GENERATED</button></div>
           </div>}
 
           <div className={`shift-backlog ${backlog.length ? 'populated' : ''}`}>
@@ -466,12 +472,12 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
       </div>
 
       <footer className="campaign-actions">
-        <div><span>PLAYER COMMAND</span><b>{run.stage === 8 || run.stage >= 9 ? primary.hint : run.stage >= 7 ? `${recipe.id} · ${evaluation.resultText} · ${evaluation.gap}` : primary.hint}</b></div>
+        <div><span>PLAYER COMMAND</span><b>{evidenceDecisionOpen ? 'Choose what evidence the next experiment will be allowed to use' : run.stage === 8 || run.stage >= 9 ? primary.hint : run.stage >= 7 ? `${recipe.id} · ${evaluation.resultText} · ${evaluation.gap}` : primary.hint}</b></div>
         {run.stage === 2 && operations.robotConstraint && <button type="button" className="secondary" onClick={() => rejectShortcut('robot')}>{operations.robotCondition === 'grip-force' ? 'BYPASS FORCE WITNESS' : 'BYPASS CLEAN WITNESS'}</button>}
         {run.stage === 4 && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace')}>SHORTEN {operations.activeFurnaceRun}</button>}
         {run.stage === 5 && operations.furnaceConstraint && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace-condition')}>{operations.furnaceCondition === 'thermocouple-drift' ? 'START ON CONTROLLER PV' : 'ACCEPT CLOSED FEEDBACK'}</button>}
-        {run.stage === 7 && !evaluation.met && needsMicroscopy && <button type="button" className="secondary diagnosis" onClick={startDiagnosis}>ROUTE TO SEM / EDS</button>}
-        <button type="button" onClick={run.stage > 0 && (run.stage < 7 || run.stage === 8) ? viewInLab : advance}>{primary.label}<span>→</span></button>
+        {run.stage === 7 && !evaluation.met && needsMicroscopy && !(recipe.composition && followUp) && <button type="button" className="secondary diagnosis" onClick={startDiagnosis}>ROUTE TO SEM / EDS</button>}
+        <button type="button" disabled={evidenceDecisionOpen} onClick={run.stage > 0 && (run.stage < 7 || run.stage === 8) ? viewInLab : advance}>{evidenceDecisionOpen ? 'CHOOSE EVIDENCE ROUTE' : primary.label}<span>→</span></button>
       </footer>
     </section>
     {commissionOpen && <ThermalCommissioningModal alreadyQualified={run.thermalBayLevel >= 2} activeRun={operations.activeFurnaceRun} queueMinutes={getCampaignOperations(currentRunNumber, 2).queueMinutes} onComplete={() => { commissionAuxiliaryChamber(); setCommissionOpen(false); }} onClose={() => setCommissionOpen(false)} />}
