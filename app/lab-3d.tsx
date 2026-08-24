@@ -4,7 +4,7 @@ import { ContactShadows, Environment, Grid, Html, Lightformer, Line, OrbitContro
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { getCampaignIdentity, getCampaignSpec } from './campaign-spec';
+import { getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import type { Station } from './sim-data';
 
 type OrbitControlsHandle = React.ComponentRef<typeof OrbitControls>;
@@ -632,6 +632,7 @@ const HOTSPOTS: InspectionPoint[][] = [
 function getCampaignInspectionPoints(index: number, stage: number, selected: string, runNumber: number): InspectionPoint[] | null {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
+  const operations = getCampaignOperations(runNumber);
   if (stage === 1 && index === 0) return [
     { position: [-0.65, 1.25, 0.68], label: 'SASH', observation: '420 mm opening · LEV airflow proven', state: 'pass' },
     { position: [0.86, 0.97, 0.55], label: 'BALANCE', observation: `zero 0.000 g · ${spec.id} target ${spec.targetMass}`, state: 'pass' },
@@ -643,13 +644,13 @@ function getCampaignInspectionPoints(index: number, stage: number, selected: str
     { position: [1.05, 0.92, -0.32], label: 'HMI', observation: stage === 2 ? `${identity.runId} held before dosing · motion inhibited` : `${identity.runId} dosing 6 crucibles · route active`, state: stage === 2 ? 'attention' : 'pass' },
   ];
   if (stage >= 4 && stage <= 5 && index === 2) return [
-    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: stage === 4 ? 'door closed · RUN-039 cycle owns chamber' : `door chain closed · ${spec.temperature} profile active`, state: 'pass' },
-    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? `RUN-039 remaining 62 min · ${identity.runId} Q01` : `${spec.profile} · ramp/dwell trace recording`, state: stage === 4 ? 'attention' : 'pass' },
+    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: stage === 4 ? `door closed · ${operations.activeFurnaceRun} cycle owns chamber` : `door chain closed · ${spec.temperature} profile active`, state: 'pass' },
+    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? `${operations.activeFurnaceRun} remaining ${operations.queueMinutes} min · ${identity.runId} Q01` : `${spec.profile} · ramp/dwell trace recording`, state: stage === 4 ? 'attention' : 'pass' },
     { position: stage === 4 ? [0, 0.42, 1.04] : [0, 1.38, 0.94], label: 'CARRIER', observation: stage === 4 ? `${identity.carrier} parked at marked queue stand · seal intact` : `${identity.carrier} chamber occupancy confirmed`, state: stage === 4 ? 'attention' : 'pass' },
   ];
   if (stage >= 6 && stage <= 7 && index === 3) return [
     { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: stage === 6 ? `NIST Si reference seated · ${identity.thermalSample} held` : `${identity.thermalSample} flat · reference accepted`, state: 'pass' },
-    { position: [0.9, 0.7, 0.92], label: 'HMI', observation: stage === 6 ? 'reference interval overdue · specimen release inhibited' : `+0.01° 2θ · ${spec.measured}% target phase`, state: stage === 6 ? 'attention' : 'pass' },
+    { position: [0.9, 0.7, 0.92], label: 'HMI', observation: stage === 6 ? `${operations.referenceAgeHours} h since reference · specimen release inhibited` : `${operations.referenceResult} · ${spec.measured}% target phase`, state: stage === 6 ? 'attention' : 'pass' },
     { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', observation: 'closed feedback TRUE · radiation chain healthy', state: 'pass' },
   ];
   if (stage >= 8 && index === 4) return [

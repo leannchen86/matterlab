@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
 import { getCampaignStationId, useCampaignSnapshot, useCampaignStation } from './campaign-context';
-import { getCampaignIdentity, getCampaignSpec } from './campaign-spec';
+import { getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
 import { baseStations, initialLog, type Station } from './sim-data';
@@ -46,6 +46,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const campaign = useCampaignSnapshot();
   const campaignSpec = getCampaignSpec(campaign.selected);
   const campaignIdentity = getCampaignIdentity(campaign.runNumber);
+  const campaignOperations = getCampaignOperations(campaign.runNumber);
   const campaignActive = campaign.stage > 0;
   const [phase, setPhase] = useState(0);
   const [modal, setModal] = useState<Modal>(null);
@@ -125,7 +126,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const campaignTasks = [
     { number: '01', title: 'Prepare formulation', note: campaign.stage >= 2 ? `${campaignIdentity.prepSample} released` : `${campaignSpec.targetMass} · ${campaignSpec.formula}`, start: 1, complete: 2 },
     { number: '02', title: 'Run robot synthesis', note: campaign.stage === 2 ? 'Cleanliness witness due' : campaign.stage >= 4 ? `${campaignIdentity.carrier} dosed` : '6 crucible positions', start: 2, complete: 4 },
-    { number: '03', title: 'Clear furnace queue', note: campaign.stage >= 5 ? 'Capacity slot secured' : 'Q01 · prove hold location', start: 4, complete: 5 },
+    { number: '03', title: 'Clear furnace queue', note: campaign.stage >= 5 ? 'Capacity slot secured' : `Q01 · ${campaignOperations.queueMinutes} min`, start: 4, complete: 5 },
     { number: '04', title: 'Execute thermal profile', note: campaign.stage >= 6 ? `${campaignSpec.profile} retained` : `${campaignSpec.temperature} · ${campaignSpec.dwell}`, start: 5, complete: 6 },
     { number: '05', title: 'Qualify XRD result', note: campaign.stage >= 7 ? `${campaignIdentity.pattern} qualified` : 'NIST Si reference gate', start: 6, complete: 7 },
     { number: '06', title: 'Interpret evidence', note: campaign.stage >= 8 ? 'Valid negative retained' : `${campaignSpec.prediction} ${campaignSpec.uncertainty} predicted`, start: 7, complete: 8 },
@@ -395,14 +396,15 @@ function ActionPanel({ phase, onCampaign, onQc, onLineage, onRelease, onAdvance,
   if (campaign.stage > 0) {
     const spec = getCampaignSpec(campaign.selected);
     const identity = getCampaignIdentity(campaign.runNumber);
+    const operations = getCampaignOperations(campaign.runNumber);
     const campaignStates = {
       1: { tag: 'CAMPAIGN EXECUTION', title: `${identity.runId} powder preparation`, body: `${spec.formula} is released to PREP-01. Physical lot, mass, and enclosure checks own the next gate.`, metric: spec.targetMass, tone: 'run' },
-      2: { tag: 'ROBOT CELL HOLD', title: 'Gripper cleanliness fault', body: 'The robot stopped before dosing. A cleaned gripper and witness coupon are required before material behavior can be trusted.', metric: identity.runId, tone: 'warn' },
+      2: { tag: 'ROBOT CELL HOLD', title: 'Gripper cleanliness fault', body: 'The robot stopped before dosing. A cleaned gripper and witness coupon are required before material behavior can be trusted.', metric: `${operations.robotRecoveryMinutes} min recovery`, tone: 'warn' },
       3: { tag: 'ROBOT SYNTHESIS', title: `${identity.carrier} in dosing`, body: 'Six crucible positions are executing under the governed carrier handshake.', metric: '6 positions', tone: 'run' },
-      4: { tag: 'FURNACE BOTTLENECK', title: `${identity.runId} queued`, body: 'FURN-04 is capacity one. RUN-039 must complete and the carrier hold location must be proven.', metric: 'Q01 · 62 min', tone: 'warn' },
+      4: { tag: 'FURNACE BOTTLENECK', title: `${identity.runId} queued`, body: `FURN-04 is capacity one. ${operations.activeFurnaceRun} must complete and the carrier hold location must be proven.`, metric: `Q01 · ${operations.queueMinutes} min`, tone: 'warn' },
       5: { tag: 'THERMAL EXECUTION', title: `${spec.profile} active`, body: `${identity.thermalSample} is under the full ${spec.temperature} / ${spec.dwell} governed thermal history.`, metric: `${spec.thermalMinutes} min`, tone: 'run' },
-      6: { tag: 'XRD QUALITY GATE', title: `${identity.runId} specimen held`, body: 'A current NIST Si reference must pass before the campaign diffraction pattern can be acquired.', metric: '±0.05° 2θ', tone: 'warn' },
-      7: { tag: spec.objectiveMet ? 'CAMPAIGN TARGET MET' : 'VALID NEGATIVE', title: `${identity.runId} · ${spec.measured}% phase`, body: `The Si control passed at +0.01° 2θ. This qualified result is retained for the next model proposal.`, metric: spec.gap, tone: 'ready' },
+      6: { tag: 'XRD QUALITY GATE', title: `${identity.runId} specimen held`, body: 'A current NIST Si reference must pass before the campaign diffraction pattern can be acquired.', metric: `${operations.referenceAgeHours} h since QC`, tone: 'warn' },
+      7: { tag: spec.objectiveMet ? 'CAMPAIGN TARGET MET' : 'VALID NEGATIVE', title: `${identity.runId} · ${spec.measured}% phase`, body: `The Si control passed at ${operations.referenceResult}. This qualified result is retained for the next model proposal.`, metric: spec.gap, tone: 'ready' },
       8: { tag: 'SEM / EDS FOLLOW-UP', title: `${identity.runId} diagnostic branch`, body: 'Four representative BSE fields and a correlated EDS map are required before assigning a mechanism to the valid negative.', metric: '0 / 4 fields', tone: 'run' },
       9: { tag: 'DIAGNOSIS LINKED', title: `${identity.runId} mechanism hypothesis`, body: `${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'} are retained as a follow-up hypothesis, not treated as bulk proof.`, metric: '4 / 4 fields', tone: 'ready' },
     } as const;

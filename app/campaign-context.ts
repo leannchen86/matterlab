@@ -1,7 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { getCampaignIdentity, getCampaignSpec } from './campaign-spec';
+import { getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import type { Station } from './sim-data';
 
 export type CampaignSnapshot = {
@@ -39,15 +39,16 @@ export function getCampaignStationId(stage: number) {
 export function getCampaignStationView(station: Station, stage: number, selected: string, runNumber: number): Station {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
+  const operations = getCampaignOperations(runNumber);
   if (stage === 1) return { ...station, state: 'CAMPAIGN PREP', tone: 'run', meta: `${spec.id} formulation · ${identity.runId}`, technicianView: [`Formula: ${spec.formula}`, `Run: ${identity.runId}`, `Target mass: ${spec.targetMass}`, `Carrier: ${identity.carrier}`] };
   if (stage === 2) return { ...station, state: 'CLEANLINESS HOLD', tone: 'warn', meta: 'Gripper witness required', technicianView: [`Run: ${identity.runId}`, 'Cell boundary: proven', 'Gripper: cleanliness fault', 'Witness coupon: due'] };
   if (stage === 3) return { ...station, state: 'DOSING', tone: 'run', meta: `${identity.carrier} · crucible dosing`, technicianView: [`Run: ${identity.runId}`, `Carrier: ${identity.carrier}`, 'Dose positions: 6', 'Gripper witness: passed'] };
-  if (stage === 4) return { ...station, state: 'QUEUE HOLD', tone: 'warn', meta: 'Q01 · RUN-039 active', technicianView: [`Run: ${identity.runId}`, 'Queue position: 01', 'Active profile: RUN-039', 'Estimated wait: 62 min'] };
+  if (stage === 4) return { ...station, state: 'QUEUE HOLD', tone: 'warn', meta: `Q01 · ${operations.activeFurnaceRun} active`, technicianView: [`Run: ${identity.runId}`, 'Queue position: 01', `Active profile: ${operations.activeFurnaceRun}`, `Estimated wait: ${operations.queueMinutes} min`] };
   if (stage === 5) return { ...station, state: 'HEATING', tone: 'run', meta: `${spec.temperature} · ${spec.dwell} profile`, technicianView: [`Run: ${identity.runId}`, `Profile: ${spec.profile}`, 'Atmosphere: air', `Carrier: ${identity.carrier}`] };
-  if (stage === 6) return { ...station, state: 'QC HOLD', tone: 'warn', meta: 'Si reference overdue', technicianView: [`Run: ${identity.runId}`, 'Reference: NIST Si', 'Control limit: ±0.05° 2θ', 'Specimen release: held'] };
+  if (stage === 6) return { ...station, state: 'QC HOLD', tone: 'warn', meta: `Si reference · ${operations.referenceAgeHours} h`, technicianView: [`Run: ${identity.runId}`, 'Reference: NIST Si', `Last qualified: ${operations.referenceAgeHours} h ago`, 'Specimen release: held'] };
   if (stage === 8) return { ...station, state: 'DIAGNOSTIC RUN', tone: 'run', meta: `${identity.runId} · four-field BSE / EDS`, technicianView: [`Run: ${identity.runId}`, `Specimen: ${identity.thermalSample}`, 'Coverage: 0 / 4 fields', 'EDS map: queued'] };
   if (stage >= 9) return { ...station, state: 'DIAGNOSIS READY', tone: 'ready', meta: `${identity.runId} · representative follow-up`, technicianView: [`Run: ${identity.runId}`, 'Coverage: 4 / 4 fields', `Finding: ${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'}`, 'Interpretation: model-linked'] };
-  return { ...station, state: 'RESULT REVIEW', tone: 'ready', meta: `${spec.measured}% · ${spec.objectiveMet ? 'target met' : 'valid target miss'}`, technicianView: ['Reference: +0.01° 2θ', `Run: ${identity.runId}`, `Target phase: ${spec.measured}%`, `Objective gap: ${spec.gap}`] };
+  return { ...station, state: 'RESULT REVIEW', tone: 'ready', meta: `${spec.measured}% · ${spec.objectiveMet ? 'target met' : 'valid target miss'}`, technicianView: [`Reference: ${operations.referenceResult}`, `Run: ${identity.runId}`, `Target phase: ${spec.measured}%`, `Objective gap: ${spec.gap}`] };
 }
 
 export function useCampaignSnapshot() {

@@ -21,6 +21,14 @@ export type CampaignSpec = {
   point: [number, number];
 };
 
+export type CampaignOperations = {
+  activeFurnaceRun: string;
+  queueMinutes: number;
+  robotRecoveryMinutes: number;
+  referenceAgeHours: number;
+  referenceResult: string;
+};
+
 export const campaignSpecs: CampaignSpec[] = [
   {
     id: 'C-42', name: 'Ca-rich edge', formula: 'CaTiO₃ + 8.3 mol% Ca excess', precursorLabel: 'Ca + Ti precursor lots', targetMass: '24.00 g',
@@ -51,6 +59,18 @@ export const campaignSpecs: CampaignSpec[] = [
 
 export function getCampaignSpec(id?: string) {
   return campaignSpecs.find((candidate) => candidate.id === id) ?? campaignSpecs[0];
+}
+
+export function getCampaignOperations(runNumber = 42): CampaignOperations {
+  const activeRunNumber = Math.max(1, runNumber - (2 + runNumber % 3));
+  const referenceResults = ['+0.01° 2θ', '−0.02° 2θ', '+0.03° 2θ', '+0.00° 2θ'];
+  return {
+    activeFurnaceRun: getCampaignIdentity(activeRunNumber).runId,
+    queueMinutes: 36 + (runNumber * 17) % 31,
+    robotRecoveryMinutes: 12 + (runNumber % 4) * 3,
+    referenceAgeHours: 8 + runNumber % 7,
+    referenceResult: referenceResults[runNumber % referenceResults.length],
+  };
 }
 
 export function getCampaignIdentity(runNumber = 42) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getCampaignIdentity, getCampaignSpec } from './campaign-spec';
+import { getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import { getCampaignStationId, getCampaignStationView } from './campaign-context';
 import type { Station } from './sim-data';
 
@@ -77,13 +77,14 @@ function completeCampaignMachineStage(stage: number) {
     const insight = Number(current.insight ?? 248);
     const spec = getCampaignSpec(String(current.selected ?? 'C-42'));
     const identity = getCampaignIdentity(Number(current.runNumber ?? 42));
+    const runOps = getCampaignOperations(identity.runNumber);
     const transition = {
       1: { stage: 2, elapsed: 12, insight, message: `${identity.prepSample} evidence retained. ROBO-02 stopped on a gripper cleanliness fault before dosing.` },
-      2: { stage: 3, elapsed: elapsed + 18, insight: insight - 8, message: 'Gripper cleaned and witness coupon passed. Robot synthesis resumed with lineage intact.' },
-      3: { stage: 4, elapsed: elapsed + 14, insight, message: `Six crucibles dosed and ${identity.carrier} released. FURN-04 is occupied by RUN-039; ${identity.runId} is now queue constrained.` },
-      4: { stage: 5, elapsed: elapsed + 62, insight, message: `RUN-039 cooled and unloaded. Queue proof retained; ${identity.runId} entered ${spec.profile} at ${spec.temperature}.` },
-      5: { stage: 6, elapsed: elapsed + spec.thermalMinutes, insight, message: `${spec.temperature} / ${spec.dwell} thermal trace retained. XRD specimen release is held because the Si reference is overdue.` },
-      6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `Reference passed at +0.01° 2θ. ${spec.id} measured ${spec.measured}% target phase: valid evidence, ${spec.objectiveMet ? `${spec.gap} above the objective.` : `${spec.gap.replace('−', '')} below the objective.`}` },
+      2: { stage: 3, elapsed: elapsed + runOps.robotRecoveryMinutes, insight: insight - 8, message: `Gripper cleaned and witness coupon passed after ${runOps.robotRecoveryMinutes} minutes. Robot synthesis resumed with lineage intact.` },
+      3: { stage: 4, elapsed: elapsed + 14, insight, message: `Six crucibles dosed and ${identity.carrier} released. FURN-04 is occupied by ${runOps.activeFurnaceRun}; ${identity.runId} is now queue constrained.` },
+      4: { stage: 5, elapsed: elapsed + runOps.queueMinutes, insight, message: `${runOps.activeFurnaceRun} cooled and unloaded after ${runOps.queueMinutes} minutes. Queue proof retained; ${identity.runId} entered ${spec.profile} at ${spec.temperature}.` },
+      5: { stage: 6, elapsed: elapsed + spec.thermalMinutes, insight, message: `${spec.temperature} / ${spec.dwell} thermal trace retained. XRD specimen release is held; the last qualified Si reference is ${runOps.referenceAgeHours} hours old.` },
+      6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `Reference passed at ${runOps.referenceResult}. ${spec.id} measured ${spec.measured}% target phase: valid evidence, ${spec.objectiveMet ? `${spec.gap} above the objective.` : `${spec.gap.replace('−', '')} below the objective.`}` },
       8: { stage: 9, elapsed: elapsed + 26, insight: insight + 15, message: `Four BSE fields and a representative EDS map retained. ${spec.id === 'D-08' ? 'Ti-rich cores support incomplete conversion as the follow-up hypothesis.' : 'Ca-rich secondary grains support precursor excess as the follow-up hypothesis.'}` },
     }[stage];
     if (!transition) return null;
@@ -106,10 +107,11 @@ function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignSt
   const profile = profiles[stationId] ?? profiles['XRD-03'];
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
+  const runOps = getCampaignOperations(runNumber);
   if (campaignStage === 1 && stationId === 'PREP-01') return { ...profile, controller: `BAL-01 / LES-${spec.id.replace('-', '')}`, method: ['Scan precursor lots', `Weigh ${spec.id} formulation`, 'Homogenize + seal', `Release ${identity.runId}`], sample: [spec.id, identity.prepSample, identity.carrier], workOrder: `MAT-${identity.suffix}`, service: 'Campaign preparation · active', supplies: [spec.precursorLabel, `target ${spec.targetMass}`, 'sealed liners 14'] };
   if (campaignStage >= 2 && campaignStage <= 3 && stationId === 'ROBO-02') return { ...profile, controller: 'RC-02 / CAMPAIGN-PLC', safe: campaignStage === 2 ? ['area scanner clear', 'gate chain closed', 'cleaning mode selected'] : ['area scanner clear', 'gate chain closed', 'gripper witness valid'], method: [`Receive ${identity.carrier}`, 'Clean + witness gripper', 'Dose crucibles', 'Write carrier handshake'], sample: [identity.prepSample, identity.carrier, identity.furnaceQueue], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 2 ? 'Gripper cleanliness recovery · active' : 'Campaign dosing · active', health: campaignStage === 2 ? 79 : 90 };
-  if (campaignStage >= 4 && campaignStage <= 5 && stationId === 'FURN-04') return { ...profile, controller: `TC-04 / MES-Q${identity.suffix}`, method: [`Accept ${identity.carrier}`, 'Respect active queue', `Load ${spec.temperature} profile`, 'Cool + release'], sample: [identity.carrier, spec.profile, identity.thermalSample], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 4 ? 'Queue 01 · RUN-039 active' : `${spec.profile} · active` };
-  if (campaignStage >= 6 && stationId === 'XRD-03') return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: ['Load NIST Si', 'Prove +0.01° 2θ', `Acquire ${identity.runId}`, `Review ${spec.measured}% result`], sample: [identity.thermalSample, identity.xrdDataset, identity.pattern], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 6 ? 'Si reference · release hold' : `Valid result · target ${spec.objectiveMet ? 'met' : 'missed'}`, health: campaignStage === 6 ? 78 : 92 };
+  if (campaignStage >= 4 && campaignStage <= 5 && stationId === 'FURN-04') return { ...profile, controller: `TC-04 / MES-Q${identity.suffix}`, method: [`Accept ${identity.carrier}`, 'Respect active queue', `Load ${spec.temperature} profile`, 'Cool + release'], sample: [identity.carrier, spec.profile, identity.thermalSample], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 4 ? `Queue 01 · ${runOps.activeFurnaceRun} active` : `${spec.profile} · active` };
+  if (campaignStage >= 6 && stationId === 'XRD-03') return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: ['Load NIST Si', `Prove ${runOps.referenceResult}`, `Acquire ${identity.runId}`, `Review ${spec.measured}% result`], sample: [identity.thermalSample, identity.xrdDataset, identity.pattern], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 6 ? `Si reference · ${runOps.referenceAgeHours} h` : `Valid result · target ${spec.objectiveMet ? 'met' : 'missed'}`, health: campaignStage === 6 ? 78 : 92 };
   if (campaignStage >= 8 && stationId === 'SEM-01') return { ...profile, controller: 'SEM-01 / DIAG-EDS', method: [`Load ${identity.thermalSample}`, 'Acquire four BSE fields', 'Acquire representative EDS map', 'Route mechanism hypothesis'], sample: [identity.thermalSample, `STUB-${identity.suffix}`, `MAP-${identity.suffix}`], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 8 ? 'Valid-negative diagnosis · active' : 'Representative follow-up · retained', health: 96 };
   if (scenarioId === 'facility' && stationId === 'PREP-01') return { ...profile, controller: 'MOVE-HMI / MES-A2', method: ['Scan both totes', 'Inspect powered jack', 'Secure load + route', 'Retain move receipt'], sample: ['LOT-3024-A', 'MOV-3024', 'REC-BET-02'], workOrder: 'MOV-3024', service: 'Powered-jack pre-use · current', supplies: ['restraint straps 6', 'spill kit sealed', 'tote covers 12'] };
   if (scenarioId === 'facility' && stationId === 'ROBO-02') return { ...profile, method: ['Reserve cross-aisle', 'Park robot', 'Prove safeguarded boundary', 'Release move priority'], sample: ['MOV-3024', 'A2-RESERVE', 'BET-02'], workOrder: 'MOV-3024', service: 'Cross-aisle coordination · active' };
@@ -379,6 +381,7 @@ function RobotCampaignPanel({ stage, selected, runNumber, operations }: { stage:
 function FurnaceCampaignPanel({ stage, selected, runNumber, operations }: { stage: number; selected: string; runNumber: number; operations: string[] }) {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
+  const runOps = getCampaignOperations(runNumber);
   const queued = stage === 4;
   const profileRead = operations.includes(queued ? 'Read active profile state' : 'Read overtemperature relay');
   const secondGate = operations.includes(queued ? 'Verify queue position' : 'Verify door chain');
@@ -395,14 +398,14 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, operations }: { stag
   return <section className={`campaign-furnace-console${finalGate ? ' operation-complete' : ''}`}>
     <header><div><span>THERMAL PROCESS CONTROL</span><b>TC-04 / OT-04 · MAT-{identity.suffix} · {spec.profile}</b></div><em>{status}</em></header>
     <div className="campaign-furnace-layout">
-      <svg viewBox="0 0 520 180" role="img" aria-label={queued ? `${identity.runId} furnace queue behind RUN-039` : `${identity.runId} ${spec.temperature} ${spec.dwell} thermal profile`}>
+      <svg viewBox="0 0 520 180" role="img" aria-label={queued ? `${identity.runId} furnace queue behind ${runOps.activeFurnaceRun}` : `${identity.runId} ${spec.temperature} ${spec.dwell} thermal profile`}>
         <defs><pattern id="furnaceGrid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" className="grid" /></pattern><linearGradient id="furnaceGlow" x1="0" x2="1"><stop stopColor="#ff9a58" stopOpacity=".12" /><stop offset=".5" stopColor="#ff9a58" stopOpacity=".55" /><stop offset="1" stopColor="#ffca79" stopOpacity=".12" /></linearGradient></defs>
         <rect width="520" height="180" fill="url(#furnaceGrid)" />
         {queued ? <>
           <text x="24" y="25">CAPACITY-ONE RESOURCE · PHYSICAL OCCUPANCY</text>
-          <rect x="26" y="42" width="170" height="91" rx="4" className="furnace-chamber" /><rect x="43" y="57" width="136" height="58" rx="3" className="furnace-hot-zone" /><path d="M54 103 C74 58 95 111 115 67 S153 105 169 64" className="heat-wave" /><text x="65" y="88">RUN-039 ACTIVE</text><text x="71" y="103">62 MIN REMAINING</text>
+          <rect x="26" y="42" width="170" height="91" rx="4" className="furnace-chamber" /><rect x="43" y="57" width="136" height="58" rx="3" className="furnace-hot-zone" /><path d="M54 103 C74 58 95 111 115 67 S153 105 169 64" className="heat-wave" /><text x="65" y="88">{runOps.activeFurnaceRun} ACTIVE</text><text x="71" y="103">{runOps.queueMinutes} MIN REMAINING</text>
           <path d="M204 87 H252" className={finalGate ? 'queue-arrow released' : 'queue-arrow'} /><rect x="258" y="53" width="205" height="70" rx="3" className={secondGate ? 'queue-carrier proven' : 'queue-carrier'} /><text x="278" y="77">Q01 · {identity.runId}</text><text x="278" y="93">{identity.carrier} · {spec.profile}</text><text x="278" y="108">HOLD LOCATION {finalGate ? 'PROVEN' : 'PENDING'}</text>
-          <line x1="28" y1="151" x2="470" y2="151" className="timeline" /><rect x="28" y="145" width="206" height="12" className="timeline-active" /><rect x="237" y="145" width="222" height="12" className={finalGate ? 'timeline-queued proven' : 'timeline-queued'} /><text x="32" y="171">NOW</text><text x="224" y="171">+62 MIN</text><text x="436" y="171">+{62 + spec.thermalMinutes} MIN</text>
+          <line x1="28" y1="151" x2="470" y2="151" className="timeline" /><rect x="28" y="145" width="206" height="12" className="timeline-active" /><rect x="237" y="145" width="222" height="12" className={finalGate ? 'timeline-queued proven' : 'timeline-queued'} /><text x="32" y="171">NOW</text><text x="224" y="171">+{runOps.queueMinutes} MIN</text><text x="436" y="171">+{runOps.queueMinutes + spec.thermalMinutes} MIN</text>
         </> : <>
           {[42, 146, 250, 354, 478].map((x) => <line key={`fx-${x}`} x1={x} x2={x} y1="23" y2="148" className="plot-grid" />)}{[38, 74, 110, 146].map((y) => <line key={`fy-${y}`} x1="42" x2="478" y1={y} y2={y} className="plot-grid" />)}
           <text x="12" y="42">{spec.temperature}</text><text x="18" y="149">23 °C</text><text x="40" y="169">0</text><text x="224" y="169">TIME · MIN</text><text x="460" y="169">{spec.thermalMinutes}</text>
@@ -412,9 +415,9 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, operations }: { stag
         </>}
       </svg>
       <aside>
-        <div className={profileRead ? 'pass' : 'hold'}><span>{queued ? 'OCCUPANCY' : 'OVERTEMP'}</span><b>{queued ? 'RUN-039' : profileRead ? 'ARMED' : 'READ'}</b><small>{queued ? 'capacity 1 / 1' : profileRead ? 'relay feedback true' : 'proof required'}</small></div>
+        <div className={profileRead ? 'pass' : 'hold'}><span>{queued ? 'OCCUPANCY' : 'OVERTEMP'}</span><b>{queued ? runOps.activeFurnaceRun : profileRead ? 'ARMED' : 'READ'}</b><small>{queued ? 'capacity 1 / 1' : profileRead ? 'relay feedback true' : 'proof required'}</small></div>
         <div className={secondGate ? 'pass' : 'waiting'}><span>{queued ? 'QUEUE' : 'DOOR CHAIN'}</span><b>{queued ? 'Q01' : secondGate ? 'CLOSED' : '—'}</b><small>{queued ? identity.carrier : secondGate ? 'interlock proven' : 'awaiting sequence'}</small></div>
-        <div className={finalGate ? 'pass' : 'waiting'}><span>{queued ? 'RELEASE' : 'THERMAL DOSE'}</span><b>{queued ? '62 min' : spec.temperature}</b><small>{queued ? finalGate ? 'location proven' : 'carrier held' : `${spec.dwell} dwell · air`}</small></div>
+        <div className={finalGate ? 'pass' : 'waiting'}><span>{queued ? 'RELEASE' : 'THERMAL DOSE'}</span><b>{queued ? `${runOps.queueMinutes} min` : spec.temperature}</b><small>{queued ? finalGate ? 'location proven' : 'carrier held' : `${spec.dwell} dwell · air`}</small></div>
       </aside>
     </div>
   </section>;
@@ -441,6 +444,7 @@ function diffractionPath(peaks: Array<[number, number]>, baseline: number, ampli
 function XrdCampaignPanel({ stage, selected, runNumber, operations }: { stage: number; selected: string; runNumber: number; operations: string[] }) {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
+  const runOps = getCampaignOperations(runNumber);
   const referenceCaptured = stage >= 7 || operations.includes('Acquire Si reference');
   const sampleCaptured = stage >= 7 || operations.includes(`Acquire ${identity.runId} pattern`);
   const samplePeaks = XRD_PEAKS[spec.id] ?? XRD_PEAKS['C-42'];
@@ -459,7 +463,7 @@ function XrdCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
         <text x="38" y="198">10°</text><text x="324" y="198">2θ</text><text x="609" y="198">80°</text>
       </svg>
       <aside>
-        <div className={referenceCaptured ? 'pass' : 'hold'}><span>REFERENCE</span><b>{referenceCaptured ? '+0.01° 2θ' : 'OVERDUE'}</b><small>{referenceCaptured ? 'within ±0.05°' : 'specimen inhibited'}</small></div>
+        <div className={referenceCaptured ? 'pass' : 'hold'}><span>REFERENCE</span><b>{referenceCaptured ? runOps.referenceResult : `${runOps.referenceAgeHours} H OLD`}</b><small>{referenceCaptured ? 'within ±0.05°' : 'specimen inhibited'}</small></div>
         <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${spec.measured}%` : '—'}</b><small>{sampleCaptured ? `Rwp ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}%` : 'awaiting pattern'}</small></div>
         <div className={sampleCaptured ? spec.objectiveMet ? 'pass' : 'miss' : 'waiting'}><span>OBJECTIVE</span><b>{sampleCaptured ? spec.gap : '≥ 96%'}</b><small>{sampleCaptured ? spec.objectiveMet ? 'target met' : 'valid negative' : 'campaign gate'}</small></div>
       </aside>

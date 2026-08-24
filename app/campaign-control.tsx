@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { campaignSpecs as recipes, getCampaignIdentity, getCampaignSpec } from './campaign-spec';
+import { campaignSpecs as recipes, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 
 type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; diagnosis?: string };
 
@@ -57,6 +57,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
   const diagnosisUnlocked = history.some((result) => result.candidate === 'D-08' && Boolean(result.diagnosis));
   const availableRecipes = recipes.filter((candidate) => (candidate.id !== 'A-29' || adaptiveUnlocked) && (candidate.id !== 'R-31' || diagnosisUnlocked));
   const identity = getCampaignIdentity(currentRunNumber);
+  const operations = getCampaignOperations(currentRunNumber);
   const fault = run.stage === 2 ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 6 ? 'qc' : null;
   const primary = getPrimaryAction(run.stage, identity.runId);
 
@@ -77,7 +78,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
   const rejectShortcut = (kind: 'robot' | 'furnace') => {
     updateRun({ message: kind === 'robot'
       ? 'Command blocked: bypassing the cleanliness witness would make contamination indistinguishable from material behavior.'
-      : `Command blocked: shortening another run violates its governed thermal profile. ${identity.runId} remains queued.` });
+      : `Command blocked: shortening ${operations.activeFurnaceRun} violates its governed thermal profile. ${identity.runId} remains queued.` });
   };
 
   const startDiagnosis = () => updateRun({ stage: 8, message: `${identity.thermalSample} routed to SEM-01. Four representative BSE fields and an EDS map are required before assigning a mechanism.` });
@@ -147,7 +148,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
           <div className="route-board">
             <RouteCell code="PREP-01" label="PREP" cycle="12 MIN" state={routeState(run.stage, 1, 2)} current={run.stage === 1} job={run.stage >= 1 ? identity.runId : 'OPEN'} />
             <RouteCell code="ROBO-02" label="SYNTHESIZE" cycle="14 MIN" state={run.stage === 2 ? 'fault' : routeState(run.stage, 3, 4)} current={run.stage === 3} job={run.stage === 2 ? 'CELL FAULT' : run.stage >= 3 ? identity.runId : 'WAIT'} />
-            <RouteCell code="FURN-04" label="CALCINE" cycle={`${recipe.thermalMinutes} MIN`} state={run.stage === 4 ? 'queued' : routeState(run.stage, 5, 6)} current={run.stage === 5} job={run.stage === 4 ? 'Q 01' : run.stage >= 5 ? identity.runId : 'RUN-039'} />
+            <RouteCell code="FURN-04" label="CALCINE" cycle={`${recipe.thermalMinutes} MIN`} state={run.stage === 4 ? 'queued' : routeState(run.stage, 5, 6)} current={run.stage === 5} job={run.stage === 4 ? 'Q 01' : run.stage >= 5 ? identity.runId : operations.activeFurnaceRun} />
             <RouteCell code="XRD-03" label="MEASURE" cycle="18 MIN" state={run.stage === 6 ? 'fault' : routeState(run.stage, 6, 7)} current={run.stage === 6} job={run.stage === 6 ? 'QC HOLD' : run.stage >= 7 ? identity.runId : 'RUN-038'} />
             <RouteCell code={run.stage >= 8 ? 'SEM-01' : 'MODEL'} label={run.stage >= 8 ? 'DIAGNOSE' : 'LEARN'} cycle={run.stage >= 8 ? '26 MIN' : 'GATED'} state={run.stage >= 9 ? 'complete' : run.stage === 8 ? 'active' : run.stage >= 7 ? 'complete' : 'waiting'} current={run.stage === 8} job={run.stage >= 9 ? '4 FIELDS + MAP' : run.stage === 8 ? identity.thermalSample : run.stage >= 7 ? `+${recipe.insightReward} RP` : 'EVIDENCE'} />
           </div>
@@ -159,7 +160,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
               <div className={`queue-token token-a ${run.stage >= 4 ? 'visible' : ''}`}>{identity.suffix}</div>
               <div className={`queue-token token-b ${run.stage === 4 ? 'visible' : ''}`}>{String(currentRunNumber + 1).padStart(3, '0')}</div>
               <div className={`machine-aperture ${fault ? 'held' : ''}`}><i /><b>{fault ? 'HOLD' : 'READY'}</b></div>
-              <em>{fault === 'queue' ? '62 min wait' : fault === 'cell' ? '18 min recovery' : fault === 'qc' ? 'reference first' : run.stage === 8 ? '4 fields + EDS map' : run.stage >= 9 ? 'diagnosis linked' : run.stage >= 7 ? recipe.objectiveMet ? 'objective achieved' : 'valid negative result' : 'no active delay'}</em>
+              <em>{fault === 'queue' ? `${operations.queueMinutes} min wait` : fault === 'cell' ? `${operations.robotRecoveryMinutes} min recovery` : fault === 'qc' ? `${operations.referenceAgeHours} h since reference` : run.stage === 8 ? '4 fields + EDS map' : run.stage >= 9 ? 'diagnosis linked' : run.stage >= 7 ? recipe.objectiveMet ? 'objective achieved' : 'valid negative result' : 'no active delay'}</em>
             </div>
             <p>{run.message}</p>
           </div>
@@ -167,7 +168,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
           <div className="campaign-timeline" aria-label="Equipment schedule">
             <header><span>EQUIPMENT SCHEDULE</span><b>NOW</b><i>+2 H</i><i>+4 H</i><i>+6 H</i></header>
             <div><span>ROBO-02</span><i className="bar robot" /><b>{identity.runId}</b></div>
-            <div><span>FURN-04</span><i className="bar furnace" /><b>RUN-039</b><i className="bar furnace queued" /><b>{identity.suffix}</b></div>
+            <div><span>FURN-04</span><i className="bar furnace" /><b>{operations.activeFurnaceRun.replace('RUN-', '')}</b><i className="bar furnace queued" /><b>{identity.suffix}</b></div>
             <div><span>XRD-03</span><i className="bar xrd" /><b>REF</b><i className="bar xrd queued" /><b>{identity.suffix}</b></div>
             {run.stage >= 8 && <div><span>SEM-01</span><i className="bar sem" /><b>{run.stage >= 9 ? 'MAP' : '4× BSE'}</b></div>}
           </div>
@@ -177,7 +178,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
       <footer className="campaign-actions">
         <div><span>PLAYER COMMAND</span><b>{run.stage === 8 || run.stage >= 9 ? primary.hint : run.stage >= 7 ? `${recipe.id} · ${recipe.measured}% · ${recipe.gap}` : primary.hint}</b></div>
         {run.stage === 2 && <button type="button" className="secondary" onClick={() => rejectShortcut('robot')}>BYPASS WITNESS</button>}
-        {run.stage === 4 && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace')}>SHORTEN RUN-039</button>}
+        {run.stage === 4 && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace')}>SHORTEN {operations.activeFurnaceRun}</button>}
         {run.stage === 7 && !recipe.objectiveMet && <button type="button" className="secondary diagnosis" onClick={startDiagnosis}>ROUTE TO SEM / EDS</button>}
         <button type="button" onClick={run.stage > 0 && (run.stage < 7 || run.stage === 8) ? viewInLab : advance}>{primary.label}<span>→</span></button>
       </footer>

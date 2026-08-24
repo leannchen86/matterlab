@@ -1241,6 +1241,26 @@ feel like a demo layered on a dashboard rather than one persistent laboratory wo
 - Browser-verified the persisted RUN-047 / R-31 preparation state at desktop and 390 × 844: work order,
   3D station, inspector, AI loop, and sample lineage all show the same run identity and material route.
 
+## Critique 68: every replay had the same operational world state
+
+New recipes and run identifiers still encountered RUN-039, a 62-minute furnace wait, an 18-minute
+robot recovery, and a +0.01° silicon result. The science changed, but the operating environment
+repeated exactly, so subsequent campaigns felt scripted rather than scheduled inside a live lab.
+
+### Changes
+
+- Added a deterministic run-operations profile. Each run now receives a reproducible active-furnace
+  owner, capacity wait, robot-recovery duration, reference age, and qualified silicon result.
+- Propagated those operating conditions through campaign routing, the equipment schedule, shell task
+  notes, station inspector, 3D walkaround observations, native furnace and XRD consoles, elapsed lab
+  time, event messages, and shortcut-rejection feedback.
+- Kept the values bounded by the same governed controls: the queue still cannot violate another run's
+  thermal profile, the robot still requires a cleanliness witness, and each generated silicon result
+  remains inside the ±0.05° 2θ acceptance band.
+- Browser-verified RUN-047 as a distinct world state: FURN-04 is occupied by RUN-043, the campaign
+  checklist reports a 60-minute capacity wait, and the route schedule carries those identities without
+  changing R-31's scientific formulation or evidence chain.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
