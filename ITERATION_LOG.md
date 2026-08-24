@@ -1980,6 +1980,27 @@ view learned from only one.
 - Browser visual QA confirmed the richer posterior remains compact and that the next U-2320 candidate still
   carries ±2.1% uncertainty rather than inheriting confidence from a different composition.
 
+## Critique 104: facility growth was buried inside a results panel
+
+The second thermal lane already changed campaign capacity, but the player encountered it as a qualification
+button inside a scheduling panel. That made a physical laboratory expansion feel like a spreadsheet toggle
+rather than a change to the place where experiments happen.
+
+### Changes
+
+- Added a top-down facility configuration view with the installed preparation, robotic synthesis, thermal,
+  XRD, SEM/EDS, BET, TGA, and utility assets arranged around a visible material-transfer spine and personnel
+  aisle.
+- Exposed only one real expansion socket: FURN-04B. Its status, cost, qualification duration, lane effect,
+  campaign wait, and build currency come from live campaign state rather than a disconnected construction UI.
+- Connected the expansion directly to the existing FURN-04B IQ/OQ workflow. A qualified campaign opens the
+  retained nine-point uniformity record; an unqualified campaign must commission the chamber without
+  disturbing chamber A.
+- Made the simulation rule explicit in compact equipment language: facility changes affect future routes and
+  never rewrite retained experimental results.
+- Browser QA confirmed the blueprint is visually equipment-first, shows both qualified furnace chambers in
+  the progressed campaign, and opens the already-retained commissioning evidence from the build view.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

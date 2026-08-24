@@ -59,6 +59,7 @@ function meanThermalCompletion(items: CampaignBacklogItem[], lanes: number) {
 export function CampaignControlModal({ autoOpenInventory = false, onClose }: { autoOpenInventory?: boolean; onClose: () => void }) {
   const [commissionOpen, setCommissionOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(autoOpenInventory);
+  const [facilityOpen, setFacilityOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [run, setRun] = useState<CampaignRun>(() => {
     if (typeof window === 'undefined') return initialRun;
@@ -356,7 +357,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
     <section className="modal-card campaign-control" role="dialog" aria-modal="true" aria-label="Materials campaign control">
       <header>
         <div><p className="section-kicker">SANDBOX CAMPAIGN · MAT-{identity.suffix}</p><h2>Materials campaign control</h2></div>
-        <div className="campaign-header-actions"><button type="button" className={inventoryLow ? 'inventory-low' : ''} onClick={() => setInventoryOpen(true)}><i />MATERIAL STAGING<b>{inventory.crucibles} CRUC · {inventory.liners} LIN · {inventory.carbonTabs} TAB</b></button><button type="button" onClick={onClose} aria-label="Close dialog">×</button></div>
+        <div className="campaign-header-actions"><button type="button" className={inventoryLow ? 'inventory-low' : ''} onClick={() => setInventoryOpen(true)}><i />MATERIAL STAGING<b>{inventory.crucibles} CRUC · {inventory.liners} LIN · {inventory.carbonTabs} TAB</b></button><button type="button" className="facility-layout-button" onClick={() => setFacilityOpen(true)}><i />LAB BUILD<b>{run.thermalBayLevel} / 2 THERMAL LANES</b></button><button type="button" onClick={onClose} aria-label="Close dialog">×</button></div>
       </header>
 
       <div className="campaign-hud">
@@ -542,6 +543,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
       </footer>
     </section>
     {commissionOpen && <ThermalCommissioningModal alreadyQualified={run.thermalBayLevel >= 2} activeRun={operations.activeFurnaceRun} queueMinutes={getCampaignOperations(currentRunNumber, 2).queueMinutes} onComplete={() => { commissionAuxiliaryChamber(); setCommissionOpen(false); }} onClose={() => setCommissionOpen(false)} />}
+    {facilityOpen && <FacilityBuildModal thermalBayLevel={run.thermalBayLevel} scheduled={Boolean(run.plannedThermalUpgrade)} insight={run.insight} commissioningAvailable={run.stage <= 3} queueMinutes={operations.queueMinutes} onCommission={() => { setFacilityOpen(false); setCommissionOpen(true); }} onClose={() => setFacilityOpen(false)} />}
     {inventoryOpen && <InventoryServiceModal inventory={inventory} budgetReady={run.insight >= 35} onComplete={() => { replenishInventory(); setInventoryOpen(false); }} onClose={() => setInventoryOpen(false)} />}
     {composerOpen && <FormulationComposer initial={customCandidate?.composition} onRetain={retainCustomCandidate} onClose={() => setComposerOpen(false)} />}
   </div>;
@@ -600,6 +602,44 @@ function FormulationComposer({ initial, onRetain, onClose }: { initial?: CustomC
 function CompositionControl({ label, value, values, format, onChange }: { label: string; value: number; values: readonly number[]; format: (value: number) => string; onChange: (value: number) => void }) {
   const index = Math.max(0, values.indexOf(value));
   return <label className="composition-control"><span>{label}<b>{format(value)}</b></span><input type="range" min="0" max={values.length - 1} step="1" value={index} onChange={(event) => onChange(values[Number(event.target.value)])} /><em>{values.map((option) => <i key={option} className={option === value ? 'active' : ''}>{format(option)}</i>)}</em></label>;
+}
+
+function FacilityBuildModal({ thermalBayLevel, scheduled, insight, commissioningAvailable, queueMinutes, onCommission, onClose }: { thermalBayLevel: number; scheduled: boolean; insight: number; commissioningAvailable: boolean; queueMinutes: number; onCommission: () => void; onClose: () => void }) {
+  const qualified = thermalBayLevel >= 2;
+  const canCommission = commissioningAvailable && insight >= 120 && !scheduled;
+  const buildState = qualified ? 'QUALIFIED' : scheduled ? 'COMMISSIONING SCHEDULED' : commissioningAvailable ? insight >= 120 ? 'READY TO COMMISSION' : '120 RP REQUIRED' : 'FINISH ACTIVE ROUTE';
+  return <div className="facility-build-backdrop" role="presentation">
+    <section className="facility-build" role="dialog" aria-modal="true" aria-label="Facility configuration">
+      <header><div><p className="section-kicker">FACILITY CONFIGURATION · LAB 04</p><h2>Build the experiment line</h2></div><button type="button" onClick={onClose} aria-label="Close facility configuration">×</button></header>
+      <div className="facility-build-status"><span>INSTALLED ASSETS<b>07 ONLINE</b></span><span>THERMAL LANES<b>{thermalBayLevel} / 2</b></span><span>CAMPAIGN WAIT<b>{queueMinutes} MIN</b></span><span>BUILD CURRENCY<b>{insight} RP</b></span></div>
+      <div className="facility-build-workspace">
+        <div className="facility-blueprint">
+          <svg viewBox="0 0 760 430" role="img" aria-label="Top-down layout of materials laboratory and its process flow">
+            <defs><pattern id="facilityBuildGrid" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M14 0H0V14" /></pattern><linearGradient id="facilityFlow" x1="0" x2="1"><stop stopColor="#43c5df" stopOpacity=".2" /><stop offset=".5" stopColor="#85e4d4" /><stop offset="1" stopColor="#43c5df" stopOpacity=".2" /></linearGradient></defs>
+            <rect className="blueprint-floor" x="20" y="20" width="720" height="390" rx="4" />
+            <path className="blueprint-grid" d="M20 20h720v390H20z" fill="url(#facilityBuildGrid)" />
+            <g className="route-branches"><path d="M130 137v78m210-78v78m210-68v68M130 215v63m210-63v63m210-63v63m136-45v45" /><path className="main-route" d="M58 215h586" /></g>
+            <g className="material-spine"><rect x="58" y="202" width="586" height="26" rx="13" /><path d="M78 215h546" /><circle cx="115" cy="215" r="4" /><circle cx="310" cy="215" r="4" /><circle cx="505" cy="215" r="4" /><text x="281" y="219">MATERIAL TRANSFER SPINE</text></g>
+            <g className="build-asset"><rect x="54" y="55" width="152" height="82" rx="3" /><text className="asset-id" x="66" y="73">PREP-01</text><text className="asset-name" x="66" y="88">POWDER PREPARATION</text><path d="M67 103h53v20H67zm65 0h60v20h-60z" /><circle cx="94" cy="113" r="7" /><text className="asset-state" x="146" y="116">ONLINE</text></g>
+            <g className="build-asset"><rect x="264" y="55" width="152" height="82" rx="3" /><text className="asset-id" x="276" y="73">ROBO-02</text><text className="asset-name" x="276" y="88">SYNTHESIS CELL</text><circle cx="317" cy="111" r="19" /><path d="M317 111l20-14 18 11 19-9M317 111l-9 13" /><circle cx="355" cy="108" r="4" /><text className="asset-state" x="362" y="126">ONLINE</text></g>
+            <g className={`build-asset thermal ${qualified ? 'expanded' : scheduled ? 'scheduled' : 'open-socket'}`}><rect x="474" y="45" width="152" height="102" rx="3" /><text className="asset-id" x="486" y="63">FURN-04</text><text className="asset-name" x="486" y="78">THERMAL BAY</text><g className="chamber-a"><rect x="488" y="91" width="58" height="42" /><text x="498" y="107">A</text><circle cx="528" cy="104" r="3" /><text className="chamber-state" x="498" y="123">ONLINE</text></g><g className="chamber-b"><rect x="558" y="91" width="54" height="42" /><text x="568" y="107">B</text><circle cx="596" cy="104" r="3" /><text className="chamber-state" x="568" y="123">{qualified ? 'ONLINE' : scheduled ? 'IQ/OQ' : 'OPEN'}</text></g></g>
+            <g className="build-asset"><rect x="54" y="278" width="152" height="82" rx="3" /><text className="asset-id" x="66" y="296">XRD-03</text><text className="asset-name" x="66" y="311">DIFFRACTION</text><path d="M69 341h122M81 341c19-2 20-21 32-21s11 16 24 16 12-9 21-9 10 7 20 7" /><text className="asset-state" x="151" y="351">ONLINE</text></g>
+            <g className="build-asset"><rect x="264" y="278" width="152" height="82" rx="3" /><text className="asset-id" x="276" y="296">SEM-01</text><text className="asset-name" x="276" y="311">BSE / EDS</text><circle cx="320" cy="334" r="15" /><path d="M320 313v42m-21-21h42" /><text className="asset-state" x="362" y="351">ONLINE</text></g>
+            <g className="build-asset"><rect x="474" y="278" width="152" height="82" rx="3" /><text className="asset-id" x="486" y="296">BET-02</text><text className="asset-name" x="486" y="311">SURFACE AREA</text><path d="M495 324h18v25h-18zm28-8h18v33h-18zm28 5h18v28h-18" /><text className="asset-state" x="580" y="351">ONLINE</text></g>
+            <g className="build-asset narrow"><rect x="652" y="278" width="69" height="82" rx="3" /><text className="asset-id" x="662" y="296">TGA</text><text className="asset-name" x="662" y="311">THERMAL</text><path d="M665 344c6 0 9-22 15-22s7 17 13 17 7-9 16-9" /></g>
+            <g className="utility-spine"><rect x="652" y="45" width="69" height="188" rx="3" /><text x="666" y="62">UTIL</text><path d="M670 79v130m20-130v130m20-130v130" /><circle cx="670" cy="103" r="4" /><circle cx="690" cy="143" r="4" /><circle cx="710" cy="183" r="4" /><text transform="translate(667 224) rotate(-90)">GAS · VAC · EXHAUST</text></g>
+            <circle className="flow-token" cx="115" cy="215" r="5" /><text className="aisle-label" x="57" y="390">MAIN PERSONNEL AISLE</text><path className="aisle" d="M56 377h665" /><text className="north" x="718" y="38">N ↑</text>
+          </svg>
+          <footer><span><i className="online" />ONLINE</span><span><i className="flow" />MATERIAL FLOW</span><span><i className="socket" />EXPANSION SOCKET</span><b>LAYOUT REV 04.7</b></footer>
+        </div>
+        <aside className="facility-build-controls">
+          <article className="facility-bottleneck"><span>ACTIVE BOTTLENECK</span><b>{queueMinutes > 30 ? 'THERMAL QUEUE' : 'NO CRITICAL CONSTRAINT'}</b><div><i style={{ width: `${Math.min(100, Math.max(18, queueMinutes * 1.25))}%` }} /></div><small>{queueMinutes} MIN CAMPAIGN WAIT · {thermalBayLevel} PARALLEL LANE{thermalBayLevel === 1 ? '' : 'S'}</small></article>
+          <article className={`facility-expansion ${qualified ? 'qualified' : scheduled ? 'scheduled' : ''}`}><header><div><span>EXPANSION SOCKET</span><b>FURN-04B</b></div><em>{buildState}</em></header><div className="expansion-render"><i /><i /><i /><b>B</b><span>1,100 °C CHAMBER</span></div><dl><div><dt>BUILD COST</dt><dd>120 RP</dd></div><div><dt>QUALIFICATION</dt><dd>48 MIN</dd></div><div><dt>EFFECT</dt><dd>2 LANES</dd></div><div><dt>REQUIRES</dt><dd>IQ / OQ</dd></div></dl><button type="button" disabled={!qualified && !canCommission} onClick={onCommission}>{qualified ? 'VIEW IQ/OQ RECORD' : scheduled ? 'COMMISSIONING SCHEDULED' : !commissioningAvailable ? 'FINISH ACTIVE ROUTE' : insight < 120 ? '120 RP REQUIRED' : 'COMMISSION CHAMBER B'}</button></article>
+          <p className="facility-build-rule"><i />FACILITY CHANGES APPLY TO FUTURE ROUTES. RETAINED RUNS ARE NEVER REWRITTEN.</p>
+        </aside>
+      </div>
+    </section>
+  </div>;
 }
 
 function InventoryServiceModal({ inventory, budgetReady, onComplete, onClose }: { inventory: CampaignInventory; budgetReady: boolean; onComplete: () => void; onClose: () => void }) {
