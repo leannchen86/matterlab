@@ -1393,7 +1393,7 @@ function getCampaignStationIndex(stage: number) {
 }
 
 function getInspectionKey(stationId: string, stationIndex: number, campaignStage: number, selected: string, runNumber: number) {
-  return getCampaignStationIndex(campaignStage) === stationIndex ? `${stationId}:RUN-${runNumber}:${selected}:S${campaignStage}` : stationId;
+  return getCampaignStationIndex(campaignStage) === stationIndex ? `${stationId}:RUN-${runNumber}:${selected}` : stationId;
 }
 
 function getCampaignRoomState(stage: number, selected = 'C-42', runNumber = 42, missionId: CampaignMissionId = 'purity', resultElapsed = 0, resultMeasured = '', confirmationSource: { runNumber: number; measured: string } | null = null) {

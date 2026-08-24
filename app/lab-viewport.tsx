@@ -131,7 +131,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
 
   const openSelectedConsole = () => {
     const campaignStationId = activeCampaignStage === 1 ? 'PREP-01' : activeCampaignStage <= 3 ? 'ROBO-02' : activeCampaignStage <= 5 ? 'FURN-04' : activeCampaignStage <= 7 ? 'XRD-03' : 'SEM-01';
-    const inspectionKey = activeCampaignStage > 0 && campaignStationId === selectedId ? `${selectedId}:RUN-${campaignRunNumber}:${campaignSelected}:S${activeCampaignStage}` : selectedId;
+    const inspectionKey = activeCampaignStage > 0 && campaignStationId === selectedId ? `${selectedId}:RUN-${campaignRunNumber}:${campaignSelected}` : selectedId;
     const physicalChecks = inspectionState?.[inspectionKey] ?? [];
     setImmersive(false);
     window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:open-console', { detail: { stationId: selectedId, physicalChecks } })));

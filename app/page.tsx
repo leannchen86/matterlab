@@ -176,7 +176,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[0];
   const selected = useCampaignStation(selectedBase);
   const selectedInspectionKey = campaignActive && getCampaignStationId(campaign.stage) === selected.id
-    ? `${selected.id}:RUN-${campaign.runNumber}:${campaign.selected}:S${campaign.stage}`
+    ? `${selected.id}:RUN-${campaign.runNumber}:${campaign.selected}`
     : selected.id;
   const completedTasks = phase === 0 ? 2 : phase === 1 ? 3 : phase === 2 ? 4 : phase === 3 ? 5 : phase === 4 ? 5 : phase === 5 ? 6 : 7;
   const campaignCompletedTasks = campaign.stage >= 9 ? 7 : campaign.stage >= 8 ? 6 : campaign.stage >= 7 ? 5 : campaign.stage >= 6 ? 4 : campaign.stage >= 5 ? 3 : campaign.stage >= 4 ? 2 : campaign.stage >= 2 ? 1 : 0;

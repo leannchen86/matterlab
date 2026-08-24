@@ -2395,6 +2395,21 @@ stick spectrum under the label `REPRESENTATIVE EDS MAP`.
 - Make D-08's clustered Ti signal visually support the `Ti-rich cores` follow-up hypothesis while keeping the
   UI explicit that this is a hypothesis rather than proof.
 
+## Critique 128: every phase transition discarded an unchanged walkaround
+
+End-to-end campaign QA showed the player repeating the same three physical points after every consecutive phase
+at one asset: robot recovery to dosing, furnace routing to start, XRD acquisition to result review, and SEM
+acquisition to evidence release. Nothing physical had invalidated those observations; only the workflow stage
+number changed.
+
+### Changes
+
+- Scope campaign walkaround evidence to `asset + run + material candidate`, not to every workflow stage.
+- Retain the three physical checks while the same run remains at the same asset, so its next local-console phase
+  opens with `WALK 3 / 3` and the player can proceed directly to the new control or review sequence.
+- Continue expiring proof on a new run, a different candidate, another asset, or a page reload; this removes
+  repetitive game friction without turning walkarounds into permanent global unlocks.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
