@@ -2256,6 +2256,24 @@ ran inside the corresponding standalone incident.
 - Browser QA reopened BET-02 from the active campaign and confirmed all four machine permissives begin on HOLD,
   clear one at a time, and agree with the 0 / 4 through 4 / 4 sequence counter.
 
+## Critique 120: the TGA balance tare falsely proved a cool furnace
+
+TGA-01 used `Tare balance channel` to clear its `furnace near ambient` start permissive. The two conditions are
+both necessary for a controlled start but are scientifically independent; a stable balance zero cannot prove
+that the furnace has returned to the method's allowed start temperature.
+
+### Changes
+
+- Added `Confirm furnace at start temperature` as an explicit first action before balance tare, purge-path proof,
+  and autosampler home.
+- Drive the furnace-near-ambient SCADA permissive exclusively from that temperature confirmation while retaining
+  balance tare as its own ordered control action.
+- Give the physical furnace rim and local light a restrained green ambient-state feedback rather than the warm
+  active-cycle glow, without changing purge or carousel state.
+- Extended the native TGA HMI with a furnace-start readback and explicit 28 °C stable criterion.
+- Browser QA confirmed TGA-01 began at 0 / 4 with all machine permissives held; the first action cleared only the
+  ambient-temperature permissive, then the remaining three proofs independently enabled safe-state attestation.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

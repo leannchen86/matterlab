@@ -1267,6 +1267,7 @@ function Bet({ active, tone, controls }: { active: boolean; tone: string; contro
 
 function TgaDsc({ active, controls }: { active: boolean; controls: string[] }) {
   const carousel = useRef<THREE.Group>(null);
+  const startTemperatureProven = controls.includes('Confirm furnace at start temperature');
   const tareProven = controls.includes('Tare balance channel');
   const purgeProven = controls.includes('Prove purge path');
   const carouselHomed = controls.includes('Home autosampler carousel');
@@ -1290,10 +1291,10 @@ function TgaDsc({ active, controls }: { active: boolean; controls: string[] }) {
     <group position={[-0.46, 1.26, 0.14]}>
       <mesh castShadow><cylinderGeometry args={[0.3, 0.38, 0.42, 32]} /><meshPhysicalMaterial color="#71828d" metalness={0.86} roughness={0.18} clearcoat={0.35} /></mesh>
       <mesh position={[0, 0.25, 0]}><cylinderGeometry args={[0.18, 0.25, 0.12, 28]} /><meshStandardMaterial color="#b8c1c4" metalness={0.86} roughness={0.16} /></mesh>
-      <mesh position={[0, 0.34, 0]}><torusGeometry args={[0.14, 0.025, 10, 28]} /><meshStandardMaterial color="#293943" emissive="#c45b2e" emissiveIntensity={active ? 1.7 : 0.24} /></mesh>
+      <mesh position={[0, 0.34, 0]}><torusGeometry args={[0.14, 0.025, 10, 28]} /><meshStandardMaterial color={startTemperatureProven ? '#4f8875' : '#293943'} emissive={startTemperatureProven ? '#2b9a68' : '#c45b2e'} emissiveIntensity={startTemperatureProven ? 0.9 : active ? 1.7 : 0.24} /></mesh>
       <mesh position={[0.29, 0.08, 0.04]} rotation={[0, 0, -0.38]} castShadow><boxGeometry args={[0.08, 0.32, 0.1]} /><meshStandardMaterial color="#475b65" metalness={0.78} roughness={0.24} /></mesh>
       <mesh position={[0.34, -0.09, 0.04]}><cylinderGeometry args={[0.055, 0.055, 0.08, 16]} /><meshStandardMaterial color="#b2bdc1" metalness={0.88} roughness={0.15} /></mesh>
-      <pointLight position={[0, 0.38, 0]} intensity={active ? 4 : 0.6} distance={1.5} color="#ff8b4d" />
+      <pointLight position={[0, 0.38, 0]} intensity={startTemperatureProven ? 0.9 : active ? 4 : 0.6} distance={1.5} color={startTemperatureProven ? '#69d7ad' : '#ff8b4d'} />
     </group>
     <group ref={carousel} position={[0.78, 1.12, 0.1]} rotation={[0, 0.48, 0]}>
       <mesh castShadow><cylinderGeometry args={[0.42, 0.42, 0.1, 36]} /><meshPhysicalMaterial color="#647681" metalness={0.82} roughness={0.2} clearcoat={0.34} /></mesh>

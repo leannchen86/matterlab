@@ -46,7 +46,7 @@ const HMI_OPERATIONS: Record<string, string[]> = {
   'XRD-03': ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Read reference position'],
   'SEM-01': ['Establish chamber vacuum', 'Verify stage clearance', 'Arm BSE / EDS detectors'],
   'BET-02': ['Isolate analysis ports', 'Run manifold leak check', 'Prove N₂ supply state', 'Position 77 K Dewar'],
-  'TGA-01': ['Tare balance channel', 'Prove purge path', 'Home autosampler carousel'],
+  'TGA-01': ['Confirm furnace at start temperature', 'Tare balance channel', 'Prove purge path', 'Home autosampler carousel'],
 };
 
 function getFurnaceStartOperations(runOps: ReturnType<typeof getCampaignOperations>, profile: string) {
@@ -367,7 +367,7 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
       if (item === '77 K bath in analysis position') return operations.includes('Position 77 K Dewar');
     }
     if (station.id === 'TGA-01') {
-      if (item === 'furnace near ambient') return operations.includes('Tare balance channel');
+      if (item === 'furnace near ambient') return operations.includes('Confirm furnace at start temperature');
       if (item === 'purge path proven') return operations.includes('Prove purge path');
       if (item === 'autosampler clear') return operations.includes('Home autosampler carousel');
     }
@@ -741,12 +741,13 @@ function BetHmiPanel({ station, operations }: { station: Station; operations: st
 }
 
 function TgaHmiPanel({ station, operations }: { station: Station; operations: string[] }) {
+  const startTemperatureProven = operations.includes('Confirm furnace at start temperature');
   const balanceTared = operations.includes('Tare balance channel');
   const purgeProven = operations.includes('Prove purge path');
   const carouselHomed = operations.includes('Home autosampler carousel');
   const running = station.state === 'ANALYZING';
   const review = station.state === 'REVIEW' || station.state === 'RECHECK QUEUED';
-  const status = carouselHomed ? 'METHOD START STATE PROVEN' : purgeProven ? 'CAROUSEL HOME REQUIRED' : balanceTared ? 'PURGE PROOF REQUIRED' : 'BALANCE TARE REQUIRED';
+  const status = carouselHomed ? 'METHOD START STATE PROVEN' : purgeProven ? 'CAROUSEL HOME REQUIRED' : balanceTared ? 'PURGE PROOF REQUIRED' : startTemperatureProven ? 'BALANCE TARE REQUIRED' : 'START TEMPERATURE REQUIRED';
   const massPath = review ? 'M280 57 C332 57 360 58 382 60 L395 83 C425 85 458 86 494 87' : running ? 'M280 57 C335 57 368 58 392 67 S448 78 494 80' : balanceTared ? 'M280 57 C334 56 389 58 494 57' : 'M280 82 H494';
   const heatPath = review ? 'M280 126 C344 126 374 125 401 116 C417 91 433 94 448 120 C464 126 479 126 494 125' : purgeProven ? 'M280 126 C348 125 418 127 494 126' : 'M280 143 H494';
   return <section className={`native-characterizer-console tga-console${carouselHomed ? ' operation-complete' : ''}`}>
@@ -769,7 +770,8 @@ function TgaHmiPanel({ station, operations }: { station: Station; operations: st
         {review && <g className="tga-event"><line x1="395" x2="395" y1="32" y2="159" /><rect x="401" y="35" width="91" height="24" rx="2" /><text x="408" y="45">COUPLED EVENT</text><text x="408" y="55">412 °C · REVIEW</text></g>}
       </svg>
       <aside>
-        <div className={balanceTared ? 'pass' : 'hold'}><span>BALANCE ZERO</span><b>{balanceTared ? '+0.00 mg' : 'DUE'}</b><small>{balanceTared ? 'channel feedback stable' : 'tare before method start'}</small></div>
+        <div className={startTemperatureProven ? 'pass' : 'hold'}><span>FURNACE START</span><b>{startTemperatureProven ? '28 °C · STABLE' : 'UNPROVEN'}</b><small>{startTemperatureProven ? 'ambient criterion met' : 'confirm cool start state'}</small></div>
+        <div className={balanceTared ? 'pass' : startTemperatureProven ? 'review' : 'waiting'}><span>BALANCE ZERO</span><b>{balanceTared ? '+0.00 mg' : 'DUE'}</b><small>{balanceTared ? 'channel feedback stable' : 'tare before method start'}</small></div>
         <div className={purgeProven ? 'pass' : balanceTared ? 'review' : 'waiting'}><span>PURGE CHANNEL</span><b>{purgeProven ? 'N₂ · 60 mL/min' : 'UNPROVEN'}</b><small>{purgeProven ? 'identity + trend retained' : 'gas path held'}</small></div>
         <div className={carouselHomed ? 'pass' : 'waiting'}><span>PAN POSITIONS</span><b>{carouselHomed ? 'A / B HOMED' : 'NOT HOMED'}</b><small>{review ? 'coupled event remains held' : carouselHomed ? 'method start position' : 'carousel proof required'}</small></div>
       </aside>
