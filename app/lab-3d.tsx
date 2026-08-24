@@ -902,16 +902,34 @@ function RobotCell({ active, focused, controls, campaignStage, campaignRunNumber
   const safeguardReset = controls.includes('Reset safeguarded stop') || controls.includes('Verify safeguarded stop');
   const axesHomed = controls.includes('Home transfer axes') || controls.some((operation) => ['Clean gripper tooling', 'Inspect jaw pads', 'Confirm clean tool ID'].includes(operation));
   const gripperProven = campaignStage >= 3 || controls.includes('Prove gripper state') || controls.some((operation) => ['Acquire witness coupon', 'Acquire force witness', 'Prove carrier handshake'].includes(operation));
-  const robotMode = campaignStage === 2 ? campaignOperations.robotConstraint ? 'recovery' : 'transfer' : campaignStage === 3 ? 'dose' : active ? 'transfer' : 'idle';
+  const requestedMode = campaignStage === 2 ? campaignOperations.robotConstraint ? 'recovery' : 'transfer' : campaignStage === 3 ? 'dose' : active ? 'transfer' : 'idle';
+  const motionPermitted = requestedMode === 'dose'
+    ? gateClosed && controls.includes('Execute crucible dosing')
+    : requestedMode === 'recovery'
+      ? gateClosed && safeguardReset && gripperProven
+      : requestedMode === 'transfer'
+        ? gateClosed && safeguardReset && controls.includes('Execute transfer')
+        : false;
+  const robotMode = motionPermitted ? requestedMode : 'idle';
+  const motionHeld = requestedMode !== 'idle' && !motionPermitted;
   return <group position={[0, 0.18, 0]}>
     <SafetyCage focused={focused} gateClosed={gateClosed} reset={safeguardReset} />
-    <RobotArm mode={robotMode} homed={axesHomed} gripperProven={gripperProven} />
+    <RobotArm mode={robotMode} homed={axesHomed && motionPermitted} gripperProven={gripperProven} />
     <RobotProcessFixture mode={robotMode} gripperProven={gripperProven} />
     <RoundedBox args={[0.72, 1.1, 0.5]} radius={0.05} position={[1.05, 0.72, -0.62]} castShadow>
       <meshStandardMaterial color="#263745" metalness={0.72} roughness={0.28} />
     </RoundedBox>
     <mesh position={[1.05, 0.86, -0.365]}><planeGeometry args={[0.48, 0.3]} /><meshBasicMaterial color="#06151a" /></mesh>
-    <mesh position={[1.05, 0.89, -0.37]}><planeGeometry args={[0.34, 0.025]} /><meshBasicMaterial color={safeguardReset ? '#51e19a' : active ? '#4dd5ed' : '#6c7b8a'} /></mesh>
+    <mesh position={[1.05, 0.89, -0.37]}><planeGeometry args={[0.34, 0.025]} /><meshBasicMaterial color={motionPermitted ? '#51e19a' : motionHeld ? '#f4b95f' : '#6c7b8a'} /></mesh>
+    <group position={[1.05, 1.43, -0.62]}>
+      <mesh position={[0, -0.12, 0]} castShadow><cylinderGeometry args={[0.026, 0.026, 0.24, 12]} /><meshStandardMaterial color="#66747a" metalness={0.8} roughness={0.22} /></mesh>
+      {[
+        { y: 0.12, color: '#df5d63', on: motionHeld && !gateClosed },
+        { y: 0, color: '#f4b95f', on: motionHeld && gateClosed },
+        { y: -0.12, color: '#51e19a', on: motionPermitted },
+      ].map((light) => <mesh key={light.y} position={[0, light.y, 0]} castShadow><cylinderGeometry args={[0.072, 0.072, 0.09, 18]} /><meshStandardMaterial color={light.on ? light.color : '#29343a'} emissive={light.on ? light.color : '#000000'} emissiveIntensity={light.on ? 1.4 : 0} roughness={0.28} /></mesh>)}
+      <mesh position={[0, 0.19, 0]}><cylinderGeometry args={[0.075, 0.075, 0.025, 18]} /><meshStandardMaterial color="#4c575b" metalness={0.72} roughness={0.25} /></mesh>
+    </group>
   </group>;
 }
 

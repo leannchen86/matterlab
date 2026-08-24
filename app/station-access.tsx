@@ -41,7 +41,7 @@ const profiles: Record<string, {
 
 const HMI_OPERATIONS: Record<string, string[]> = {
   'PREP-01': ['Prove enclosure flow', 'Close balance draft shield', 'Zero analytical balance', 'Confirm antistatic state'],
-  'ROBO-02': ['Close access gate', 'Reset safeguarded stop', 'Home transfer axes', 'Prove gripper state'],
+  'ROBO-02': ['Close access gate', 'Reset safeguarded stop', 'Home transfer axes', 'Prove gripper state', 'Execute transfer'],
   'FURN-04': ['Read overtemperature relay', 'Verify door chain', 'Confirm empty-cell state'],
   'XRD-03': ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Read reference position'],
   'SEM-01': ['Verify beam blanked', 'Verify stage clearance', 'Establish chamber vacuum', 'Arm BSE / EDS detectors'],

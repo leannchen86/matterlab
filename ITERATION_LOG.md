@@ -2410,6 +2410,23 @@ number changed.
 - Continue expiring proof on a new run, a different candidate, another asset, or a page reload; this removes
   repetitive game friction without turning walkarounds into permanent global unlocks.
 
+## Critique 129: the robot moved before its safeguard sequence permitted motion
+
+The articulated arm and six-position fixture were already animated, but their mode was derived directly from
+the campaign stage. Entering a dosing or recovery phase therefore moved the arm—and could show powder flow—
+while the 3D gate was visibly open and before the player executed the motion command.
+
+### Changes
+
+- Hold every robot axis in the parked pose until the corresponding local-control evidence permits motion.
+- Require closed gate plus explicit `Execute crucible dosing` before autonomous dose motion and powder flow;
+  require the closed gate, safeguarded-stop proof, and gripper witness before recovery motion.
+- Prevent intermediate tooling checks from visually homing the arm through an open safeguard.
+- Add a cabinet-mounted three-tier stack light: red for open-gate motion hold, amber for closed/setup hold, and
+  green only while motion is actually permitted, coupling aisle-scale feedback to the same control state.
+- Add `Execute transfer` as a fifth generic robot command after gate, safeguard, home, and gripper proof; browser
+  QA found that the safer motion gate otherwise had no valid non-campaign path to turn green and run the arm.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
