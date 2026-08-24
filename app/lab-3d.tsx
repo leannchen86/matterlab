@@ -122,6 +122,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
             scenarioId={scenarioId}
             phase={phase}
             thermalBayLevel={campaignThermalBayLevel}
+            campaignStage={campaignStage}
             onInspect={inspect}
             onFocus={() => onCameraMode('focus')}
             onSelect={onSelect}
@@ -561,7 +562,7 @@ function SampleStagingRack({ inventory, onOpenInventory }: { inventory: { crucib
   </group>;
 }
 
-function StationCell({ station, index, position, selected, active, toneOverride, stateOverride, showHotspots, inspected, inspectionPoints, controls, scenarioId, phase, thermalBayLevel, onInspect, onFocus, onSelect }: {
+function StationCell({ station, index, position, selected, active, toneOverride, stateOverride, showHotspots, inspected, inspectionPoints, controls, scenarioId, phase, thermalBayLevel, campaignStage, onInspect, onFocus, onSelect }: {
   station: Station;
   index: number;
   position: [number, number, number];
@@ -576,6 +577,7 @@ function StationCell({ station, index, position, selected, active, toneOverride,
   scenarioId: ScenarioId;
   phase: number;
   thermalBayLevel: number;
+  campaignStage: number;
   onInspect: (label: string) => void;
   onFocus: () => void;
   onSelect: (id: string) => void;
@@ -596,7 +598,7 @@ function StationCell({ station, index, position, selected, active, toneOverride,
       </RoundedBox>
       <Line points={[[-1.54, 0.082, -1.36], [1.54, 0.082, -1.36], [1.54, 0.082, 1.36], [-1.54, 0.082, 1.36], [-1.54, 0.082, -1.36]]} color={selected ? '#4dd5ed' : tone} lineWidth={selected ? 1.05 : 0.55} transparent opacity={selected ? 0.48 : 0.12} />
       {[-1.36, 1.36].flatMap((x) => [-1.18, 1.18].map((z) => <mesh key={`${x}-${z}`} position={[x, 0.09, z]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.035, 0.055, 16]} /><meshStandardMaterial color="#687681" metalness={0.78} roughness={0.26} /></mesh>))}
-      <Equipment index={index} active={active} tone={tone} focused={showHotspots} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} />
+      <Equipment index={index} active={active} tone={tone} focused={showHotspots} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} campaignStage={campaignStage} />
       {showHotspots && <InspectionHotspots points={inspectionPoints} tone={tone} inspected={inspected} onInspect={onInspect} />}
       <StatusBeacon position={[1.32, 0.34, 1.08]} color={tone} active={active || selected} />
       <ControlProofLights count={controls.length} />
@@ -609,9 +611,9 @@ function StationCell({ station, index, position, selected, active, toneOverride,
   );
 }
 
-function Equipment({ index, active, tone, focused, controls, scenarioId, phase, thermalBayLevel }: { index: number; active: boolean; tone: string; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number }) {
+function Equipment({ index, active, tone, focused, controls, scenarioId, phase, thermalBayLevel, campaignStage }: { index: number; active: boolean; tone: string; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number; campaignStage: number }) {
   if (index === 0) return <PowderPrep controls={controls} />;
-  if (index === 1) return <RobotCell active={active} focused={focused} controls={controls} />;
+  if (index === 1) return <RobotCell active={active} focused={focused} controls={controls} campaignStage={scenarioId === 'xrd' ? campaignStage : 0} />;
   if (index === 2) return <Furnace active={active} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} />;
   if (index === 3) return <Xrd active={active} controls={controls} />;
   if (index === 4) return <SemEds active={active} controls={controls} />;
@@ -787,13 +789,15 @@ function PowderPrep({ controls }: { controls: string[] }) {
   </group>;
 }
 
-function RobotCell({ active, focused, controls }: { active: boolean; focused: boolean; controls: string[] }) {
+function RobotCell({ active, focused, controls, campaignStage }: { active: boolean; focused: boolean; controls: string[]; campaignStage: number }) {
   const safeguardReset = controls.includes('Reset safeguarded stop');
   const axesHomed = controls.includes('Home transfer axes');
   const gripperProven = controls.includes('Prove gripper state');
+  const robotMode = campaignStage === 2 ? 'recovery' : campaignStage === 3 ? 'dose' : active ? 'transfer' : 'idle';
   return <group position={[0, 0.18, 0]}>
     <SafetyCage focused={focused} reset={safeguardReset} />
-    <RobotArm active={active} homed={axesHomed} gripperProven={gripperProven} />
+    <RobotArm mode={robotMode} homed={axesHomed} gripperProven={gripperProven} />
+    <RobotProcessFixture mode={robotMode} gripperProven={gripperProven} />
     <RoundedBox args={[0.72, 1.1, 0.5]} radius={0.05} position={[1.05, 0.72, -0.62]} castShadow>
       <meshStandardMaterial color="#263745" metalness={0.72} roughness={0.28} />
     </RoundedBox>
@@ -813,17 +817,22 @@ function SafetyCage({ focused, reset }: { focused: boolean; reset: boolean }) {
   </group>;
 }
 
-function RobotArm({ active, homed, gripperProven }: { active: boolean; homed: boolean; gripperProven: boolean }) {
+function RobotArm({ mode, homed, gripperProven }: { mode: 'idle' | 'recovery' | 'dose' | 'transfer'; homed: boolean; gripperProven: boolean }) {
   const base = useRef<THREE.Group>(null);
   const shoulder = useRef<THREE.Group>(null);
   const elbow = useRef<THREE.Group>(null);
   const wrist = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     const t = clock.elapsedTime;
-    if (base.current) base.current.rotation.y = active ? -0.2 + Math.sin(t * 0.55) * 0.46 : THREE.MathUtils.lerp(base.current.rotation.y, homed ? 0 : -0.42, 0.08);
-    if (shoulder.current) shoulder.current.rotation.z = active ? -0.58 + Math.sin(t * 0.72) * 0.18 : THREE.MathUtils.lerp(shoulder.current.rotation.z, homed ? -0.44 : -0.62, 0.08);
-    if (elbow.current) elbow.current.rotation.z = active ? -1.02 + Math.sin(t * 0.92 + 1.2) * 0.23 : THREE.MathUtils.lerp(elbow.current.rotation.z, homed ? -1.08 : -0.94, 0.08);
-    if (wrist.current) wrist.current.rotation.y = active ? Math.sin(t * 1.15) * 0.7 : THREE.MathUtils.lerp(wrist.current.rotation.y, homed ? 0 : 0.18, 0.08);
+    const slot = Math.floor(t * 0.72) % 6;
+    const targetBase = mode === 'recovery' ? 0.72 : mode === 'dose' ? -0.7 + (slot % 3) * 0.34 : mode === 'transfer' ? -0.2 + Math.sin(t * 0.55) * 0.46 : homed ? 0 : -0.42;
+    const targetShoulder = mode === 'recovery' ? -0.78 : mode === 'dose' ? -0.48 - Math.floor(slot / 3) * 0.08 : mode === 'transfer' ? -0.58 + Math.sin(t * 0.72) * 0.18 : homed ? -0.44 : -0.62;
+    const targetElbow = mode === 'recovery' ? -1.22 : mode === 'dose' ? -1.14 + Math.sin(t * 2.3) * 0.035 : mode === 'transfer' ? -1.02 + Math.sin(t * 0.92 + 1.2) * 0.23 : homed ? -1.08 : -0.94;
+    const targetWrist = mode === 'recovery' ? gripperProven ? 0 : Math.sin(t * 1.6) * 0.12 : mode === 'dose' ? Math.sin(t * 2.3) * 0.18 : mode === 'transfer' ? Math.sin(t * 1.15) * 0.7 : homed ? 0 : 0.18;
+    if (base.current) base.current.rotation.y = THREE.MathUtils.damp(base.current.rotation.y, targetBase, mode === 'dose' ? 4.2 : 3.1, delta);
+    if (shoulder.current) shoulder.current.rotation.z = THREE.MathUtils.damp(shoulder.current.rotation.z, targetShoulder, 3.5, delta);
+    if (elbow.current) elbow.current.rotation.z = THREE.MathUtils.damp(elbow.current.rotation.z, targetElbow, 3.8, delta);
+    if (wrist.current) wrist.current.rotation.y = THREE.MathUtils.damp(wrist.current.rotation.y, targetWrist, 4.5, delta);
   });
   return <group position={[-0.15, 0.08, 0.08]} ref={base}>
     <mesh castShadow><cylinderGeometry args={[0.46, 0.55, 0.25, 32]} /><meshPhysicalMaterial color="#53626c" metalness={0.82} roughness={0.25} clearcoat={0.32} /></mesh>
@@ -853,9 +862,36 @@ function RobotArm({ active, homed, gripperProven }: { active: boolean; homed: bo
             <mesh castShadow><boxGeometry args={[0.065, 0.38, 0.1]} /><meshStandardMaterial color="#151f26" metalness={0.72} roughness={0.32} /></mesh>
             <mesh position={[-Math.sign(x) * 0.025, 0.17, 0]}><boxGeometry args={[0.11, 0.05, 0.12]} /><meshStandardMaterial color="#65747b" metalness={0.82} roughness={0.22} /></mesh>
           </group>)}
-          <mesh position={[0, 0.3, 0.13]}><circleGeometry args={[0.035, 18]} /><meshStandardMaterial color={gripperProven || active ? '#51e19a' : '#4f6670'} emissive={gripperProven || active ? '#24744f' : '#132029'} emissiveIntensity={gripperProven ? 1.1 : active ? 0.6 : 0.12} /></mesh>
+          <mesh position={[0, 0.3, 0.13]}><circleGeometry args={[0.035, 18]} /><meshStandardMaterial color={gripperProven || mode === 'dose' || mode === 'transfer' ? '#51e19a' : mode === 'recovery' ? '#f4b95f' : '#4f6670'} emissive={gripperProven || mode === 'dose' || mode === 'transfer' ? '#24744f' : mode === 'recovery' ? '#6b451c' : '#132029'} emissiveIntensity={gripperProven ? 1.1 : mode === 'idle' ? 0.12 : 0.6} /></mesh>
         </group>
       </group>
+    </group>
+  </group>;
+}
+
+function RobotProcessFixture({ mode, gripperProven }: { mode: 'idle' | 'recovery' | 'dose' | 'transfer'; gripperProven: boolean }) {
+  const doseMarker = useRef<THREE.Group>(null);
+  const powderMaterials = useRef<Array<THREE.MeshStandardMaterial | null>>([]);
+  const slots: [number, number, number][] = [[-0.34, 0, -0.21], [0, 0, -0.21], [0.34, 0, -0.21], [-0.34, 0, 0.21], [0, 0, 0.21], [0.34, 0, 0.21]];
+  useFrame(({ clock }, delta) => {
+    if (!doseMarker.current) return;
+    const activeSlot = Math.floor(clock.elapsedTime * 0.72) % slots.length;
+    const target = slots[activeSlot];
+    doseMarker.current.position.x = THREE.MathUtils.damp(doseMarker.current.position.x, target[0], 5, delta);
+    doseMarker.current.position.z = THREE.MathUtils.damp(doseMarker.current.position.z, target[2], 5, delta);
+    powderMaterials.current.forEach((material, index) => material?.color.set(index <= activeSlot ? '#c79652' : '#403930'));
+  });
+  return <group>
+    <group position={[-0.86, 0.3, 0.58]}>
+      <RoundedBox args={[1.18, 0.1, 0.82]} radius={0.04} castShadow><meshStandardMaterial color="#4c5960" metalness={0.72} roughness={0.3} /></RoundedBox>
+      {slots.map(([x, , z], index) => <group key={`${x}-${z}`} position={[x, 0.12, z]}><mesh castShadow><cylinderGeometry args={[0.105, 0.09, 0.18, 20]} /><meshPhysicalMaterial color="#c8c1ad" roughness={0.46} clearcoat={0.1} /></mesh><mesh position={[0, 0.1, 0]}><torusGeometry args={[0.083, 0.014, 8, 20]} /><meshStandardMaterial color="#e0dac6" roughness={0.38} /></mesh>{mode === 'dose' && <mesh position={[0, 0.105, 0]}><circleGeometry args={[0.065, 18]} /><meshStandardMaterial ref={(material) => { powderMaterials.current[index] = material; }} color="#403930" roughness={0.72} /></mesh>}</group>)}
+      {mode === 'dose' && <group ref={doseMarker} position={[slots[0][0], 0.5, slots[0][2]]}><mesh><cylinderGeometry args={[0.018, 0.035, 0.48, 12]} /><meshBasicMaterial color="#dfb56b" transparent opacity={0.72} /></mesh><pointLight intensity={0.45} distance={0.75} color="#f4b95f" /></group>}
+    </group>
+    <group position={[0.84, 0.31, 0.62]}>
+      <RoundedBox args={[0.68, 0.12, 0.64]} radius={0.04} castShadow><meshStandardMaterial color="#34434b" metalness={0.72} roughness={0.32} /></RoundedBox>
+      <mesh position={[0, 0.095, 0]}><cylinderGeometry args={[0.19, 0.19, 0.045, 24]} /><meshStandardMaterial color={mode === 'recovery' ? gripperProven ? '#3d8e6d' : '#8c6031' : '#4f626a'} emissive={mode === 'recovery' ? gripperProven ? '#174d38' : '#5a3517' : '#000000'} emissiveIntensity={mode === 'recovery' ? 0.75 : 0} roughness={0.46} /></mesh>
+      <mesh position={[0, 0.13, 0]}><circleGeometry args={[0.11, 22]} /><meshBasicMaterial color={gripperProven ? '#77d9aa' : mode === 'recovery' ? '#d7a35a' : '#788a8f'} /></mesh>
+      <mesh position={[0, 0.08, 0.33]}><planeGeometry args={[0.44, 0.08]} /><meshBasicMaterial color={mode === 'recovery' ? gripperProven ? '#51e19a' : '#f4b95f' : '#617985'} /></mesh>
     </group>
   </group>;
 }

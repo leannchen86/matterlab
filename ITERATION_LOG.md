@@ -1380,6 +1380,23 @@ operated in place; consumables could not.
 - Preserved spatial context by selecting PREP-01 during the handoff; closing the workflow returns the
   player to the same lab and campaign state.
 
+## Critique 75: robot motion did not express the operation
+
+The robot arm was visually detailed and animated, but a cleanliness recovery and a six-position dosing
+run produced the same generic sweep. The player still needed text to understand what the cell was doing.
+
+### Changes
+
+- Added campaign-aware robot motion states. Cleanliness recovery now places the arm at a dedicated
+  witness dock with a restrained inspection motion; dosing indexes deliberately across six carrier
+  positions; ordinary transfer retains the broader cell motion; inactive equipment settles to home.
+- Added physical cell fixtures: a six-crucible carrier, ceramic ware, a gripper witness station, stateful
+  clean/attention illumination, and a powder stream that moves between the active dose positions.
+- Bound gripper proof from the native HMI back into the 3D witness dock and arm indicator so the physical
+  scene visibly clears as technician evidence is completed.
+- Preserved safeguards and focus transparency while making the campaign stage—not decorative animation—
+  own the robot pose and material state.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
