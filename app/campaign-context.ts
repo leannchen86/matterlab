@@ -31,7 +31,8 @@ function readCampaign(): CampaignSnapshot {
     const history = Array.isArray(stored.history) ? stored.history : [];
     const selected = String(stored.selected ?? fallbackCampaign.selected);
     const retainedResult = history.find((item: { runNumber?: number }) => Number(item?.runNumber) === runNumber);
-    const confirmationSource = [...history].reverse().find((item: { runNumber?: number; candidate?: string }) => Number(item?.runNumber) < runNumber && String(item?.candidate) === selected);
+    const precedingResult = [...history].reverse().find((item: { runNumber?: number }) => Number(item?.runNumber) < runNumber);
+    const confirmationSource = precedingResult && String(precedingResult.candidate) === selected ? precedingResult : null;
     return {
       stage: Number(stored.stage ?? fallbackCampaign.stage),
       selected,

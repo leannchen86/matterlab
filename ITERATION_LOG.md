@@ -2512,6 +2512,22 @@ Field Guide name. Event-ledger drawers also exposed an unlabeled `×` control to
 - Remove the old source module entirely so repository searches no longer surface a competing product concept.
 - Give every event-ledger close control an explicit accessible name while preserving the compact visual button.
 
+## Critique 136: an older matching recipe could masquerade as a confirmation replicate
+
+An end-to-end authored-material run exposed a disagreement between the facility console and campaign control.
+The console searched the full result history for any matching recipe, so a matching run separated by a different
+experiment could be presented as an intentional unchanged repeat even though campaign control correctly showed
+only one qualified observation.
+
+### Changes
+
+- Derive confirmation context from the immediately preceding retained result, matching the campaign-control
+  comparability gate and the semantics of an explicitly queued confirmation run.
+- Require that preceding result to use the same governed recipe before showing replicate spread, repeat-pass
+  language, or a robustness verdict anywhere in the facility view.
+- Keep older same-recipe observations in model memory and posterior learning without overstating them as a
+  controlled reproducibility pair.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
