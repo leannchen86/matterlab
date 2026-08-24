@@ -1012,23 +1012,33 @@ function Furnace({ active, controls, scenarioId, phase, thermalBayLevel, campaig
     <RoundedBox args={[dualChamber ? 2.62 : 2.05, 2.22, 1.5]} radius={0.09} smoothness={4} position={[0, 1.15, 0]} castShadow>
       <meshPhysicalMaterial color="#59636a" metalness={0.9} roughness={0.2} clearcoat={0.34} />
     </RoundedBox>
-    {(dualChamber ? [-0.62, 0.62] : [0]).map((chamberX, index) => <group key={chamberX}>
+    {(dualChamber ? [-0.62, 0.62] : [0]).map((chamberX, index) => {
+      const doorWidth = dualChamber ? 1.08 : 1.52;
+      const hardwareSide = dualChamber ? (index === 0 ? 1 : -1) : 1;
+      const handleX = chamberX + hardwareSide * (dualChamber ? 0.39 : 0.59);
+      const hingeX = chamberX - hardwareSide * (dualChamber ? 0.46 : 0.7);
+      const chamberStatusColor = index === 1 ? '#51e19a' : recovered ? '#51e19a' : conditionHeld ? '#d6894f' : emptyConfirmed && !active ? '#51e19a' : '#ff8b3d';
+      return <group key={chamberX}>
       <RoundedBox args={[dualChamber ? 1.08 : 1.52, 1.18, 0.12]} radius={0.05} position={[chamberX, 1.37, 0.79]}>
         <meshStandardMaterial color="#15191c" metalness={0.6} roughness={0.38} />
       </RoundedBox>
-      <mesh position={[chamberX, 1.39, 0.858]}><planeGeometry args={[dualChamber ? 0.82 : 1.18, 0.76]} /><meshStandardMaterial color={index === 1 ? '#101d18' : chamberColor} emissive={index === 1 ? '#1f6b4a' : chamberEmissive} emissiveIntensity={index === 1 ? 0.55 : chamberIntensity} roughness={0.85} /></mesh>
-      <pointLight position={[chamberX, 1.4, 1.1]} intensity={index === 1 ? 1.3 : recovered ? 1.5 : conditionHeld ? 0.55 : emptyConfirmed && !active ? 1.2 : active ? 12 : recoveryScenario ? 5 : 2} color={index === 1 ? '#51e19a' : recovered ? '#51e19a' : conditionHeld ? '#d6894f' : emptyConfirmed && !active ? '#51e19a' : '#ff8b3d'} distance={2.5} decay={2} />
-      {dualChamber && <><mesh position={[chamberX, 1.93, 0.865]}><planeGeometry args={[0.52, 0.06]} /><meshBasicMaterial color={index === 0 ? '#f4b95f' : '#51e19a'} /></mesh><mesh position={[chamberX + 0.36, 0.84, 0.87]}><circleGeometry args={[0.035, 18]} /><meshStandardMaterial color={index === 0 ? '#f4b95f' : '#51e19a'} emissive={index === 0 ? '#704718' : '#1f6947'} emissiveIntensity={0.8} /></mesh></>}
-    </group>)}
+      <RoundedBox args={[doorWidth - 0.18, 0.93, 0.075]} radius={0.035} position={[chamberX, 1.38, 0.87]} castShadow><meshPhysicalMaterial color="#252d30" metalness={0.84} roughness={0.27} clearcoat={0.22} /></RoundedBox>
+      <mesh position={[chamberX, 1.43, 0.912]}><planeGeometry args={[dualChamber ? 0.46 : 0.66, 0.3]} /><meshStandardMaterial color={index === 1 ? '#101d18' : chamberColor} emissive={index === 1 ? '#1f6b4a' : chamberEmissive} emissiveIntensity={index === 1 ? 0.34 : chamberIntensity * 0.42} roughness={0.78} /></mesh>
+      <mesh position={[chamberX, 1.43, 0.918]}><planeGeometry args={[dualChamber ? 0.5 : 0.7, 0.34]} /><meshStandardMaterial color="#222a2c" transparent opacity={0.22} metalness={0.34} roughness={0.18} /></mesh>
+      <mesh position={[chamberX, 1.87, 0.914]}><planeGeometry args={[dualChamber ? 0.54 : 0.76, 0.055]} /><meshBasicMaterial color={chamberStatusColor} /></mesh>
+      <pointLight position={[chamberX, 1.43, 1.02]} intensity={index === 1 ? 0.55 : recovered ? 0.8 : conditionHeld ? 0.3 : emptyConfirmed && !active ? 0.55 : active ? 3.8 : recoveryScenario ? 1.7 : 0.75} color={chamberStatusColor} distance={1.45} decay={2} />
+      {[1.08, 1.68].map((hingeY) => <mesh key={hingeY} position={[hingeX, hingeY, 0.91]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.035, 0.035, 0.16, 14]} /><meshStandardMaterial color="#a7b0b4" metalness={0.9} roughness={0.14} /></mesh>)}
+      <mesh position={[handleX, 1.38, 0.925]} rotation={[0, 0, sealHeld && !latchAdjusted && index === 1 ? -0.09 : 0]} castShadow><boxGeometry args={[0.065, 0.58, 0.075]} /><meshStandardMaterial color={doorGreen && index === 1 ? '#64d49f' : conditionHeld && index === 1 ? '#c88b58' : '#9aa3a8'} emissive={doorGreen && index === 1 ? '#1c6545' : conditionHeld && index === 1 ? '#5f321c' : '#000000'} emissiveIntensity={doorGreen && index === 1 || conditionHeld && index === 1 ? 0.45 : 0} metalness={0.9} roughness={0.16} /></mesh>
+      <mesh position={[handleX - hardwareSide * 0.075, 1.38, 0.965]} rotation={[0, 0, Math.PI / 2]} castShadow><cylinderGeometry args={[0.035, 0.035, 0.18, 14]} /><meshStandardMaterial color="#b2b9bc" metalness={0.92} roughness={0.13} /></mesh>
+      {dualChamber && <mesh position={[chamberX + hardwareSide * 0.29, 0.84, 0.9]}><circleGeometry args={[0.035, 18]} /><meshStandardMaterial color={chamberStatusColor} emissive={chamberStatusColor} emissiveIntensity={0.72} /></mesh>}
+    </group>})}
     <Line points={[[dualChamber ? -1.19 : -0.77, 0.78, 0.868], [dualChamber ? -1.19 : -0.77, 1.96, 0.868], [dualChamber ? 1.19 : 0.77, 1.96, 0.868], [dualChamber ? 1.19 : 0.77, 0.78, 0.868]]} color={sealHeld ? '#f4b95f' : '#77848a'} lineWidth={sealHeld ? 1.8 : 0.65} transparent opacity={sealHeld ? 0.95 : 0.35} />
     {sealHeld && <><Line points={[[dualChamber ? -1.19 : -0.77, 1.96, 0.884], [dualChamber ? 1.19 : 0.77, 1.96, 0.884]]} color="#ff8b3d" lineWidth={2.9} /><pointLight position={[0, 1.92, 1.03]} intensity={2.4} distance={1.2} color="#ff8b3d" decay={2} /></>}
-    {[-0.44, 0.44].map((offset) => <mesh key={offset} position={[dualChamber ? -1.25 : -0.83, 1.37 + offset, 0.87]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.035, 0.035, 0.17, 14]} /><meshStandardMaterial color="#a7b0b4" metalness={0.9} roughness={0.14} /></mesh>)}
     <RoundedBox args={[0.9, 0.32, 0.09]} radius={0.035} position={[-0.34, 0.55, 0.805]}>
       <meshBasicMaterial color="#08161c" />
     </RoundedBox>
     <mesh position={[-0.42, 0.56, 0.855]}><planeGeometry args={[0.42, 0.035]} /><meshBasicMaterial color={statusGreen ? '#51e19a' : conditionHeld ? '#d6894f' : active ? '#f4b95f' : '#6a8290'} /></mesh>
     <mesh position={[-0.42, 0.62, 0.856]}><planeGeometry args={[tcHeld ? 0.29 : 0.18, 0.018]} /><meshBasicMaterial color={tcHeld ? offsetApplied ? '#51e19a' : '#f4b95f' : '#364c56'} /></mesh>
-    <mesh position={[dualChamber ? 1.16 : 0.82, 1.36, 0.875]} rotation={[0, 0, sealHeld && !latchAdjusted ? -0.08 : 0]} castShadow><boxGeometry args={[0.07, 0.8, 0.08]} /><meshStandardMaterial color={doorGreen ? '#64d49f' : conditionHeld ? '#c88b58' : '#9aa3a8'} emissive={doorGreen ? '#1c6545' : conditionHeld ? '#5f321c' : '#000000'} emissiveIntensity={doorGreen || conditionHeld ? 0.55 : 0} metalness={0.9} roughness={0.16} /></mesh>
     <mesh position={[0.71, 0.83, 0.87]}><circleGeometry args={[0.045, 18]} /><meshStandardMaterial color={chamberStateConfirmed ? '#51e19a' : '#6f7e82'} emissive={chamberStateConfirmed ? '#238253' : '#192428'} emissiveIntensity={chamberStateConfirmed ? 1 : 0.2} /></mesh>
     {tcHeld && <group position={[-0.15, 1.78, 0.95]}>
       <mesh rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.018, 0.018, 0.72, 12]} /><meshStandardMaterial color="#d7dee0" metalness={0.92} roughness={0.12} /></mesh>

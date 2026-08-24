@@ -2119,6 +2119,25 @@ non-interactive equipment block on a floor plan whose visual language says asset
 - Add matching hover/focus feedback and update the layout revision and blueprint affordance to distinguish
   walking to instruments from inspecting commissioned infrastructure.
 
+## Critique 112: the furnace looked like two luminous screens
+
+At human scale, the dual-chamber furnace used almost its entire door area as a glowing state surface. That
+made the asset immediately legible, but visually closer to a sci-fi console than a high-temperature box
+furnace with insulated doors and discrete observation windows.
+
+### Changes
+
+- Rebuilt each furnace face as a thick, opaque insulated door with its own inset plate, gasket boundary,
+  hinge pair, latch bar, and transverse grip.
+- Reduced the emissive area to a small ceramic observation window and separate status strip, retaining the
+  orange occupied / green qualified state without implying that the entire door is transparent.
+- Give both chambers independent hardware and condition-aware status lamps; seal and latch recovery now
+  affect the correct chamber-B handle instead of a single shared exterior bar.
+- Reduced spill light from a closed hot zone so the furnace reads as a physical machine under inspection
+  lighting while still giving active thermal state a subtle local glow.
+- Browser QA compared the active RUN-048 chamber pair in focused inspection view and confirmed the revised
+  door geometry, independent hardware, hotspot placement, and occupied/qualified state remain legible.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
