@@ -207,6 +207,11 @@ button { font: inherit; }
 .station-3d-label b { display: block; margin-top: 2px; overflow: hidden; color: #d6e1ec; font: 650 9px var(--font-geist-sans); white-space: nowrap; text-overflow: ellipsis; }
 .station-3d-label i { display: block; margin-top: 3px; color: var(--station-tone); font: 650 6px var(--font-geist-mono); font-style: normal; }
 .station-3d-label.selected { border-color: var(--cyan); background: #0c2130ed; box-shadow: 0 0 26px #4dd5ed2e, 0 8px 24px #000a, inset 2px 0 0 var(--cyan); transform: translateY(-7px) scale(1.04); }
+.staging-3d-label { position: relative; width: 104px; padding: 6px 18px 6px 8px; border: 1px solid color-mix(in srgb, var(--staging-tone) 52%, #27433d); background: #071511e8; box-shadow: 0 7px 22px #0009, inset 2px 0 0 var(--staging-tone); color: #d8e7e1; text-align: left; backdrop-filter: blur(8px); }
+.staging-3d-label::after { content: ''; position: absolute; top: 100%; left: 50%; width: 1px; height: 12px; background: var(--staging-tone); opacity: .55; }
+.staging-3d-label span, .staging-3d-label i { display: block; color: var(--staging-tone); font: 700 5.5px var(--font-geist-mono); font-style: normal; letter-spacing: .08em; }
+.staging-3d-label b { display: block; margin: 2px 0; font: 700 8px var(--font-geist-sans); white-space: nowrap; }
+.lab-3d.camera-focus .staging-3d-label, .lab-3d.camera-walk .staging-3d-label { display: none; }
 .lab-3d.camera-focus .station-3d-label:not(.selected) { display: none; }
 .lab-3d.camera-walk .station-3d-label { display: none; }
 .scene-station-picker { position: absolute; z-index: 28; right: 14px; bottom: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 4px; border: 1px solid #253b50; background: #06101ad9; box-shadow: 0 12px 26px #000a; backdrop-filter: blur(9px); }

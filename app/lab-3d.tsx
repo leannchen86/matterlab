@@ -27,6 +27,7 @@ type SceneProps = {
   campaignConfirmationSource: { runNumber: number; measured: string } | null;
   campaignMissionId: CampaignMissionId;
   campaignThermalBayLevel: number;
+  campaignStagingBayLevel: number;
   campaignInventory: { crucibles: number; liners: number; carbonTabs: number };
   campaignBacklog: Array<{ runNumber: number; candidate: string; missionId: CampaignMissionId }>;
   scenarioId: ScenarioId;
@@ -73,7 +74,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignResultElapsed, campaignResultMeasured, campaignConfirmationSource, campaignMissionId, campaignThermalBayLevel, campaignInventory, campaignBacklog, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, onOpenInventory, onOpenCampaign, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignResultElapsed, campaignResultMeasured, campaignConfirmationSource, campaignMissionId, campaignThermalBayLevel, campaignStagingBayLevel, campaignInventory, campaignBacklog, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, onOpenInventory, onOpenCampaign, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -109,7 +110,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
         <FacilityLighting mode={lightingMode} />
 
         <LabArchitecture lightingMode={lightingMode} />
-        <OperationsProps scenarioId={scenarioId} phase={phase} inventory={campaignInventory} onOpenInventory={onOpenInventory} />
+        <OperationsProps scenarioId={scenarioId} phase={phase} inventory={campaignInventory} stagingBayLevel={campaignStagingBayLevel} stagingSelected={selectedId === 'PREP-01'} onOpenInventory={onOpenInventory} />
         <CampaignBacklogRack backlog={campaignBacklog} thermalBayLevel={campaignThermalBayLevel} onOpenCampaign={onOpenCampaign} />
         <MaterialRoute scenarioId={scenarioId} phase={phase} />
         <CampaignMaterialRoute stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} resultMeasured={campaignResultMeasured} confirmationSource={campaignConfirmationSource} />
@@ -162,7 +163,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
       <div className="scene-corner scene-corner-bottom">{cameraMode === 'walk' ? <><span>WASD</span> MOVE <i>·</i> <span>DRAG</span> LOOK <i>·</i> <span>SELECT</span> APPROACH</> : <><span>DRAG</span> ORBIT <i>·</i> <span>SCROLL</span> ZOOM <i>·</i> <span>CLICK</span> INSPECT</>}</div>
       {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN TWIN · {getCampaignIdentity(campaignRunNumber).runId} · {campaignSelected}</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? campaignState.result : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
       {campaignBacklog.length > 0 && <button type="button" className={`campaign-backlog-hud${campaignStage > 0 ? ' with-campaign' : ''}`} onClick={onOpenCampaign}><span>OPERATE SHIFT BACKLOG</span><b>{campaignBacklog.length} PLANS · {campaignBacklog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0)} FURNACE MIN</b><i>OPEN →</i></button>}
-      {selectedId === 'PREP-01' && <button type="button" className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}${campaignBacklog.length ? ' with-backlog' : ''}`} onClick={onOpenInventory}><span>OPERATE POINT-OF-USE RACK</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>OPEN →</i></button>}
+      {selectedId === 'PREP-01' && <button type="button" className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}${campaignBacklog.length ? ' with-backlog' : ''}`} onClick={onOpenInventory}><span>{campaignStagingBayLevel >= 2 ? 'OPERATE STG-02 CAROUSEL' : 'OPERATE POINT-OF-USE RACK'}</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>{campaignStagingBayLevel >= 2 ? 'RETRIEVE →' : 'OPEN →'}</i></button>}
       {cameraMode === 'walk' && <div className="walk-hud">
         <header><span>HUMAN-SCALE AISLE</span><b>{selectedStation.id} · {selectedStation.name}</b></header>
         <div className="walk-pad" role="group" aria-label="Aisle movement controls">
@@ -477,7 +478,7 @@ function UtilityServices() {
   </group>;
 }
 
-function OperationsProps({ scenarioId, phase, inventory, onOpenInventory }: { scenarioId: ScenarioId; phase: number; inventory: { crucibles: number; liners: number; carbonTabs: number }; onOpenInventory: () => void }) {
+function OperationsProps({ scenarioId, phase, inventory, stagingBayLevel, stagingSelected, onOpenInventory }: { scenarioId: ScenarioId; phase: number; inventory: { crucibles: number; liners: number; carbonTabs: number }; stagingBayLevel: number; stagingSelected: boolean; onOpenInventory: () => void }) {
   return <group>
     <group position={[-3.95, 0.08, 5.65]} rotation={[0, -0.12, 0]}>
       {[0.32, 1.02].map((y) => <RoundedBox key={y} args={[1.5, 0.12, 0.82]} radius={0.04} position={[0, y, 0]} castShadow><meshPhysicalMaterial color="#647481" metalness={0.8} roughness={0.25} clearcoat={0.28} /></RoundedBox>)}
@@ -488,7 +489,7 @@ function OperationsProps({ scenarioId, phase, inventory, onOpenInventory }: { sc
     <PoweredPalletJack scenarioId={scenarioId} phase={phase} />
     <GasServiceBay active={scenarioId === 'facility'} accepted={scenarioId === 'facility' && phase >= 3} />
     <FurnaceQuarantineStand active={scenarioId === 'furnace'} occupied={scenarioId === 'furnace' && phase >= 2} />
-    <SampleStagingRack inventory={inventory} onOpenInventory={onOpenInventory} />
+    {stagingBayLevel >= 2 ? <AutomatedStagingCarousel inventory={inventory} highlighted={stagingSelected} onOpenInventory={onOpenInventory} /> : <SampleStagingRack inventory={inventory} onOpenInventory={onOpenInventory} />}
   </group>;
 }
 
@@ -580,12 +581,53 @@ function GasServiceBay({ active, accepted }: { active: boolean; accepted: boolea
   </group>;
 }
 
+function AutomatedStagingCarousel({ inventory, highlighted, onOpenInventory }: { inventory: { crucibles: number; liners: number; carbonTabs: number }; highlighted: boolean; onOpenInventory: () => void }) {
+  const retrieval = useRef<THREE.Group>(null);
+  const low = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
+  const fill = Math.max(1, Math.min(18, Math.round((inventory.crucibles / 24 + inventory.liners / 10 + inventory.carbonTabs / 12) / 3 * 18)));
+  const stateColor = low ? '#f4b95f' : '#51e19a';
+  useFrame(({ clock }) => {
+    if (!retrieval.current) return;
+    retrieval.current.position.y = 0.51 + Math.sin(clock.elapsedTime * 1.25) * 0.018;
+  });
+  return <group position={[-8.05, 0.04, -2.15]} rotation={[0, Math.PI / 2, 0]} onClick={(event) => { event.stopPropagation(); onOpenInventory(); }} onPointerOver={(event) => { event.stopPropagation(); document.body.style.cursor = 'pointer'; }} onPointerOut={() => { document.body.style.cursor = 'default'; }}>
+    <RoundedBox args={[2.46, 2.62, 0.96]} radius={0.07} position={[0, 1.31, 0]} castShadow><meshPhysicalMaterial color="#34474a" metalness={0.78} roughness={0.24} clearcoat={0.32} /></RoundedBox>
+    <RoundedBox args={[2.18, 2.34, 0.055]} radius={0.025} position={[0, 1.33, 0.502]} castShadow><meshStandardMaterial color="#111b1d" metalness={0.52} roughness={0.34} /></RoundedBox>
+    {[-0.72, 0.72].map((side) => <group key={side} position={[side, 1.42, 0.542]}>
+      <RoundedBox args={[0.68, 1.68, 0.035]} radius={0.018}><meshPhysicalMaterial color="#243b3f" transmission={0.15} transparent opacity={0.92} roughness={0.2} metalness={0.38} /></RoundedBox>
+      {Array.from({ length: 9 }, (_, index) => { const active = index + (side > 0 ? 9 : 0) < fill; const x = -0.2 + (index % 3) * 0.2; const y = 0.52 - Math.floor(index / 3) * 0.48; return <group key={index} position={[x, y, 0.035]}><RoundedBox args={[0.16, 0.31, 0.08]} radius={0.012} castShadow><meshStandardMaterial color={active ? ['#8da9a4', '#b9aa7b', '#657a83'][index % 3] : '#1a2629'} metalness={0.32} roughness={0.48} /></RoundedBox><mesh position={[0, 0.07, 0.045]}><planeGeometry args={[0.1, 0.018]} /><meshBasicMaterial color={active ? '#dbe8e2' : '#39484b'} /></mesh></group>; })}
+    </group>)}
+    <group position={[0, 1.45, 0.548]}>
+      <mesh position={[0, 0, 0]}><boxGeometry args={[0.34, 1.75, 0.06]} /><meshStandardMaterial color="#172428" metalness={0.66} roughness={0.3} /></mesh>
+      {[-0.66, -0.38, -0.1, 0.18, 0.46, 0.74].map((y) => <mesh key={y} position={[0, y, 0.042]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.09, 0.018, 8, 18]} /><meshStandardMaterial color="#71868a" metalness={0.82} roughness={0.2} /></mesh>)}
+    </group>
+    <group ref={retrieval} position={[0, 0.51, 0.58]}>
+      <RoundedBox args={[0.88, 0.43, 0.18]} radius={0.035} castShadow><meshStandardMaterial color="#243237" metalness={0.68} roughness={0.3} /></RoundedBox>
+      <RoundedBox args={[0.67, 0.26, 0.04]} radius={0.02} position={[0, 0, 0.11]}><meshStandardMaterial color="#0b1416" /></RoundedBox>
+      <mesh position={[0, 0.02, 0.134]}><planeGeometry args={[0.46, 0.034]} /><meshBasicMaterial color={stateColor} /></mesh>
+    </group>
+    <group position={[0, 2.08, 0.58]}>
+      <RoundedBox args={[0.78, 0.38, 0.12]} radius={0.035} castShadow><meshStandardMaterial color="#202e33" metalness={0.62} roughness={0.3} /></RoundedBox>
+      <mesh position={[0, 0.035, 0.066]}><planeGeometry args={[0.56, 0.19]} /><meshBasicMaterial color="#071619" /></mesh>
+      <mesh position={[0, 0.055, 0.07]}><planeGeometry args={[0.39, 0.028]} /><meshBasicMaterial color={stateColor} /></mesh>
+      {[-0.25, 0.25].map((x) => <mesh key={x} position={[x, -0.12, 0.07]}><circleGeometry args={[0.028, 14]} /><meshStandardMaterial color={x > 0 ? stateColor : '#718185'} emissive={x > 0 ? stateColor : '#000000'} emissiveIntensity={x > 0 ? 0.8 : 0} /></mesh>)}
+    </group>
+    <mesh position={[0, 2.7, 0.05]}><boxGeometry args={[2.1, 0.18, 0.72]} /><meshStandardMaterial color="#273a3e" metalness={0.7} roughness={0.26} /></mesh>
+    <mesh position={[0, 2.7, 0.42]}><planeGeometry args={[1.3, 0.05]} /><meshBasicMaterial color={stateColor} /></mesh>
+    <StatusBeacon position={[1.03, 2.74, 0.43]} color={stateColor} active />
+    <pointLight position={[0, 0.62, 1]} intensity={low ? 0.45 : 0.7} distance={2.2} color={stateColor} decay={2} />
+    {highlighted && <Html center position={[0, 3.08, 0.62]} distanceFactor={10.5} zIndexRange={[18, 0]} style={{ pointerEvents: 'none' }}>
+      <div className="staging-3d-label" style={{ '--staging-tone': stateColor } as React.CSSProperties}><span>STG-02</span><b>AUTO STAGING</b><i>{low ? 'RESTOCK' : 'QUALIFIED'}</i></div>
+    </Html>}
+  </group>;
+}
+
 function SampleStagingRack({ inventory, onOpenInventory }: { inventory: { crucibles: number; liners: number; carbonTabs: number }; onOpenInventory: () => void }) {
   const low = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
   const crucibleCount = Math.min(12, inventory.crucibles);
   const linerCount = Math.min(6, inventory.liners);
   const tabCount = Math.min(6, inventory.carbonTabs);
-  return <group position={[-8.18, 0.04, 5.45]} rotation={[0, Math.PI / 2, 0]} onClick={(event) => { event.stopPropagation(); onOpenInventory(); }} onPointerOver={(event) => { event.stopPropagation(); document.body.style.cursor = 'pointer'; }} onPointerOut={() => { document.body.style.cursor = 'default'; }}>
+  return <group position={[-8.05, 0.04, -2.15]} rotation={[0, Math.PI / 2, 0]} onClick={(event) => { event.stopPropagation(); onOpenInventory(); }} onPointerOver={(event) => { event.stopPropagation(); document.body.style.cursor = 'pointer'; }} onPointerOut={() => { document.body.style.cursor = 'default'; }}>
     {[-1.08, 1.08].flatMap((x) => [-0.24, 0.24].map((z) => <mesh key={`${x}-${z}`} position={[x, 1.18, z]} castShadow><boxGeometry args={[0.055, 2.32, 0.055]} /><meshStandardMaterial color="#69787d" metalness={0.86} roughness={0.22} /></mesh>))}
     {[0.22, 0.82, 1.42, 2.02].map((y) => <RoundedBox key={y} args={[2.28, 0.075, 0.58]} radius={0.02} position={[0, y, 0]} castShadow><meshPhysicalMaterial color="#697b80" metalness={0.83} roughness={0.24} clearcoat={0.18} /></RoundedBox>)}
     {Array.from({ length: crucibleCount }, (_, index) => { const x = -0.88 + (index % 6) * 0.35; const z = index < 6 ? -0.11 : 0.13; return <group key={`cruc-${index}`} position={[x, 0.47, z]}><mesh castShadow><cylinderGeometry args={[0.12, 0.1, 0.27, 20]} /><meshPhysicalMaterial color="#b9b19a" roughness={0.45} clearcoat={0.12} /></mesh><mesh position={[0, 0.14, 0]}><torusGeometry args={[0.095, 0.018, 10, 20]} /><meshStandardMaterial color="#d6cfbb" roughness={0.38} /></mesh></group>; })}

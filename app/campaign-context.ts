@@ -15,11 +15,12 @@ export type CampaignSnapshot = {
   confirmationSource: { runNumber: number; measured: string } | null;
   missionId: CampaignMissionId;
   thermalBayLevel: number;
+  stagingBayLevel: number;
   inventory: { crucibles: number; liners: number; carbonTabs: number };
   backlog: Array<{ runNumber: number; candidate: string; missionId: CampaignMissionId }>;
 };
 
-const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, elapsed: 0, resultElapsed: 0, resultMeasured: '', confirmationSource: null, missionId: 'purity', thermalBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 }, backlog: [] };
+const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, elapsed: 0, resultElapsed: 0, resultMeasured: '', confirmationSource: null, missionId: 'purity', thermalBayLevel: 1, stagingBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 }, backlog: [] };
 const fallbackSerialized = JSON.stringify(fallbackCampaign);
 
 function readCampaign(): CampaignSnapshot {
@@ -41,6 +42,7 @@ function readCampaign(): CampaignSnapshot {
       confirmationSource: confirmationSource ? { runNumber: Number(confirmationSource.runNumber), measured: String(confirmationSource.measured ?? '') } : null,
       missionId: stored.missionId === 'low-energy' || stored.missionId === 'throughput' ? stored.missionId : 'purity',
       thermalBayLevel: Number(stored.thermalBayLevel ?? fallbackCampaign.thermalBayLevel),
+      stagingBayLevel: Number(stored.stagingBayLevel ?? fallbackCampaign.stagingBayLevel),
       inventory: {
         crucibles: Number(stored.inventory?.crucibles ?? fallbackCampaign.inventory.crucibles),
         liners: Number(stored.inventory?.liners ?? fallbackCampaign.inventory.liners),

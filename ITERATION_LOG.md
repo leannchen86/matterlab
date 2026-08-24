@@ -2087,6 +2087,24 @@ physical constraint the player can invest in, commission, and then feel in the o
 - Browser QA commissioned STG-02 during RUN-048, confirmed the qualified floor-plan state, then executed a
   carousel receipt that raised point-of-use crucibles from 1 to 19 and liners from 7 to their capacity of 10.
 
+## Critique 110: the built asset disappeared outside build mode
+
+STG-02 changed the blueprint and receipt economics, but returning to the main lab still showed the old manual
+rack. The upgrade therefore felt like a menu unlock instead of installed equipment, and its original scene
+socket sat too far outside the overview camera to read as part of the working bay.
+
+### Changes
+
+- Persist the staging-bay qualification into the shared campaign snapshot used by the live spatial twin.
+- Replace the manual rack with a modeled vertical carousel after qualification: 18 visible bin locations,
+  internal lift chain, retrieval port, HMI, status beacon, and inventory-dependent fill and alarm state.
+- Relocate the physical staging socket beside PREP-01 with wall and equipment clearance, keeping the
+  consumables at their actual point of use and visible from the standard lab overview.
+- Animate the retrieval tray and make the cabinet itself operable; selecting powder prep also exposes a
+  compact `STG-02 · AUTO STAGING · QUALIFIED` spatial marker and a direct retrieval control.
+- Browser QA reopened the retained RUN-048 campaign, confirmed the qualified cabinet replaces the rack in
+  the 3D lab, and entered the automated material-receipt workflow with its 18-minute / 30-RP operating cost.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
