@@ -12,13 +12,14 @@ export type CampaignSnapshot = {
   elapsed: number;
   resultElapsed: number;
   resultMeasured: string;
+  confirmationSource: { runNumber: number; measured: string } | null;
   missionId: CampaignMissionId;
   thermalBayLevel: number;
   inventory: { crucibles: number; liners: number; carbonTabs: number };
   backlog: Array<{ runNumber: number; candidate: string; missionId: CampaignMissionId }>;
 };
 
-const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, elapsed: 0, resultElapsed: 0, resultMeasured: '', missionId: 'purity', thermalBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 }, backlog: [] };
+const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, elapsed: 0, resultElapsed: 0, resultMeasured: '', confirmationSource: null, missionId: 'purity', thermalBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 }, backlog: [] };
 const fallbackSerialized = JSON.stringify(fallbackCampaign);
 
 function readCampaign(): CampaignSnapshot {
@@ -26,14 +27,18 @@ function readCampaign(): CampaignSnapshot {
   try {
     const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}');
     const runNumber = Number(stored.runNumber ?? fallbackCampaign.runNumber);
-    const retainedResult = Array.isArray(stored.history) ? stored.history.find((item: { runNumber?: number }) => Number(item?.runNumber) === runNumber) : undefined;
+    const history = Array.isArray(stored.history) ? stored.history : [];
+    const selected = String(stored.selected ?? fallbackCampaign.selected);
+    const retainedResult = history.find((item: { runNumber?: number }) => Number(item?.runNumber) === runNumber);
+    const confirmationSource = [...history].reverse().find((item: { runNumber?: number; candidate?: string }) => Number(item?.runNumber) < runNumber && String(item?.candidate) === selected);
     return {
       stage: Number(stored.stage ?? fallbackCampaign.stage),
-      selected: String(stored.selected ?? fallbackCampaign.selected),
+      selected,
       runNumber,
       elapsed: Number(stored.elapsed ?? fallbackCampaign.elapsed),
       resultElapsed: Number(retainedResult?.elapsed ?? 0),
       resultMeasured: String(retainedResult?.measured ?? ''),
+      confirmationSource: confirmationSource ? { runNumber: Number(confirmationSource.runNumber), measured: String(confirmationSource.measured ?? '') } : null,
       missionId: stored.missionId === 'low-energy' || stored.missionId === 'throughput' ? stored.missionId : 'purity',
       thermalBayLevel: Number(stored.thermalBayLevel ?? fallbackCampaign.thermalBayLevel),
       inventory: {
@@ -98,7 +103,11 @@ export function useCampaignSnapshot() {
 
 export function useCampaignStation(station: Station) {
   const campaign = useCampaignSnapshot();
-  return getCampaignStationId(campaign.stage) === station.id
-    ? getCampaignStationView(station, campaign.stage, campaign.selected, campaign.runNumber, campaign.thermalBayLevel, campaign.missionId, campaign.resultElapsed, campaign.resultMeasured)
-    : station;
+  if (getCampaignStationId(campaign.stage) !== station.id) return station;
+  const view = getCampaignStationView(station, campaign.stage, campaign.selected, campaign.runNumber, campaign.thermalBayLevel, campaign.missionId, campaign.resultElapsed, campaign.resultMeasured);
+  if (campaign.stage === 7 && campaign.confirmationSource) {
+    const evaluation = evaluateCampaignMission({ ...getCampaignSpec(campaign.selected), measured: campaign.resultMeasured }, campaign.missionId, campaign.resultElapsed);
+    return { ...view, state: evaluation.met ? 'REPEAT PASS' : 'NOT ROBUST', tone: evaluation.met ? 'ready' : 'warn', meta: `${campaign.confirmationSource.measured}% → ${campaign.resultMeasured}%`, technicianView: [`Recipe: ${campaign.selected} unchanged`, `Prior: ${campaign.confirmationSource.measured}%`, `Repeat: ${campaign.resultMeasured}%`, `Verdict: ${evaluation.met ? 'boundary repeated' : 'phase margin lost'}`] };
+  }
+  return view;
 }

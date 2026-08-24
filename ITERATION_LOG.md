@@ -1925,6 +1925,24 @@ replication ceremonial, even when the first observation sat exactly on the scien
   campaign control retained the same 95.3% / 364-minute result. RUN-046 at 95.5% versus RUN-047 at 95.3%
   now yields `BOUNDARY FAILED · CANDIDATE NOT ROBUST` and proposes U-2320 or a diagnostic branch.
 
+## Critique 101: the 3D lab reduced a failed repeat to a generic mission miss
+
+Campaign control explained the reproducibility failure, but closing it returned the player to a spatial
+lab labeled only `VALID MISSION MISS`. The central room, task rail, station inspector, and AI loop hid the
+fact that the same recipe had already passed once.
+
+### Changes
+
+- Added the prior unchanged-recipe observation to the shared campaign snapshot, allowing every spatial and
+  overview surface to distinguish a first result from a confirmation repeat.
+- The active checklist now asks the player to `Judge reproducibility` and shows the replicate spread rather
+  than another isolated phase result.
+- Updated the 3D campaign beacon, material carrier, XRD station state, right-side result card, station
+  inspector, and AI experiment loop to expose `REPEAT FAILED`, `NOT ROBUST`, 95.5% → 95.3%, and the
+  0.2-percentage-point spread.
+- Browser visual QA confirmed that the overview remains visually equipment-first: the 3D lab stays central,
+  while the repeat failure is legible in compact machine-status language without reopening campaign control.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
