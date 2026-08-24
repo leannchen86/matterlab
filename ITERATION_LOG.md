@@ -2149,8 +2149,8 @@ established.
 - Added a framed lead-glass sliding enclosure with metal guide rails, radiation marking, and a dedicated
   interlock module around the XRD goniometer.
 - Keep the door parked open for specimen loading and physical inspection, then animate it closed only when
-  `Prove shutter feedback` is retained through the HMI sequence.
-- Tie the enclosure interlock lamp and glass treatment to the same permissive instead of creating a second,
+  `Close radiation enclosure` is retained through the HMI sequence.
+- Tie the enclosure interlock lamp and glass treatment to the enclosure permissive instead of creating a second,
   decorative state model.
 - Browser QA completed the XRD walkaround and HMI sequence, then returned to the asset and confirmed the
   framed door was closed, the goniometer remained visible through the shield, and the interlock lamp was green.
@@ -2169,6 +2169,22 @@ the inspection unrecorded.
   equivalent equipment checks to be completed without a competing hit target.
 - Browser QA completed all three XRD checks in place with no camera-mode switch, verified the 3 / 3 retained
   state, and opened the local console from the newly unobstructed panel.
+
+## Critique 115: the first door animation conflated two safety boundaries
+
+The access enclosure and the X-ray beam shutter are independent controls. Driving the new door from `Prove
+shutter feedback` made the visual transition satisfying, but incorrectly implied that closing the shutter is
+what establishes the operator access boundary.
+
+### Changes
+
+- Added `Close radiation enclosure` as an explicit local-control step in generic and campaign XRD sequences,
+  ahead of the independent shutter-feedback proof.
+- Drive door position, glass state, and its interlock lamp only from the enclosure command.
+- Make the SCADA permissive list honest: `enclosure closed` and `shutter feedback closed` now remain on HOLD
+  until their respective actions are retained, while generator standby remains an independent readback.
+- Browser QA proved the two states independently: both began on HOLD, enclosure closure moved only its
+  permissive to TRUE and physically closed the door, while shutter feedback correctly remained amber / HOLD.
 
 ## Verification discipline
 

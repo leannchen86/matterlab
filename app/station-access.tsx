@@ -39,11 +39,11 @@ const profiles: Record<string, {
   'TGA-01': { controller: 'TGA-01 / GAS-3', safe: ['furnace near ambient', 'purge path proven', 'autosampler clear'], method: ['Select pan pair', 'Record sample mass', 'Run baseline / method', 'Review mass + heat flow'], sample: ['LOT-91-T', 'PANSET-14', 'THM-208'], workOrder: 'QC-621', service: 'Baseline + balance check · due', health: 84, supplies: ['Al pans 26', 'Pt pans 4', 'pan crimper'] },
 };
 
-const HMI_OPERATIONS: Record<string, [string, string, string]> = {
+const HMI_OPERATIONS: Record<string, string[]> = {
   'PREP-01': ['Prove enclosure flow', 'Zero analytical balance', 'Confirm antistatic state'],
   'ROBO-02': ['Reset safeguarded stop', 'Home transfer axes', 'Prove gripper state'],
   'FURN-04': ['Read overtemperature relay', 'Verify door chain', 'Confirm empty-cell state'],
-  'XRD-03': ['Home specimen stage', 'Prove shutter feedback', 'Read reference position'],
+  'XRD-03': ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Read reference position'],
   'SEM-01': ['Establish chamber vacuum', 'Verify stage clearance', 'Arm BSE / EDS detectors'],
   'BET-02': ['Isolate analysis ports', 'Run manifold leak check', 'Prove N₂ supply state'],
   'TGA-01': ['Tare balance channel', 'Prove purge path', 'Home autosampler carousel'],
@@ -71,10 +71,10 @@ function getCampaignHmiOperations(stationId: string, stage: number, selected: st
     : ['Read active profile state', 'Verify queue position', `Confirm ${identity.carrier} hold location`];
   if (stationId === 'FURN-04') return getFurnaceStartOperations(runOps, spec.profile);
   if (stationId === 'XRD-03' && stage === 6) return runOps.referenceCondition === 'age-due'
-    ? ['Home specimen stage', 'Prove shutter feedback', 'Acquire Si reference', `Acquire ${identity.runId} pattern`]
+    ? ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Acquire Si reference', `Acquire ${identity.runId} pattern`]
     : runOps.referenceCondition === 'trend-review'
-      ? ['Home specimen stage', 'Prove shutter feedback', 'Review Si control trend', 'Acquire confirmatory Si reference', `Acquire ${identity.runId} pattern`]
-      : ['Home specimen stage', 'Prove shutter feedback', 'Review current Si control', `Acquire ${identity.runId} pattern`];
+      ? ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Review Si control trend', 'Acquire confirmatory Si reference', `Acquire ${identity.runId} pattern`]
+      : ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Review current Si control', `Acquire ${identity.runId} pattern`];
   if (stationId === 'XRD-03') return ['Review Si control', 'Review phase fit', `Release ${identity.pattern} evidence`];
   if (stationId === 'SEM-01' && stage === 8) return ['Establish chamber vacuum', 'Acquire four BSE fields', 'Acquire representative EDS map'];
   if (stationId === 'SEM-01') return ['Review field coverage', 'Review EDS association', `Release ${identity.runId} diagnosis`];
@@ -351,6 +351,10 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
   const semFieldsReady = operations.includes('Acquire four BSE fields');
   const semEdsReady = operations.includes('Acquire representative EDS map');
   const safeState = (item: string) => {
+    if (station.id === 'XRD-03') {
+      if (item === 'enclosure closed') return operations.includes('Close radiation enclosure');
+      if (item === 'shutter feedback closed') return operations.includes('Prove shutter feedback');
+    }
     if (!campaignStage && scenarioId === 'bet' && station.id === 'BET-02') {
       if (item === 'vacuum trend stable') return operations.includes('Run manifold leak check');
       if (item === 'N₂ supply in range') return operations.includes('Prove N₂ supply state');
