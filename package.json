@@ -3,14 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.19.0",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "unrs-resolver",
-      "workerd"
-    ]
-  },
   "engines": {
     "node": ">=22.13.0"
   },
