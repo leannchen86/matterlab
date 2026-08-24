@@ -29,6 +29,7 @@ type SceneProps = {
   controlFeedback?: Record<string, string[]>;
   onCameraMode: (mode: CameraMode) => void;
   onOpenConsole: () => void;
+  onOpenInventory: () => void;
   inspectionState?: Record<string, string[]>;
   onInspectionChange?: (stationId: string, checks: string[]) => void;
   onSelect: (id: string) => void;
@@ -65,7 +66,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, campaignInventory, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, campaignInventory, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, onOpenInventory, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -101,7 +102,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
         <FacilityLighting mode={lightingMode} />
 
         <LabArchitecture lightingMode={lightingMode} />
-        <OperationsProps scenarioId={scenarioId} phase={phase} inventory={campaignInventory} />
+        <OperationsProps scenarioId={scenarioId} phase={phase} inventory={campaignInventory} onOpenInventory={onOpenInventory} />
         <MaterialRoute scenarioId={scenarioId} phase={phase} />
         <CampaignMaterialRoute stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} />
         {stations.map((station, index) => (cameraMode !== 'focus' || selectedId === station.id) ? (
@@ -150,7 +151,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
       <div className="scene-corner scene-corner-top"><span>LIVE SPATIAL TWIN</span><b>LAB 04 · BAY A/B</b></div>
       <div className="scene-corner scene-corner-bottom">{cameraMode === 'walk' ? <><span>WASD</span> MOVE <i>·</i> <span>DRAG</span> LOOK <i>·</i> <span>SELECT</span> APPROACH</> : <><span>DRAG</span> ORBIT <i>·</i> <span>SCROLL</span> ZOOM <i>·</i> <span>CLICK</span> INSPECT</>}</div>
       {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN TWIN · {getCampaignIdentity(campaignRunNumber).runId} · {campaignSelected}</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? campaignState.result : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
-      {selectedId === 'PREP-01' && <div className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}`}><span>POINT-OF-USE RACK</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>RACK-01</i></div>}
+      {selectedId === 'PREP-01' && <button type="button" className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}`} onClick={onOpenInventory}><span>OPERATE POINT-OF-USE RACK</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>OPEN →</i></button>}
       {cameraMode === 'walk' && <div className="walk-hud">
         <header><span>HUMAN-SCALE AISLE</span><b>{selectedStation.id} · {selectedStation.name}</b></header>
         <div className="walk-pad" role="group" aria-label="Aisle movement controls">
@@ -439,7 +440,7 @@ function UtilityServices() {
   </group>;
 }
 
-function OperationsProps({ scenarioId, phase, inventory }: { scenarioId: ScenarioId; phase: number; inventory: { crucibles: number; liners: number; carbonTabs: number } }) {
+function OperationsProps({ scenarioId, phase, inventory, onOpenInventory }: { scenarioId: ScenarioId; phase: number; inventory: { crucibles: number; liners: number; carbonTabs: number }; onOpenInventory: () => void }) {
   return <group>
     <group position={[-3.95, 0.08, 5.65]} rotation={[0, -0.12, 0]}>
       {[0.32, 1.02].map((y) => <RoundedBox key={y} args={[1.5, 0.12, 0.82]} radius={0.04} position={[0, y, 0]} castShadow><meshPhysicalMaterial color="#647481" metalness={0.8} roughness={0.25} clearcoat={0.28} /></RoundedBox>)}
@@ -450,7 +451,7 @@ function OperationsProps({ scenarioId, phase, inventory }: { scenarioId: Scenari
     <PoweredPalletJack scenarioId={scenarioId} phase={phase} />
     <GasServiceBay active={scenarioId === 'facility'} accepted={scenarioId === 'facility' && phase >= 3} />
     <FurnaceQuarantineStand active={scenarioId === 'furnace'} occupied={scenarioId === 'furnace' && phase >= 2} />
-    <SampleStagingRack inventory={inventory} />
+    <SampleStagingRack inventory={inventory} onOpenInventory={onOpenInventory} />
   </group>;
 }
 
@@ -542,12 +543,12 @@ function GasServiceBay({ active, accepted }: { active: boolean; accepted: boolea
   </group>;
 }
 
-function SampleStagingRack({ inventory }: { inventory: { crucibles: number; liners: number; carbonTabs: number } }) {
+function SampleStagingRack({ inventory, onOpenInventory }: { inventory: { crucibles: number; liners: number; carbonTabs: number }; onOpenInventory: () => void }) {
   const low = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
   const crucibleCount = Math.min(12, inventory.crucibles);
   const linerCount = Math.min(6, inventory.liners);
   const tabCount = Math.min(6, inventory.carbonTabs);
-  return <group position={[-8.18, 0.04, 5.45]} rotation={[0, Math.PI / 2, 0]}>
+  return <group position={[-8.18, 0.04, 5.45]} rotation={[0, Math.PI / 2, 0]} onClick={(event) => { event.stopPropagation(); onOpenInventory(); }} onPointerOver={(event) => { event.stopPropagation(); document.body.style.cursor = 'pointer'; }} onPointerOut={() => { document.body.style.cursor = 'default'; }}>
     {[-1.08, 1.08].flatMap((x) => [-0.24, 0.24].map((z) => <mesh key={`${x}-${z}`} position={[x, 1.18, z]} castShadow><boxGeometry args={[0.055, 2.32, 0.055]} /><meshStandardMaterial color="#69787d" metalness={0.86} roughness={0.22} /></mesh>))}
     {[0.22, 0.82, 1.42, 2.02].map((y) => <RoundedBox key={y} args={[2.28, 0.075, 0.58]} radius={0.02} position={[0, y, 0]} castShadow><meshPhysicalMaterial color="#697b80" metalness={0.83} roughness={0.24} clearcoat={0.18} /></RoundedBox>)}
     {Array.from({ length: crucibleCount }, (_, index) => { const x = -0.88 + (index % 6) * 0.35; const z = index < 6 ? -0.11 : 0.13; return <group key={`cruc-${index}`} position={[x, 0.47, z]}><mesh castShadow><cylinderGeometry args={[0.12, 0.1, 0.27, 20]} /><meshPhysicalMaterial color="#b9b19a" roughness={0.45} clearcoat={0.12} /></mesh><mesh position={[0, 0.14, 0]}><torusGeometry args={[0.095, 0.018, 10, 20]} /><meshStandardMaterial color="#d6cfbb" roughness={0.38} /></mesh></group>; })}

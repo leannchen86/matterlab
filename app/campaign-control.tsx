@@ -34,9 +34,9 @@ const initialRun: CampaignRun = {
 
 const storageKey = 'mattershift-campaign-v2';
 
-export function CampaignControlModal({ onClose }: { onClose: () => void }) {
+export function CampaignControlModal({ autoOpenInventory = false, onClose }: { autoOpenInventory?: boolean; onClose: () => void }) {
   const [commissionOpen, setCommissionOpen] = useState(false);
-  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(autoOpenInventory);
   const [run, setRun] = useState<CampaignRun>(() => {
     if (typeof window === 'undefined') return initialRun;
     try {

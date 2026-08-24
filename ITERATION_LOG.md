@@ -1363,6 +1363,23 @@ physical point-of-use location change.
 - Kept the rack as part of the walkable scene rather than inventing another abstract station, preserving
   the relationship between receiving, storage, preparation, and the technician's aisle.
 
+## Critique 74: the physical stock rack was still scenery
+
+The changing rack finally gave inventory a place in the digital twin, but the player still had to leave
+the lab view and rediscover material staging in campaign control. Instruments could be approached and
+operated in place; consumables could not.
+
+### Changes
+
+- Made the 3D stock rack an interactive scene object with pointer feedback. Selecting it leaves the
+  immersive aisle safely and opens the exact point-of-use receipt workflow for the current campaign.
+- Turned the rack state HUD into a compact in-world control showing live counts and an explicit operate
+  affordance, with keyboard focus styling and amber low-stock behavior.
+- Added a dedicated material-staging route through the application shell so entering from the floor
+  opens the receipt workbench immediately rather than dropping the technician at campaign overview.
+- Preserved spatial context by selecting PREP-01 during the handoff; closing the workflow returns the
+  player to the same lab and campaign state.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
