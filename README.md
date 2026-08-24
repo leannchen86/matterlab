@@ -41,7 +41,7 @@ method, sample identifiers,
 maintenance state, and point-of-use supplies.
 The HMI also requires an instrument-specific local control sequence after the physical walkaround:
 for example, XRD stage/shutter/reference checks, SEM vacuum/clearance/detector checks, BET
-manifold/leak/gas checks, or TGA/DSC balance/purge/carousel checks. A successful safe-state
+manifold/leak/gas/77 K bath checks, or TGA/DSC start-temperature/balance/purge/carousel checks. A successful safe-state
 attestation does not clear an independent quality or service hold. Every local control action and
 workstation attestation is retained in the active shift ledger with the instrument, operator, and
 simulated event time, so operating the equipment produces an auditable work record rather than
@@ -144,5 +144,5 @@ actionable parameters for hazardous processes. Values and events are plausible e
 workflow reasoning, but actual instrument operation belongs to site-specific SOPs, training,
 interlocks, and manufacturer documentation.
 
-See [RESEARCH.md](RESEARCH.md) for the role analysis and scientific sources used to shape the app.
+See [RESEARCH.md](RESEARCH.md) for the scientific and operational sources used to shape the app.
 See [ITERATION_LOG.md](ITERATION_LOG.md) for the product critique and major refinement passes.

@@ -2274,6 +2274,23 @@ that the furnace has returned to the method's allowed start temperature.
 - Browser QA confirmed TGA-01 began at 0 / 4 with all machine permissives held; the first action cleared only the
   ambient-temperature permissive, then the remaining three proofs independently enabled safe-state attestation.
 
+## Critique 121: the cryogenic bath read as an anonymous metal tray
+
+The raised BET Dewar correctly immersed the cell bulbs, but its first vapor strokes resembled rigid handles and
+the polished outer vessel lacked the local state hardware that distinguishes controlled cryogenic equipment
+from a generic lift tray.
+
+### Changes
+
+- Added a recessed local controller plate, three-segment fill/state indication, and a geometric cryogenic marker
+  directly to the 3D vessel; unlike the removed DOM badge, these details remain spatially occluded with the asset.
+- Replace four short, handle-like vapor arcs with three thinner asymmetric wisps that rise above the bath only
+  while it is in the analysis position.
+- Tie the local controller bar and fill segments to parked versus positioned state so the instrument remains
+  readable from the aisle without adding explanatory text.
+- Browser QA repeated the complete four-step BET sequence and confirmed the raised bath now reads as a controlled
+  cryogenic subsystem while the four cell bulbs remain visibly immersed.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

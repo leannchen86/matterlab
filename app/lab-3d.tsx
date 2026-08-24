@@ -1240,7 +1240,14 @@ function Bet({ active, tone, controls }: { active: boolean; tone: string; contro
       {[-0.44, -0.14, 0.15, 0.44].map((x) => <mesh key={x} position={[x, 0.3, 0.03]}><torusGeometry args={[0.092, 0.015, 8, 22]} /><meshStandardMaterial color="#778d96" metalness={0.86} roughness={0.17} /></mesh>)}
       <mesh position={[0, -0.32, -0.08]} castShadow><boxGeometry args={[0.5, 0.12, 0.42]} /><meshStandardMaterial color="#465a65" metalness={0.78} roughness={0.27} /></mesh>
       <mesh position={[0, -0.43, -0.08]} castShadow><cylinderGeometry args={[0.08, 0.1, 0.2, 18]} /><meshStandardMaterial color="#5d7079" metalness={0.8} roughness={0.23} /></mesh>
-      {dewarPositioned && [-0.43, -0.12, 0.18, 0.43].map((x, index) => <Line key={x} points={[[x, 0.32, 0.05], [x - 0.04, 0.45 + (index % 2) * 0.04, 0.04], [x + 0.02, 0.55, 0.02]]} color="#bcefff" lineWidth={0.65} transparent opacity={0.5} />)}
+      <RoundedBox args={[0.62, 0.19, 0.025]} radius={0.018} position={[0.25, -0.06, 0.3]}>
+        <meshPhysicalMaterial color="#172a32" metalness={0.48} roughness={0.24} clearcoat={0.26} />
+      </RoundedBox>
+      <mesh position={[0.13, -0.025, 0.316]}><planeGeometry args={[0.25, 0.026]} /><meshBasicMaterial color={dewarPositioned ? '#73def0' : '#af8d4b'} /></mesh>
+      {[-0.08, 0, 0.08].map((x, index) => <mesh key={x} position={[0.44 + x, -0.08, 0.317]}><circleGeometry args={[0.018, 14]} /><meshStandardMaterial color={index < (dewarPositioned ? 3 : 1) ? '#73def0' : '#40515a'} emissive={index < (dewarPositioned ? 3 : 1) ? '#2f8295' : '#111b20'} emissiveIntensity={0.8} /></mesh>)}
+      <mesh position={[-0.54, -0.06, 0.307]} rotation={[0, 0, Math.PI / 4]}><planeGeometry args={[0.14, 0.14]} /><meshBasicMaterial color="#d5eef1" /></mesh>
+      <mesh position={[-0.54, -0.06, 0.312]} rotation={[0, 0, Math.PI / 4]}><planeGeometry args={[0.1, 0.1]} /><meshBasicMaterial color="#2d7587" /></mesh>
+      {dewarPositioned && [[-0.34, 0], [0.02, 0.045], [0.34, 0.01]].map(([x, offset], index) => <Line key={x} points={[[x, 0.32, 0.04], [x - 0.025, 0.4 + offset, 0.035], [x + 0.035, 0.48 + offset, 0.03], [x - 0.01, 0.58 + offset, 0.02], [x + 0.025, 0.66 + offset, 0.01]]} color="#dff9ff" lineWidth={0.34 + index * 0.04} transparent opacity={0.32} />)}
     </group>
     <mesh position={[-0.28, 1.98, 0.81]}><boxGeometry args={[1.25, 0.05, 0.06]} /><meshStandardMaterial color="#7e939e" metalness={0.8} /></mesh>
     {[-0.72, -0.42, -0.13, 0.16].map((x) => <group key={`valve-${x}`} position={[x, 2.04, 0.82]} rotation={[0, portsIsolated ? Math.PI / 2 : 0, 0]}>
