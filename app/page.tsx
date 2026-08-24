@@ -3,7 +3,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
-import { useCampaignSnapshot, useCampaignStation } from './campaign-context';
+import { getCampaignStationId, useCampaignSnapshot, useCampaignStation } from './campaign-context';
 import { getCampaignIdentity, getCampaignSpec } from './campaign-spec';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
@@ -45,7 +45,15 @@ function ShiftBoot({ label }: { label: string }) {
 function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const [phase, setPhase] = useState(0);
   const [modal, setModal] = useState<Modal>(null);
-  const [selectedId, setSelectedId] = useState('XRD-03');
+  const [selectedId, setSelectedId] = useState(() => {
+    if (typeof window === 'undefined') return 'XRD-03';
+    try {
+      const stage = Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').stage ?? 0);
+      return getCampaignStationId(stage) || 'XRD-03';
+    } catch {
+      return 'XRD-03';
+    }
+  });
   const [minute, setMinute] = useState(8 * 60 + 16);
   const [log, setLog] = useState<LogItem[]>(initialLog);
   const [logOpen, setLogOpen] = useState(false);
@@ -55,6 +63,16 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const [feedback, setFeedback] = useState('');
   const [scores, setScores] = useState<Scores>({ safety: 100, traceability: 82, integrity: 68, uptime: 91 });
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const followCampaignStation = (event: Event) => {
+      const stage = Number((event as CustomEvent<{ stage?: number }>).detail?.stage ?? 0);
+      const campaignStation = getCampaignStationId(stage);
+      if (campaignStation) setSelectedId(campaignStation);
+    };
+    window.addEventListener('mattershift:campaign-state', followCampaignStation);
+    return () => window.removeEventListener('mattershift:campaign-state', followCampaignStation);
+  }, []);
 
   useEffect(() => {
     const retainStationEvent = (event: Event) => {
@@ -363,6 +381,8 @@ function ActionPanel({ phase, onCampaign, onQc, onLineage, onRelease, onAdvance,
       5: { tag: 'THERMAL EXECUTION', title: `${spec.profile} active`, body: `${identity.thermalSample} is under the full ${spec.temperature} / ${spec.dwell} governed thermal history.`, metric: `${spec.thermalMinutes} min`, tone: 'run' },
       6: { tag: 'XRD QUALITY GATE', title: `${identity.runId} specimen held`, body: 'A current NIST Si reference must pass before the campaign diffraction pattern can be acquired.', metric: '±0.05° 2θ', tone: 'warn' },
       7: { tag: spec.objectiveMet ? 'CAMPAIGN TARGET MET' : 'VALID NEGATIVE', title: `${identity.runId} · ${spec.measured}% phase`, body: `The Si control passed at +0.01° 2θ. This qualified result is retained for the next model proposal.`, metric: spec.gap, tone: 'ready' },
+      8: { tag: 'SEM / EDS FOLLOW-UP', title: `${identity.runId} diagnostic branch`, body: 'Four representative BSE fields and a correlated EDS map are required before assigning a mechanism to the valid negative.', metric: '0 / 4 fields', tone: 'run' },
+      9: { tag: 'DIAGNOSIS LINKED', title: `${identity.runId} mechanism hypothesis`, body: `${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'} are retained as a follow-up hypothesis, not treated as bulk proof.`, metric: '4 / 4 fields', tone: 'ready' },
     } as const;
     const state = campaignStates[campaign.stage as keyof typeof campaignStates] ?? campaignStates[7];
     return <section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>RUN-{identity.suffix}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={onCampaign}>OPEN CAMPAIGN CONTROL<span>→</span></button></section>;

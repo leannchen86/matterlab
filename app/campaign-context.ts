@@ -30,7 +30,8 @@ export function getCampaignStationId(stage: number) {
   if (stage === 1) return 'PREP-01';
   if (stage >= 2 && stage <= 3) return 'ROBO-02';
   if (stage >= 4 && stage <= 5) return 'FURN-04';
-  if (stage >= 6) return 'XRD-03';
+  if (stage >= 6 && stage <= 7) return 'XRD-03';
+  if (stage >= 8) return 'SEM-01';
   return '';
 }
 
@@ -43,6 +44,8 @@ export function getCampaignStationView(station: Station, stage: number, selected
   if (stage === 4) return { ...station, state: 'QUEUE HOLD', tone: 'warn', meta: 'Q01 · RUN-039 active', technicianView: [`Run: ${identity.runId}`, 'Queue position: 01', 'Active profile: RUN-039', 'Estimated wait: 62 min'] };
   if (stage === 5) return { ...station, state: 'HEATING', tone: 'run', meta: `${spec.temperature} · ${spec.dwell} profile`, technicianView: [`Run: ${identity.runId}`, `Profile: ${spec.profile}`, 'Atmosphere: air', `Carrier: ${identity.carrier}`] };
   if (stage === 6) return { ...station, state: 'QC HOLD', tone: 'warn', meta: 'Si reference overdue', technicianView: [`Run: ${identity.runId}`, 'Reference: NIST Si', 'Control limit: ±0.05° 2θ', 'Specimen release: held'] };
+  if (stage === 8) return { ...station, state: 'DIAGNOSTIC RUN', tone: 'run', meta: `${identity.runId} · four-field BSE / EDS`, technicianView: [`Run: ${identity.runId}`, `Specimen: ${identity.thermalSample}`, 'Coverage: 0 / 4 fields', 'EDS map: queued'] };
+  if (stage >= 9) return { ...station, state: 'DIAGNOSIS READY', tone: 'ready', meta: `${identity.runId} · representative follow-up`, technicianView: [`Run: ${identity.runId}`, 'Coverage: 4 / 4 fields', `Finding: ${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'}`, 'Interpretation: model-linked'] };
   return { ...station, state: 'RESULT REVIEW', tone: 'ready', meta: `${spec.measured}% · ${spec.objectiveMet ? 'target met' : 'valid target miss'}`, technicianView: ['Reference: +0.01° 2θ', `Run: ${identity.runId}`, `Target phase: ${spec.measured}%`, `Objective gap: ${spec.gap}`] };
 }
 

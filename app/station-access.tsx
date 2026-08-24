@@ -57,6 +57,8 @@ function getCampaignHmiOperations(stationId: string, stage: number, selected: st
   if (stationId === 'FURN-04') return ['Read overtemperature relay', 'Verify door chain', `Start ${spec.profile} profile`];
   if (stationId === 'XRD-03' && stage === 6) return ['Home specimen stage', 'Prove shutter feedback', 'Acquire Si reference', `Acquire ${identity.runId} pattern`];
   if (stationId === 'XRD-03') return ['Review Si control', 'Review phase fit', `Release ${identity.pattern} evidence`];
+  if (stationId === 'SEM-01' && stage === 8) return ['Establish chamber vacuum', 'Acquire four BSE fields', 'Acquire representative EDS map'];
+  if (stationId === 'SEM-01') return ['Review field coverage', 'Review EDS association', `Release ${identity.runId} diagnosis`];
   return HMI_OPERATIONS[stationId] ?? null;
 }
 
@@ -67,7 +69,7 @@ function getCampaignMethodStep(stage: number) {
 }
 
 function completeCampaignMachineStage(stage: number) {
-  if (stage < 1 || stage > 6) return null;
+  if (stage < 1 || (stage > 6 && stage !== 8)) return null;
   try {
     const current = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; elapsed?: number; insight?: number; selected?: string; runNumber?: number; history?: unknown[]; [key: string]: unknown };
     if (Number(current.stage) !== stage) return null;
@@ -82,10 +84,16 @@ function completeCampaignMachineStage(stage: number) {
       4: { stage: 5, elapsed: elapsed + 62, insight, message: `RUN-039 cooled and unloaded. Queue proof retained; ${identity.runId} entered ${spec.profile} at ${spec.temperature}.` },
       5: { stage: 6, elapsed: elapsed + spec.thermalMinutes, insight, message: `${spec.temperature} / ${spec.dwell} thermal trace retained. XRD specimen release is held because the Si reference is overdue.` },
       6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `Reference passed at +0.01° 2θ. ${spec.id} measured ${spec.measured}% target phase: valid evidence, ${spec.objectiveMet ? `${spec.gap} above the objective.` : `${spec.gap.replace('−', '')} below the objective.`}` },
+      8: { stage: 9, elapsed: elapsed + 26, insight: insight + 15, message: `Four BSE fields and a representative EDS map retained. ${spec.id === 'D-08' ? 'Ti-rich cores support incomplete conversion as the follow-up hypothesis.' : 'Ca-rich secondary grains support precursor excess as the follow-up hypothesis.'}` },
     }[stage];
     if (!transition) return null;
     const history = Array.isArray(current.history) ? current.history : [];
-    const next = { ...current, ...transition, history: stage === 6 ? [...history, { runNumber: identity.runNumber, candidate: spec.id, measured: spec.measured, gap: spec.gap, objectiveMet: spec.objectiveMet, elapsed: transition.elapsed }] : history };
+    const nextHistory = stage === 6
+      ? [...history, { runNumber: identity.runNumber, candidate: spec.id, measured: spec.measured, gap: spec.gap, objectiveMet: spec.objectiveMet, elapsed: transition.elapsed }]
+      : stage === 8
+        ? history.map((result) => result && typeof result === 'object' && 'runNumber' in result && Number((result as { runNumber?: number }).runNumber) === identity.runNumber ? { ...result, diagnosis: spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains' } : result)
+        : history;
+    const next = { ...current, ...transition, history: nextHistory };
     window.localStorage.setItem('mattershift-campaign-v2', JSON.stringify(next));
     window.dispatchEvent(new CustomEvent('mattershift:campaign-state', { detail: next }));
     return transition.stage;
@@ -102,6 +110,7 @@ function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignSt
   if (campaignStage >= 2 && campaignStage <= 3 && stationId === 'ROBO-02') return { ...profile, controller: 'RC-02 / CAMPAIGN-PLC', safe: campaignStage === 2 ? ['area scanner clear', 'gate chain closed', 'cleaning mode selected'] : ['area scanner clear', 'gate chain closed', 'gripper witness valid'], method: [`Receive ${identity.carrier}`, 'Clean + witness gripper', 'Dose crucibles', 'Write carrier handshake'], sample: [identity.prepSample, identity.carrier, identity.furnaceQueue], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 2 ? 'Gripper cleanliness recovery · active' : 'Campaign dosing · active', health: campaignStage === 2 ? 79 : 90 };
   if (campaignStage >= 4 && campaignStage <= 5 && stationId === 'FURN-04') return { ...profile, controller: `TC-04 / MES-Q${identity.suffix}`, method: [`Accept ${identity.carrier}`, 'Respect active queue', `Load ${spec.temperature} profile`, 'Cool + release'], sample: [identity.carrier, spec.profile, identity.thermalSample], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 4 ? 'Queue 01 · RUN-039 active' : `${spec.profile} · active` };
   if (campaignStage >= 6 && stationId === 'XRD-03') return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: ['Load NIST Si', 'Prove +0.01° 2θ', `Acquire ${identity.runId}`, `Review ${spec.measured}% result`], sample: [identity.thermalSample, identity.xrdDataset, identity.pattern], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 6 ? 'Si reference · release hold' : `Valid result · target ${spec.objectiveMet ? 'met' : 'missed'}`, health: campaignStage === 6 ? 78 : 92 };
+  if (campaignStage >= 8 && stationId === 'SEM-01') return { ...profile, controller: 'SEM-01 / DIAG-EDS', method: [`Load ${identity.thermalSample}`, 'Acquire four BSE fields', 'Acquire representative EDS map', 'Route mechanism hypothesis'], sample: [identity.thermalSample, `STUB-${identity.suffix}`, `MAP-${identity.suffix}`], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 8 ? 'Valid-negative diagnosis · active' : 'Representative follow-up · retained', health: 96 };
   if (scenarioId === 'facility' && stationId === 'PREP-01') return { ...profile, controller: 'MOVE-HMI / MES-A2', method: ['Scan both totes', 'Inspect powered jack', 'Secure load + route', 'Retain move receipt'], sample: ['LOT-3024-A', 'MOV-3024', 'REC-BET-02'], workOrder: 'MOV-3024', service: 'Powered-jack pre-use · current', supplies: ['restraint straps 6', 'spill kit sealed', 'tote covers 12'] };
   if (scenarioId === 'facility' && stationId === 'ROBO-02') return { ...profile, method: ['Reserve cross-aisle', 'Park robot', 'Prove safeguarded boundary', 'Release move priority'], sample: ['MOV-3024', 'A2-RESERVE', 'BET-02'], workOrder: 'MOV-3024', service: 'Cross-aisle coordination · active' };
   if (scenarioId === 'facility' && stationId === 'BET-02') return { ...profile, controller: 'BET-02 / GAS-MFD', method: ['Isolate service boundary', 'Verify GAS-41 identity', 'Run leak + control', 'Release data window'], sample: ['GAS-41', 'ALU-21', 'POST-GAS-41'], workOrder: 'GAS-41', service: 'N₂ service transition · active', health: 89 };
@@ -232,17 +241,31 @@ function HmiView({ station, profile, campaignStage, campaignSelected, campaignRu
     : HMI_OPERATIONS[station.id] ?? HMI_OPERATIONS['XRD-03']);
   const completedOperations = operationSteps.filter((operation) => operations.includes(operation)).length;
   const operationsComplete = operationSteps.every((operation) => operations.includes(operation));
+  const semFieldsReady = operations.includes('Acquire four BSE fields');
+  const semEdsReady = operations.includes('Acquire representative EDS map');
+  const liveStation = campaignStage === 8 && station.id === 'SEM-01'
+    ? {
+        ...station,
+        state: semEdsReady ? 'DIAGNOSIS READY' : semFieldsReady ? 'EDS MAP REQUIRED' : station.state,
+        technicianView: station.technicianView.map((item) => item.startsWith('Coverage:')
+          ? `Coverage: ${semFieldsReady ? '4 / 4 fields' : '0 / 4 fields'}`
+          : item.startsWith('EDS map:')
+            ? `EDS map: ${semEdsReady ? 'acquired' : 'queued'}`
+            : item),
+      }
+    : station;
   return <div className="console-view hmi-view">
     <div className="console-view-head"><div><p className="section-kicker">HMI / SCADA</p><h3>Equipment state + permissives</h3></div><span>REFRESH 250 ms</span></div>
     <div className="hmi-layout">
-      <div className="instrument-mimic"><InstrumentMimic station={station} /><div className="mimic-caption"><span>ASSET MIMIC</span><b>{station.id}</b><i>{station.state}</i></div></div>
-      <div className="live-readouts">{station.technicianView.map((item, index) => { const [key, value = '—'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b><i style={{ width: `${58 + index * 9}%` }} /></div>; })}</div>
+      <div className="instrument-mimic"><InstrumentMimic station={liveStation} /><div className="mimic-caption"><span>ASSET MIMIC</span><b>{liveStation.id}</b><i>{liveStation.state}</i></div></div>
+      <div className="live-readouts">{liveStation.technicianView.map((item, index) => { const [key, value = '—'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b><i style={{ width: `${58 + index * 9}%` }} /></div>; })}</div>
       <div className="permissive-panel"><p className="mini-label">START PERMISSIVES</p>{profile.safe.map((item) => <div key={item}><i className="ok">✓</i><span>{item}</span><b>TRUE</b></div>)}<div><i className={walkaroundComplete ? 'ok' : 'attention'}>{walkaroundComplete ? '✓' : '!'}</i><span>physical walkaround evidence</span><b>{walkaroundComplete ? 'TRUE' : 'HOLD'}</b></div><div><i className={releaseBlocked ? 'attention' : 'ok'}>{releaseBlocked ? '!' : '✓'}</i><span>quality / service release</span><b>{releaseBlocked ? 'HOLD' : 'TRUE'}</b></div></div>
     </div>
     {campaignStage === 1 && station.id === 'PREP-01' && <PrepCampaignPanel selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 2 && campaignStage <= 3 && station.id === 'ROBO-02' && <RobotCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
+    {campaignStage >= 8 && station.id === 'SEM-01' && <SemCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     <div className="hmi-operations">
       <div><p className="mini-label">LOCAL CONTROL SEQUENCE</p><span>{completedOperations} / {operationSteps.length} proven</span></div>
       {operationSteps.map((operation, index) => { const done = operations.includes(operation); const priorComplete = operationSteps.slice(0, index).every((prior) => operations.includes(prior)); const active = walkaroundComplete && priorComplete && !done; return <button key={operation} type="button" className={done ? 'done' : active ? 'active' : ''} disabled={!walkaroundComplete || !priorComplete || done} onClick={() => onOperation(operation)}><i>{done ? '✓' : `0${index + 1}`}</i><b>{operation}</b><small>{done ? 'feedback retained' : active ? 'ready at HMI' : walkaroundComplete ? 'sequence held' : 'walkaround held'}</small></button>; })}
@@ -423,6 +446,37 @@ function XrdCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
         <div className={referenceCaptured ? 'pass' : 'hold'}><span>REFERENCE</span><b>{referenceCaptured ? '+0.01° 2θ' : 'OVERDUE'}</b><small>{referenceCaptured ? 'within ±0.05°' : 'specimen inhibited'}</small></div>
         <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${spec.measured}%` : '—'}</b><small>{sampleCaptured ? `Rwp ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}%` : 'awaiting pattern'}</small></div>
         <div className={sampleCaptured ? spec.objectiveMet ? 'pass' : 'miss' : 'waiting'}><span>OBJECTIVE</span><b>{sampleCaptured ? spec.gap : '≥ 96%'}</b><small>{sampleCaptured ? spec.objectiveMet ? 'target met' : 'valid negative' : 'campaign gate'}</small></div>
+      </aside>
+    </div>
+  </section>;
+}
+
+function SemCampaignPanel({ stage, selected, runNumber, operations }: { stage: number; selected: string; runNumber: number; operations: string[] }) {
+  const spec = getCampaignSpec(selected);
+  const identity = getCampaignIdentity(runNumber);
+  const vacuumReady = stage >= 9 || operations.includes('Establish chamber vacuum');
+  const fieldsReady = stage >= 9 || operations.includes('Acquire four BSE fields');
+  const edsReady = stage >= 9 || operations.includes('Acquire representative EDS map');
+  const finding = spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains';
+  const fields = [[31, 37], [183, 37], [31, 104], [183, 104]];
+  const grains = [[18, 19, 12], [48, 28, 17], [76, 18, 10], [102, 34, 15], [29, 49, 14], [64, 48, 12], [94, 52, 18]];
+  const status = edsReady ? 'DIAGNOSIS READY' : fieldsReady ? 'EDS MAP REQUIRED' : vacuumReady ? 'ACQUISITION READY' : 'VACUUM REQUIRED';
+  return <section className={`campaign-sem-console${edsReady ? ' operation-complete' : ''}`}>
+    <header><div><span>CORRELATED BSE / EDS FOLLOW-UP</span><b>SEM-01 · MAT-{identity.suffix} · {identity.thermalSample}</b></div><em>{status}</em></header>
+    <div className="campaign-sem-layout">
+      <svg viewBox="0 0 520 180" role="img" aria-label={`${identity.runId} four-field SEM EDS diagnostic acquisition`}>
+        <defs><pattern id="semNoise" width="17" height="17" patternUnits="userSpaceOnUse"><circle cx="3" cy="4" r=".7" fill="#8d9ba0" opacity=".18" /><circle cx="12" cy="10" r=".5" fill="#c4ccce" opacity=".12" /></pattern></defs>
+        <rect width="520" height="180" className="sem-background" /><text x="18" y="19">BSE MOSAIC · 4 REPRESENTATIVE FIELDS</text>
+        {fields.map(([x, y], fieldIndex) => <g key={`${x}-${y}`} className={`sem-field${fieldsReady ? ' acquired' : ''}`}><rect x={x} y={y} width="140" height="56" rx="2" /><rect x={x} y={y} width="140" height="56" rx="2" fill="url(#semNoise)" />{fieldsReady && grains.slice(0, 5 + fieldIndex % 2).map(([gx, gy, radius], grainIndex) => <ellipse key={`${fieldIndex}-${grainIndex}`} cx={x + (gx + fieldIndex * 9) % 124 + 7} cy={y + (gy + fieldIndex * 7) % 44 + 6} rx={radius / 2} ry={radius / 3} className="sem-grain" />)}{fieldsReady && <circle cx={x + 105 - fieldIndex * 7} cy={y + 23 + fieldIndex * 4} r={fieldIndex === 2 ? 7 : 4} className="sem-inclusion" />}<text x={x + 5} y={y + 10}>F0{fieldIndex + 1}</text></g>)}
+        <g className="sem-spectrum"><text x="335" y="19">REPRESENTATIVE EDS MAP</text><line x1="335" x2="498" y1="148" y2="148" />{[['O', 356, 43], ['Ca', 397, 82], ['Ti', 439, spec.id === 'D-08' ? 106 : 74], ['Zr', 474, spec.id === 'D-08' ? 18 : 40]].map(([label, x, height]) => <g key={String(label)} className={edsReady ? 'peak ready' : 'peak'}><line x1={Number(x)} x2={Number(x)} y1="148" y2={148 - Number(height)} /><text x={Number(x) - 5} y="162">{label}</text></g>)}</g>
+        {!fieldsReady && <text x="112" y="98" className="sem-awaiting">ACQUISITION HELD · COVERAGE 0 / 4</text>}
+        {edsReady && <g className="sem-finding"><rect x="333" y="27" width="166" height="31" rx="2" /><text x="342" y="39">FOLLOW-UP HYPOTHESIS</text><text x="342" y="51">{finding}</text></g>}
+        <text x="17" y="174">20 µm</text><line x1="50" x2="95" y1="171" y2="171" className="scale-bar" />
+      </svg>
+      <aside>
+        <div className={vacuumReady ? 'pass' : 'hold'}><span>CHAMBER VACUUM</span><b>{vacuumReady ? '2.1e−5 Pa' : 'VENTED'}</b><small>{vacuumReady ? 'working distance linked' : 'pump required'}</small></div>
+        <div className={fieldsReady ? 'pass' : vacuumReady ? 'review' : 'waiting'}><span>FIELD COVERAGE</span><b>{fieldsReady ? '4 / 4' : '0 / 4'}</b><small>{fieldsReady ? 'representative grid' : 'single-field claim blocked'}</small></div>
+        <div className={edsReady ? 'pass' : 'waiting'}><span>INTERPRETATION</span><b>{edsReady ? finding : '—'}</b><small>{edsReady ? 'hypothesis · not proof' : 'EDS map required'}</small></div>
       </aside>
     </div>
   </section>;

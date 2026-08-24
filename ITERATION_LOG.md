@@ -1150,6 +1150,29 @@ Qualified results accumulated in a ledger, but the same three candidates remaine
 - Browser-verified that three retained results unlock a green A-29 candidate inside campaign control,
   while an in-progress run keeps all recipes disabled and preserves governance.
 
+## Critique 64: a valid negative ended without a physical diagnosis path
+
+An off-target but qualified XRD result entered model memory immediately, even when the next useful
+scientific move was to inspect morphology and local chemistry. The player could see that a recipe
+missed, but could not walk the specimen to microscopy, acquire representative evidence, or learn why
+the result may have failed.
+
+### Changes
+
+- Added an optional ninth campaign stage that routes a qualified target miss from XRD-03 to SEM-01
+  without forcing microscopy onto successful runs.
+- Added a required SEM walkaround covering the chamber, column, and BSE / EDS system, followed by an
+  ordered local sequence for chamber vacuum, four representative BSE fields, and a correlated EDS map.
+- Built an instrument-native microscopy console with a four-field grayscale mosaic, candidate-aware
+  EDS spectrum, live vacuum and coverage state, and a mechanism finding that remains explicitly
+  labeled `hypothesis · not proof`.
+- Linked the diagnosis back into campaign memory, the 3D room state, station inspector, AI learning
+  gate, expanded 09 / 09 route, and equipment schedule; post-acquisition focus now returns to SEM-01
+  instead of an unrelated instrument.
+- Browser-ran D-08 / RUN-046 from its 95.1% valid negative through the complete diagnosis branch,
+  retaining `Ti-rich cores` as the incomplete-conversion hypothesis. Desktop and 390 × 844 views were
+  checked, including live 0 / 4 → 4 / 4 feedback and the final `D-08 · DIAG` model-memory record.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

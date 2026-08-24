@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { campaignSpecs as recipes, getCampaignIdentity, getCampaignSpec } from './campaign-spec';
 
-type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number };
+type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; diagnosis?: string };
 
 type CampaignRun = {
   stage: number;
@@ -75,8 +75,10 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
       : `Command blocked: shortening another run violates its governed thermal profile. ${identity.runId} remains queued.` });
   };
 
+  const startDiagnosis = () => updateRun({ stage: 8, message: `${identity.thermalSample} routed to SEM-01. Four representative BSE fields and an EDS map are required before assigning a mechanism.` });
+
   const viewInLab = () => {
-    const stationId = run.stage <= 1 ? 'PREP-01' : run.stage <= 3 ? 'ROBO-02' : run.stage <= 5 ? 'FURN-04' : 'XRD-03';
+    const stationId = run.stage <= 1 ? 'PREP-01' : run.stage <= 3 ? 'ROBO-02' : run.stage <= 5 ? 'FURN-04' : run.stage <= 7 ? 'XRD-03' : 'SEM-01';
     onClose();
     window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:return-to-lab', { detail: { stationId } })));
   };
@@ -132,27 +134,27 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
             {!adaptiveUnlocked && <div className="candidate-lock"><span>◇</span><div><b>ADAPTIVE SLOT LOCKED</b><small>retain 2 qualified results</small></div><em>{history.length} / 2</em></div>}
           </div>
           <div className="recipe-envelope"><span>SYNTHESIS ENVELOPE</span><div><b>{recipe.temperature}</b><small>calcination</small></div><div><b>{recipe.dwell}</b><small>dwell</small></div><div><b>{recipe.prediction}</b><small>predicted phase</small></div></div>
-          {history.length > 0 && <div className="campaign-history"><span>MODEL MEMORY</span>{history.slice(-3).map((result) => <div key={result.runNumber}><b>RUN-{String(result.runNumber).padStart(3, '0')}</b><i>{result.candidate}</i><em className={result.objectiveMet ? 'hit' : 'miss'}>{result.measured}%</em></div>)}</div>}
+          {history.length > 0 && <div className="campaign-history"><span>MODEL MEMORY</span>{history.slice(-3).map((result) => <div key={result.runNumber}><b>RUN-{String(result.runNumber).padStart(3, '0')}</b><i>{result.candidate}{result.diagnosis ? ' · DIAG' : ''}</i><em className={result.objectiveMet ? 'hit' : 'miss'}>{result.measured}%</em></div>)}</div>}
         </aside>
 
         <section className="campaign-routing">
-          <div className="campaign-panel-head"><div><span>LIVE MATERIAL ROUTE</span><b>{identity.runId} · {recipe.id}</b></div><em>{String(Math.min(run.stage + 1, 8)).padStart(2, '0')} / 08</em></div>
+          <div className="campaign-panel-head"><div><span>LIVE MATERIAL ROUTE</span><b>{identity.runId} · {recipe.id}</b></div><em>{run.stage >= 8 ? '09 / 09' : `${String(Math.min(run.stage + 1, 8)).padStart(2, '0')} / 08`}</em></div>
           <div className="route-board">
             <RouteCell code="PREP-01" label="PREP" cycle="12 MIN" state={routeState(run.stage, 1, 2)} current={run.stage === 1} job={run.stage >= 1 ? identity.runId : 'OPEN'} />
             <RouteCell code="ROBO-02" label="SYNTHESIZE" cycle="14 MIN" state={run.stage === 2 ? 'fault' : routeState(run.stage, 3, 4)} current={run.stage === 3} job={run.stage === 2 ? 'CELL FAULT' : run.stage >= 3 ? identity.runId : 'WAIT'} />
             <RouteCell code="FURN-04" label="CALCINE" cycle={`${recipe.thermalMinutes} MIN`} state={run.stage === 4 ? 'queued' : routeState(run.stage, 5, 6)} current={run.stage === 5} job={run.stage === 4 ? 'Q 01' : run.stage >= 5 ? identity.runId : 'RUN-039'} />
             <RouteCell code="XRD-03" label="MEASURE" cycle="18 MIN" state={run.stage === 6 ? 'fault' : routeState(run.stage, 6, 7)} current={run.stage === 6} job={run.stage === 6 ? 'QC HOLD' : run.stage >= 7 ? identity.runId : 'RUN-038'} />
-            <RouteCell code="MODEL" label="LEARN" cycle="GATED" state={run.stage >= 7 ? 'complete' : 'waiting'} current={false} job={run.stage >= 7 ? `+${recipe.insightReward} RP` : 'EVIDENCE'} />
+            <RouteCell code={run.stage >= 8 ? 'SEM-01' : 'MODEL'} label={run.stage >= 8 ? 'DIAGNOSE' : 'LEARN'} cycle={run.stage >= 8 ? '26 MIN' : 'GATED'} state={run.stage >= 9 ? 'complete' : run.stage === 8 ? 'active' : run.stage >= 7 ? 'complete' : 'waiting'} current={run.stage === 8} job={run.stage >= 9 ? '4 FIELDS + MAP' : run.stage === 8 ? identity.thermalSample : run.stage >= 7 ? `+${recipe.insightReward} RP` : 'EVIDENCE'} />
           </div>
 
-          <div className={`constraint-console ${fault ? `fault-${fault}` : run.stage >= 7 ? recipe.objectiveMet ? 'result-hit' : 'result-miss' : ''}`}>
-            <div className="constraint-signal"><span>{fault ? 'BOTTLENECK DETECTED' : run.stage >= 7 ? recipe.objectiveMet ? 'VALID RESULT · TARGET MET' : 'VALID RESULT · TARGET MISSED' : 'ROUTE STATUS'}</span><b>{fault === 'cell' ? 'ROBO-02 / CLEANLINESS' : fault === 'queue' ? 'FURN-04 / CAPACITY 1 OF 1' : fault === 'qc' ? 'XRD-03 / CONTROL DUE' : run.stage >= 7 ? `${recipe.measured}% · GAP ${recipe.gap}` : 'FLOW NOMINAL'}</b><i /></div>
+          <div className={`constraint-console ${fault ? `fault-${fault}` : run.stage === 8 ? 'fault-qc' : run.stage >= 7 ? recipe.objectiveMet ? 'result-hit' : 'result-miss' : ''}`}>
+            <div className="constraint-signal"><span>{fault ? 'BOTTLENECK DETECTED' : run.stage === 8 ? 'DIAGNOSTIC BRANCH' : run.stage >= 9 ? 'MECHANISM EVIDENCE RETAINED' : run.stage >= 7 ? recipe.objectiveMet ? 'VALID RESULT · TARGET MET' : 'VALID RESULT · TARGET MISSED' : 'ROUTE STATUS'}</span><b>{fault === 'cell' ? 'ROBO-02 / CLEANLINESS' : fault === 'queue' ? 'FURN-04 / CAPACITY 1 OF 1' : fault === 'qc' ? 'XRD-03 / CONTROL DUE' : run.stage === 8 ? `SEM-01 / ${identity.thermalSample}` : run.stage >= 7 ? `${recipe.measured}% · GAP ${recipe.gap}` : 'FLOW NOMINAL'}</b><i /></div>
             <div className="constraint-visual" aria-label="Campaign queue visualization">
               <span className="queue-axis">QUEUE</span>
               <div className={`queue-token token-a ${run.stage >= 4 ? 'visible' : ''}`}>{identity.suffix}</div>
               <div className={`queue-token token-b ${run.stage === 4 ? 'visible' : ''}`}>{String(currentRunNumber + 1).padStart(3, '0')}</div>
               <div className={`machine-aperture ${fault ? 'held' : ''}`}><i /><b>{fault ? 'HOLD' : 'READY'}</b></div>
-              <em>{fault === 'queue' ? '62 min wait' : fault === 'cell' ? '18 min recovery' : fault === 'qc' ? 'reference first' : run.stage >= 7 ? recipe.objectiveMet ? 'objective achieved' : 'valid negative result' : 'no active delay'}</em>
+              <em>{fault === 'queue' ? '62 min wait' : fault === 'cell' ? '18 min recovery' : fault === 'qc' ? 'reference first' : run.stage === 8 ? '4 fields + EDS map' : run.stage >= 9 ? 'diagnosis linked' : run.stage >= 7 ? recipe.objectiveMet ? 'objective achieved' : 'valid negative result' : 'no active delay'}</em>
             </div>
             <p>{run.message}</p>
           </div>
@@ -162,15 +164,17 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
             <div><span>ROBO-02</span><i className="bar robot" /><b>{identity.runId}</b></div>
             <div><span>FURN-04</span><i className="bar furnace" /><b>RUN-039</b><i className="bar furnace queued" /><b>{identity.suffix}</b></div>
             <div><span>XRD-03</span><i className="bar xrd" /><b>REF</b><i className="bar xrd queued" /><b>{identity.suffix}</b></div>
+            {run.stage >= 8 && <div><span>SEM-01</span><i className="bar sem" /><b>{run.stage >= 9 ? 'MAP' : '4× BSE'}</b></div>}
           </div>
         </section>
       </div>
 
       <footer className="campaign-actions">
-        <div><span>PLAYER COMMAND</span><b>{run.stage >= 7 ? `${recipe.id} · ${recipe.measured}% · ${recipe.gap}` : primary.hint}</b></div>
+        <div><span>PLAYER COMMAND</span><b>{run.stage === 8 ? primary.hint : run.stage >= 7 ? `${recipe.id} · ${recipe.measured}% · ${recipe.gap}` : primary.hint}</b></div>
         {run.stage === 2 && <button type="button" className="secondary" onClick={() => rejectShortcut('robot')}>BYPASS WITNESS</button>}
         {run.stage === 4 && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace')}>SHORTEN RUN-039</button>}
-        <button type="button" onClick={run.stage > 0 && run.stage < 7 ? viewInLab : advance}>{primary.label}<span>→</span></button>
+        {run.stage === 7 && !recipe.objectiveMet && <button type="button" className="secondary diagnosis" onClick={startDiagnosis}>ROUTE TO SEM / EDS</button>}
+        <button type="button" onClick={run.stage > 0 && (run.stage < 7 || run.stage === 8) ? viewInLab : advance}>{primary.label}<span>→</span></button>
       </footer>
     </section>
   </div>;
@@ -200,5 +204,7 @@ function getPrimaryAction(stage: number, runId: string) {
     { label: 'START FURN-04 PROFILE', hint: 'Prove the load and start the governed thermal cycle' },
     { label: 'QUALIFY XRD-03', hint: `Run the Si control before measuring ${runId}` },
     { label: 'START NEXT CAMPAIGN', hint: 'AI-eligible result · objective missed by 0.2 percentage point' },
+    { label: 'OPERATE SEM-01', hint: 'Acquire representative BSE fields and an EDS map' },
+    { label: 'START NEXT CAMPAIGN', hint: 'Mechanism evidence linked to the valid result' },
   ][stage] ?? { label: 'START NEXT CAMPAIGN', hint: 'Clear the completed lane' };
 }

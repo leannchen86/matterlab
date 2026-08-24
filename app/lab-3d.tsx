@@ -647,10 +647,15 @@ function getCampaignInspectionPoints(index: number, stage: number, selected: str
     { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? `RUN-039 remaining 62 min · ${identity.runId} Q01` : `${spec.profile} · ramp/dwell trace recording`, state: stage === 4 ? 'attention' : 'pass' },
     { position: stage === 4 ? [0, 0.42, 1.04] : [0, 1.38, 0.94], label: 'CARRIER', observation: stage === 4 ? `${identity.carrier} parked at marked queue stand · seal intact` : `${identity.carrier} chamber occupancy confirmed`, state: stage === 4 ? 'attention' : 'pass' },
   ];
-  if (stage >= 6 && index === 3) return [
+  if (stage >= 6 && stage <= 7 && index === 3) return [
     { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: stage === 6 ? `NIST Si reference seated · ${identity.thermalSample} held` : `${identity.thermalSample} flat · reference accepted`, state: 'pass' },
     { position: [0.9, 0.7, 0.92], label: 'HMI', observation: stage === 6 ? 'reference interval overdue · specimen release inhibited' : `+0.01° 2θ · ${spec.measured}% target phase`, state: stage === 6 ? 'attention' : 'pass' },
     { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', observation: 'closed feedback TRUE · radiation chain healthy', state: 'pass' },
+  ];
+  if (stage >= 8 && index === 4) return [
+    { position: [-0.25, 1.2, 0.82], label: 'CHAMBER', observation: `${identity.thermalSample} on STUB-${identity.suffix} · clearance proven`, state: 'pass' },
+    { position: [-0.25, 2.08, 0.42], label: 'COLUMN', observation: 'BSE 15 kV · working distance 9.8 mm · aperture seated', state: 'pass' },
+    { position: [0.95, 1.32, 0.3], label: 'BSE / EDS', observation: stage === 8 ? 'coverage 0 / 4 · representative map required' : `4 fields + map · ${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'}`, state: stage === 8 ? 'attention' : 'pass' },
   ];
   return null;
 }
@@ -1115,7 +1120,8 @@ function getCampaignStationIndex(stage: number) {
   if (stage === 1) return 0;
   if (stage <= 3) return 1;
   if (stage <= 5) return 2;
-  return 3;
+  if (stage <= 7) return 3;
+  return 4;
 }
 
 function getInspectionKey(stationId: string, stationIndex: number, campaignStage: number, selected: string, runNumber: number) {
@@ -1130,25 +1136,27 @@ function getCampaignRoomState(stage: number, selected = 'C-42') {
   if (stage === 4) return { station: 'FURN-04', label: 'QUEUE 01', color: '#f4b95f', tone: 'held', result: '' };
   if (stage === 5) return { station: 'FURN-04', label: `${spec.temperatureShort} PROFILE`, color: '#ff955c', tone: 'running', result: '' };
   if (stage === 6) return { station: 'XRD-03', label: 'QC HOLD', color: '#f4b95f', tone: 'held', result: '' };
-  if (stage >= 7) return { station: 'XRD-03', label: `${spec.measured}% · TARGET ${spec.objectiveMet ? 'MET' : 'MISSED'}`, color: spec.objectiveMet ? '#51e19a' : '#8fcf8f', tone: 'complete', result: spec.objectiveMet ? 'TARGET MET' : 'VALID NEGATIVE' };
+  if (stage === 7) return { station: 'XRD-03', label: `${spec.measured}% · TARGET ${spec.objectiveMet ? 'MET' : 'MISSED'}`, color: spec.objectiveMet ? '#51e19a' : '#8fcf8f', tone: 'complete', result: spec.objectiveMet ? 'TARGET MET' : 'VALID NEGATIVE' };
+  if (stage === 8) return { station: 'SEM-01', label: 'REPRESENTATIVE FOLLOW-UP', color: '#b7d4d8', tone: 'running', result: 'DIAGNOSTIC RUN' };
+  if (stage >= 9) return { station: 'SEM-01', label: spec.id === 'D-08' ? 'TI-RICH CORES' : 'CA-RICH SECONDARY GRAINS', color: '#51e19a', tone: 'complete', result: 'DIAGNOSIS LINKED' };
   return { station: 'PREP-01', label: 'CAMPAIGN READY', color: '#4dd5ed', tone: 'running', result: '' };
 }
 
 function CampaignMaterialRoute({ stage, selected, runNumber }: { stage: number; selected: string; runNumber: number }) {
   const carrier = useRef<THREE.Group>(null);
   const current = useRef(0.02);
-  const points = useMemo(() => [0, 1, 2, 3].map((index) => {
+  const points = useMemo(() => [0, 1, 2, 3, 4].map((index) => {
     const [x, , z] = STATION_POSITIONS[index];
     return new THREE.Vector3(x, 0.26, z + 0.86);
   }), []);
   const curve = useMemo(() => new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.12), [points]);
   const route = useMemo(() => curve.getPoints(64), [curve]);
-  const target = stage <= 1 ? 0.02 : stage <= 3 ? 0.34 : stage <= 5 ? 0.66 : 0.98;
+  const target = stage <= 1 ? 0.02 : stage <= 3 ? 0.25 : stage <= 5 ? 0.5 : stage <= 7 ? 0.75 : 0.98;
   const state = getCampaignRoomState(stage, selected);
   const identity = getCampaignIdentity(runNumber);
   useFrame(({ clock }, delta) => {
     current.current = THREE.MathUtils.damp(current.current, target, 3.2, delta);
-    const activity = [1, 3, 5].includes(stage) ? Math.sin(clock.elapsedTime * 1.7) * 0.006 : 0;
+    const activity = [1, 3, 5, 8].includes(stage) ? Math.sin(clock.elapsedTime * 1.7) * 0.006 : 0;
     if (carrier.current) carrier.current.position.copy(curve.getPointAt(THREE.MathUtils.clamp(current.current + activity, 0.01, 0.99)));
   });
   if (stage <= 0) return null;
