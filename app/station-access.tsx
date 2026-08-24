@@ -293,6 +293,7 @@ const PRECURSOR_PROGRAMS: Record<string, Array<{ lot: string; material: string; 
   'Z-17': [{ lot: 'CA-21A', material: 'CaCO₃', mass: '12.39 g' }, { lot: 'TI-09C', material: 'TiO₂', mass: '9.50 g' }, { lot: 'ZR-04B', material: 'ZrO₂', mass: '0.61 g' }],
   'D-08': [{ lot: 'CA-21A', material: 'CaCO₃', mass: '13.35 g' }, { lot: 'TI-09C', material: 'TiO₂', mass: '10.65 g' }],
   'A-29': [{ lot: 'CA-21A', material: 'CaCO₃', mass: '13.28 g' }, { lot: 'TI-09C', material: 'TiO₂', mass: '10.39 g' }, { lot: 'ZR-04B', material: 'ZrO₂', mass: '0.33 g' }],
+  'R-31': [{ lot: 'CA-21A', material: 'CaCO₃', mass: '13.35 g' }, { lot: 'TI-09C', material: 'TiO₂', mass: '10.65 g' }],
 };
 
 function PrepCampaignPanel({ selected, runNumber, operations }: { selected: string; runNumber: number; operations: string[] }) {
@@ -424,6 +425,7 @@ const XRD_PEAKS: Record<string, Array<[number, number]>> = {
   'Z-17': [[22.9, .22], [29.5, .27], [32.8, 1], [40.4, .41], [47.1, .61], [58.8, .78], [69.1, .38], [74.2, .18]],
   'D-08': [[23.1, .25], [33.0, 1], [40.6, .34], [47.4, .49], [59.0, .68], [69.3, .29]],
   'A-29': [[22.8, .2], [29.4, .16], [32.9, 1], [40.5, .39], [47.2, .58], [58.9, .76], [69.2, .35], [74.0, .14]],
+  'R-31': [[23.1, .18], [33.0, 1], [40.7, .38], [47.5, .57], [59.1, .74], [69.3, .34]],
 };
 
 function diffractionPath(peaks: Array<[number, number]>, baseline: number, amplitude: number) {

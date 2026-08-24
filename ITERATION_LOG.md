@@ -1198,6 +1198,27 @@ actually make those instruments different.
   0.6 µbar/min leak pass, and 4.8 bar N₂; TGA reached +0.00 mg, 60 mL/min N₂, and A / B homed. The
   completed TGA console was also checked at 390 × 844 with the native plot and action sequence stacked.
 
+## Critique 66: the microscopy diagnosis did not change the next experiment
+
+SEM/EDS could retain a mechanism hypothesis, but archiving the run simply reopened the same static
+candidate list. The visual language said `LEARN` while the actual experiment space did not respond to
+the microscopy evidence.
+
+### Changes
+
+- Added R-31, a diagnosis-gated recovery candidate that appears only after a D-08 target miss has a
+  retained SEM/EDS diagnosis. It preserves stoichiometric CaTiO₃ while raising the thermal program from
+  900 °C / 6 h to 990 °C / 4 h to test incomplete conversion without changing composition at the same time.
+- Added a governed 24.00 g preparation program (13.35 g CaCO₃ + 10.65 g TiO₂), R31-990-4H furnace
+  profile, candidate-specific XRD pattern, 96.6 ± 0.8% prediction, and 96.2% simulated qualified result.
+- Changed the terminal diagnosis command from a generic next-campaign reset to `PROPOSE RECOVERY RUN`;
+  the new run is preselected as R-31 and its message explains the controlled hypothesis test.
+- Visually separated the amber mechanism-derived candidate from the green history-derived A-29 slot,
+  so the player can distinguish a causal follow-up from a general adaptive proposal.
+- Browser-verified RUN-046 / D-08 diagnosis unlocking the fifth candidate, the transition to RUN-047 /
+  R-31, its 990 °C / 4 h / 96.6% envelope, and the physical PREP-01 record with the two correct precursor
+  lots and mass values.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

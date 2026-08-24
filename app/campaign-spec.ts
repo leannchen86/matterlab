@@ -1,4 +1,4 @@
-export type CampaignCandidateId = 'C-42' | 'Z-17' | 'D-08' | 'A-29';
+export type CampaignCandidateId = 'C-42' | 'Z-17' | 'D-08' | 'A-29' | 'R-31';
 
 export type CampaignSpec = {
   id: CampaignCandidateId;
@@ -41,6 +41,11 @@ export const campaignSpecs: CampaignSpec[] = [
     id: 'A-29', name: 'Model-learned', formula: 'CaTi₀.₉₈Zr₀.₀₂O₃', precursorLabel: 'Ca + Ti + Zr adaptive lots', targetMass: '24.00 g',
     temperature: '1,000 °C', temperatureShort: '1000 °C', dwell: '3.75 h', prediction: '97.4%', uncertainty: '±0.9%',
     profile: 'A29-1000-3H45', measured: '97.0', gap: '+1.0 pp', objectiveMet: true, insightReward: 65, thermalMinutes: 345, throughput: '0.17 runs / h', point: [212, 82],
+  },
+  {
+    id: 'R-31', name: 'Conversion recovery', formula: 'CaTiO₃', precursorLabel: 'stoichiometric Ca + Ti recovery lots', targetMass: '24.00 g',
+    temperature: '990 °C', temperatureShort: '990 °C', dwell: '4.0 h', prediction: '96.6%', uncertainty: '±0.8%',
+    profile: 'R31-990-4H', measured: '96.2', gap: '+0.2 pp', objectiveMet: true, insightReward: 70, thermalMinutes: 360, throughput: '0.17 runs / h', point: [174, 78],
   },
 ];
 

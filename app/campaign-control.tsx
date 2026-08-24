@@ -54,7 +54,8 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
   const currentRunNumber = Number(run.runNumber ?? 42);
   const history = Array.isArray(run.history) ? run.history : [];
   const adaptiveUnlocked = history.length >= 2;
-  const availableRecipes = adaptiveUnlocked ? recipes : recipes.filter((candidate) => candidate.id !== 'A-29');
+  const diagnosisUnlocked = history.some((result) => result.candidate === 'D-08' && Boolean(result.diagnosis));
+  const availableRecipes = recipes.filter((candidate) => (candidate.id !== 'A-29' || adaptiveUnlocked) && (candidate.id !== 'R-31' || diagnosisUnlocked));
   const identity = getCampaignIdentity(currentRunNumber);
   const fault = run.stage === 2 ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 6 ? 'qc' : null;
   const primary = getPrimaryAction(run.stage, identity.runId);
@@ -65,7 +66,11 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
       const archivedHistory = history.some((result) => result.runNumber === currentRunNumber)
         ? history
         : [...history, { runNumber: currentRunNumber, candidate: recipe.id, measured: recipe.measured, gap: recipe.gap, objectiveMet: recipe.objectiveMet, elapsed: run.elapsed }];
-      updateRun({ ...initialRun, insight: run.insight, selected: run.selected, runNumber: currentRunNumber + 1, history: archivedHistory, message: `${identity.runId} archived. Select the next candidate.` });
+      const mechanismRecovery = run.stage >= 9 && recipe.id === 'D-08' && archivedHistory.some((result) => result.runNumber === currentRunNumber && Boolean(result.diagnosis));
+      const nextSelected = mechanismRecovery ? 'R-31' : run.selected;
+      updateRun({ ...initialRun, insight: run.insight, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, message: mechanismRecovery
+        ? `${identity.runId} diagnosis assimilated. R-31 raises thermal dose while preserving stoichiometry to test the incomplete-conversion hypothesis.`
+        : `${identity.runId} archived. Select the next candidate.` });
     }
   };
 
@@ -100,7 +105,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
 
       <div className="campaign-workspace">
         <aside className="campaign-designer">
-          <div className="campaign-panel-head"><div><span>EXPERIMENT DESIGN</span><b>{adaptiveUnlocked ? 'ADAPTIVE CANDIDATES' : 'AI CANDIDATES'}</b></div><em>{String(availableRecipes.length).padStart(2, '0')}</em></div>
+          <div className="campaign-panel-head"><div><span>EXPERIMENT DESIGN</span><b>{diagnosisUnlocked ? 'MECHANISM CANDIDATES' : adaptiveUnlocked ? 'ADAPTIVE CANDIDATES' : 'AI CANDIDATES'}</b></div><em>{String(availableRecipes.length).padStart(2, '0')}</em></div>
           <div className="campaign-design-space" aria-label="Composition and temperature design space">
             <svg viewBox="0 0 320 180" role="img" aria-label={`${recipe.id} selected in the materials design space`}>
               <defs><radialGradient id="campaignHalo"><stop offset="0" stopColor="#4dd5ed" stopOpacity=".24" /><stop offset="1" stopColor="#4dd5ed" stopOpacity="0" /></radialGradient></defs>
@@ -127,7 +132,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
           <div className="candidate-list">
             {availableRecipes.map((candidate) => {
               const measured = [...history].reverse().find((result) => result.candidate === candidate.id);
-              return <button key={candidate.id} type="button" className={`${candidate.id === run.selected ? 'active ' : ''}${candidate.id === 'A-29' ? 'learned' : ''}`} disabled={run.stage > 0} onClick={() => updateRun({ selected: candidate.id, message: `${candidate.id} selected. Review its synthesis envelope before release.` })}>
+              return <button key={candidate.id} type="button" className={`${candidate.id === run.selected ? 'active ' : ''}${candidate.id === 'A-29' ? 'learned' : candidate.id === 'R-31' ? 'mechanism' : ''}`} disabled={run.stage > 0} onClick={() => updateRun({ selected: candidate.id, message: `${candidate.id} selected. Review its synthesis envelope before release.` })}>
                 <span>{candidate.id}</span><div><b>{candidate.name}</b><small>{candidate.formula}</small></div><em>{measured ? `${measured.measured}% ${measured.objectiveMet ? '✓' : '·'}` : candidate.prediction}</em>
               </button>;
             })}
@@ -170,7 +175,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
       </div>
 
       <footer className="campaign-actions">
-        <div><span>PLAYER COMMAND</span><b>{run.stage === 8 ? primary.hint : run.stage >= 7 ? `${recipe.id} · ${recipe.measured}% · ${recipe.gap}` : primary.hint}</b></div>
+        <div><span>PLAYER COMMAND</span><b>{run.stage === 8 || run.stage >= 9 ? primary.hint : run.stage >= 7 ? `${recipe.id} · ${recipe.measured}% · ${recipe.gap}` : primary.hint}</b></div>
         {run.stage === 2 && <button type="button" className="secondary" onClick={() => rejectShortcut('robot')}>BYPASS WITNESS</button>}
         {run.stage === 4 && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace')}>SHORTEN RUN-039</button>}
         {run.stage === 7 && !recipe.objectiveMet && <button type="button" className="secondary diagnosis" onClick={startDiagnosis}>ROUTE TO SEM / EDS</button>}
@@ -205,6 +210,6 @@ function getPrimaryAction(stage: number, runId: string) {
     { label: 'QUALIFY XRD-03', hint: `Run the Si control before measuring ${runId}` },
     { label: 'START NEXT CAMPAIGN', hint: 'AI-eligible result · objective missed by 0.2 percentage point' },
     { label: 'OPERATE SEM-01', hint: 'Acquire representative BSE fields and an EDS map' },
-    { label: 'START NEXT CAMPAIGN', hint: 'Mechanism evidence linked to the valid result' },
+    { label: 'PROPOSE RECOVERY RUN', hint: 'Use the diagnosis to change the next governed experiment' },
   ][stage] ?? { label: 'START NEXT CAMPAIGN', hint: 'Clear the completed lane' };
 }
