@@ -48,7 +48,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const campaignIdentity = getCampaignIdentity(campaign.runNumber);
   const campaignOperations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
   const campaignMission = getCampaignMission(campaign.missionId);
-  const campaignEvaluation = evaluateCampaignMission(campaignSpec, campaign.missionId);
+  const campaignEvaluation = evaluateCampaignMission(campaignSpec, campaign.missionId, campaign.stage >= 7 ? campaign.resultElapsed : undefined);
   const campaignActive = campaign.stage > 0;
   const [phase, setPhase] = useState(0);
   const [modal, setModal] = useState<Modal>(null);
@@ -429,7 +429,7 @@ function ActionPanel({ phase, onCampaign, onQc, onLineage, onRelease, onAdvance,
     const identity = getCampaignIdentity(campaign.runNumber);
     const operations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
     const mission = getCampaignMission(campaign.missionId);
-    const evaluation = evaluateCampaignMission(spec, campaign.missionId);
+    const evaluation = evaluateCampaignMission(spec, campaign.missionId, campaign.stage >= 7 ? campaign.resultElapsed : undefined);
     const campaignStates = {
       1: { tag: 'CAMPAIGN EXECUTION', title: `${identity.runId} powder preparation`, body: `${spec.formula} is released to PREP-01. Physical lot, mass, and enclosure checks own the next gate.`, metric: spec.targetMass, tone: 'run' },
       2: operations.robotCondition === 'contamination'

@@ -91,7 +91,8 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const identity = getCampaignIdentity(currentRunNumber);
   const operations = getCampaignOperations(currentRunNumber, run.thermalBayLevel);
   const mission = getCampaignMission(run.missionId);
-  const evaluation = evaluateCampaignMission(recipe, run.missionId);
+  const retainedResult = run.history.find((result) => result.runNumber === currentRunNumber);
+  const evaluation = evaluateCampaignMission(recipe, run.missionId, run.stage >= 7 ? retainedResult?.elapsed ?? run.elapsed : undefined);
   const selectedForecast = forecastCampaignMission(recipe, run.missionId);
   const backlogThermalMinutes = backlog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0);
   const backlogCapacityMinutes = run.thermalBayLevel >= 2 ? 720 : 360;
@@ -155,12 +156,16 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
     }
   };
 
-  const rejectShortcut = (kind: 'robot' | 'furnace') => {
-    updateRun({ message: kind === 'robot'
+  const rejectShortcut = (kind: 'robot' | 'furnace' | 'furnace-condition') => {
+    updateRun({ elapsed: kind === 'furnace-condition' ? run.elapsed + 2 : run.elapsed, message: kind === 'robot'
       ? operations.robotCondition === 'grip-force'
         ? 'Command blocked: bypassing the force witness could turn an intermittent grip into a carrier drop or cross-position dosing error.'
         : 'Command blocked: bypassing the cleanliness witness would make contamination indistinguishable from material behavior.'
-      : `Command blocked: shortening ${operations.activeFurnaceRun} violates its governed thermal profile. ${identity.runId} remains queued.` });
+      : kind === 'furnace-condition'
+        ? operations.furnaceCondition === 'thermocouple-drift'
+          ? 'Start rejected by OT-04: controller PV cannot release a load while the independent witness is biased. Two minutes were lost reviewing the failed permissive; the specimen remains cold-held.'
+          : 'Start rejected by the door-chain proof: closed feedback does not demonstrate hot-zone uniformity across a leaking seal. Two minutes were lost; the specimen remains cold-held.'
+        : `Command blocked: shortening ${operations.activeFurnaceRun} violates its governed thermal profile. ${identity.runId} remains queued.` });
   };
 
   const startDiagnosis = () => {
@@ -366,6 +371,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
         <div><span>PLAYER COMMAND</span><b>{run.stage === 8 || run.stage >= 9 ? primary.hint : run.stage >= 7 ? `${recipe.id} · ${evaluation.resultText} · ${evaluation.gap}` : primary.hint}</b></div>
         {run.stage === 2 && operations.robotConstraint && <button type="button" className="secondary" onClick={() => rejectShortcut('robot')}>{operations.robotCondition === 'grip-force' ? 'BYPASS FORCE WITNESS' : 'BYPASS CLEAN WITNESS'}</button>}
         {run.stage === 4 && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace')}>SHORTEN {operations.activeFurnaceRun}</button>}
+        {run.stage === 5 && operations.furnaceConstraint && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace-condition')}>{operations.furnaceCondition === 'thermocouple-drift' ? 'START ON CONTROLLER PV' : 'ACCEPT CLOSED FEEDBACK'}</button>}
         {run.stage === 7 && !evaluation.met && needsMicroscopy && <button type="button" className="secondary diagnosis" onClick={startDiagnosis}>ROUTE TO SEM / EDS</button>}
         <button type="button" onClick={run.stage > 0 && (run.stage < 7 || run.stage === 8) ? viewInLab : advance}>{primary.label}<span>→</span></button>
       </footer>

@@ -22,6 +22,7 @@ type SceneProps = {
   campaignStage: number;
   campaignSelected: string;
   campaignRunNumber: number;
+  campaignResultElapsed: number;
   campaignMissionId: CampaignMissionId;
   campaignThermalBayLevel: number;
   campaignInventory: { crucibles: number; liners: number; carbonTabs: number };
@@ -70,7 +71,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignThermalBayLevel, campaignInventory, campaignBacklog, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, onOpenInventory, onOpenCampaign, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignResultElapsed, campaignMissionId, campaignThermalBayLevel, campaignInventory, campaignBacklog, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, onOpenInventory, onOpenCampaign, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -83,7 +84,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
   const selectedHotspots = getInspectionPoints(selectedIndex, scenarioId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel);
   const inspected = visited[inspectionKey] ?? [];
   const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? observationRecord.point : null;
-  const campaignState = getCampaignRoomState(campaignStage, campaignSelected, campaignRunNumber, campaignMissionId);
+  const campaignState = getCampaignRoomState(campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignResultElapsed);
   const inspect = (label: string) => {
     const point = selectedHotspots.find((hotspot) => hotspot.label === label);
     if (point) setObservationRecord({ stationId: selectedId, point });
@@ -109,7 +110,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
         <OperationsProps scenarioId={scenarioId} phase={phase} inventory={campaignInventory} onOpenInventory={onOpenInventory} />
         <CampaignBacklogRack backlog={campaignBacklog} thermalBayLevel={campaignThermalBayLevel} onOpenCampaign={onOpenCampaign} />
         <MaterialRoute scenarioId={scenarioId} phase={phase} />
-        <CampaignMaterialRoute stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} />
+        <CampaignMaterialRoute stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} />
         {stations.map((station, index) => (cameraMode !== 'focus' || selectedId === station.id) ? (
           <StationCell
             key={station.id}
@@ -1227,10 +1228,10 @@ function getInspectionKey(stationId: string, stationIndex: number, campaignStage
   return getCampaignStationIndex(campaignStage) === stationIndex ? `${stationId}:RUN-${runNumber}:${selected}:S${campaignStage}` : stationId;
 }
 
-function getCampaignRoomState(stage: number, selected = 'C-42', runNumber = 42, missionId: CampaignMissionId = 'purity') {
+function getCampaignRoomState(stage: number, selected = 'C-42', runNumber = 42, missionId: CampaignMissionId = 'purity', resultElapsed = 0) {
   const spec = getCampaignSpec(selected);
   const operations = getCampaignOperations(runNumber);
-  const evaluation = evaluateCampaignMission(spec, missionId);
+  const evaluation = evaluateCampaignMission(spec, missionId, stage >= 7 && resultElapsed > 0 ? resultElapsed : undefined);
   if (stage === 1) return { station: 'PREP-01', label: `${spec.id} PREP`, color: '#4dd5ed', tone: 'running', result: '' };
   if (stage === 2 && operations.robotCondition === 'contamination') return { station: 'ROBO-02', label: 'CLEANLINESS FAULT', color: '#f4b95f', tone: 'held', result: '' };
   if (stage === 2 && operations.robotCondition === 'grip-force') return { station: 'ROBO-02', label: 'GRIP-FORCE CHECK', color: '#f4b95f', tone: 'held', result: '' };
@@ -1249,7 +1250,7 @@ function getCampaignRoomState(stage: number, selected = 'C-42', runNumber = 42, 
   return { station: 'PREP-01', label: 'CAMPAIGN READY', color: '#4dd5ed', tone: 'running', result: '' };
 }
 
-function CampaignMaterialRoute({ stage, selected, runNumber, missionId }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId }) {
+function CampaignMaterialRoute({ stage, selected, runNumber, missionId, resultElapsed }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId; resultElapsed: number }) {
   const carrier = useRef<THREE.Group>(null);
   const current = useRef(0.02);
   const points = useMemo(() => [0, 1, 2, 3, 4].map((index) => {
@@ -1259,7 +1260,7 @@ function CampaignMaterialRoute({ stage, selected, runNumber, missionId }: { stag
   const curve = useMemo(() => new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.12), [points]);
   const route = useMemo(() => curve.getPoints(64), [curve]);
   const target = stage <= 1 ? 0.02 : stage <= 3 ? 0.25 : stage <= 5 ? 0.5 : stage <= 7 ? 0.75 : 0.98;
-  const state = getCampaignRoomState(stage, selected, runNumber, missionId);
+  const state = getCampaignRoomState(stage, selected, runNumber, missionId, resultElapsed);
   const identity = getCampaignIdentity(runNumber);
   useFrame(({ clock }, delta) => {
     current.current = THREE.MathUtils.damp(current.current, target, 3.2, delta);

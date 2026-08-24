@@ -1623,6 +1623,48 @@ but inhibited furnace and at least one physical clue before reading the station 
   release, and the thermocouple hold. The campaign control, physical asset, inspection observations, and
   local HMI all showed the same +11.8 °C condition and 16-minute recovery requirement.
 
+## Critique 87: the furnace condition had no tempting wrong decision
+
+The recovery path was realistic once opened, but campaign control only offered the correct action. That
+made the fault a checklist instead of an operational judgment and concealed why a healthy-looking primary
+controller is insufficient evidence.
+
+### Changes
+
+- Added a condition-specific shortcut beside the governed recovery action. Thermocouple drift tempts the
+  player to start on controller PV alone; seal loss tempts them to accept closed-door feedback as proof.
+- The safety system rejects either command for the right physical reason. OT-04 independence blocks the
+  biased witness path, while the seal path explains why a closed limit switch cannot establish thermal
+  uniformity across the hot zone.
+- A rejected command retains the cold hold and every sample identity, but costs two campaign minutes.
+  This turns an incorrect decision into visible schedule damage without simulating an implausible bypass
+  of an engineered protective layer.
+- Verified the RUN-042 branch in browser: the clock advanced from +67 to +69 minutes, the route remained
+  on TC OFFSET HOLD, and the event message identified the failed OT-04 permissive before recovery remained
+  available.
+
+## Critique 88: the rate mission ignored every operational bottleneck
+
+The mission claimed to reward a fast campaign, yet it judged only nominal furnace occupancy. Queue time,
+robot setup, furnace recovery, XRD acquisition, and even a rejected operator command could never change
+the outcome. That contradicted the visible lab clock and made capacity decisions scientifically irrelevant.
+
+### Changes
+
+- Redefined the rate mission as a qualified release-to-result cycle: at least 95.5% target phase within
+  420 minutes. The prospective AI forecast uses a transparent 48-minute nominal handling/measurement
+  allowance plus furnace occupancy; the final judgment uses the retained actual campaign timestamp.
+- Stored and propagated the immutable result timestamp independently of later microscopy time. Campaign
+  control, the shift checklist, station inspector, 3D carrier label, native XRD HMI, LIMS state, and AI
+  planner now evaluate the same historical cycle rather than recomputing against the current clock.
+- Kept scientific and operational uncertainty distinct: a candidate can remain a credible model-edge
+  composition while its actual experiment is a valid mission miss because equipment availability or
+  recovery consumed the time margin.
+- Replayed the complete Z-17 rate experiment with a 37-minute queue, 16-minute thermocouple recovery,
+  one rejected two-minute start attempt, 330-minute profile, and governed XRD acquisition. The retained
+  result was 96.7% at 433 minutes: composition passed, cycle missed by 13 minutes. Every result surface
+  reported the same valid miss after a follow-up QA pass corrected one stale “target met” planner label.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

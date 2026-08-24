@@ -9,23 +9,29 @@ export type CampaignSnapshot = {
   stage: number;
   selected: string;
   runNumber: number;
+  elapsed: number;
+  resultElapsed: number;
   missionId: CampaignMissionId;
   thermalBayLevel: number;
   inventory: { crucibles: number; liners: number; carbonTabs: number };
   backlog: Array<{ runNumber: number; candidate: string; missionId: CampaignMissionId }>;
 };
 
-const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, missionId: 'purity', thermalBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 }, backlog: [] };
+const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, elapsed: 0, resultElapsed: 0, missionId: 'purity', thermalBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 }, backlog: [] };
 const fallbackSerialized = JSON.stringify(fallbackCampaign);
 
 function readCampaign(): CampaignSnapshot {
   if (typeof window === 'undefined') return fallbackCampaign;
   try {
     const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}');
+    const runNumber = Number(stored.runNumber ?? fallbackCampaign.runNumber);
+    const retainedResult = Array.isArray(stored.history) ? stored.history.find((item: { runNumber?: number }) => Number(item?.runNumber) === runNumber) : undefined;
     return {
       stage: Number(stored.stage ?? fallbackCampaign.stage),
       selected: String(stored.selected ?? fallbackCampaign.selected),
-      runNumber: Number(stored.runNumber ?? fallbackCampaign.runNumber),
+      runNumber,
+      elapsed: Number(stored.elapsed ?? fallbackCampaign.elapsed),
+      resultElapsed: Number(retainedResult?.elapsed ?? 0),
       missionId: stored.missionId === 'low-energy' || stored.missionId === 'throughput' ? stored.missionId : 'purity',
       thermalBayLevel: Number(stored.thermalBayLevel ?? fallbackCampaign.thermalBayLevel),
       inventory: {
@@ -53,11 +59,11 @@ export function getCampaignStationId(stage: number) {
   return '';
 }
 
-export function getCampaignStationView(station: Station, stage: number, selected: string, runNumber: number, thermalBayLevel = 1, missionId: CampaignMissionId = 'purity'): Station {
+export function getCampaignStationView(station: Station, stage: number, selected: string, runNumber: number, thermalBayLevel = 1, missionId: CampaignMissionId = 'purity', resultElapsed = 0): Station {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
   const operations = getCampaignOperations(runNumber, thermalBayLevel);
-  const evaluation = evaluateCampaignMission(spec, missionId);
+  const evaluation = evaluateCampaignMission(spec, missionId, stage >= 7 && resultElapsed > 0 ? resultElapsed : undefined);
   if (stage === 1) return { ...station, state: 'CAMPAIGN PREP', tone: 'run', meta: `${spec.id} formulation · ${identity.runId}`, technicianView: [`Formula: ${spec.formula}`, `Run: ${identity.runId}`, `Target mass: ${spec.targetMass}`, `Carrier: ${identity.carrier}`] };
   if (stage === 2 && operations.robotCondition === 'contamination') return { ...station, state: 'CLEANLINESS HOLD', tone: 'warn', meta: 'Gripper witness required', technicianView: [`Run: ${identity.runId}`, 'Cell boundary: proven', 'Gripper: cleanliness fault', 'Witness coupon: due'] };
   if (stage === 2 && operations.robotCondition === 'grip-force') return { ...station, state: 'TOOLING CHECK', tone: 'warn', meta: 'Jaw-force witness required', technicianView: [`Run: ${identity.runId}`, 'Cell boundary: proven', 'Jaw pads: inspect seating', 'Force witness: due'] };
@@ -90,6 +96,6 @@ export function useCampaignSnapshot() {
 export function useCampaignStation(station: Station) {
   const campaign = useCampaignSnapshot();
   return getCampaignStationId(campaign.stage) === station.id
-    ? getCampaignStationView(station, campaign.stage, campaign.selected, campaign.runNumber, campaign.thermalBayLevel, campaign.missionId)
+    ? getCampaignStationView(station, campaign.stage, campaign.selected, campaign.runNumber, campaign.thermalBayLevel, campaign.missionId, campaign.resultElapsed)
     : station;
 }
