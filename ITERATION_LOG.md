@@ -2105,6 +2105,20 @@ socket sat too far outside the overview camera to read as part of the working ba
 - Browser QA reopened the retained RUN-048 campaign, confirmed the qualified cabinet replaces the rack in
   the 3D lab, and entered the automated material-receipt workflow with its 18-minute / 30-RP operating cost.
 
+## Critique 111: the blueprint undercounted and could not inspect its new asset
+
+After installing STG-02, the builder still reported seven online assets, and the carousel glyph was the only
+non-interactive equipment block on a floor plan whose visual language says assets are selectable.
+
+### Changes
+
+- Make the installed-asset count derive from the qualified storage state, increasing from seven to eight
+  without conflating the second furnace lane with a separate instrument.
+- Make the STG-02 floor-plan block mouse- and keyboard-operable. An open socket enters commissioning; a
+  qualified socket opens its retained SAT record for inspection.
+- Add matching hover/focus feedback and update the layout revision and blueprint affordance to distinguish
+  walking to instruments from inspecting commissioned infrastructure.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
