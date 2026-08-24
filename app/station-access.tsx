@@ -376,9 +376,12 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
       if (item === 'shutter feedback closed') return operations.includes('Prove shutter feedback');
     }
     if (station.id === 'SEM-01') {
-      if (item === 'HV blanked') return operations.includes('Verify beam blanked');
-      if (item === 'stage Z clearance valid') return operations.includes('Verify stage clearance') || campaignStage >= 9 && operations.includes('Review field coverage');
-      if (item === 'chamber vacuum established') return operations.includes('Establish chamber vacuum') || campaignStage >= 9 && operations.includes('Review field coverage');
+      // Stage 9 is a retained, completed acquisition. A new browser session deliberately expires
+      // operator walkaround access, but it must not rewrite the instrument witnesses that produced
+      // the already-linked BSE/EDS result.
+      if (item === 'HV blanked') return campaignStage >= 9 || operations.includes('Verify beam blanked');
+      if (item === 'stage Z clearance valid') return campaignStage >= 9 || operations.includes('Verify stage clearance');
+      if (item === 'chamber vacuum established') return campaignStage >= 9 || operations.includes('Establish chamber vacuum');
     }
     if (station.id === 'BET-02') {
       if (item === 'vacuum trend stable') return operations.includes('Run manifold leak check');

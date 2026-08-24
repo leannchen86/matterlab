@@ -2459,6 +2459,20 @@ The spatial facility view already made material flow, expansion sockets, and bot
 - Browser QA caught SVG service paths inheriting a fill and becoming opaque polygons; separate path stroke and
   endpoint fill rules now keep every instrument visible beneath a clean, schematic utility network.
 
+## Critique 132: reopening retained SEM evidence rewrote completed machine witnesses as holds
+
+The completed diagnostic view correctly retained four BSE fields, an EDS map, and a live chamber-vacuum
+readback. After a reload, however, its generic permissive logic marked vacuum, stage clearance, and beam blanking
+as `HOLD` because the new operator session had not repeated the walkaround.
+
+### Changes
+
+- Keep the deliberate per-session physical-walkaround hold as the gate to new console actions.
+- At campaign stage 9, render the vacuum, stage-clearance, and final beam-blank witnesses from the retained
+  completed acquisition rather than from the empty current-session button history.
+- Preserve the distinction between historical equipment evidence and present operator authorization: the
+  instrument remains truthful while review/release controls still require a fresh physical walkaround.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
