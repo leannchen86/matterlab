@@ -34,7 +34,7 @@ const profiles: Record<string, {
   'ROBO-02': { controller: 'RC-02 / SAFE-PLC', safe: ['area scanner clear', 'gate chain closed', 'gripper pressure valid'], method: ['Read carrier', 'Confirm destination', 'Execute transfer', 'Write handshake'], sample: ['BC-184', 'POSE-1192', 'XRD-03'], workOrder: 'WO-775', service: 'Gripper inspection · 4 d', health: 88, supplies: ['jaw inserts 2', 'vacuum cups 8', 'grease kit'] },
   'FURN-04': { controller: 'TC-04 / OT-04', safe: ['door interlock closed', 'overtemp relay armed', 'exhaust flow proven'], method: ['Verify occupancy', 'Load recipe', 'Ramp + dwell', 'Cool / release'], sample: ['BC-207', 'RCP-1000C', 'RUN-882'], workOrder: 'CAL-092', service: 'Thermocouple survey · 18 d', health: 91, supplies: ['type-K TC 3', 'hearth plate', 'door rope'] },
   'XRD-03': { controller: 'XRD-03 / RAD-PLC', safe: ['enclosure closed', 'shutter feedback closed', 'generator standby'], method: ['Load reference', 'Align holder', 'Acquire scan', 'Review control limit'], sample: ['BC-184-06', 'CA-TI-031', 'PAT-7738'], workOrder: 'QC-2841', service: 'NIST Si reference · due', health: 76, supplies: ['zero-background holders 4', 'Si standard', 'Kapton film'] },
-  'SEM-01': { controller: 'SEM-01 / VAC-1', safe: ['chamber vented or pumped', 'stage Z clearance valid', 'HV blanked'], method: ['Mount stub', 'Pump chamber', 'Set field + kV', 'Capture BSE / EDS'], sample: ['CA-TI-031', 'STUB-118', 'MAP-04'], workOrder: 'PM-318', service: 'Aperture clean · 23 d', health: 96, supplies: ['carbon tabs 41', 'Al stubs 18', 'aperture set'] },
+  'SEM-01': { controller: 'SEM-01 / VAC-1', safe: ['chamber vacuum established', 'stage Z clearance valid', 'HV blanked'], method: ['Mount stub', 'Pump chamber', 'Set field + kV', 'Capture BSE / EDS'], sample: ['CA-TI-031', 'STUB-118', 'MAP-04'], workOrder: 'PM-318', service: 'Aperture clean · 23 d', health: 96, supplies: ['carbon tabs 41', 'Al stubs 18', 'aperture set'] },
   'BET-02': { controller: 'BET-02 / VAC-MFD', safe: ['vacuum trend stable', 'N₂ supply in range', 'tube ports isolated', '77 K bath in analysis position'], method: ['Verify pretreatment', 'Enter dry mass', 'Leak test', 'Acquire isotherm'], sample: ['ADS-77-C', 'DEGAS-771', 'ISO-220'], workOrder: 'MX-233', service: 'Vendor recommission · open', health: 63, supplies: ['sample tubes 12', 'filler rods 8', 'LN₂ dewar'] },
   'TGA-01': { controller: 'TGA-01 / GAS-3', safe: ['furnace near ambient', 'purge path proven', 'autosampler clear'], method: ['Select pan pair', 'Record sample mass', 'Run baseline / method', 'Review mass + heat flow'], sample: ['LOT-91-T', 'PANSET-14', 'THM-208'], workOrder: 'QC-621', service: 'Baseline + balance check · due', health: 84, supplies: ['Al pans 26', 'Pt pans 4', 'pan crimper'] },
 };
@@ -44,7 +44,7 @@ const HMI_OPERATIONS: Record<string, string[]> = {
   'ROBO-02': ['Close access gate', 'Reset safeguarded stop', 'Home transfer axes', 'Prove gripper state'],
   'FURN-04': ['Read overtemperature relay', 'Verify door chain', 'Confirm empty-cell state'],
   'XRD-03': ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Read reference position'],
-  'SEM-01': ['Establish chamber vacuum', 'Verify stage clearance', 'Arm BSE / EDS detectors'],
+  'SEM-01': ['Verify beam blanked', 'Verify stage clearance', 'Establish chamber vacuum', 'Arm BSE / EDS detectors'],
   'BET-02': ['Isolate analysis ports', 'Run manifold leak check', 'Prove N₂ supply state', 'Position 77 K Dewar'],
   'TGA-01': ['Confirm furnace at start temperature', 'Tare balance channel', 'Prove purge path', 'Home autosampler carousel'],
 };
@@ -75,9 +75,9 @@ function getCampaignHmiOperations(stationId: string, stage: number, selected: st
     : runOps.referenceCondition === 'trend-review'
       ? ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Review Si control trend', 'Acquire confirmatory Si reference', `Acquire ${identity.runId} pattern`]
       : ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Review current Si control', `Acquire ${identity.runId} pattern`];
-  if (stationId === 'XRD-03') return ['Review Si control', 'Review phase fit', `Release ${identity.pattern} evidence`];
-  if (stationId === 'SEM-01' && stage === 8) return ['Establish chamber vacuum', 'Acquire four BSE fields', 'Acquire representative EDS map'];
-  if (stationId === 'SEM-01') return ['Review field coverage', 'Review EDS association', `Release ${identity.runId} diagnosis`];
+  if (stationId === 'XRD-03' && stage >= 7) return ['Review Si control', 'Review phase fit', `Release ${identity.pattern} evidence`];
+  if (stationId === 'SEM-01' && stage === 8) return ['Verify beam blanked', 'Verify stage clearance', 'Establish chamber vacuum', 'Arm BSE / EDS detectors', 'Acquire four BSE fields', 'Acquire representative EDS map'];
+  if (stationId === 'SEM-01' && stage >= 9) return ['Verify beam blanked', 'Review field coverage', 'Review EDS association', `Release ${identity.runId} diagnosis`];
   return HMI_OPERATIONS[stationId] ?? null;
 }
 
@@ -364,6 +364,11 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
     if (station.id === 'XRD-03') {
       if (item === 'enclosure closed') return operations.includes('Close radiation enclosure');
       if (item === 'shutter feedback closed') return operations.includes('Prove shutter feedback');
+    }
+    if (station.id === 'SEM-01') {
+      if (item === 'HV blanked') return operations.includes('Verify beam blanked');
+      if (item === 'stage Z clearance valid') return operations.includes('Verify stage clearance') || campaignStage >= 9 && operations.includes('Review field coverage');
+      if (item === 'chamber vacuum established') return operations.includes('Establish chamber vacuum') || campaignStage >= 9 && operations.includes('Review field coverage');
     }
     if (station.id === 'BET-02') {
       if (item === 'vacuum trend stable') return operations.includes('Run manifold leak check');

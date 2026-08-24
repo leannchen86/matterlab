@@ -2310,6 +2310,25 @@ permissives true even when none of its local actions had been retained.
   shield closure moved the real glass panel over the pan and cleared only its input, while balance validity
   remained held until zero.
 
+## Critique 123: SEM acquisition began with unexplained green permissives
+
+SEM-01 exposed vacuum, stage-clearance, and high-voltage safety states, but its generic console began with all
+three true and no beam-blank operation. Campaign routing could also substitute later XRD/SEM review actions for
+normal local control whenever those stations were inspected outside their assigned measurement stage.
+
+### Changes
+
+- Added `Verify beam blanked` ahead of stage-clearance, chamber-vacuum, and detector-arm actions; renamed the
+  ambiguous chamber permissive to the acquisition-specific `chamber vacuum established`.
+- Make SEM high-voltage, Z-clearance, and vacuum permissives stateful and independent. The first action clears
+  only HV blanked; stage and chamber remain held until their own proofs.
+- Extended the campaign SEM acquisition sequence with beam blanking, clearance, vacuum, and detector readiness
+  before representative BSE fields or EDS mapping can be captured.
+- Restrict XRD and SEM result-review sequences to actual post-measurement stages; inspecting either asset earlier
+  now presents its normal safe local-control sequence rather than future evidence actions.
+- Tie beam-blank proof to the upper SEM column collar with restrained green feedback, and browser-verify the
+  initial 0 / 4 hold plus the independent 1 / 4 transition in both SCADA and the 3D asset.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

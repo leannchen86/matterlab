@@ -1172,6 +1172,7 @@ function Xrd({ active, controls }: { active: boolean; controls: string[] }) {
 }
 
 function SemEds({ active, controls }: { active: boolean; controls: string[] }) {
+  const beamBlanked = controls.includes('Verify beam blanked');
   const vacuumEstablished = controls.includes('Establish chamber vacuum');
   const clearanceVerified = controls.includes('Verify stage clearance');
   const detectorsArmed = controls.includes('Arm BSE / EDS detectors');
@@ -1182,7 +1183,7 @@ function SemEds({ active, controls }: { active: boolean; controls: string[] }) {
     <mesh position={[-0.25, 1.12, 0.04]} castShadow><cylinderGeometry args={[0.38, 0.52, 0.45, 32]} /><meshStandardMaterial color="#657783" metalness={0.86} roughness={0.2} /></mesh>
     <mesh position={[-0.25, 1.72, 0.04]} castShadow><cylinderGeometry args={[0.17, 0.3, 0.83, 32]} /><meshPhysicalMaterial color="#d0d5d4" metalness={0.82} roughness={0.2} clearcoat={0.4} /></mesh>
     <mesh position={[-0.25, 2.24, 0.04]} castShadow><cylinderGeometry args={[0.24, 0.17, 0.28, 32]} /><meshStandardMaterial color="#6d7b82" metalness={0.85} roughness={0.2} /></mesh>
-    {[1.36, 1.6, 1.94, 2.18].map((y, index) => <mesh key={y} position={[-0.25, y, 0.04]} castShadow><cylinderGeometry args={[0.22 - index * 0.018, 0.22 - index * 0.018, 0.055, 28]} /><meshStandardMaterial color={index % 2 ? '#89969b' : '#3f505a'} metalness={0.86} roughness={0.18} /></mesh>)}
+    {[1.36, 1.6, 1.94, 2.18].map((y, index) => <mesh key={y} position={[-0.25, y, 0.04]} castShadow><cylinderGeometry args={[0.22 - index * 0.018, 0.22 - index * 0.018, 0.055, 28]} /><meshStandardMaterial color={index === 3 && beamBlanked ? '#548675' : index % 2 ? '#89969b' : '#3f505a'} emissive={index === 3 && beamBlanked ? '#245e45' : '#000000'} emissiveIntensity={index === 3 && beamBlanked ? 0.75 : 0} metalness={0.86} roughness={0.18} /></mesh>)}
     <Line points={[[-0.25, 2.04, 0.76], [-0.25, 0.65, 0.76]]} color={vacuumEstablished ? '#51e19a' : '#4dd5ed'} lineWidth={vacuumEstablished || active ? 1.3 : 0.5} transparent opacity={vacuumEstablished || active ? 0.9 : 0.25} />
     <mesh position={[-0.25, 0.62, 0.76]}><circleGeometry args={[0.22, 32]} /><meshPhysicalMaterial color="#14242d" metalness={0.55} roughness={0.16} /></mesh>
     <mesh position={[-0.25, 0.62, 0.775]}><torusGeometry args={[0.29, 0.045, 12, 40]} /><meshStandardMaterial color={vacuumEstablished ? '#51e19a' : '#71828b'} emissive={vacuumEstablished ? '#1d6645' : '#000000'} emissiveIntensity={vacuumEstablished ? 0.7 : 0} metalness={0.9} roughness={0.15} /></mesh>
