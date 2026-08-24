@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { getCampaignIdentity, getCampaignSpec } from './campaign-spec';
 import type { Station } from './sim-data';
 
@@ -11,6 +11,7 @@ export type CampaignSnapshot = {
 };
 
 const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42 };
+const fallbackSerialized = JSON.stringify(fallbackCampaign);
 
 function readCampaign(): CampaignSnapshot {
   if (typeof window === 'undefined') return fallbackCampaign;
@@ -50,27 +51,15 @@ export function getCampaignStationView(station: Station, stage: number, selected
 }
 
 export function useCampaignSnapshot() {
-  const [campaign, setCampaign] = useState<CampaignSnapshot>(readCampaign);
-
-  useEffect(() => {
-    const followCampaign = (event: Event) => {
-      const detail = (event as CustomEvent<Partial<CampaignSnapshot>>).detail ?? {};
-      setCampaign((current) => ({
-        stage: Number(detail.stage ?? current.stage),
-        selected: String(detail.selected ?? current.selected),
-        runNumber: Number(detail.runNumber ?? current.runNumber),
-      }));
-    };
-    const followStorage = () => setCampaign(readCampaign());
-    window.addEventListener('mattershift:campaign-state', followCampaign);
-    window.addEventListener('storage', followStorage);
+  const serialized = useSyncExternalStore((onStoreChange) => {
+    window.addEventListener('mattershift:campaign-state', onStoreChange);
+    window.addEventListener('storage', onStoreChange);
     return () => {
-      window.removeEventListener('mattershift:campaign-state', followCampaign);
-      window.removeEventListener('storage', followStorage);
+      window.removeEventListener('mattershift:campaign-state', onStoreChange);
+      window.removeEventListener('storage', onStoreChange);
     };
-  }, []);
-
-  return campaign;
+  }, () => JSON.stringify(readCampaign()), () => fallbackSerialized);
+  return JSON.parse(serialized) as CampaignSnapshot;
 }
 
 export function useCampaignStation(station: Station) {

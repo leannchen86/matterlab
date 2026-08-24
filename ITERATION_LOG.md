@@ -1219,6 +1219,28 @@ the microscopy evidence.
   R-31, its 990 °C / 4 h / 96.6% envelope, and the physical PREP-01 record with the two correct precursor
   lots and mass values.
 
+## Critique 67: the campaign lived inside an overlay instead of owning the lab
+
+The active 3D station and campaign control could show RUN-047 / R-31 while the permanent work order,
+checklist, and lineage rail still described WO-2841, LOT-91, and BC-184. That split made the interface
+feel like a demo layered on a dashboard rather than one persistent laboratory world.
+
+### Changes
+
+- Made the lab shell campaign-aware: the permanent work order now carries the live run, formulation,
+  temperature, dwell, progress, and seven physical gates from preparation through mechanism testing.
+- Replaced the stale incident checklist during a campaign with stage-sensitive technician tasks. The
+  active task opens campaign control directly, while completed and pending states follow the governed
+  route rather than an unrelated scenario phase.
+- Turned the lineage card into a live state machine: precursor recipe → prepared sample → carrier,
+  carrier → thermal specimen → furnace profile, thermal specimen → XRD dataset → pattern, and finally
+  specimen → representative SEM / EDS evidence.
+- Removed two local-storage hydration mismatches by subscribing to campaign state as an external store
+  and deriving the initial station only after the client campaign snapshot is available. Reloading an
+  in-progress run no longer opens an error overlay or briefly claims the wrong station.
+- Browser-verified the persisted RUN-047 / R-31 preparation state at desktop and 390 × 844: work order,
+  3D station, inspector, AI loop, and sample lineage all show the same run identity and material route.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

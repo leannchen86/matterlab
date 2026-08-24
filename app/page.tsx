@@ -43,17 +43,14 @@ function ShiftBoot({ label }: { label: string }) {
 }
 
 function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
+  const campaign = useCampaignSnapshot();
+  const campaignSpec = getCampaignSpec(campaign.selected);
+  const campaignIdentity = getCampaignIdentity(campaign.runNumber);
+  const campaignActive = campaign.stage > 0;
   const [phase, setPhase] = useState(0);
   const [modal, setModal] = useState<Modal>(null);
-  const [selectedId, setSelectedId] = useState(() => {
-    if (typeof window === 'undefined') return 'XRD-03';
-    try {
-      const stage = Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').stage ?? 0);
-      return getCampaignStationId(stage) || 'XRD-03';
-    } catch {
-      return 'XRD-03';
-    }
-  });
+  const [selectedOverride, setSelectedId] = useState('');
+  const selectedId = selectedOverride || getCampaignStationId(campaign.stage) || 'XRD-03';
   const [minute, setMinute] = useState(8 * 60 + 16);
   const [log, setLog] = useState<LogItem[]>(initialLog);
   const [logOpen, setLogOpen] = useState(false);
@@ -122,7 +119,27 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[0];
   const selected = useCampaignStation(selectedBase);
   const completedTasks = phase === 0 ? 2 : phase === 1 ? 3 : phase === 2 ? 4 : phase === 3 ? 5 : phase === 4 ? 5 : phase === 5 ? 6 : 7;
-  const progress = Math.round((completedTasks / 7) * 100);
+  const campaignCompletedTasks = campaign.stage >= 9 ? 7 : campaign.stage >= 8 ? 6 : campaign.stage >= 7 ? 5 : campaign.stage >= 6 ? 4 : campaign.stage >= 5 ? 3 : campaign.stage >= 4 ? 2 : campaign.stage >= 2 ? 1 : 0;
+  const displayedCompletedTasks = campaignActive ? campaignCompletedTasks : completedTasks;
+  const progress = Math.round((displayedCompletedTasks / 7) * 100);
+  const campaignTasks = [
+    { number: '01', title: 'Prepare formulation', note: campaign.stage >= 2 ? `${campaignIdentity.prepSample} released` : `${campaignSpec.targetMass} · ${campaignSpec.formula}`, start: 1, complete: 2 },
+    { number: '02', title: 'Run robot synthesis', note: campaign.stage === 2 ? 'Cleanliness witness due' : campaign.stage >= 4 ? `${campaignIdentity.carrier} dosed` : '6 crucible positions', start: 2, complete: 4 },
+    { number: '03', title: 'Clear furnace queue', note: campaign.stage >= 5 ? 'Capacity slot secured' : 'Q01 · prove hold location', start: 4, complete: 5 },
+    { number: '04', title: 'Execute thermal profile', note: campaign.stage >= 6 ? `${campaignSpec.profile} retained` : `${campaignSpec.temperature} · ${campaignSpec.dwell}`, start: 5, complete: 6 },
+    { number: '05', title: 'Qualify XRD result', note: campaign.stage >= 7 ? `${campaignIdentity.pattern} qualified` : 'NIST Si reference gate', start: 6, complete: 7 },
+    { number: '06', title: 'Interpret evidence', note: campaign.stage >= 8 ? 'Valid negative retained' : `${campaignSpec.prediction} ${campaignSpec.uncertainty} predicted`, start: 7, complete: 8 },
+    { number: '07', title: 'Test mechanism', note: campaign.stage >= 9 ? 'Representative map linked' : 'SEM / EDS diagnostic branch', start: 8, complete: 9 },
+  ];
+  const campaignLineage = campaign.stage <= 1
+    ? { nodes: [campaignSpec.id, campaignIdentity.prepSample, campaignIdentity.carrier], note: `${campaignSpec.precursorLabel} are being weighed and bound to the campaign manifest.` }
+    : campaign.stage <= 3
+      ? { nodes: [campaignIdentity.prepSample, campaignIdentity.carrier, '6× CRUC'], note: campaign.stage === 2 ? 'Material is held before dosing until the gripper witness passes.' : 'Six crucible positions are linked to the governed robot program.' }
+      : campaign.stage <= 5
+        ? { nodes: [campaignIdentity.carrier, campaignIdentity.thermalSample, campaignSpec.profile], note: campaign.stage === 4 ? 'Carrier custody is retained while the single-capacity furnace clears.' : 'The specimen is accumulating its governed thermal history.' }
+        : campaign.stage <= 7
+          ? { nodes: [campaignIdentity.thermalSample, campaignIdentity.xrdDataset, campaignIdentity.pattern], note: campaign.stage === 6 ? 'Diffraction release is held behind the silicon-reference gate.' : `${campaignIdentity.pattern} is qualified and linked to ${campaignSpec.measured}% target phase.` }
+          : { nodes: [campaignIdentity.thermalSample, `SEM-${campaignIdentity.suffix}`, `EDS-${campaignIdentity.suffix}`], note: campaign.stage === 8 ? 'Four representative fields and a correlated elemental map are in acquisition.' : 'Representative microscopy evidence is linked as a mechanism hypothesis.' };
   const allQcChecks = Object.values(qcChecks).every(Boolean);
 
   const appendLog = (type: string, text: string, addMinutes = 0) => {
@@ -261,23 +278,28 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         <aside className="left-rail">
           <section className="rail-section shift-card">
             <p className="section-kicker">ACTIVE WORK ORDER</p>
-            <div className="wo-title"><span>WO-2841</span><em>{phase >= 6 ? 'CLOSED' : 'PRIORITY 1'}</em></div>
-            <h2>Phase-purity recovery</h2>
-            <p>Restore the Ca–Ti oxide campaign after an XRD reference check exceeded its control limit.</p>
+            <div className="wo-title"><span>{campaignActive ? campaignIdentity.runId : 'WO-2841'}</span><em>{campaignActive ? campaign.stage >= 9 ? 'DIAG READY' : 'ACTIVE' : phase >= 6 ? 'CLOSED' : 'PRIORITY 1'}</em></div>
+            <h2>{campaignActive ? campaignSpec.name : 'Phase-purity recovery'}</h2>
+            <p>{campaignActive ? `${campaignSpec.formula} · ${campaignSpec.temperature} for ${campaignSpec.dwell}. Preserve one traceable material history from lots to evidence.` : 'Restore the Ca–Ti oxide campaign after an XRD reference check exceeded its control limit.'}</p>
             <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
-            <div className="progress-meta"><span>{completedTasks} / 7 tasks</span><span>{progress}%</span></div>
+            <div className="progress-meta"><span>{displayedCompletedTasks} / 7 tasks</span><span>{progress}%</span></div>
           </section>
 
           <section className="rail-section">
             <p className="section-kicker">SHIFT CHECKLIST</p>
             <ol className="task-list">
-              <Task number="01" title="Read handoff" note="2 notes acknowledged" status="done" />
-              <Task number="02" title="Verify balance" note="Check mass within limit" status="done" />
-              <Task number="03" title="Resolve XRD QC" note={phase >= 1 ? 'Returned to service' : 'Reference peak shifted'} status={phase >= 1 ? 'done' : 'active'} onClick={phase < 1 ? openQc : undefined} />
-              <Task number="04" title="Reconcile carrier" note={phase >= 2 ? '5 eligible · 1 quarantined' : 'BC-184 · 6 crucibles'} status={phase >= 2 ? 'done' : phase === 1 ? 'active' : 'pending'} onClick={phase === 1 ? openLineage : undefined} />
-              <Task number="05" title="Release workcell" note={phase >= 3 ? 'Carrier accepted' : 'Awaiting identity gate'} status={phase >= 3 ? 'done' : phase === 2 ? 'active' : 'pending'} onClick={phase === 2 ? releaseCarrier : undefined} />
-              <Task number="06" title="Review XRD result" note={phase >= 5 ? 'Follow-up assigned' : 'Pattern + phase analysis'} status={phase >= 5 ? 'done' : phase === 4 ? 'active' : 'pending'} onClick={phase === 4 ? () => setModal('evidence') : undefined} />
-              <Task number="07" title="Triage with SEM / EDS" note={phase >= 6 ? '4 fields + map linked' : 'Inclusion follow-up'} status={phase >= 6 ? 'done' : phase === 5 ? 'active' : 'pending'} onClick={phase === 5 ? () => { setSelectedId('SEM-01'); setModal('sem'); } : undefined} />
+              {campaignActive ? campaignTasks.map((task) => {
+                const status = campaign.stage >= task.complete ? 'done' : campaign.stage >= task.start ? 'active' : 'pending';
+                return <Task key={task.number} number={task.number} title={task.title} note={task.note} status={status} onClick={status === 'active' ? () => setModal('campaign') : undefined} />;
+              }) : <>
+                <Task number="01" title="Read handoff" note="2 notes acknowledged" status="done" />
+                <Task number="02" title="Verify balance" note="Check mass within limit" status="done" />
+                <Task number="03" title="Resolve XRD QC" note={phase >= 1 ? 'Returned to service' : 'Reference peak shifted'} status={phase >= 1 ? 'done' : 'active'} onClick={phase < 1 ? openQc : undefined} />
+                <Task number="04" title="Reconcile carrier" note={phase >= 2 ? '5 eligible · 1 quarantined' : 'BC-184 · 6 crucibles'} status={phase >= 2 ? 'done' : phase === 1 ? 'active' : 'pending'} onClick={phase === 1 ? openLineage : undefined} />
+                <Task number="05" title="Release workcell" note={phase >= 3 ? 'Carrier accepted' : 'Awaiting identity gate'} status={phase >= 3 ? 'done' : phase === 2 ? 'active' : 'pending'} onClick={phase === 2 ? releaseCarrier : undefined} />
+                <Task number="06" title="Review XRD result" note={phase >= 5 ? 'Follow-up assigned' : 'Pattern + phase analysis'} status={phase >= 5 ? 'done' : phase === 4 ? 'active' : 'pending'} onClick={phase === 4 ? () => setModal('evidence') : undefined} />
+                <Task number="07" title="Triage with SEM / EDS" note={phase >= 6 ? '4 fields + map linked' : 'Inclusion follow-up'} status={phase >= 6 ? 'done' : phase === 5 ? 'active' : 'pending'} onClick={phase === 5 ? () => { setSelectedId('SEM-01'); setModal('sem'); } : undefined} />
+              </>}
             </ol>
           </section>
 
@@ -340,8 +362,8 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
 
           <section className="rail-section lineage-card">
             <div className="section-title-row"><p className="section-kicker">SAMPLE LINEAGE</p><span>LIVE</span></div>
-            <div className="lineage-flow"><span>LOT-91</span><i>→</i><span>BC-184</span><i>→</i><span>{phase >= 2 ? '5× ELIG' : '6× SPEC'}</span></div>
-            <p>{phase >= 2 ? 'Five specimens cleared; specimen 06 is quarantined with a correction record.' : 'One physical label does not match the carrier manifest.'}</p>
+            <div className="lineage-flow"><span>{campaignActive ? campaignLineage.nodes[0] : 'LOT-91'}</span><i>→</i><span>{campaignActive ? campaignLineage.nodes[1] : 'BC-184'}</span><i>→</i><span>{campaignActive ? campaignLineage.nodes[2] : phase >= 2 ? '5× ELIG' : '6× SPEC'}</span></div>
+            <p>{campaignActive ? campaignLineage.note : phase >= 2 ? 'Five specimens cleared; specimen 06 is quarantined with a correction record.' : 'One physical label does not match the carrier manifest.'}</p>
           </section>
         </aside>
       </div>
