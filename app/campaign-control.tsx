@@ -55,6 +55,20 @@ function meanThermalCompletion(items: CampaignBacklogItem[], lanes: number) {
   return Math.round(completions.reduce((total, completion) => total + completion, 0) / completions.length);
 }
 
+function authoredFollowUp(spec: CampaignSpec, missionId: CampaignMissionId) {
+  if (!spec.composition) return null;
+  const step = (options: readonly number[], value: number, direction: -1 | 1) => {
+    const current = Math.max(0, options.indexOf(value));
+    return options[Math.max(0, Math.min(options.length - 1, current + direction))] ?? value;
+  };
+  const composition: CustomComposition = { ...spec.composition };
+  if (missionId === 'throughput') composition.dwell = step(customCompositionOptions.dwell, composition.dwell, -1);
+  else if (missionId === 'low-energy') composition.temperature = step(customCompositionOptions.temperature, composition.temperature, -1);
+  else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
+  const followUp = buildCustomCampaignSpec(composition);
+  return followUp.id === spec.id ? null : followUp;
+}
+
 export function CampaignControlModal({ autoOpenInventory = false, onClose }: { autoOpenInventory?: boolean; onClose: () => void }) {
   const [commissionOpen, setCommissionOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(autoOpenInventory);
@@ -121,6 +135,9 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const counterfactualElapsed = retainedElapsed - retainedCycle.queue + alternateOperations.queueMinutes;
   const counterfactualEvaluation = evaluateCampaignMission(recipe, 'throughput', counterfactualElapsed);
   const capacityDelta = Math.abs(alternateOperations.queueMinutes - retainedCycle.queue);
+  const followUp = authoredFollowUp(recipe, run.missionId);
+  const followUpQueued = Boolean(followUp && backlog.some((item) => item.candidate === followUp.id));
+  const modelResidual = Number.parseFloat(recipe.measured) - Number.parseFloat(recipe.prediction);
   const selectedForecast = forecastCampaignMission(recipe, run.missionId);
   const backlogThermalMinutes = backlog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0);
   const backlogCapacityMinutes = run.thermalBayLevel >= 2 ? 720 : 360;
@@ -177,7 +194,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
       const nextSelected = mechanismRecovery ? 'R-31' : nextPlan?.candidate ?? run.selected;
       const nextMission = nextPlan?.missionId ?? run.missionId;
       const remainingBacklog = (nextPlan ? backlog.slice(1) : backlog).map((item, index) => ({ ...item, runNumber: currentRunNumber + index + 2 }));
-      updateRun({ ...initialRun, insight: run.insight, missionId: nextMission, thermalBayLevel: run.plannedThermalUpgrade ? 2 : run.thermalBayLevel, customCandidate: run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, backlog: remainingBacklog, plannedThermalUpgrade: false, message: mechanismRecovery
+      updateRun({ ...initialRun, insight: run.insight, missionId: nextMission, thermalBayLevel: run.plannedThermalUpgrade ? 2 : run.thermalBayLevel, customCandidate: nextSelected.startsWith('U-') ? nextSelected : run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, backlog: remainingBacklog, plannedThermalUpgrade: false, message: mechanismRecovery
         ? `${identity.runId} diagnosis assimilated. R-31 raises thermal dose while preserving stoichiometry to test the incomplete-conversion hypothesis.`
         : nextPlan ? `${identity.runId} archived. RUN-${String(currentRunNumber + 1).padStart(3, '0')} loaded from the shift backlog: ${nextPlan.candidate} · ${getCampaignMission(nextPlan.missionId).shortLabel}.`
           : `${identity.runId} archived. Select the next candidate.` });
@@ -226,6 +243,12 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
     if (run.stage > 0 || backlog.length >= 3) return;
     const next = reindexBacklog([...backlog, { runNumber: 0, candidate: recipe.id, missionId: run.missionId }]);
     updateRun({ backlog: next, message: `${recipe.id} added to the unreleased shift backlog under the ${mission.label.toLowerCase()} mission. Materials remain unissued until that run is released.` });
+  };
+
+  const queueAuthoredFollowUp = () => {
+    if (!followUp || followUpQueued || backlog.length >= 3 || run.stage < 7) return;
+    const next = reindexBacklog([...backlog, { runNumber: 0, candidate: followUp.id, missionId: run.missionId }]);
+    updateRun({ backlog: next, message: `${followUp.id} queued as a governed follow-up to ${recipe.id}. The completed ${identity.runId} result remains retained; the next run changes only the mission-directed process lever.` });
   };
 
   const moveBacklog = (index: number, direction: -1 | 1) => {
@@ -383,6 +406,12 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
               <dl><div><dt>QUEUE</dt><dd>{retainedCycle.queue} → {alternateOperations.queueMinutes} min</dd></div><div><dt>CYCLE</dt><dd>{retainedElapsed} → {counterfactualElapsed} min</dd></div><div><dt>MISSION</dt><dd>{counterfactualEvaluation.met ? 'WOULD PASS' : `WOULD MISS · ${counterfactualEvaluation.gap}`}</dd></div></dl>
               {retainedBayLevel < 2 ? <button type="button" disabled={run.plannedThermalUpgrade || run.insight < 120} onClick={commissionAuxiliaryChamber}>{run.plannedThermalUpgrade ? '✓ QUALIFICATION SCHEDULED' : 'QUALIFY FOR NEXT RUN · 120 RP'}</button> : <em>LANE B PROTECTS {capacityDelta} MIN</em>}
             </div>
+          </div>}
+
+          {run.stage >= 7 && recipe.composition && followUp && <div className="authored-learning">
+            <header><div><span>MODEL UPDATE · AUTHORED MATERIAL</span><b>{recipe.id} → {followUp.id}</b></div><em>{modelResidual >= 0 ? '+' : '−'}{Math.abs(modelResidual).toFixed(1)} pp RESIDUAL</em></header>
+            <div className="learning-posterior"><span>PRIOR<b>{recipe.prediction}</b></span><i><u style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.prediction) - 90) * 10))}%` }} /><u className="measured" style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.measured) - 90) * 10))}%` }} /></i><span>MEASURED<b>{recipe.measured}%</b></span><span>UNCERTAINTY<b>±2.1 → ±1.4%</b></span></div>
+            <div className="learning-proposal"><div><span>NEXT MISSION LEVER</span><b>{run.missionId === 'throughput' ? 'SHORTER DWELL' : run.missionId === 'low-energy' ? 'LOWER SETPOINT' : 'LONGER DWELL'}</b></div><dl><div><dt>RECIPE</dt><dd>{followUp.id}</dd></div><div><dt>PROGRAM</dt><dd>{followUp.temperatureShort} · {followUp.dwell}</dd></div><div><dt>MODEL</dt><dd>{followUp.prediction} · {followUp.uncertainty}</dd></div></dl><button type="button" disabled={followUpQueued || backlog.length >= 3} onClick={queueAuthoredFollowUp}>{followUpQueued ? '✓ FOLLOW-UP QUEUED' : 'QUEUE FOLLOW-UP →'}</button></div>
           </div>}
 
           <div className={`shift-backlog ${backlog.length ? 'populated' : ''}`}>

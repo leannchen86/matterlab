@@ -1759,6 +1759,28 @@ That broke the most important feedback loop: changing chemistry did not visibly 
 - Corrected one remaining lineage sentence that described a dual-chamber run as waiting for a
   single-capacity furnace. The live lineage now names the assigned qualified lane and its readiness proof.
 
+## Critique 93: custom evidence still dead-ended at “learn”
+
+U-2121 produced distinct evidence and a retained positive residual, but LEARN was only a status label.
+The player still had to leave the result, reopen the composer, and remember which mission lever to change.
+
+### Changes
+
+- Added an authored-material posterior panel that compares model prior and measured phase fraction on a
+  normalized 90–100% axis, retains the residual, and shows uncertainty contraction from one qualified
+  observation.
+- Generate a mission-specific next recipe without mutating the completed result: shorter dwell for rate,
+  lower setpoint for energy, and longer dwell for purity. The proposal exposes its recipe ID, governed
+  thermal program, prior, and uncertainty before the player commits it.
+- Let the player queue that follow-up directly into the unreleased backlog. Archiving the result promotes
+  the planned custom recipe into the next run while preserving its full encoded composition, even though
+  it was not the custom candidate displayed during the previous experiment.
+- Exercised U-2121’s +0.6 percentage-point residual into U-2120, a 1,000 °C / 2.5 h rate experiment.
+  The plan entered the backlog as RUN-045, then promoted into campaign control with the correct custom
+  formula and 270-minute furnace occupancy.
+- Browser QA caught a percent-string parsing error that rendered the first residual as NaN and collapsed
+  its posterior markers. Numeric parsing now handles displayed percent units explicitly.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
