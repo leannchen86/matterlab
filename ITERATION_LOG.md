@@ -2067,6 +2067,26 @@ first. A core construction mode should be visible from the place the player alre
 - Browser QA opened the FURN-04B hold view with one click from the 3D lab, then returned to the overview and
   confirmed the new control fits the existing industrial navigation without displacing the equipment twin.
 
+## Critique 109: the build mode had no remaining choice
+
+Once FURN-04B was qualified, facility planning became a record viewer. A construction game needs another
+physical constraint the player can invest in, commission, and then feel in the operating workflow.
+
+### Changes
+
+- Added STG-02, a barcoded vertical materials carousel, as a second real expansion socket beside the thermal
+  project. The floor plan shows its open or qualified state and the project selector keeps completed builds
+  visible as retained records.
+- Added a playable site-acceptance test: prove anchorage and the safety chain, verify all 18 digital locations,
+  and pass 12 empty-tote retrievals before release. Attempting to run with unmapped bins is blocked because it
+  can associate a correct-looking consumable with the wrong lot or release state.
+- Made the upgrade consequential. A qualified STG-02 changes future material receipts from 26 minutes / 35 RP
+  / 12 crucibles to 18 minutes / 30 RP / 18 crucibles, with proportionally larger liner and tab issues.
+- Persist STG-02 across campaigns and preserve the rule that commissioning never changes already-retained
+  experimental results.
+- Browser QA commissioned STG-02 during RUN-048, confirmed the qualified floor-plan state, then executed a
+  carousel receipt that raised point-of-use crucibles from 1 to 19 and liners from 7 to their capacity of 10.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

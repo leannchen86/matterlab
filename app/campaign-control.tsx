@@ -20,6 +20,7 @@ type CampaignRun = {
   runNumber: number;
   missionId: CampaignMissionId;
   thermalBayLevel: number;
+  stagingBayLevel: number;
   customCandidate?: string;
   inventory: CampaignInventory;
   history: CampaignResult[];
@@ -36,6 +37,7 @@ const initialRun: CampaignRun = {
   runNumber: 42,
   missionId: 'purity',
   thermalBayLevel: 1,
+  stagingBayLevel: 1,
   inventory: initialInventory,
   history: [],
   backlog: [],
@@ -58,6 +60,7 @@ function meanThermalCompletion(items: CampaignBacklogItem[], lanes: number) {
 
 export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacility = false, onClose }: { autoOpenInventory?: boolean; autoOpenFacility?: boolean; onClose: () => void }) {
   const [commissionOpen, setCommissionOpen] = useState(false);
+  const [storageCommissionOpen, setStorageCommissionOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(autoOpenInventory);
   const [facilityOpen, setFacilityOpen] = useState(autoOpenFacility);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -229,7 +232,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
       const nextSelected = mechanismRecovery ? 'R-31' : diagnosticFollowUp?.id ?? nextPlan?.candidate ?? run.selected;
       const nextMission = nextPlan?.missionId ?? run.missionId;
       const remainingBacklog = (nextPlan ? backlog.slice(1) : backlog).map((item, index) => ({ ...item, runNumber: currentRunNumber + index + 2 }));
-      updateRun({ ...initialRun, insight: run.insight, missionId: nextMission, thermalBayLevel: run.plannedThermalUpgrade ? 2 : run.thermalBayLevel, customCandidate: nextSelected.startsWith('U-') ? nextSelected : run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, backlog: remainingBacklog, plannedThermalUpgrade: false, resultDecision: undefined, message: mechanismRecovery
+      updateRun({ ...initialRun, insight: run.insight, missionId: nextMission, thermalBayLevel: run.plannedThermalUpgrade ? 2 : run.thermalBayLevel, stagingBayLevel: run.stagingBayLevel, customCandidate: nextSelected.startsWith('U-') ? nextSelected : run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, backlog: remainingBacklog, plannedThermalUpgrade: false, resultDecision: undefined, message: mechanismRecovery
         ? `${identity.runId} diagnosis assimilated. R-31 raises thermal dose while preserving stoichiometry to test the incomplete-conversion hypothesis.`
         : diagnosticFollowUp ? `${identity.runId} SEM / EDS evidence assimilated. ${diagnosticFollowUp.id} changes one governed lever (${followUpLever.toLowerCase()}) while retaining the measured phase map as its mechanism basis.`
         : nextPlan ? `${identity.runId} archived. RUN-${String(currentRunNumber + 1).padStart(3, '0')} loaded from the shift backlog: ${nextPlan.candidate} · ${getCampaignMission(nextPlan.missionId).shortLabel}.`
@@ -259,13 +262,20 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
   };
 
   const replenishInventory = () => {
-    if (run.insight < 35) return;
+    const automated = run.stagingBayLevel >= 2;
+    const serviceCost = automated ? 30 : 35;
+    if (run.insight < serviceCost) return;
     updateRun({
-      inventory: { crucibles: Math.min(24, inventory.crucibles + 12), liners: Math.min(10, inventory.liners + 4), carbonTabs: Math.min(12, inventory.carbonTabs + 6) },
-      elapsed: run.elapsed + 26,
-      insight: run.insight - 35,
-      message: 'Material issue MI-1186 received and reconciled. Crucibles, prep liners, and conductive tabs are released to their point-of-use locations.',
+      inventory: { crucibles: Math.min(24, inventory.crucibles + (automated ? 18 : 12)), liners: Math.min(10, inventory.liners + (automated ? 6 : 4)), carbonTabs: Math.min(12, inventory.carbonTabs + (automated ? 9 : 6)) },
+      elapsed: run.elapsed + (automated ? 18 : 26),
+      insight: run.insight - serviceCost,
+      message: automated ? 'Material issue MI-1186 reconciled through the qualified STG-02 carousel. Location reads, tote identity, and point-of-use release are retained.' : 'Material issue MI-1186 received and reconciled. Crucibles, prep liners, and conductive tabs are released to their point-of-use locations.',
     });
+  };
+
+  const commissionStorageCarousel = () => {
+    if (run.stagingBayLevel >= 2 || run.insight < 90) return;
+    updateRun({ stagingBayLevel: 2, elapsed: run.elapsed + 22, insight: run.insight - 90, message: 'STG-02 commissioned after anchorage, location-map, and empty-tote retrieval proofs. Future material receipts gain six released locations and an 8-minute handling reduction.' });
   };
 
   const retainCustomCandidate = (candidate: CampaignSpec) => {
@@ -550,8 +560,9 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
       </footer>
     </section>
     {commissionOpen && <ThermalCommissioningModal alreadyQualified={run.thermalBayLevel >= 2} activeRun={operations.activeFurnaceRun} queueMinutes={getCampaignOperations(currentRunNumber, 2).queueMinutes} onComplete={() => { commissionAuxiliaryChamber(); setCommissionOpen(false); }} onClose={() => setCommissionOpen(false)} />}
-    {facilityOpen && <FacilityBuildModal thermalBayLevel={run.thermalBayLevel} scheduled={Boolean(run.plannedThermalUpgrade)} insight={run.insight} commissioningAvailable={run.stage <= 3} queueMinutes={operations.queueMinutes} activeStationId={activeLabStationId} activeRunId={identity.runId} activeStatus={activeLabStationStatus} constraintKind={fault} constraintLabel={conditionDetail} constraintMetric={conditionMetric} onCommission={() => { setFacilityOpen(false); setCommissionOpen(true); }} onViewAsset={viewAssetInLab} onClose={() => setFacilityOpen(false)} />}
-    {inventoryOpen && <InventoryServiceModal inventory={inventory} budgetReady={run.insight >= 35} onComplete={() => { replenishInventory(); setInventoryOpen(false); }} onClose={() => setInventoryOpen(false)} />}
+    {facilityOpen && <FacilityBuildModal thermalBayLevel={run.thermalBayLevel} stagingBayLevel={run.stagingBayLevel} scheduled={Boolean(run.plannedThermalUpgrade)} insight={run.insight} commissioningAvailable={run.stage <= 3} queueMinutes={operations.queueMinutes} activeStationId={activeLabStationId} activeRunId={identity.runId} activeStatus={activeLabStationStatus} constraintKind={fault} constraintLabel={conditionDetail} constraintMetric={conditionMetric} onCommission={() => { setFacilityOpen(false); setCommissionOpen(true); }} onCommissionStorage={() => { setFacilityOpen(false); setStorageCommissionOpen(true); }} onViewAsset={viewAssetInLab} onClose={() => setFacilityOpen(false)} />}
+    {storageCommissionOpen && <StorageCommissioningModal alreadyQualified={run.stagingBayLevel >= 2} onComplete={() => { commissionStorageCarousel(); setStorageCommissionOpen(false); }} onClose={() => setStorageCommissionOpen(false)} />}
+    {inventoryOpen && <InventoryServiceModal inventory={inventory} stagingBayLevel={run.stagingBayLevel} budgetReady={run.insight >= (run.stagingBayLevel >= 2 ? 30 : 35)} onComplete={() => { replenishInventory(); setInventoryOpen(false); }} onClose={() => setInventoryOpen(false)} />}
     {composerOpen && <FormulationComposer initial={customCandidate?.composition} onRetain={retainCustomCandidate} onClose={() => setComposerOpen(false)} />}
   </div>;
 }
@@ -611,8 +622,10 @@ function CompositionControl({ label, value, values, format, onChange }: { label:
   return <label className="composition-control"><span>{label}<b>{format(value)}</b></span><input type="range" min="0" max={values.length - 1} step="1" value={index} onChange={(event) => onChange(values[Number(event.target.value)])} /><em>{values.map((option) => <i key={option} className={option === value ? 'active' : ''}>{format(option)}</i>)}</em></label>;
 }
 
-function FacilityBuildModal({ thermalBayLevel, scheduled, insight, commissioningAvailable, queueMinutes, activeStationId, activeRunId, activeStatus, constraintKind, constraintLabel, constraintMetric, onCommission, onViewAsset, onClose }: { thermalBayLevel: number; scheduled: boolean; insight: number; commissioningAvailable: boolean; queueMinutes: number; activeStationId: string; activeRunId: string; activeStatus: string; constraintKind: string | null; constraintLabel: string; constraintMetric: string; onCommission: () => void; onViewAsset: (stationId: string) => void; onClose: () => void }) {
+function FacilityBuildModal({ thermalBayLevel, stagingBayLevel, scheduled, insight, commissioningAvailable, queueMinutes, activeStationId, activeRunId, activeStatus, constraintKind, constraintLabel, constraintMetric, onCommission, onCommissionStorage, onViewAsset, onClose }: { thermalBayLevel: number; stagingBayLevel: number; scheduled: boolean; insight: number; commissioningAvailable: boolean; queueMinutes: number; activeStationId: string; activeRunId: string; activeStatus: string; constraintKind: string | null; constraintLabel: string; constraintMetric: string; onCommission: () => void; onCommissionStorage: () => void; onViewAsset: (stationId: string) => void; onClose: () => void }) {
   const qualified = thermalBayLevel >= 2;
+  const storageQualified = stagingBayLevel >= 2;
+  const [selectedExpansion, setSelectedExpansion] = useState<'thermal' | 'storage'>(qualified && !storageQualified ? 'storage' : 'thermal');
   const canCommission = commissioningAvailable && insight >= 120 && !scheduled;
   const buildState = qualified ? 'QUALIFIED' : scheduled ? 'COMMISSIONING SCHEDULED' : commissioningAvailable ? insight >= 120 ? 'READY TO COMMISSION' : '120 RP REQUIRED' : 'FINISH ACTIVE ROUTE';
   const handleAssetKey = (event: KeyboardEvent<SVGGElement>, stationId: string) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onViewAsset(stationId); } };
@@ -632,6 +645,7 @@ function FacilityBuildModal({ thermalBayLevel, scheduled, insight, commissioning
             <g className={`route-branches ${constraintKind ? 'route-hold' : ''}`}><path d="M130 137v78m210-78v78m210-68v68M130 215v63m210-63v63m210-63v63m136-45v45" /><path className="main-route" d="M58 215h586" /><path className="active-route-branch" d={activeBranch} /></g>
             <g className="material-spine"><rect x="58" y="202" width="586" height="26" rx="13" /><path d="M78 215h546" /><circle cx="115" cy="215" r="4" /><circle cx="310" cy="215" r="4" /><circle cx="505" cy="215" r="4" /><text x="281" y="219">MATERIAL TRANSFER SPINE</text></g>
             <g className={`build-asset ${activeStationId === 'PREP-01' ? `route-active ${constraintKind ? 'route-fault' : ''}` : ''}`} role="button" tabIndex={0} aria-label="Walk to PREP-01 powder preparation" onClick={() => onViewAsset('PREP-01')} onKeyDown={(event) => handleAssetKey(event, 'PREP-01')}><rect x="54" y="55" width="152" height="82" rx="3" /><text className="asset-id" x="66" y="73">PREP-01</text><text className="asset-name" x="66" y="88">POWDER PREPARATION</text><path d="M67 103h53v20H67zm65 0h60v20h-60z" /><circle cx="94" cy="113" r="7" /><text className="asset-state" x="146" y="116">{activeStationId === 'PREP-01' ? activeStatus : 'ONLINE'}</text></g>
+            <g className={`facility-staging-bay ${storageQualified ? 'qualified' : 'open-socket'}`}><rect x="54" y="153" width="152" height="34" rx="2" /><text x="66" y="167">STG-02 · {storageQualified ? 'VERTICAL CAROUSEL' : 'EXPANSION SOCKET'}</text><text className="staging-state" x="194" y="180">{storageQualified ? 'QUALIFIED' : 'OPEN'}</text><path d="M66 177h55m7 0h12m6 0h12" /></g>
             <g className={`build-asset ${activeStationId === 'ROBO-02' ? `route-active ${constraintKind ? 'route-fault' : ''}` : ''}`} role="button" tabIndex={0} aria-label="Walk to ROBO-02 synthesis cell" onClick={() => onViewAsset('ROBO-02')} onKeyDown={(event) => handleAssetKey(event, 'ROBO-02')}><rect x="264" y="55" width="152" height="82" rx="3" /><text className="asset-id" x="276" y="73">ROBO-02</text><text className="asset-name" x="276" y="88">SYNTHESIS CELL</text><circle cx="317" cy="111" r="19" /><path d="M317 111l20-14 18 11 19-9M317 111l-9 13" /><circle cx="355" cy="108" r="4" /><text className="asset-state" x="362" y="126">{activeStationId === 'ROBO-02' ? activeStatus : 'ONLINE'}</text></g>
             <g className={`build-asset thermal ${qualified ? 'expanded' : scheduled ? 'scheduled' : 'open-socket'} ${activeStationId === 'FURN-04' ? `route-active ${constraintKind ? 'route-fault' : ''}` : ''}`} role="button" tabIndex={0} aria-label="Walk to FURN-04 thermal bay" onClick={() => onViewAsset('FURN-04')} onKeyDown={(event) => handleAssetKey(event, 'FURN-04')}><rect x="474" y="45" width="152" height="102" rx="3" /><text className="asset-id" x="486" y="63">FURN-04</text><text className="asset-name" x="486" y="78">THERMAL BAY</text>{activeStationId === 'FURN-04' && <text className="asset-route-state" x="578" y="63">{activeStatus}</text>}<g className="chamber-a"><rect x="488" y="91" width="58" height="42" /><text x="498" y="107">A</text><circle cx="528" cy="104" r="3" /><text className="chamber-state" x="498" y="123">ONLINE</text></g><g className="chamber-b"><rect x="558" y="91" width="54" height="42" /><text x="568" y="107">B</text><circle cx="596" cy="104" r="3" /><text className="chamber-state" x="568" y="123">{qualified ? 'ONLINE' : scheduled ? 'IQ/OQ' : 'OPEN'}</text></g></g>
             <g className={`build-asset ${activeStationId === 'XRD-03' ? `route-active ${constraintKind ? 'route-fault' : ''}` : ''}`} role="button" tabIndex={0} aria-label="Walk to XRD-03 diffractometer" onClick={() => onViewAsset('XRD-03')} onKeyDown={(event) => handleAssetKey(event, 'XRD-03')}><rect x="54" y="278" width="152" height="82" rx="3" /><text className="asset-id" x="66" y="296">XRD-03</text><text className="asset-name" x="66" y="311">DIFFRACTION</text><path d="M69 341h122M81 341c19-2 20-21 32-21s11 16 24 16 12-9 21-9 10 7 20 7" /><text className="asset-state" x="151" y="351">{activeStationId === 'XRD-03' ? activeStatus : 'ONLINE'}</text></g>
@@ -645,7 +659,8 @@ function FacilityBuildModal({ thermalBayLevel, scheduled, insight, commissioning
         </div>
         <aside className="facility-build-controls">
           <article className={`facility-bottleneck ${constraintKind ? 'constrained' : ''}`}><span>ACTIVE BOTTLENECK</span><b>{constraintKind ? constraintLabel : queueMinutes > 30 ? 'THERMAL QUEUE' : 'NO CRITICAL CONSTRAINT'}</b><div><i style={{ width: `${constraintKind ? 78 : Math.min(100, Math.max(18, queueMinutes * 1.25))}%` }} /></div><small>{constraintKind ? constraintMetric : `${queueMinutes} MIN CAMPAIGN WAIT · ${thermalBayLevel} PARALLEL LANE${thermalBayLevel === 1 ? '' : 'S'}`}</small></article>
-          <article className={`facility-expansion ${qualified ? 'qualified' : scheduled ? 'scheduled' : ''}`}><header><div><span>EXPANSION SOCKET</span><b>FURN-04B</b></div><em>{buildState}</em></header><div className="expansion-render"><i /><i /><i /><b>B</b><span>1,100 °C CHAMBER</span></div><dl><div><dt>BUILD COST</dt><dd>120 RP</dd></div><div><dt>QUALIFICATION</dt><dd>48 MIN</dd></div><div><dt>EFFECT</dt><dd>2 LANES</dd></div><div><dt>REQUIRES</dt><dd>IQ / OQ</dd></div></dl><button type="button" disabled={!qualified && !canCommission} onClick={onCommission}>{qualified ? 'VIEW IQ/OQ RECORD' : scheduled ? 'COMMISSIONING SCHEDULED' : !commissioningAvailable ? 'FINISH ACTIVE ROUTE' : insight < 120 ? '120 RP REQUIRED' : 'COMMISSION CHAMBER B'}</button></article>
+          <div className="facility-expansion-tabs" role="tablist" aria-label="Facility expansion projects"><button type="button" role="tab" aria-selected={selectedExpansion === 'thermal'} className={selectedExpansion === 'thermal' ? 'active' : ''} onClick={() => setSelectedExpansion('thermal')}>FURN-04B<i>{qualified ? '✓' : '01'}</i></button><button type="button" role="tab" aria-selected={selectedExpansion === 'storage'} className={selectedExpansion === 'storage' ? 'active' : ''} onClick={() => setSelectedExpansion('storage')}>STG-02<i>{storageQualified ? '✓' : '02'}</i></button></div>
+          {selectedExpansion === 'thermal' ? <article className={`facility-expansion ${qualified ? 'qualified' : scheduled ? 'scheduled' : ''}`}><header><div><span>EXPANSION SOCKET</span><b>FURN-04B</b></div><em>{buildState}</em></header><div className="expansion-render"><i /><i /><i /><b>B</b><span>1,100 °C CHAMBER</span></div><dl><div><dt>BUILD COST</dt><dd>120 RP</dd></div><div><dt>QUALIFICATION</dt><dd>48 MIN</dd></div><div><dt>EFFECT</dt><dd>2 LANES</dd></div><div><dt>REQUIRES</dt><dd>IQ / OQ</dd></div></dl><button type="button" disabled={!qualified && !canCommission} onClick={onCommission}>{qualified ? 'VIEW IQ/OQ RECORD' : scheduled ? 'COMMISSIONING SCHEDULED' : !commissioningAvailable ? 'FINISH ACTIVE ROUTE' : insight < 120 ? '120 RP REQUIRED' : 'COMMISSION CHAMBER B'}</button></article> : <article className={`facility-expansion storage ${storageQualified ? 'qualified' : ''}`}><header><div><span>EXPANSION SOCKET</span><b>STG-02</b></div><em>{storageQualified ? 'QUALIFIED' : insight >= 90 ? 'READY TO COMMISSION' : '90 RP REQUIRED'}</em></header><div className="expansion-render storage-render"><i /><i /><i /><b>↕</b><span>BARCODED VERTICAL CAROUSEL</span></div><dl><div><dt>BUILD COST</dt><dd>90 RP</dd></div><div><dt>SAT</dt><dd>22 MIN</dd></div><div><dt>EFFECT</dt><dd>+50% ISSUE</dd></div><div><dt>HANDLING</dt><dd>−8 MIN</dd></div></dl><button type="button" disabled={!storageQualified && insight < 90} onClick={onCommissionStorage}>{storageQualified ? 'VIEW SAT RECORD' : insight < 90 ? '90 RP REQUIRED' : 'COMMISSION STG-02'}</button></article>}
           <p className="facility-build-rule"><i />FACILITY CHANGES APPLY TO FUTURE ROUTES. RETAINED RUNS ARE NEVER REWRITTEN.</p>
         </aside>
       </div>
@@ -653,10 +668,30 @@ function FacilityBuildModal({ thermalBayLevel, scheduled, insight, commissioning
   </div>;
 }
 
-function InventoryServiceModal({ inventory, budgetReady, onComplete, onClose }: { inventory: CampaignInventory; budgetReady: boolean; onComplete: () => void; onClose: () => void }) {
+function StorageCommissioningModal({ alreadyQualified, onComplete, onClose }: { alreadyQualified: boolean; onComplete: () => void; onClose: () => void }) {
+  const [step, setStep] = useState(alreadyQualified ? 3 : 0);
+  const [feedback, setFeedback] = useState('');
+  const complete = step >= 3;
+  const execute = (target: number) => { if (target !== step + 1) return; setFeedback(''); setStep(target); };
+  return <div className="storage-commissioning-backdrop" role="presentation">
+    <section className="storage-commissioning" role="dialog" aria-modal="true" aria-label="STG-02 site acceptance workflow">
+      <header><div><p className="section-kicker">ASSET COMMISSIONING · STG-02</p><h2>Vertical carousel site acceptance</h2></div><button type="button" onClick={onClose} aria-label="Close storage commissioning">×</button></header>
+      <div className="storage-commissioning-status"><span>MECHANICAL STATE<b>{step >= 1 ? 'ANCHORED · E-STOP PROVEN' : 'INSTALL COMPLETE'}</b></span><span>LOCATION MAP<b>{step >= 2 ? '18 / 18 VERIFIED' : 'UNRELEASED'}</b></span><span>RETRIEVAL SAT<b>{step >= 3 ? '12 / 12 PASS' : 'PENDING'}</b></span></div>
+      <div className="storage-commissioning-workspace">
+        <div className={`storage-sat-visual ${complete ? 'qualified' : ''}`}><div className="carousel-frame"><header><span>STG-02</span><b>{complete ? 'SAT ACCEPTED' : 'COMMISSIONING'}</b></header><div className="carousel-chain">{Array.from({ length: 18 }, (_, index) => <i key={index} className={index < step * 6 ? 'mapped' : ''}><em>{String(index + 1).padStart(2, '0')}</em></i>)}</div><div className="carousel-port"><i /><b>{step >= 3 ? 'TOTE RETRIEVAL PASS' : 'OUTPUT PORT HELD'}</b></div></div><footer><span>LIGHT CURTAIN<b>PROVEN</b></span><span>INDEX ERROR<b>{step >= 3 ? '0.0 mm' : '—'}</b></span><span>READ RATE<b>{step >= 2 ? '100%' : '—'}</b></span></footer></div>
+        <div className="storage-commissioning-controls"><p>Release the carousel only after its physical installation, digital location map, and empty-tote retrieval agree. Inventory capacity changes only after the SAT record is retained.</p><ol><InventoryStep number="01" title="Prove anchorage + safety chain" note="base torque · E-stop · light curtain" done={step >= 1} active={step === 0} onClick={() => execute(1)} /><InventoryStep number="02" title="Verify barcode location map" note="18 bins · zero duplicate locations" done={step >= 2} active={step === 1} onClick={() => execute(2)} /><InventoryStep number="03" title="Run empty-tote retrieval SAT" note="12 calls · position + readback" done={step >= 3} active={step === 2} onClick={() => execute(3)} /></ol>{!complete && <button type="button" className="storage-shortcut" onClick={() => setFeedback('Blocked: an unmapped bin can retrieve the correct-looking consumable under the wrong lot or release state.')}>RUN WITH UNMAPPED BINS</button>}{feedback && <p className="storage-feedback">{feedback}</p>}<button type="button" className="storage-release" disabled={!complete} onClick={alreadyQualified ? onClose : onComplete}>{alreadyQualified ? 'CLOSE SAT RECORD' : complete ? 'RETAIN SAT · RELEASE STG-02' : 'COMPLETE SITE ACCEPTANCE'}</button></div>
+      </div>
+    </section>
+  </div>;
+}
+
+function InventoryServiceModal({ inventory, stagingBayLevel, budgetReady, onComplete, onClose }: { inventory: CampaignInventory; stagingBayLevel: number; budgetReady: boolean; onComplete: () => void; onClose: () => void }) {
   const [step, setStep] = useState(0);
   const [feedback, setFeedback] = useState('');
   const accepted = step >= 3;
+  const automated = stagingBayLevel >= 2;
+  const inbound = automated ? { crucibles: 18, liners: 6, tabs: 9 } : { crucibles: 12, liners: 4, tabs: 6 };
+  const serviceCost = automated ? 30 : 35;
   const execute = (target: number) => {
     if (target !== step + 1) return;
     setFeedback('');
@@ -665,27 +700,27 @@ function InventoryServiceModal({ inventory, budgetReady, onComplete, onClose }: 
   return <div className="inventory-service-backdrop" role="presentation">
     <section className="inventory-service" role="dialog" aria-modal="true" aria-label="Point-of-use material staging">
       <header><div><p className="section-kicker">MATERIAL ISSUE · MI-1186</p><h2>Point-of-use replenishment</h2></div><button type="button" onClick={onClose} aria-label="Close material staging">×</button></header>
-      <div className="inventory-status"><span>MOVE TOTE<b>MAT-MOV-1186</b></span><span>RECEIPT STATE<b>{accepted ? 'RECONCILED' : step >= 1 ? 'IN PROCESS' : 'AWAITING SCAN'}</b></span><span>LAB IMPACT<b>26 MIN · 35 RP</b></span></div>
+      <div className="inventory-status"><span>{automated ? 'CAROUSEL JOB' : 'MOVE TOTE'}<b>{automated ? 'STG-02 / ISSUE-1186' : 'MAT-MOV-1186'}</b></span><span>RECEIPT STATE<b>{accepted ? 'RECONCILED' : step >= 1 ? 'IN PROCESS' : 'AWAITING SCAN'}</b></span><span>LAB IMPACT<b>{automated ? 18 : 26} MIN · {serviceCost} RP</b></span></div>
       <div className="inventory-workspace">
         <div className="inventory-rack" aria-label="Point-of-use consumables rack">
           <header><span>PREP / CHARACTERIZATION CONSUMABLES</span><b>{accepted ? 'RELEASE READY' : 'CURRENT + INBOUND'}</b></header>
           <div className="stock-bins">
-            <StockBin kind="crucibles" label="ALUMINA CRUCIBLES" lot="ALC-806" count={inventory.crucibles} inbound={12} capacity={24} active={step >= 2} />
-            <StockBin kind="liners" label="SEALED PREP LINERS" lot="PL-219" count={inventory.liners} inbound={4} capacity={10} active={step >= 2} />
-            <StockBin kind="tabs" label="CONDUCTIVE TABS" lot="CT-88" count={inventory.carbonTabs} inbound={6} capacity={12} active={step >= 2} />
+            <StockBin kind="crucibles" label="ALUMINA CRUCIBLES" lot="ALC-806" count={inventory.crucibles} inbound={inbound.crucibles} capacity={24} active={step >= 2} />
+            <StockBin kind="liners" label="SEALED PREP LINERS" lot="PL-219" count={inventory.liners} inbound={inbound.liners} capacity={10} active={step >= 2} />
+            <StockBin kind="tabs" label="CONDUCTIVE TABS" lot="CT-88" count={inventory.carbonTabs} inbound={inbound.tabs} capacity={12} active={step >= 2} />
           </div>
           <div className="material-flow"><i className={step >= 1 ? 'active' : ''} /><span>RECEIVING</span><i className={step >= 2 ? 'active' : ''} /><span>LOT RECONCILE</span><i className={step >= 3 ? 'active' : ''} /><span>POINT OF USE</span></div>
         </div>
         <div className="inventory-controls">
           <p className="modal-intro">Receive the material tote against its move record, reconcile each physical lot, then release the bins to point of use. Stock counts do not change until the receipt is retained.</p>
           <ol>
-            <InventoryStep number="01" title="Scan move tote + destination" note="MAT-MOV-1186 · PREP-01" done={step >= 1} active={step === 0} onClick={() => execute(1)} />
-            <InventoryStep number="02" title="Reconcile lots + quantities" note="12 crucibles · 4 liners · 6 tabs" done={step >= 2} active={step === 1} onClick={() => execute(2)} />
+            <InventoryStep number="01" title={automated ? 'Call tote + scan destination' : 'Scan move tote + destination'} note={automated ? 'STG-02 location map · PREP-01' : 'MAT-MOV-1186 · PREP-01'} done={step >= 1} active={step === 0} onClick={() => execute(1)} />
+            <InventoryStep number="02" title="Reconcile lots + quantities" note={`${inbound.crucibles} crucibles · ${inbound.liners} liners · ${inbound.tabs} tabs`} done={step >= 2} active={step === 1} onClick={() => execute(2)} />
             <InventoryStep number="03" title="Inspect seals + release bins" note="packaging intact · locations matched" done={step >= 3} active={step === 2} onClick={() => execute(3)} />
           </ol>
           {!accepted && <button type="button" className="inventory-shortcut" onClick={() => setFeedback('Blocked: an unscanned tote can place the correct-looking material under the wrong lot, location, or expiry state.')}>RECEIVE WITHOUT SCAN</button>}
           {feedback && <p className="inventory-feedback">{feedback}</p>}
-          <button type="button" className="inventory-accept" disabled={!accepted || !budgetReady} onClick={onComplete}>{!budgetReady ? '35 RP OPERATIONS BUDGET REQUIRED' : accepted ? 'RETAIN RECEIPT · RELEASE STOCK' : 'COMPLETE MATERIAL RECEIPT'}</button>
+          <button type="button" className="inventory-accept" disabled={!accepted || !budgetReady} onClick={onComplete}>{!budgetReady ? `${serviceCost} RP OPERATIONS BUDGET REQUIRED` : accepted ? 'RETAIN RECEIPT · RELEASE STOCK' : 'COMPLETE MATERIAL RECEIPT'}</button>
         </div>
       </div>
     </section>
