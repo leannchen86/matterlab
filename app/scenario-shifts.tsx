@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
-import { useCampaignSnapshot, useCampaignStation } from './campaign-context';
+import { useCampaignSnapshot } from './campaign-context';
 import { campaignSpecs, getCampaignIdentity, getCampaignSpec } from './campaign-spec';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
@@ -80,7 +80,7 @@ function EquipmentGlyph({ type }: { type: string }) {
 
 export function PlannerPanel({ scenario, phase }: { scenario: ScenarioId; phase: number }) {
   const campaign = useCampaignSnapshot();
-  if (campaign.stage > 0) {
+  if (campaign.stage > 0 && scenario === 'xrd') {
     const spec = getCampaignSpec(campaign.selected);
     const identity = getCampaignIdentity(campaign.runNumber);
     const cursor = campaign.stage >= 9 ? 3 : campaign.stage >= 6 ? 2 : 1;
@@ -188,7 +188,7 @@ export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | '
   }), [phase, scenarioId]);
 
   const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[0];
-  const selected = useCampaignStation(selectedBase);
+  const selected = selectedBase;
   const completed = phase >= 5 ? 5 : Math.min(4, phase + 1);
   const progress = Math.round((completed / 5) * 100);
   const appendLog = (type: string, text: string, add = 0) => {

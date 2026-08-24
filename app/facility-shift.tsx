@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
-import { useCampaignStation } from './campaign-context';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
 import { PlannerPanel, ShiftDeckModal, type ScenarioId } from './scenario-shifts';
@@ -75,7 +74,7 @@ export function FacilityShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void
   }), [phase]);
 
   const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[0];
-  const selected = useCampaignStation(selectedBase);
+  const selected = selectedBase;
   const completed = phase >= 5 ? 6 : phase + 1;
   const progress = Math.round(completed / 6 * 100);
   const appendLog = (type: string, text: string, add = 0) => { const next = minute + add; setMinute(next); setLog((items) => [...items, { time: formatTime(next), type, text }]); };

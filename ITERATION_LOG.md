@@ -1173,6 +1173,31 @@ the result may have failed.
   retaining `Ti-rich cores` as the incomplete-conversion hypothesis. Desktop and 390 × 844 views were
   checked, including live 0 / 4 → 4 / 4 feedback and the final `D-08 · DIAG` model-memory record.
 
+## Critique 65: BET and TGA/DSC still looked like generic equipment
+
+Five campaign machines had instrument-native operating views, but BET-02 and TGA-01 still dropped the
+player into the same generic mimic. Their incident modals contained scientific traces, yet the local
+stations did not expose the manifolds, pans, coupled channels, or physical control sequence that
+actually make those instruments different.
+
+### Changes
+
+- Added a BET-02 four-port gas-sorption HMI with physical tube valves, service-boundary isolation,
+  turbo-pump evacuation, base-pressure and leak-rate feedback, adsorbate N₂ proof, and a native
+  pressure / uptake plot that can carry the later isotherm state.
+- Added a TGA-01 coupled analyzer HMI with a microbalance beam, twin pan positions, furnace envelope,
+  purge path, six-position autosampler, and distinct mass, DSC, and N₂ channels.
+- Bound the BET port, leak, and gas permissives and the TGA purge and carousel permissives to the
+  actual ordered local-control feedback. The consoles no longer claim a state is true before the
+  player has proven it.
+- Preserved independent quality boundaries: a complete local control sequence creates acceptance or
+  method-start evidence, but it does not silently release an open service ticket or failed baseline.
+- Isolated scenario state so a retained phase-purity campaign no longer leaks its SEM diagnosis, 3D
+  carrier route, or AI proposal into BET, furnace, TGA, or facility incidents.
+- Browser-verified both consoles from 0 / 3 through 3 / 3 feedback. BET reached 3.2e−4 mbar, a
+  0.6 µbar/min leak pass, and 4.8 bar N₂; TGA reached +0.00 mg, 60 mL/min N₂, and A / B homed. The
+  completed TGA console was also checked at 390 × 844 with the native plot and action sequence stacked.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
