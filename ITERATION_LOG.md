@@ -2380,6 +2380,21 @@ two system maps. They explained the laboratory well yet did not meet the equipme
 - Desktop browser QA caught and corrected a case-mismatched SEM discriminator that initially left its mimic
   empty; the retest requires all six cards to expose visible equipment geometry plus a live-state marker.
 
+## Critique 127: the SEM follow-up mislabeled a stick spectrum as an EDS map
+
+The full purity-miss branch successfully routed D-08 from a qualified XRD result into SEM-01, but browser QA at
+the fifth acquisition step exposed a weak scientific visualization: four smooth ellipse fields and a right-hand
+stick spectrum under the label `REPRESENTATIVE EDS MAP`.
+
+### Changes
+
+- Rebuild all four BSE fields as distinct irregular phase-contrast microstructures with polygonal grains, bright
+  inclusions and cores, dark pores, and retained boundary networks instead of repeated smooth ellipses.
+- Add an actual correlated elemental map with spatially distributed O, Ca, and clustered Ti signals; retain a
+  separate, correctly labeled EDS spectrum below it.
+- Make D-08's clustered Ti signal visually support the `Ti-rich cores` follow-up hypothesis while keeping the
+  UI explicit that this is a hypothesis rather than proof.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
