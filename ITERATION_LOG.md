@@ -1540,6 +1540,25 @@ visible queue; technicians should be able to notice congestion while walking the
   edge. The rack was moved inward, the clipped label was removed, and interaction was separated into
   a stable scene HUD. The corrected control opened campaign planning successfully in production QA.
 
+## Critique 83: instrument consoles ignored future work
+
+The physical WIP rack made the backlog visible on the floor, but the actual furnace and diffractometer
+still behaved as if only the active carrier existed. Utilization belongs near the machine state because
+that is where a technician decides whether a queue, service action, or handoff is becoming risky.
+
+### Changes
+
+- Propagated the planned-run array into native station sessions with deterministic hydration and live
+  campaign-event updates. Every active console status bar now reports the unreleased backlog count.
+- Added a compact equipment-native queue strip to the furnace HMI. It carries the next three run IDs,
+  candidate IDs, individual thermal occupancy, setpoint, aggregate load, and lane-aware pressure state.
+- Added the same governed handoff pattern to XRD with the planned run IDs and 18-minute powder-scan
+  demand, so characterization load is visible before specimens reach the instrument.
+- Ran a full queued experiment from plan release through PREP-01, nominal robot readiness, six-position
+  dosing, and the FURN-04 physical walkaround. The resulting native furnace HMI showed RUN-043 D-08,
+  RUN-044 Z-17, and RUN-045 C-42 above the live RUN-040 occupancy / RUN-042 Q01 mimic, with 1,170 minutes
+  correctly flagged as load pressure. The new strip remained visually subordinate to the equipment.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

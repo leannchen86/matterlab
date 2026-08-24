@@ -8,6 +8,7 @@ import type { Station } from './sim-data';
 
 type Tab = 'hmi' | 'les' | 'lims' | 'cmms';
 type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
+type CampaignBacklogItem = { runNumber: number; candidate: string; missionId: CampaignMissionId };
 type ConsoleSession = { completed: Record<Tab, boolean>; hmiOperations: string[] };
 
 const emptyConsoleSession = (): ConsoleSession => ({ completed: { hmi: false, les: false, lims: false, cmms: false }, hmiOperations: [] });
@@ -174,6 +175,7 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   const [campaignRunNumber, setCampaignRunNumber] = useState(42);
   const [campaignMissionId, setCampaignMissionId] = useState<CampaignMissionId>('purity');
   const [campaignThermalBayLevel, setCampaignThermalBayLevel] = useState(1);
+  const [campaignBacklog, setCampaignBacklog] = useState<CampaignBacklogItem[]>([]);
   const campaignActive = scenarioId === 'xrd' && getCampaignStationId(campaignStage) === station.id;
   const facilityConfigured = scenarioId === 'xrd' && station.id === 'FURN-04' && campaignThermalBayLevel >= 2;
   const contextKey = campaignActive ? `${station.id}:RUN-${campaignRunNumber}:${campaignSelected}:${campaignMissionId}:S${campaignStage}` : facilityConfigured ? `${station.id}:CONFIG-L2` : station.id;
@@ -213,12 +215,13 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       try {
-        const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; selected?: string; runNumber?: number; missionId?: CampaignMissionId; thermalBayLevel?: number };
+        const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; selected?: string; runNumber?: number; missionId?: CampaignMissionId; thermalBayLevel?: number; backlog?: CampaignBacklogItem[] };
         setCampaignStage(Number(stored.stage ?? 0));
         setCampaignSelected(String(stored.selected ?? 'C-42'));
         setCampaignRunNumber(Number(stored.runNumber ?? 42));
         setCampaignMissionId(stored.missionId ?? 'purity');
         setCampaignThermalBayLevel(Number(stored.thermalBayLevel ?? 1));
+        setCampaignBacklog(Array.isArray(stored.backlog) ? stored.backlog.slice(0, 3) : []);
       } catch { /* preserve the deterministic server defaults */ }
     });
     return () => window.cancelAnimationFrame(frame);
@@ -226,12 +229,13 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
 
   useEffect(() => {
     const followCampaign = (event: Event) => {
-      const detail = (event as CustomEvent<{ stage?: number; selected?: string; runNumber?: number; missionId?: CampaignMissionId; thermalBayLevel?: number }>).detail;
+      const detail = (event as CustomEvent<{ stage?: number; selected?: string; runNumber?: number; missionId?: CampaignMissionId; thermalBayLevel?: number; backlog?: CampaignBacklogItem[] }>).detail;
       setCampaignStage(Number(detail?.stage ?? 0));
       if (detail?.selected) setCampaignSelected(String(detail.selected));
       if (detail?.runNumber) setCampaignRunNumber(Number(detail.runNumber));
       if (detail?.missionId) setCampaignMissionId(detail.missionId);
       if (detail?.thermalBayLevel) setCampaignThermalBayLevel(Number(detail.thermalBayLevel));
+      setCampaignBacklog(Array.isArray(detail?.backlog) ? detail.backlog.slice(0, 3) : []);
     };
     window.addEventListener('mattershift:campaign-state', followCampaign);
     return () => window.removeEventListener('mattershift:campaign-state', followCampaign);
@@ -274,8 +278,8 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
             </button>)}
           </nav>
           <div className="console-main">
-            <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>WALK <b>{activePhysicalChecks.length}/3</b></span><span><i className={consoleStation.tone === 'warn' ? 'alarm' : consoleStation.tone === 'off' ? '' : 'online'} />{consoleStation.state}</span></div>
-            {tab === 'hmi' && <HmiView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} campaignThermalBayLevel={campaignThermalBayLevel} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
+            <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>WALK <b>{activePhysicalChecks.length}/3</b></span>{campaignActive && <span>BACKLOG <b>{campaignBacklog.length}</b></span>}<span><i className={consoleStation.tone === 'warn' ? 'alarm' : consoleStation.tone === 'off' ? '' : 'online'} />{consoleStation.state}</span></div>
+            {tab === 'hmi' && <HmiView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} campaignThermalBayLevel={campaignThermalBayLevel} campaignBacklog={campaignBacklog} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
             {tab === 'les' && <LesView station={consoleStation} profile={profile} campaignStage={campaignActive ? campaignStage : 0} complete={completed.les} onComplete={finish} />}
             {tab === 'lims' && <LimsView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} complete={completed.lims} onComplete={finish} />}
             {tab === 'cmms' && <CmmsView profile={profile} complete={completed.cmms} onComplete={finish} />}
@@ -286,7 +290,7 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   </>;
 }
 
-function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignThermalBayLevel, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignMissionId: CampaignMissionId; campaignThermalBayLevel: number; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
+function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignThermalBayLevel, campaignBacklog, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignMissionId: CampaignMissionId; campaignThermalBayLevel: number; campaignBacklog: CampaignBacklogItem[]; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
   const releaseBlocked = station.tone === 'warn' || station.tone === 'off' || station.tone === 'hold';
   const walkaroundComplete = physicalChecks.length === 3;
   const operationSteps = getCampaignHmiOperations(station.id, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel) ?? (station.id === 'FURN-04' && station.state !== 'READY'
@@ -328,8 +332,8 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
     </div>
     {campaignStage === 1 && station.id === 'PREP-01' && <PrepCampaignPanel selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 2 && campaignStage <= 3 && station.id === 'ROBO-02' && <RobotCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
-    {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} thermalBayLevel={campaignThermalBayLevel} operations={operations} />}
-    {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} operations={operations} />}
+    {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} thermalBayLevel={campaignThermalBayLevel} backlog={campaignBacklog} operations={operations} />}
+    {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} backlog={campaignBacklog} operations={operations} />}
     {campaignStage >= 8 && station.id === 'SEM-01' && <SemCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {!campaignStage && scenarioId === 'bet' && station.id === 'BET-02' && <BetHmiPanel station={station} operations={operations} />}
     {!campaignStage && scenarioId === 'tga' && station.id === 'TGA-01' && <TgaHmiPanel station={station} operations={operations} />}
@@ -454,7 +458,7 @@ function RobotCampaignPanel({ stage, selected, runNumber, operations }: { stage:
   </section>;
 }
 
-function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, operations }: { stage: number; selected: string; runNumber: number; thermalBayLevel: number; operations: string[] }) {
+function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, backlog, operations }: { stage: number; selected: string; runNumber: number; thermalBayLevel: number; backlog: CampaignBacklogItem[]; operations: string[] }) {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
   const runOps = getCampaignOperations(runNumber, thermalBayLevel);
@@ -474,6 +478,7 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, ope
   const status = queued ? auxiliary ? finalGate ? 'LANE B READY' : secondGate ? 'ROUTE CHECK' : profileRead ? 'QUALIFICATION CHECK' : 'CHAMBER A ACTIVE' : finalGate ? 'QUEUE PROVEN' : secondGate ? 'LOCATION CHECK' : profileRead ? 'Q01 CONFIRMED' : 'OCCUPANCY HOLD' : finalGate ? 'PROFILE ACTIVE' : secondGate ? 'START ENABLED' : profileRead ? 'SAFETY CHAIN' : 'RECIPE LOADED';
   return <section className={`campaign-furnace-console${finalGate ? ' operation-complete' : ''}`}>
     <header><div><span>THERMAL PROCESS CONTROL</span><b>TC-04 / OT-04 · MAT-{identity.suffix} · {spec.profile}</b></div><em>{status}</em></header>
+    <StationBacklogStrip backlog={backlog} station="furnace" lanes={thermalBayLevel} />
     <div className="campaign-furnace-layout">
       <svg viewBox="0 0 520 180" role="img" aria-label={queued ? `${identity.runId} furnace queue behind ${runOps.activeFurnaceRun}` : `${identity.runId} ${spec.temperature} ${spec.dwell} thermal profile`}>
         <defs><pattern id="furnaceGrid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" className="grid" /></pattern><linearGradient id="furnaceGlow" x1="0" x2="1"><stop stopColor="#ff9a58" stopOpacity=".12" /><stop offset=".5" stopColor="#ff9a58" stopOpacity=".55" /><stop offset="1" stopColor="#ffca79" stopOpacity=".12" /></linearGradient></defs>
@@ -518,7 +523,7 @@ function diffractionPath(peaks: Array<[number, number]>, baseline: number, ampli
   }).join(' ');
 }
 
-function XrdCampaignPanel({ stage, selected, runNumber, missionId, operations }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId; operations: string[] }) {
+function XrdCampaignPanel({ stage, selected, runNumber, missionId, backlog, operations }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId; backlog: CampaignBacklogItem[]; operations: string[] }) {
   const spec = getCampaignSpec(selected);
   const evaluation = evaluateCampaignMission(spec, missionId);
   const identity = getCampaignIdentity(runNumber);
@@ -533,6 +538,7 @@ function XrdCampaignPanel({ stage, selected, runNumber, missionId, operations }:
   const referenceStatus = runOps.referenceCondition === 'age-due' ? 'CONTROL REQUIRED' : runOps.referenceCondition === 'trend-review' ? 'TREND REVIEW' : 'CURRENT CONTROL';
   return <section className={`campaign-xrd-console${sampleCaptured ? ' result-ready' : ''}`}>
     <header><div><span>DIFFRACTION ACQUISITION</span><b>{identity.xrdDataset} · Cu Kα · 10–80° 2θ</b></div><em>{sampleCaptured ? 'PATTERN COMPLETE' : referenceCaptured ? runOps.referenceCondition === 'current' ? 'CONTROL REVIEWED' : 'REFERENCE PASS' : referenceStatus}</em></header>
+    <StationBacklogStrip backlog={backlog} station="xrd" lanes={1} />
     <div className="campaign-xrd-layout">
       <svg viewBox="0 0 660 210" role="img" aria-label={`${identity.runId} simulated XRD reference and diffraction pattern`}>
         <defs><linearGradient id="xrdFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#4dd5ed" stopOpacity=".25" /><stop offset="1" stopColor="#4dd5ed" stopOpacity="0" /></linearGradient></defs>
@@ -552,6 +558,18 @@ function XrdCampaignPanel({ stage, selected, runNumber, missionId, operations }:
       </aside>
     </div>
   </section>;
+}
+
+function StationBacklogStrip({ backlog, station, lanes }: { backlog: CampaignBacklogItem[]; station: 'furnace' | 'xrd'; lanes: number }) {
+  const load = station === 'furnace' ? backlog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0) : backlog.length * 18;
+  const limit = station === 'furnace' ? lanes * 360 : 54;
+  const pressure = load > limit;
+  return <div className={`station-backlog-strip ${station}${pressure ? ' pressure' : ''}`}><span>NEXT</span>{[0, 1, 2].map((slot) => {
+    const item = backlog[slot];
+    if (!item) return <div className="empty" key={slot}><b>OPEN</b><small>unreleased</small></div>;
+    const itemSpec = getCampaignSpec(item.candidate);
+    return <div key={`${item.runNumber}-${item.candidate}`}><b>RUN-{String(item.runNumber).padStart(3, '0')} · {item.candidate}</b><small>{station === 'furnace' ? `${itemSpec.thermalMinutes} min · ${itemSpec.temperatureShort}` : '18 min · powder scan'}</small></div>;
+  })}<em>{load} MIN · {pressure ? 'LOAD PRESSURE' : 'CAPACITY VISIBLE'}</em></div>;
 }
 
 function SemCampaignPanel({ stage, selected, runNumber, operations }: { stage: number; selected: string; runNumber: number; operations: string[] }) {
