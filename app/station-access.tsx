@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import { evaluateCampaignMission, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import type { CampaignMissionId } from './campaign-spec';
 import { getCampaignStationId, getCampaignStationView } from './campaign-context';
 import type { Station } from './sim-data';
 
@@ -82,11 +83,13 @@ function getCampaignMethodStep(stage: number) {
 function completeCampaignMachineStage(stage: number) {
   if (stage < 1 || (stage > 6 && stage !== 8)) return null;
   try {
-    const current = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; elapsed?: number; insight?: number; selected?: string; runNumber?: number; thermalBayLevel?: number; history?: unknown[]; [key: string]: unknown };
+    const current = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; elapsed?: number; insight?: number; selected?: string; runNumber?: number; missionId?: CampaignMissionId; thermalBayLevel?: number; history?: unknown[]; [key: string]: unknown };
     if (Number(current.stage) !== stage) return null;
     const elapsed = Number(current.elapsed ?? 0);
     const insight = Number(current.insight ?? 248);
     const spec = getCampaignSpec(String(current.selected ?? 'C-42'));
+    const missionId = current.missionId ?? 'purity';
+    const evaluation = evaluateCampaignMission(spec, missionId);
     const identity = getCampaignIdentity(Number(current.runNumber ?? 42));
     const thermalBayLevel = Number(current.thermalBayLevel ?? 1);
     const runOps = getCampaignOperations(identity.runNumber, thermalBayLevel);
@@ -112,13 +115,13 @@ function completeCampaignMachineStage(stage: number) {
       3: { stage: 4, elapsed: elapsed + 14, insight, message: thermalBayLevel >= 2 ? `Six crucibles dosed and ${identity.carrier} released. ${runOps.furnaceLane} is qualified; independent readiness proof is required while chamber A runs ${runOps.activeFurnaceRun}.` : `Six crucibles dosed and ${identity.carrier} released. FURN-04A is occupied by ${runOps.activeFurnaceRun}; ${identity.runId} is now queue constrained.` },
       4: { stage: 5, elapsed: elapsed + runOps.queueMinutes, insight, message: thermalBayLevel >= 2 ? `${runOps.furnaceLane} readiness proved in ${runOps.queueMinutes} minutes. ${identity.runId} entered ${spec.profile} independently while chamber A retained ${runOps.activeFurnaceRun}.` : `${runOps.activeFurnaceRun} cooled and unloaded after ${runOps.queueMinutes} minutes. Queue proof retained; ${identity.runId} entered ${spec.profile} at ${spec.temperature}.` },
       5: { stage: 6, elapsed: elapsed + spec.thermalMinutes, insight, message: referenceEntryMessage },
-      6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `${runOps.referenceCondition === 'current' ? 'Current control reviewed' : runOps.referenceCondition === 'trend-review' ? 'Confirmatory control passed' : 'Reference passed'} at ${runOps.referenceResult}. ${spec.id} measured ${spec.measured}% target phase: valid evidence, ${spec.objectiveMet ? `${spec.gap} above the objective.` : `${spec.gap.replace('−', '')} below the objective.`}` },
+      6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `${runOps.referenceCondition === 'current' ? 'Current control reviewed' : runOps.referenceCondition === 'trend-review' ? 'Confirmatory control passed' : 'Reference passed'} at ${runOps.referenceResult}. ${spec.id}: ${evaluation.resultText}; valid evidence, ${evaluation.met ? 'mission achieved.' : `${evaluation.constraintText}.`}` },
       8: { stage: 9, elapsed: elapsed + 26, insight: insight + 15, message: `Four BSE fields and a representative EDS map retained. ${spec.id === 'D-08' ? 'Ti-rich cores support incomplete conversion as the follow-up hypothesis.' : 'Ca-rich secondary grains support precursor excess as the follow-up hypothesis.'}` },
     }[stage];
     if (!transition) return null;
     const history = Array.isArray(current.history) ? current.history : [];
     const nextHistory = stage === 6
-      ? [...history, { runNumber: identity.runNumber, candidate: spec.id, measured: spec.measured, gap: spec.gap, objectiveMet: spec.objectiveMet, elapsed: transition.elapsed }]
+      ? [...history, { runNumber: identity.runNumber, candidate: spec.id, measured: spec.measured, gap: evaluation.gap, objectiveMet: evaluation.met, missionId, elapsed: transition.elapsed }]
       : stage === 8
         ? history.map((result) => result && typeof result === 'object' && 'runNumber' in result && Number((result as { runNumber?: number }).runNumber) === identity.runNumber ? { ...result, diagnosis: spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains' } : result)
         : history;
@@ -131,11 +134,12 @@ function completeCampaignMachineStage(stage: number) {
   }
 }
 
-function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignStage = 0, selected = 'C-42', runNumber = 42, thermalBayLevel = 1): typeof profiles[string] {
+function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignStage = 0, selected = 'C-42', runNumber = 42, thermalBayLevel = 1, missionId: CampaignMissionId = 'purity'): typeof profiles[string] {
   const profile = profiles[stationId] ?? profiles['XRD-03'];
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
   const runOps = getCampaignOperations(runNumber, thermalBayLevel);
+  const evaluation = evaluateCampaignMission(spec, missionId);
   if (campaignStage === 1 && stationId === 'PREP-01') return { ...profile, controller: `BAL-01 / LES-${spec.id.replace('-', '')}`, method: ['Scan precursor lots', `Weigh ${spec.id} formulation`, 'Homogenize + seal', `Release ${identity.runId}`], sample: [spec.id, identity.prepSample, identity.carrier], workOrder: `MAT-${identity.suffix}`, service: 'Campaign preparation · active', supplies: [spec.precursorLabel, `target ${spec.targetMass}`, 'sealed liners 14'] };
   if (campaignStage >= 2 && campaignStage <= 3 && stationId === 'ROBO-02') {
     const conditionMethod = runOps.robotCondition === 'contamination' ? 'Clean + witness gripper' : runOps.robotCondition === 'grip-force' ? 'Inspect pads + force witness' : 'Prove tool ID + handshake';
@@ -146,7 +150,7 @@ function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignSt
   if (campaignStage >= 6 && stationId === 'XRD-03') {
     const referenceMethod = runOps.referenceCondition === 'age-due' ? 'Acquire NIST Si' : runOps.referenceCondition === 'trend-review' ? 'Review trend + confirm Si' : 'Review current Si control';
     const referenceService = runOps.referenceCondition === 'age-due' ? 'Si reference due' : runOps.referenceCondition === 'trend-review' ? 'Si trend confirmation' : 'Si control current';
-    return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: [referenceMethod, `Prove ${runOps.referenceResult}`, `Acquire ${identity.runId}`, `Review ${spec.measured}% result`], sample: [identity.thermalSample, identity.xrdDataset, identity.pattern], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 6 ? `${referenceService} · ${runOps.referenceAgeHours} h` : `Valid result · target ${spec.objectiveMet ? 'met' : 'missed'}`, health: campaignStage === 6 ? runOps.referenceConstraint ? 78 : 94 : 92 };
+    return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: [referenceMethod, `Prove ${runOps.referenceResult}`, `Acquire ${identity.runId}`, `Review ${evaluation.resultText}`], sample: [identity.thermalSample, identity.xrdDataset, identity.pattern], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 6 ? `${referenceService} · ${runOps.referenceAgeHours} h` : `Valid result · mission ${evaluation.met ? 'met' : 'missed'}`, health: campaignStage === 6 ? runOps.referenceConstraint ? 78 : 94 : 92 };
   }
   if (campaignStage >= 8 && stationId === 'SEM-01') return { ...profile, controller: 'SEM-01 / DIAG-EDS', method: [`Load ${identity.thermalSample}`, 'Acquire four BSE fields', 'Acquire representative EDS map', 'Route mechanism hypothesis'], sample: [identity.thermalSample, `STUB-${identity.suffix}`, `MAP-${identity.suffix}`], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 8 ? 'Valid-negative diagnosis · active' : 'Representative follow-up · retained', health: 96 };
   if (scenarioId === 'xrd' && stationId === 'FURN-04' && thermalBayLevel >= 2) return { ...profile, controller: 'TC-04A/B / ASSET-PLC', safe: ['chamber A chain independent', 'chamber B chain independent', 'overtemperature relays armed'], method: ['Review chamber assignment', 'Review IQ / OQ survey', 'Verify controller independence', 'Retain asset state'], sample: ['FURN-04A', 'FURN-04B', 'OQ-04B-990'], workOrder: 'OQ-04B', service: 'Chamber B IQ / OQ · retained', health: 95, supplies: ['survey TC set', 'empty hearth', 'door seal kit'] };
@@ -168,15 +172,16 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   const [campaignStage, setCampaignStage] = useState(0);
   const [campaignSelected, setCampaignSelected] = useState('C-42');
   const [campaignRunNumber, setCampaignRunNumber] = useState(42);
+  const [campaignMissionId, setCampaignMissionId] = useState<CampaignMissionId>('purity');
   const [campaignThermalBayLevel, setCampaignThermalBayLevel] = useState(1);
   const campaignActive = scenarioId === 'xrd' && getCampaignStationId(campaignStage) === station.id;
   const facilityConfigured = scenarioId === 'xrd' && station.id === 'FURN-04' && campaignThermalBayLevel >= 2;
-  const contextKey = campaignActive ? `${station.id}:RUN-${campaignRunNumber}:${campaignSelected}:S${campaignStage}` : facilityConfigured ? `${station.id}:CONFIG-L2` : station.id;
-  const consoleStation = campaignActive ? getCampaignStationView(station, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel) : station;
+  const contextKey = campaignActive ? `${station.id}:RUN-${campaignRunNumber}:${campaignSelected}:${campaignMissionId}:S${campaignStage}` : facilityConfigured ? `${station.id}:CONFIG-L2` : station.id;
+  const consoleStation = campaignActive ? getCampaignStationView(station, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, campaignMissionId) : station;
   const session = sessions[contextKey] ?? emptyConsoleSession();
   const completed = session.completed;
   const hmiOperations = session.hmiOperations;
-  const profile = getContextProfile(station.id, scenarioId, campaignActive ? campaignStage : 0, campaignSelected, campaignRunNumber, campaignThermalBayLevel);
+  const profile = getContextProfile(station.id, scenarioId, campaignActive ? campaignStage : 0, campaignSelected, campaignRunNumber, campaignThermalBayLevel, campaignMissionId);
   const activePhysicalChecks = campaignActive ? (enteredFromLab ? enteredChecks : []) : physicalChecks;
   const recordStationEvent = (type: string, text: string, action?: string) => window.dispatchEvent(new CustomEvent('mattershift:station-event', { detail: { stationId: station.id, type, text, action } }));
   const finish = () => {
@@ -208,10 +213,11 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       try {
-        const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; selected?: string; runNumber?: number; thermalBayLevel?: number };
+        const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; selected?: string; runNumber?: number; missionId?: CampaignMissionId; thermalBayLevel?: number };
         setCampaignStage(Number(stored.stage ?? 0));
         setCampaignSelected(String(stored.selected ?? 'C-42'));
         setCampaignRunNumber(Number(stored.runNumber ?? 42));
+        setCampaignMissionId(stored.missionId ?? 'purity');
         setCampaignThermalBayLevel(Number(stored.thermalBayLevel ?? 1));
       } catch { /* preserve the deterministic server defaults */ }
     });
@@ -220,10 +226,11 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
 
   useEffect(() => {
     const followCampaign = (event: Event) => {
-      const detail = (event as CustomEvent<{ stage?: number; selected?: string; runNumber?: number; thermalBayLevel?: number }>).detail;
+      const detail = (event as CustomEvent<{ stage?: number; selected?: string; runNumber?: number; missionId?: CampaignMissionId; thermalBayLevel?: number }>).detail;
       setCampaignStage(Number(detail?.stage ?? 0));
       if (detail?.selected) setCampaignSelected(String(detail.selected));
       if (detail?.runNumber) setCampaignRunNumber(Number(detail.runNumber));
+      if (detail?.missionId) setCampaignMissionId(detail.missionId);
       if (detail?.thermalBayLevel) setCampaignThermalBayLevel(Number(detail.thermalBayLevel));
     };
     window.addEventListener('mattershift:campaign-state', followCampaign);
@@ -268,9 +275,9 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
           </nav>
           <div className="console-main">
             <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>WALK <b>{activePhysicalChecks.length}/3</b></span><span><i className={consoleStation.tone === 'warn' ? 'alarm' : consoleStation.tone === 'off' ? '' : 'online'} />{consoleStation.state}</span></div>
-            {tab === 'hmi' && <HmiView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignThermalBayLevel={campaignThermalBayLevel} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
+            {tab === 'hmi' && <HmiView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} campaignThermalBayLevel={campaignThermalBayLevel} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
             {tab === 'les' && <LesView station={consoleStation} profile={profile} campaignStage={campaignActive ? campaignStage : 0} complete={completed.les} onComplete={finish} />}
-            {tab === 'lims' && <LimsView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} complete={completed.lims} onComplete={finish} />}
+            {tab === 'lims' && <LimsView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} complete={completed.lims} onComplete={finish} />}
             {tab === 'cmms' && <CmmsView profile={profile} complete={completed.cmms} onComplete={finish} />}
           </div>
         </div>
@@ -279,7 +286,7 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   </>;
 }
 
-function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignThermalBayLevel: number; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
+function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignThermalBayLevel, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignMissionId: CampaignMissionId; campaignThermalBayLevel: number; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
   const releaseBlocked = station.tone === 'warn' || station.tone === 'off' || station.tone === 'hold';
   const walkaroundComplete = physicalChecks.length === 3;
   const operationSteps = getCampaignHmiOperations(station.id, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel) ?? (station.id === 'FURN-04' && station.state !== 'READY'
@@ -322,7 +329,7 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
     {campaignStage === 1 && station.id === 'PREP-01' && <PrepCampaignPanel selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 2 && campaignStage <= 3 && station.id === 'ROBO-02' && <RobotCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} thermalBayLevel={campaignThermalBayLevel} operations={operations} />}
-    {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
+    {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} operations={operations} />}
     {campaignStage >= 8 && station.id === 'SEM-01' && <SemCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {!campaignStage && scenarioId === 'bet' && station.id === 'BET-02' && <BetHmiPanel station={station} operations={operations} />}
     {!campaignStage && scenarioId === 'tga' && station.id === 'TGA-01' && <TgaHmiPanel station={station} operations={operations} />}
@@ -511,8 +518,9 @@ function diffractionPath(peaks: Array<[number, number]>, baseline: number, ampli
   }).join(' ');
 }
 
-function XrdCampaignPanel({ stage, selected, runNumber, operations }: { stage: number; selected: string; runNumber: number; operations: string[] }) {
+function XrdCampaignPanel({ stage, selected, runNumber, missionId, operations }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId; operations: string[] }) {
   const spec = getCampaignSpec(selected);
+  const evaluation = evaluateCampaignMission(spec, missionId);
   const identity = getCampaignIdentity(runNumber);
   const runOps = getCampaignOperations(runNumber);
   const referenceCaptured = stage >= 7 || (runOps.referenceCondition === 'age-due'
@@ -540,7 +548,7 @@ function XrdCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
       <aside>
         <div className={referenceCaptured ? 'pass' : runOps.referenceConstraint ? 'hold' : 'review'}><span>REFERENCE</span><b>{referenceCaptured ? runOps.referenceResult : `${runOps.referenceAgeHours} H OLD`}</b><small>{referenceCaptured ? 'within ±0.05°' : runOps.referenceCondition === 'trend-review' ? 'confirm position trend' : runOps.referenceCondition === 'current' ? 'review before sample' : 'specimen inhibited'}</small></div>
         <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${spec.measured}%` : '—'}</b><small>{sampleCaptured ? `Rwp ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}%` : 'awaiting pattern'}</small></div>
-        <div className={sampleCaptured ? spec.objectiveMet ? 'pass' : 'miss' : 'waiting'}><span>OBJECTIVE</span><b>{sampleCaptured ? spec.gap : '≥ 96%'}</b><small>{sampleCaptured ? spec.objectiveMet ? 'target met' : 'valid negative' : 'campaign gate'}</small></div>
+        <div className={sampleCaptured ? evaluation.met ? 'pass' : 'miss' : 'waiting'}><span>MISSION</span><b>{sampleCaptured ? evaluation.gap : missionId === 'low-energy' ? 'ENERGY' : missionId === 'throughput' ? 'RATE' : '≥ 96%'}</b><small>{sampleCaptured ? evaluation.met ? 'mission met' : evaluation.constraintText : 'campaign gate'}</small></div>
       </aside>
     </div>
   </section>;
@@ -662,7 +670,7 @@ function LesView({ station, profile, campaignStage, complete, onComplete }: { st
   </div>;
 }
 
-function LimsView({ station, profile, scenarioId, campaignStage, campaignSelected, campaignRunNumber, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; complete: boolean; onComplete: () => void }) {
+function LimsView({ station, profile, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignMissionId: CampaignMissionId; complete: boolean; onComplete: () => void }) {
   const itemNotes = campaignStage
     ? ['campaign formulation / physical input', 'governed run + carrier association', 'native evidence package']
     : scenarioId === 'facility'
@@ -674,11 +682,12 @@ function LimsView({ station, profile, scenarioId, campaignStage, campaignSelecte
     ? station.state === 'BAY RELEASED' ? 'MOVE RECEIVED' : station.state === 'TRANSFER READY' ? 'MOVE RELEASED' : 'MOVE HOLD'
     : station.state === 'READY' ? 'ELIGIBLE' : station.state === 'DATA REVIEW' ? 'WINDOW HOLD' : station.state === 'QC READY' ? 'CONTROL READY' : 'SERVICE HOLD';
   const campaignOperations = getCampaignOperations(campaignRunNumber);
+  const campaignEvaluation = evaluateCampaignMission(getCampaignSpec(campaignSelected), campaignMissionId);
   const chainState = campaignStage === 2
     ? campaignOperations.robotCondition === 'contamination' ? 'CONTAM HOLD' : campaignOperations.robotCondition === 'grip-force' ? 'FORCE CHECK' : 'SETUP PROOF'
     : campaignStage === 4 ? 'QUEUE HOLD'
       : campaignStage === 6 ? campaignOperations.referenceCondition === 'age-due' ? 'QC HOLD' : campaignOperations.referenceCondition === 'trend-review' ? 'TREND CHECK' : 'ACQUIRE'
-        : campaignStage >= 7 ? getCampaignSpec(campaignSelected).objectiveMet ? 'VALID · HIT' : 'VALID · MISS'
+        : campaignStage >= 7 ? campaignEvaluation.met ? 'VALID · HIT' : 'VALID · MISS'
           : campaignStage ? 'IN PROCESS' : scenarioId === 'furnace' ? 'CENSORED' : scenarioId === 'bet' ? 'RECONCILE' : scenarioId === 'tga' ? 'PAN HOLD' : scenarioId === 'facility' ? facilityState : 'QC HOLD';
   return <div className="console-view">
     <div className="console-view-head"><div><p className="section-kicker">LIMS / SAMPLE IDENTITY</p><h3>Physical item ↔ digital record</h3></div><span>CHAIN LOCKED</span></div>

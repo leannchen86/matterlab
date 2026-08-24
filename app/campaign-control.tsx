@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { buildCustomCampaignSpec, campaignSpecs as recipes, customCompositionOptions, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
-import type { CampaignOperations, CampaignSpec, CustomComposition } from './campaign-spec';
+import { buildCustomCampaignSpec, campaignMissions, campaignSpecs as recipes, customCompositionOptions, evaluateCampaignMission, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import type { CampaignMissionId, CampaignOperations, CampaignSpec, CustomComposition } from './campaign-spec';
 
-type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; diagnosis?: string };
+type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; missionId?: CampaignMissionId; diagnosis?: string };
 type CampaignInventory = { crucibles: number; liners: number; carbonTabs: number };
 
 const initialInventory: CampaignInventory = { crucibles: 7, liners: 2, carbonTabs: 1 };
@@ -16,6 +16,7 @@ type CampaignRun = {
   insight: number;
   message: string;
   runNumber: number;
+  missionId: CampaignMissionId;
   thermalBayLevel: number;
   customCandidate?: string;
   inventory: CampaignInventory;
@@ -28,6 +29,7 @@ const initialRun: CampaignRun = {
   elapsed: 0,
   insight: 248,
   runNumber: 42,
+  missionId: 'purity',
   thermalBayLevel: 1,
   inventory: initialInventory,
   history: [],
@@ -73,6 +75,10 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const availableRecipes = [...recipes, ...(customCandidate ? [customCandidate] : [])].filter((candidate) => (candidate.id !== 'A-29' || adaptiveUnlocked) && (candidate.id !== 'R-31' || diagnosisUnlocked));
   const identity = getCampaignIdentity(currentRunNumber);
   const operations = getCampaignOperations(currentRunNumber, run.thermalBayLevel);
+  const mission = getCampaignMission(run.missionId);
+  const evaluation = evaluateCampaignMission(recipe, run.missionId);
+  const phaseFloor = run.missionId === 'low-energy' ? 94.5 : run.missionId === 'throughput' ? 95.5 : 96;
+  const needsMicroscopy = Number(recipe.measured) < phaseFloor;
   const inventory = { ...initialInventory, ...run.inventory };
   const inventoryLow = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
   const fault = run.stage === 2 && operations.robotConstraint ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 6 && operations.referenceConstraint ? 'qc' : null;
@@ -84,21 +90,21 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
       : run.stage === 6 ? operations.referenceConstraint ? 'BOTTLENECK DETECTED' : 'MEASUREMENT READINESS'
         : run.stage === 8 ? 'DIAGNOSTIC BRANCH'
           : run.stage >= 9 ? 'MECHANISM EVIDENCE RETAINED'
-            : run.stage >= 7 ? recipe.objectiveMet ? 'VALID RESULT · TARGET MET' : 'VALID RESULT · TARGET MISSED'
+            : run.stage >= 7 ? evaluation.met ? 'VALID RESULT · MISSION MET' : 'VALID RESULT · MISSION MISSED'
               : 'ROUTE STATUS';
   const conditionDetail = run.stage === 2
     ? `ROBO-02 / ${robotConditionLabel}`
     : run.stage === 4 ? run.thermalBayLevel >= 2 ? 'FURN-04B / READINESS GATE' : 'FURN-04A / CAPACITY 1 OF 1'
       : run.stage === 6 ? `XRD-03 / ${referenceConditionLabel}`
         : run.stage === 8 ? `SEM-01 / ${identity.thermalSample}`
-          : run.stage >= 7 ? `${recipe.measured}% · GAP ${recipe.gap}` : 'FLOW NOMINAL';
+          : run.stage >= 7 ? `${evaluation.resultText} · ${evaluation.gap}` : 'FLOW NOMINAL';
   const conditionMetric = run.stage === 2
     ? operations.robotConstraint ? `${operations.robotRecoveryMinutes} min recovery` : `${operations.robotRecoveryMinutes} min setup proof`
     : run.stage === 4 ? `${operations.queueMinutes} min wait`
       : run.stage === 6 ? `${operations.referenceAgeHours} h since reference`
         : run.stage === 8 ? '4 fields + EDS map'
           : run.stage >= 9 ? 'diagnosis linked'
-            : run.stage >= 7 ? recipe.objectiveMet ? 'objective achieved' : 'valid negative result' : 'no active delay';
+            : run.stage >= 7 ? evaluation.met ? 'mission achieved' : evaluation.constraintText : 'no active delay';
   const primary = getPrimaryAction(run.stage, identity.runId, operations);
 
   const advance = () => {
@@ -113,10 +119,10 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
     else if (run.stage >= 7) {
       const archivedHistory = history.some((result) => result.runNumber === currentRunNumber)
         ? history
-        : [...history, { runNumber: currentRunNumber, candidate: recipe.id, measured: recipe.measured, gap: recipe.gap, objectiveMet: recipe.objectiveMet, elapsed: run.elapsed }];
+        : [...history, { runNumber: currentRunNumber, candidate: recipe.id, measured: recipe.measured, gap: evaluation.gap, objectiveMet: evaluation.met, elapsed: run.elapsed, missionId: run.missionId }];
       const mechanismRecovery = run.stage >= 9 && recipe.id === 'D-08' && archivedHistory.some((result) => result.runNumber === currentRunNumber && Boolean(result.diagnosis));
       const nextSelected = mechanismRecovery ? 'R-31' : run.selected;
-      updateRun({ ...initialRun, insight: run.insight, thermalBayLevel: run.thermalBayLevel, customCandidate: run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, message: mechanismRecovery
+      updateRun({ ...initialRun, insight: run.insight, missionId: run.missionId, thermalBayLevel: run.thermalBayLevel, customCandidate: run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, message: mechanismRecovery
         ? `${identity.runId} diagnosis assimilated. R-31 raises thermal dose while preserving stoichiometry to test the incomplete-conversion hypothesis.`
         : `${identity.runId} archived. Select the next candidate.` });
     }
@@ -179,11 +185,16 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
       </header>
 
       <div className="campaign-hud">
-        <div><span>OBJECTIVE</span><b>Target phase ≥ 96%</b></div>
+        <div><span>OBJECTIVE · {mission.shortLabel}</span><b>{mission.target}</b></div>
         <div><span>LAB CLOCK</span><b>+{run.elapsed} min</b></div>
         <div><span>INSIGHT</span><b>{run.insight} RP</b></div>
         <div><span>FURNACE-LIMITED RATE</span><b>{run.thermalBayLevel >= 2 ? '0.31 runs / h' : recipe.throughput}</b></div>
         <div className={fault ? 'hud-alert' : ''}><span>ACTIVE CONSTRAINT</span><b>{fault === 'cell' ? 'ROBOT CELL' : fault === 'queue' ? 'FURNACE QUEUE' : fault === 'qc' ? 'XRD QC' : 'NONE'}</b></div>
+      </div>
+
+      <div className="campaign-mission-strip" aria-label="Scientific mission selection">
+        <span>SCIENTIFIC MISSION</span>
+        {campaignMissions.map((candidateMission) => <button key={candidateMission.id} type="button" className={run.missionId === candidateMission.id ? 'active' : ''} disabled={run.stage > 0} onClick={() => updateRun({ missionId: candidateMission.id, message: `${candidateMission.label} mission selected. Candidate outcomes will be judged against ${candidateMission.target}.` })}><i>{candidateMission.shortLabel}</i><b>{candidateMission.label}</b><small>{candidateMission.target}</small></button>)}
       </div>
 
       <div className="campaign-workspace">
@@ -235,7 +246,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
             <RouteCell code={run.stage >= 8 ? 'SEM-01' : 'MODEL'} label={run.stage >= 8 ? 'DIAGNOSE' : 'LEARN'} cycle={run.stage >= 8 ? '26 MIN' : 'GATED'} state={run.stage >= 9 ? 'complete' : run.stage === 8 ? 'active' : run.stage >= 7 ? 'complete' : 'waiting'} current={run.stage === 8} job={run.stage >= 9 ? '4 FIELDS + MAP' : run.stage === 8 ? identity.thermalSample : run.stage >= 7 ? `+${recipe.insightReward} RP` : 'EVIDENCE'} />
           </div>
 
-          <div className={`constraint-console ${fault ? `fault-${fault}` : run.stage === 8 ? 'fault-qc' : run.stage >= 7 ? recipe.objectiveMet ? 'result-hit' : 'result-miss' : ''}`}>
+          <div className={`constraint-console ${fault ? `fault-${fault}` : run.stage === 8 ? 'fault-qc' : run.stage >= 7 ? evaluation.met ? 'result-hit' : 'result-miss' : ''}`}>
             <div className="constraint-signal"><span>{conditionSignal}</span><b>{conditionDetail}</b><i /></div>
             <div className="constraint-visual" aria-label="Campaign queue visualization">
               <span className="queue-axis">QUEUE</span>
@@ -270,10 +281,10 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
       </div>
 
       <footer className="campaign-actions">
-        <div><span>PLAYER COMMAND</span><b>{run.stage === 8 || run.stage >= 9 ? primary.hint : run.stage >= 7 ? `${recipe.id} · ${recipe.measured}% · ${recipe.gap}` : primary.hint}</b></div>
+        <div><span>PLAYER COMMAND</span><b>{run.stage === 8 || run.stage >= 9 ? primary.hint : run.stage >= 7 ? `${recipe.id} · ${evaluation.resultText} · ${evaluation.gap}` : primary.hint}</b></div>
         {run.stage === 2 && operations.robotConstraint && <button type="button" className="secondary" onClick={() => rejectShortcut('robot')}>{operations.robotCondition === 'grip-force' ? 'BYPASS FORCE WITNESS' : 'BYPASS CLEAN WITNESS'}</button>}
         {run.stage === 4 && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace')}>SHORTEN {operations.activeFurnaceRun}</button>}
-        {run.stage === 7 && !recipe.objectiveMet && <button type="button" className="secondary diagnosis" onClick={startDiagnosis}>ROUTE TO SEM / EDS</button>}
+        {run.stage === 7 && !evaluation.met && needsMicroscopy && <button type="button" className="secondary diagnosis" onClick={startDiagnosis}>ROUTE TO SEM / EDS</button>}
         <button type="button" onClick={run.stage > 0 && (run.stage < 7 || run.stage === 8) ? viewInLab : advance}>{primary.label}<span>→</span></button>
       </footer>
     </section>

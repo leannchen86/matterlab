@@ -1457,6 +1457,29 @@ shift recovered, but a development error overlay appeared on a cold reload.
 - Preserved RUN-047, station selection, and its XRD reference-due state across a cold reload without a
   hydration warning, duplicate console, or stale default workcell state.
 
+## Critique 79: every experiment served the same purity objective
+
+The formulation workbench expanded the scientific choices, but every run was still judged only on
+whether target phase exceeded 96%. Temperature and furnace duration affected operations without giving
+the scientist a reason to trade a little purity for lower energy or higher throughput.
+
+### Changes
+
+- Added three selectable scientific missions before release: phase purity (≥96.0%), a low-energy route
+  (≥94.5% at ≤950 °C), and a fast campaign (≥95.5% with ≤360 minutes thermal occupancy). Mission choice
+  locks when material is issued so the success criterion cannot be changed after seeing the result.
+- Added a compact mission rail to campaign control with live objective text and persistent selection,
+  keeping the new strategy visible without adding another document-style screen.
+- Centralized mission evaluation so candidate results, history points, campaign messages, the shift
+  work order, checklist, 3D room beacon, station inspector, XRD workbench, LES method, and LIMS chain all
+  agree on the same pass or miss.
+- Distinguished a scientific mission miss from a characterization failure. Valid XRD evidence is still
+  retained; SEM/EDS is offered only when the phase floor itself is missed, not when an otherwise good
+  composition merely exceeds an energy or occupancy constraint.
+- Exercised the low-energy mission with D-08 in an isolated fresh campaign: the UI changed the governed
+  objective to ≥94.5% / ≤950 °C while retaining its 900 °C, six-hour process and 480-minute physical
+  furnace demand for the eventual multi-constraint result.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

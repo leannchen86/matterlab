@@ -1,4 +1,13 @@
 export type CampaignCandidateId = 'C-42' | 'Z-17' | 'D-08' | 'A-29' | 'R-31' | `U-${string}`;
+export type CampaignMissionId = 'purity' | 'low-energy' | 'throughput';
+
+export type CampaignMission = {
+  id: CampaignMissionId;
+  label: string;
+  shortLabel: string;
+  target: string;
+  brief: string;
+};
 
 export type CustomComposition = {
   caExcess: number;
@@ -41,6 +50,51 @@ export type CampaignOperations = {
   referenceAgeHours: number;
   referenceResult: string;
 };
+
+export const campaignMissions: CampaignMission[] = [
+  { id: 'purity', label: 'Phase purity', shortLabel: 'PURITY', target: '≥ 96.0% target phase', brief: 'Maximize qualified target-phase fraction.' },
+  { id: 'low-energy', label: 'Low-energy route', shortLabel: 'ENERGY', target: '≥ 94.5% · ≤ 950 °C', brief: 'Meet a useful phase floor inside a lower-temperature window.' },
+  { id: 'throughput', label: 'Fast campaign', shortLabel: 'RATE', target: '≥ 95.5% · ≤ 360 min', brief: 'Balance qualified phase fraction against furnace occupancy.' },
+];
+
+export function getCampaignMission(id?: string) {
+  return campaignMissions.find((mission) => mission.id === id) ?? campaignMissions[0];
+}
+
+export function evaluateCampaignMission(spec: CampaignSpec, missionId: CampaignMissionId = 'purity') {
+  const measured = Number(spec.measured);
+  const temperature = spec.composition?.temperature ?? Number(spec.temperature.replace(/[^\d]/g, ''));
+  if (missionId === 'low-energy') {
+    const phasePass = measured >= 94.5;
+    const temperaturePass = temperature <= 950;
+    return {
+      met: phasePass && temperaturePass,
+      gap: !phasePass ? `−${(94.5 - measured).toFixed(1)} pp` : !temperaturePass ? `+${temperature - 950} °C` : 'WINDOW PASS',
+      targetText: 'Phase ≥ 94.5% · calcine ≤ 950 °C',
+      resultText: `${measured.toFixed(1)}% · ${temperature} °C`,
+      constraintText: !phasePass ? 'phase floor missed' : !temperaturePass ? 'temperature ceiling exceeded' : 'energy window achieved',
+    };
+  }
+  if (missionId === 'throughput') {
+    const phasePass = measured >= 95.5;
+    const durationPass = spec.thermalMinutes <= 360;
+    return {
+      met: phasePass && durationPass,
+      gap: !phasePass ? `−${(95.5 - measured).toFixed(1)} pp` : !durationPass ? `+${spec.thermalMinutes - 360} min` : 'RATE PASS',
+      targetText: 'Phase ≥ 95.5% · thermal occupancy ≤ 360 min',
+      resultText: `${measured.toFixed(1)}% · ${spec.thermalMinutes} min`,
+      constraintText: !phasePass ? 'phase floor missed' : !durationPass ? 'furnace window exceeded' : 'throughput window achieved',
+    };
+  }
+  const gap = measured - 96;
+  return {
+    met: gap >= 0,
+    gap: `${gap >= 0 ? '+' : '−'}${Math.abs(gap).toFixed(1)} pp`,
+    targetText: 'Target phase ≥ 96.0%',
+    resultText: `${measured.toFixed(1)}% target phase`,
+    constraintText: gap >= 0 ? 'purity objective achieved' : 'purity objective missed',
+  };
+}
 
 export const campaignSpecs: CampaignSpec[] = [
   {

@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
 import { getCampaignStationId, useCampaignSnapshot, useCampaignStation } from './campaign-context';
-import { getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import { evaluateCampaignMission, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import { FieldGuideModal } from './field-guide';
 import { LabViewport } from './lab-viewport';
 import { baseStations, initialLog, type Station } from './sim-data';
@@ -47,6 +47,8 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const campaignSpec = getCampaignSpec(campaign.selected);
   const campaignIdentity = getCampaignIdentity(campaign.runNumber);
   const campaignOperations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
+  const campaignMission = getCampaignMission(campaign.missionId);
+  const campaignEvaluation = evaluateCampaignMission(campaignSpec, campaign.missionId);
   const campaignActive = campaign.stage > 0;
   const [phase, setPhase] = useState(0);
   const [modal, setModal] = useState<Modal>(null);
@@ -152,7 +154,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     { number: '03', title: 'Clear furnace queue', note: campaign.stage >= 5 ? 'Capacity slot secured' : `Q01 · ${campaignOperations.queueMinutes} min`, start: 4, complete: 5 },
     { number: '04', title: 'Execute thermal profile', note: campaign.stage >= 6 ? `${campaignSpec.profile} retained` : `${campaignSpec.temperature} · ${campaignSpec.dwell}`, start: 5, complete: 6 },
     { number: '05', title: 'Qualify XRD result', note: campaign.stage >= 7 ? `${campaignIdentity.pattern} qualified` : campaignOperations.referenceCondition === 'age-due' ? 'NIST Si reference due' : campaignOperations.referenceCondition === 'trend-review' ? 'Si control trend review' : 'Current Si control', start: 6, complete: 7 },
-    { number: '06', title: 'Interpret evidence', note: campaign.stage >= 8 ? 'Valid negative retained' : `${campaignSpec.prediction} ${campaignSpec.uncertainty} predicted`, start: 7, complete: 8 },
+    { number: '06', title: 'Judge mission result', note: campaign.stage >= 7 ? `${campaignEvaluation.resultText} · ${campaignEvaluation.met ? 'pass' : 'miss'}` : campaignMission.target, start: 7, complete: 8 },
     { number: '07', title: 'Test mechanism', note: campaign.stage >= 9 ? 'Representative map linked' : 'SEM / EDS diagnostic branch', start: 8, complete: 9 },
   ];
   const campaignLineage = campaign.stage <= 1
@@ -304,7 +306,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
             <p className="section-kicker">ACTIVE WORK ORDER</p>
             <div className="wo-title"><span>{campaignActive ? campaignIdentity.runId : 'WO-2841'}</span><em>{campaignActive ? campaign.stage >= 9 ? 'DIAG READY' : 'ACTIVE' : phase >= 6 ? 'CLOSED' : 'PRIORITY 1'}</em></div>
             <h2>{campaignActive ? campaignSpec.name : 'Phase-purity recovery'}</h2>
-            <p>{campaignActive ? `${campaignSpec.formula} · ${campaignSpec.temperature} for ${campaignSpec.dwell}. Preserve one traceable material history from lots to evidence.` : 'Restore the Ca–Ti oxide campaign after an XRD reference check exceeded its control limit.'}</p>
+            <p>{campaignActive ? `${campaignSpec.formula} · ${campaignMission.label}: ${campaignMission.target}. Preserve one traceable material history from lots to evidence.` : 'Restore the Ca–Ti oxide campaign after an XRD reference check exceeded its control limit.'}</p>
             <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
             <div className="progress-meta"><span>{displayedCompletedTasks} / 7 tasks</span><span>{progress}%</span></div>
           </section>
@@ -420,6 +422,8 @@ function ActionPanel({ phase, onCampaign, onQc, onLineage, onRelease, onAdvance,
     const spec = getCampaignSpec(campaign.selected);
     const identity = getCampaignIdentity(campaign.runNumber);
     const operations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
+    const mission = getCampaignMission(campaign.missionId);
+    const evaluation = evaluateCampaignMission(spec, campaign.missionId);
     const campaignStates = {
       1: { tag: 'CAMPAIGN EXECUTION', title: `${identity.runId} powder preparation`, body: `${spec.formula} is released to PREP-01. Physical lot, mass, and enclosure checks own the next gate.`, metric: spec.targetMass, tone: 'run' },
       2: operations.robotCondition === 'contamination'
@@ -435,7 +439,7 @@ function ActionPanel({ phase, onCampaign, onQc, onLineage, onRelease, onAdvance,
         : operations.referenceCondition === 'trend-review'
           ? { tag: 'XRD TREND REVIEW', title: `${identity.runId} awaiting confirmation`, body: 'The Si control remains within its age window, but its position trend needs a confirmatory acquisition before the specimen.', metric: `${operations.referenceAgeHours} h control`, tone: 'run' }
           : { tag: 'XRD ACQUISITION', title: `${identity.runId} ready to measure`, body: 'The Si control is current. Review its governed result, prove the shutter chain, and acquire the specimen pattern.', metric: `${operations.referenceAgeHours} h control`, tone: 'run' },
-      7: { tag: spec.objectiveMet ? 'CAMPAIGN TARGET MET' : 'VALID NEGATIVE', title: `${identity.runId} · ${spec.measured}% phase`, body: `The Si control passed at ${operations.referenceResult}. This qualified result is retained for the next model proposal.`, metric: spec.gap, tone: 'ready' },
+      7: { tag: evaluation.met ? 'SCIENTIFIC MISSION MET' : 'VALID MISSION MISS', title: `${identity.runId} · ${mission.label}`, body: `The Si control passed at ${operations.referenceResult}. ${evaluation.resultText}; ${evaluation.constraintText}. The qualified result remains useful evidence.`, metric: evaluation.gap, tone: 'ready' },
       8: { tag: 'SEM / EDS FOLLOW-UP', title: `${identity.runId} diagnostic branch`, body: 'Four representative BSE fields and a correlated EDS map are required before assigning a mechanism to the valid negative.', metric: '0 / 4 fields', tone: 'run' },
       9: { tag: 'DIAGNOSIS LINKED', title: `${identity.runId} mechanism hypothesis`, body: `${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'} are retained as a follow-up hypothesis, not treated as bulk proof.`, metric: '4 / 4 fields', tone: 'ready' },
     } as const;
