@@ -2474,6 +2474,20 @@ as `HOLD` because the new operator session had not repeated the walkaround.
 - Preserve the distinction between historical equipment evidence and present operator authorization: the
   instrument remains truthful while review/release controls still require a fresh physical walkaround.
 
+## Critique 133: the repository narrative still anchored the game to recruiting material
+
+The player-facing atlas and metadata were clean, but a full repository audit found that `README.md` still named
+the old Field Guide and `RESEARCH.md` still treated the original job postings as the product premise. That stale
+framing could pull later design work away from the fictional scientist experience.
+
+### Changes
+
+- Rename the remaining README reference to Systems Atlas and describe MatterShift as a game-like simulation.
+- Remove company-role and job-posting links from the research premise while retaining primary scientific,
+  control-system, autonomous-lab, and spatial-computing sources.
+- State explicitly that the lab is fictional and is not an internal representation of any company, laboratory,
+  or instrument manufacturer.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

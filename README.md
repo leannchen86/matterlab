@@ -52,7 +52,7 @@ valves/leak/gas proof, and TGA/DSC balance/purge/carousel feedback settle into t
 states. Prep enclosure/balance/antistatic feedback, robot safeguard/axis/gripper state, and furnace
 relay/door/chamber proof complete the same loop across all seven assets. Those states survive
 console-to-asset round trips.
-The Field Guide adds a visual authority map across physical equipment, supervisory controls,
+The Systems Atlas adds a visual authority map across physical equipment, supervisory controls,
 governed records, and the proposal-only AI planner.
 
 The 3D view also supports a technician-scale focus camera and physical walkaround. Each asset exposes
@@ -139,7 +139,7 @@ pnpm lint
 
 ## Simulation boundary
 
-MatterShift is conceptual training, not an equipment operating procedure. It deliberately avoids
+MatterShift is a game-like simulation, not an equipment operating procedure. It deliberately avoids
 actionable parameters for hazardous processes. Values and events are plausible enough to teach
 workflow reasoning, but actual instrument operation belongs to site-specific SOPs, training,
 interlocks, and manufacturer documentation.
