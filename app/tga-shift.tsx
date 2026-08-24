@@ -11,7 +11,7 @@ import { StationAccess } from './station-access';
 
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 type LogItem = { time: string; type: string; text: string };
-type Modal = 'deck' | 'guide' | 'campaign' | 'baseline' | 'pan' | 'blank' | 'evidence' | 'complete' | null;
+type Modal = 'deck' | 'guide' | 'campaign' | 'campaign-facility' | 'baseline' | 'pan' | 'blank' | 'evidence' | 'complete' | null;
 
 const tasks = [
   { title: 'Read thermal-analysis handoff', pending: 'QC-621 assigned', done: 'Baseline context read' },
@@ -41,6 +41,12 @@ export function TgaShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void }) {
   const [feedback, setFeedback] = useState('');
   const [scores, setScores] = useState<Scores>({ safety: 96, traceability: 80, integrity: 72, uptime: 68 });
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const openCampaign = (event: Event) => setModal((event as CustomEvent<{ view?: string }>).detail?.view === 'facility' ? 'campaign-facility' : 'campaign');
+    window.addEventListener('mattershift:open-campaign', openCampaign);
+    return () => window.removeEventListener('mattershift:open-campaign', openCampaign);
+  }, []);
 
   useEffect(() => {
     const retainStationEvent = (event: Event) => {
@@ -106,7 +112,7 @@ export function TgaShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void }) {
       <aside className="right-rail"><section className={`rail-section alert-card tone-${action.tone}`}><div className="alert-head"><span>{action.tag}</span><b>{phase >= 5 ? 'CLOSED' : phase === 4 ? 'REVIEW' : 'ACTIVE'}</b></div><h2>{action.title}</h2><div className="metric-row"><span>Current state</span><strong>{action.metric}</strong></div><p>{action.body}</p><button className="primary-action" type="button" onClick={action.fn}>{action.label}<span>→</span></button></section><section className="rail-section station-inspector"><div className="section-title-row"><p className="section-kicker">STATION INSPECTOR</p><span className={selected.tone}>{selected.state}</span></div><div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div><div className="readout-list">{selected.technicianView.map((item) => { const [key, value] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b></div>; })}</div><p className="mini-label">OUTPUTS</p><div className="tag-list">{selected.dataProducts.map((item) => <span key={item}>{item}</span>)}</div><StationAccess station={selected} scenarioId="tga" physicalChecks={physicalInspections[selected.id] ?? []} /></section><PlannerPanel scenario="tga" phase={phase} /><section className="rail-section score-panel"><div className="section-title-row"><p className="section-kicker">SHIFT HEALTH</p><span>LIVE</span></div><Score label="Safety" value={scores.safety} /><Score label="Traceability" value={scores.traceability} /><Score label="Data integrity" value={scores.integrity} /><Score label="Lab uptime" value={scores.uptime} /></section><section className="rail-section lineage-card"><div className="section-title-row"><p className="section-kicker">EVIDENCE CHAIN</p><span>LIVE</span></div><div className="lineage-flow"><span>LOT-91-T</span><i>→</i><span>PANSET-14</span><i>→</i><span>{phase >= 5 ? 'REPEAT' : phase >= 2 ? 'BOUND' : 'HOLD'}</span></div><p>{phase >= 5 ? 'Native traces retained; AI change held pending repeat.' : phase >= 2 ? 'Sample, governed pan pair, and method agree.' : 'Physical pan identity requires reconciliation.'}</p></section></aside></div>
     {modal === 'deck' && <ShiftDeckModal active="tga" onChoose={onSwitch} onClose={() => setModal(null)} />}
     {modal === 'guide' && <FieldGuideModal onClose={() => setModal(null)} />}
-    {modal === 'campaign' && <CampaignControlModal onClose={() => setModal(null)} />}
+    {(modal === 'campaign' || modal === 'campaign-facility') && <CampaignControlModal autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
     {modal === 'baseline' && <BaselineModal checks={checks} setChecks={setChecks} ran={ran} setRan={setRan} feedback={feedback} appendLog={appendLog} onFinish={finishBaseline} onClose={() => setModal(null)} />}
     {modal === 'pan' && <PanModal scanned={scanned} setScanned={setScanned} feedback={feedback} appendLog={appendLog} onFinish={finishPan} onClose={() => setModal(null)} />}
     {modal === 'blank' && <BlankControlModal checks={blankChecks} setChecks={setBlankChecks} acquired={blankRan} onAcquire={acquireBlank} feedback={feedback} onFinish={finishBlank} onClose={() => setModal(null)} />}

@@ -2052,6 +2052,21 @@ actively executing step. A player scanning the floor plan could not tell movemen
   FURN-04B readiness gate, the map correctly showed `RUN-048 → FURN-04 · HOLD`, a 14-minute wait, and an
   amber furnace branch while both chambers remained individually online.
 
+## Critique 108: facility building was hidden behind campaign control
+
+The planning surface had become a credible game layer, but opening it still required entering Campaign Lab
+first. A core construction mode should be visible from the place the player already uses to navigate the lab.
+
+### Changes
+
+- Added a first-class `BUILD` control beside `3D TWIN`, `2D MAP`, and `EXPAND` on the live facility view.
+- Opening BUILD now routes directly into the facility configuration while preserving the campaign layer
+  beneath it, so commissioning, equipment walkdowns, and experiment planning still share one state model.
+- Added the same event route to XRD, BET, furnace, TGA, and facility-operations shifts; the construction mode
+  is no longer available only from the default scenario.
+- Browser QA opened the FURN-04B hold view with one click from the 3D lab, then returned to the overview and
+  confirmed the new control fits the existing industrial navigation without displacing the equipment twin.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

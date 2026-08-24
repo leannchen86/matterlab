@@ -14,7 +14,7 @@ import { StationAccess } from './station-access';
 const TgaShift = lazy(() => import('./tga-shift').then((module) => ({ default: module.TgaShift })));
 const FacilityShift = lazy(() => import('./facility-shift').then((module) => ({ default: module.FacilityShift })));
 
-type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'guide' | 'campaign' | 'campaign-inventory' | 'deck' | 'complete' | null;
+type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'guide' | 'campaign' | 'campaign-inventory' | 'campaign-facility' | 'deck' | 'complete' | null;
 type LogItem = { time: string; type: string; text: string };
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 
@@ -100,7 +100,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   }, []);
 
   useEffect(() => {
-    const openCampaign = () => setModal('campaign');
+    const openCampaign = (event: Event) => setModal((event as CustomEvent<{ view?: string }>).detail?.view === 'facility' ? 'campaign-facility' : 'campaign');
     window.addEventListener('mattershift:open-campaign', openCampaign);
     return () => window.removeEventListener('mattershift:open-campaign', openCampaign);
   }, []);
@@ -433,7 +433,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
       {modal === 'evidence' && <EvidenceModal feedback={feedback} onDecide={decideEvidence} onClose={() => setModal(null)} />}
       {modal === 'sem' && <SemEdsModal feedback={feedback} onDecide={decideSem} onClose={() => setModal(null)} />}
       {modal === 'guide' && <FieldGuideModal onClose={() => setModal(null)} />}
-      {(modal === 'campaign' || modal === 'campaign-inventory') && <CampaignControlModal autoOpenInventory={modal === 'campaign-inventory'} onClose={() => setModal(null)} />}
+      {(modal === 'campaign' || modal === 'campaign-inventory' || modal === 'campaign-facility') && <CampaignControlModal autoOpenInventory={modal === 'campaign-inventory'} autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
       {modal === 'deck' && <ShiftDeckModal active="xrd" onChoose={onSwitch} onClose={() => setModal(null)} />}
       {modal === 'complete' && <CompleteModal scores={scores} logCount={log.length} exceptionCount={log.filter((event) => event.type === 'exception').length} onReset={resetShift} onClose={() => setModal(null)} />}
       {logOpen && <LedgerDrawer log={log} onClose={() => setLogOpen(false)} />}

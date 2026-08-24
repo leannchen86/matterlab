@@ -11,7 +11,7 @@ import { StationAccess } from './station-access';
 
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 type LogItem = { time: string; type: string; text: string };
-type Modal = 'deck' | 'guide' | 'campaign' | 'move' | 'gas' | 'control' | 'evidence' | 'complete' | null;
+type Modal = 'deck' | 'guide' | 'campaign' | 'campaign-facility' | 'move' | 'gas' | 'control' | 'evidence' | 'complete' | null;
 
 const tasks = [
   { title: 'Read transfer handoff', pending: 'MOV-3024 assigned', done: 'Move + gas scope read' },
@@ -43,6 +43,12 @@ export function FacilityShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void
   const [feedback, setFeedback] = useState('');
   const [scores, setScores] = useState<Scores>({ safety: 82, traceability: 71, integrity: 74, uptime: 78 });
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const openCampaign = (event: Event) => setModal((event as CustomEvent<{ view?: string }>).detail?.view === 'facility' ? 'campaign-facility' : 'campaign');
+    window.addEventListener('mattershift:open-campaign', openCampaign);
+    return () => window.removeEventListener('mattershift:open-campaign', openCampaign);
+  }, []);
 
   useEffect(() => {
     const retainStationEvent = (event: Event) => {
@@ -116,7 +122,7 @@ export function FacilityShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void
       <aside className="right-rail"><section className={`rail-section alert-card tone-${action.tone}`}><div className="alert-head"><span>{action.tag}</span><b>{phase >= 5 ? 'CLOSED' : phase === 4 ? 'REVIEW' : 'ACTIVE'}</b></div><h2>{action.title}</h2><div className="metric-row"><span>Current state</span><strong>{action.metric}</strong></div><p>{action.body}</p><button className="primary-action" type="button" onClick={action.fn}>{action.label}<span>→</span></button></section><section className="rail-section station-inspector"><div className="section-title-row"><p className="section-kicker">STATION INSPECTOR</p><span className={selected.tone}>{selected.state}</span></div><div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div><div className="readout-list">{selected.technicianView.map((item) => { const [key, value] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b></div>; })}</div><p className="mini-label">OUTPUTS</p><div className="tag-list">{selected.dataProducts.map((item) => <span key={item}>{item}</span>)}</div><StationAccess station={selected} scenarioId="facility" physicalChecks={physicalInspections[selected.id] ?? []} /></section><PlannerPanel scenario="facility" phase={phase} /><section className="rail-section score-panel"><div className="section-title-row"><p className="section-kicker">SHIFT HEALTH</p><span>LIVE</span></div><Score label="Safety" value={scores.safety} /><Score label="Traceability" value={scores.traceability} /><Score label="Data integrity" value={scores.integrity} /><Score label="Lab uptime" value={scores.uptime} /></section><section className="rail-section lineage-card"><div className="section-title-row"><p className="section-kicker">EVIDENCE CHAIN</p><span>LIVE</span></div><div className="lineage-flow"><span>LOT-3024-A</span><i>→</i><span>GAS-41</span><i>→</i><span>{phase >= 5 ? 'BOUNDED' : phase >= 3 ? 'PROVEN' : 'HOLD'}</span></div><p>{phase >= 5 ? 'Only the post-proof measurement window is AI-eligible.' : phase >= 4 ? 'Reference is in control; result-window eligibility remains open.' : phase >= 3 ? 'Physical service and SCADA evidence agree; control result required.' : 'Material identity and utility state remain independent gates.'}</p></section></aside></div>
     {modal === 'deck' && <ShiftDeckModal active="facility" onChoose={onSwitch} onClose={() => setModal(null)} />}
     {modal === 'guide' && <FieldGuideModal onClose={() => setModal(null)} />}
-    {modal === 'campaign' && <CampaignControlModal onClose={() => setModal(null)} />}
+    {(modal === 'campaign' || modal === 'campaign-facility') && <CampaignControlModal autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
     {modal === 'move' && <MoveBayModal checks={moveChecks} setChecks={setMoveChecks} scanned={scanned} setScanned={setScanned} feedback={feedback} appendLog={appendLog} onFinish={finishMove} onClose={() => setModal(null)} />}
     {modal === 'gas' && <GasBoundaryModal checks={gasChecks} setChecks={setGasChecks} leakRan={leakRan} setLeakRan={setLeakRan} feedback={feedback} appendLog={appendLog} onFinish={finishGas} onClose={() => setModal(null)} />}
     {modal === 'control' && <BetControlModal checks={controlChecks} setChecks={setControlChecks} acquired={controlRan} onAcquire={acquireControl} feedback={feedback} onFinish={finishControl} onClose={() => setModal(null)} />}

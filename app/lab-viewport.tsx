@@ -147,6 +147,11 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
     window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:open-campaign')));
   };
 
+  const openFacilityPlanning = () => {
+    setImmersive(false);
+    window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:open-campaign', { detail: { view: 'facility' } })));
+  };
+
   const viewport = <div
     className={`lab-viewport mode-${mode}${immersive ? ' is-immersive' : ''}`}
     aria-label={immersive ? 'Immersive facility view' : undefined}
@@ -155,6 +160,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
     <div className="view-switch" role="group" aria-label="Facility map view">
       <button type="button" className={mode === '3d' ? 'active' : ''} onClick={() => setMode('3d')} aria-pressed={mode === '3d'}><span>◇</span> 3D TWIN</button>
       <button type="button" className={mode === '2d' ? 'active' : ''} onClick={() => setMode('2d')} aria-pressed={mode === '2d'}><span>⌗</span> 2D MAP</button>
+      <button type="button" className="facility-build-switch" onClick={openFacilityPlanning}><span>▦</span> BUILD</button>
       <button type="button" className={immersive ? 'active immersive-toggle' : 'immersive-toggle'} onClick={toggleImmersive} aria-pressed={immersive}><span>{immersive ? '×' : '⛶'}</span> {immersive ? 'EXIT' : 'EXPAND'}</button>
     </div>
     {mode === '3d' && <div className="camera-switch" role="group" aria-label="3D camera mode">

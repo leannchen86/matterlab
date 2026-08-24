@@ -56,10 +56,10 @@ function meanThermalCompletion(items: CampaignBacklogItem[], lanes: number) {
   return Math.round(completions.reduce((total, completion) => total + completion, 0) / completions.length);
 }
 
-export function CampaignControlModal({ autoOpenInventory = false, onClose }: { autoOpenInventory?: boolean; onClose: () => void }) {
+export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacility = false, onClose }: { autoOpenInventory?: boolean; autoOpenFacility?: boolean; onClose: () => void }) {
   const [commissionOpen, setCommissionOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(autoOpenInventory);
-  const [facilityOpen, setFacilityOpen] = useState(false);
+  const [facilityOpen, setFacilityOpen] = useState(autoOpenFacility);
   const [composerOpen, setComposerOpen] = useState(false);
   const [run, setRun] = useState<CampaignRun>(() => {
     if (typeof window === 'undefined') return initialRun;

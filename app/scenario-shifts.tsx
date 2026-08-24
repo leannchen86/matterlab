@@ -13,7 +13,7 @@ import { StationAccess } from './station-access';
 export type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 type LogItem = { time: string; type: string; text: string };
-type Modal = 'deck' | 'guide' | 'campaign' | 'bench' | 'sample' | 'verify' | 'evidence' | 'complete' | null;
+type Modal = 'deck' | 'guide' | 'campaign' | 'campaign-facility' | 'bench' | 'sample' | 'verify' | 'evidence' | 'complete' | null;
 type Scenario = {
   id: 'bet' | 'furnace';
   label: string;
@@ -167,6 +167,12 @@ export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | '
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
+    const openCampaign = (event: Event) => setModal((event as CustomEvent<{ view?: string }>).detail?.view === 'facility' ? 'campaign-facility' : 'campaign');
+    window.addEventListener('mattershift:open-campaign', openCampaign);
+    return () => window.removeEventListener('mattershift:open-campaign', openCampaign);
+  }, []);
+
+  useEffect(() => {
     const retainStationEvent = (event: Event) => {
       const detail = (event as CustomEvent<{ type?: string; text?: string }>).detail;
       const text = detail?.text;
@@ -265,7 +271,7 @@ export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | '
       <aside className="right-rail"><section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>{phase >= 5 ? 'CLOSED' : phase === 4 ? 'REVIEW' : 'ACTIVE'}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={state.fn}>{state.action}<span>→</span></button></section><section className="rail-section station-inspector"><div className="section-title-row"><p className="section-kicker">STATION INSPECTOR</p><span className={selected.tone}>{selected.state}</span></div><div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div><div className="readout-list">{selected.technicianView.map((item) => { const [key, value] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b></div>; })}</div><p className="mini-label">OUTPUTS</p><div className="tag-list">{selected.dataProducts.map((item) => <span key={item}>{item}</span>)}</div><StationAccess station={selected} scenarioId={scenarioId} physicalChecks={physicalInspections[selected.id] ?? []} /></section><PlannerPanel scenario={scenarioId} phase={phase} /><section className="rail-section score-panel"><div className="section-title-row"><p className="section-kicker">SHIFT HEALTH</p><span>LIVE</span></div>{Object.entries(scores).map(([key, value]) => <Score key={key} label={{ safety: 'Safety', traceability: 'Traceability', integrity: 'Data integrity', uptime: 'Lab uptime' }[key]!} value={value} />)}</section><section className="rail-section lineage-card"><div className="section-title-row"><p className="section-kicker">EVIDENCE CHAIN</p><span>LIVE</span></div><div className="lineage-flow"><span>{scenarioId === 'bet' ? 'LOT-77' : 'LOT-112'}</span><i>→</i><span>{scenarioId === 'bet' ? 'ADS-77-C' : 'BC-207'}</span><i>→</i><span>{scenarioId === 'bet' ? (phase >= 2 ? 'ELIG' : 'HOLD') : (phase >= 5 ? 'CENS' : 'HOLD')}</span></div><p>{scenarioId === 'bet' ? (phase >= 2 ? 'Tube identity and pretreatment record agree.' : 'Pretreatment association requires review.') : (phase >= 5 ? 'Interrupted run is retained but excluded from optimizer training.' : phase >= 2 ? 'Interrupted load is quarantined with trace retained.' : 'Physical occupancy remains unresolved.')}</p></section></aside></div>
     {modal === 'deck' && <ShiftDeckModal active={scenarioId} onChoose={onSwitch} onClose={() => setModal(null)} />}
     {modal === 'guide' && <FieldGuideModal onClose={() => setModal(null)} />}
-    {modal === 'campaign' && <CampaignControlModal onClose={() => setModal(null)} />}
+    {(modal === 'campaign' || modal === 'campaign-facility') && <CampaignControlModal autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
     {modal === 'bench' && <BenchModal scenarioId={scenarioId} checks={checks} setChecks={setChecks} ran={ran} setRan={setRan} feedback={feedback} appendLog={appendLog} onFinish={finishBench} onClose={() => setModal(null)} />}
     {modal === 'sample' && <SampleModal scenarioId={scenarioId} scanned={scanned} setScanned={setScanned} feedback={feedback} appendLog={appendLog} onFinish={finishSample} onClose={() => setModal(null)} />}
     {modal === 'verify' && <RecoveryVerificationModal checks={checks} setChecks={setChecks} ran={ran} onRun={runRecoveryVerification} feedback={feedback} onFinish={finishRecoveryVerification} onClose={() => setModal(null)} />}

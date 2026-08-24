@@ -182,6 +182,7 @@ button { font: inherit; }
 .view-switch button:hover, .view-switch button:focus-visible { color: #c4d2df; outline: none; }
 .view-switch button.active { background: #173044; color: var(--cyan); box-shadow: inset 0 0 0 1px #3e8393; }
 .view-switch button.active span { color: var(--cyan); }
+.view-switch button.facility-build-switch { min-width: 66px; border-left: 1px solid #22374c; color: #81a8ad; }.view-switch button.facility-build-switch span { color: #78bec6; }.view-switch button.facility-build-switch:hover, .view-switch button.facility-build-switch:focus-visible { background: #10262b; color: #b8e4e5; }
 .view-switch button.immersive-toggle { min-width: 76px; border-left: 1px solid #22374c; }
 .camera-switch { position: absolute; z-index: 34; top: 47px; right: 11px; display: flex; border: 1px solid #263a50; background: #080e17d4; box-shadow: 0 8px 24px #0007; backdrop-filter: blur(9px); }
 .camera-switch button { height: 25px; padding: 0 8px; border: 0; border-right: 1px solid #26384c; background: transparent; color: #5e7085; font: 650 6px var(--font-geist-mono); cursor: pointer; }.camera-switch button:last-child { border-right: 0; }.camera-switch button:hover, .camera-switch button:focus-visible { color: #b5c5d3; outline: none; }.camera-switch button.active { background: #112838; color: var(--cyan); }
