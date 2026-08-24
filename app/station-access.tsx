@@ -30,7 +30,7 @@ const profiles: Record<string, {
   health: number;
   supplies: string[];
 }> = {
-  'PREP-01': { controller: 'BAL-01 / LEV-01', safe: ['LEV airflow proven', 'balance level valid', 'door sash in range'], method: ['Receive lot', 'Verify balance', 'Weigh portion', 'Bind specimen'], sample: ['LOT-91', 'PREP-91-06', 'BC-184'], workOrder: 'PM-104', service: 'Filter ΔP check · 12 d', health: 94, supplies: ['weigh boats 83%', 'antistatic brush', 'P100 filters'] },
+  'PREP-01': { controller: 'BAL-01 / LEV-01', safe: ['LEV airflow proven', 'balance level valid', 'door sash in range', 'balance draft shield closed'], method: ['Receive lot', 'Verify balance', 'Weigh portion', 'Bind specimen'], sample: ['LOT-91', 'PREP-91-06', 'BC-184'], workOrder: 'PM-104', service: 'Filter ΔP check · 12 d', health: 94, supplies: ['weigh boats 83%', 'antistatic brush', 'P100 filters'] },
   'ROBO-02': { controller: 'RC-02 / SAFE-PLC', safe: ['area scanner clear', 'gate chain closed', 'gripper pressure valid'], method: ['Read carrier', 'Confirm destination', 'Execute transfer', 'Write handshake'], sample: ['BC-184', 'POSE-1192', 'XRD-03'], workOrder: 'WO-775', service: 'Gripper inspection · 4 d', health: 88, supplies: ['jaw inserts 2', 'vacuum cups 8', 'grease kit'] },
   'FURN-04': { controller: 'TC-04 / OT-04', safe: ['door interlock closed', 'overtemp relay armed', 'exhaust flow proven'], method: ['Verify occupancy', 'Load recipe', 'Ramp + dwell', 'Cool / release'], sample: ['BC-207', 'RCP-1000C', 'RUN-882'], workOrder: 'CAL-092', service: 'Thermocouple survey · 18 d', health: 91, supplies: ['type-K TC 3', 'hearth plate', 'door rope'] },
   'XRD-03': { controller: 'XRD-03 / RAD-PLC', safe: ['enclosure closed', 'shutter feedback closed', 'generator standby'], method: ['Load reference', 'Align holder', 'Acquire scan', 'Review control limit'], sample: ['BC-184-06', 'CA-TI-031', 'PAT-7738'], workOrder: 'QC-2841', service: 'NIST Si reference · due', health: 76, supplies: ['zero-background holders 4', 'Si standard', 'Kapton film'] },
@@ -40,7 +40,7 @@ const profiles: Record<string, {
 };
 
 const HMI_OPERATIONS: Record<string, string[]> = {
-  'PREP-01': ['Prove enclosure flow', 'Zero analytical balance', 'Confirm antistatic state'],
+  'PREP-01': ['Prove enclosure flow', 'Close balance draft shield', 'Zero analytical balance', 'Confirm antistatic state'],
   'ROBO-02': ['Close access gate', 'Reset safeguarded stop', 'Home transfer axes', 'Prove gripper state'],
   'FURN-04': ['Read overtemperature relay', 'Verify door chain', 'Confirm empty-cell state'],
   'XRD-03': ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Read reference position'],
@@ -351,6 +351,11 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
   const semFieldsReady = operations.includes('Acquire four BSE fields');
   const semEdsReady = operations.includes('Acquire representative EDS map');
   const safeState = (item: string) => {
+    if (station.id === 'PREP-01') {
+      if (item === 'LEV airflow proven' || item === 'door sash in range') return operations.includes('Prove enclosure flow');
+      if (item === 'balance draft shield closed') return operations.includes('Close balance draft shield');
+      if (item === 'balance level valid') return operations.includes('Zero analytical balance');
+    }
     if (station.id === 'ROBO-02') {
       if (item === 'gate chain closed') return operations.includes('Close access gate');
       if (item === 'area scanner clear') return operations.includes('Reset safeguarded stop') || operations.includes('Verify safeguarded stop');

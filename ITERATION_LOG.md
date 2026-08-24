@@ -2291,6 +2291,25 @@ from a generic lift tray.
 - Browser QA repeated the complete four-step BET sequence and confirmed the raised bath now reads as a controlled
   cryogenic subsystem while the four cell bulbs remain visibly immersed.
 
+## Critique 122: PREP-01 zeroed an exposed analytical balance
+
+The powder enclosure, lots, and balance were spatially convincing, but the balance pan was open to the same
+air currents the local exhaust system is designed to control. Its HMI also began with airflow, level, and sash
+permissives true even when none of its local actions had been retained.
+
+### Changes
+
+- Built a framed glass draft shield around the analytical pan with transparent rear, side, and top panels, a
+  sliding front door, local state strip, and a physical handle.
+- Added `Close balance draft shield` between enclosure-flow proof and balance zero, so the zero action cannot be
+  executed while the front panel is parked open.
+- Added the draft shield as a fourth PREP start permissive and made all PREP proofs station-scoped: LEV flow and
+  working-height sash come from enclosure-flow proof, shield closure from its own action, and balance validity
+  only from the later zero.
+- Browser QA confirmed PREP begins at 0 / 4 with all machine permissives held; flow proof cleared only LEV/sash,
+  shield closure moved the real glass panel over the pan and cleared only its input, while balance validity
+  remained held until zero.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

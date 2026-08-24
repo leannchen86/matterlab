@@ -842,9 +842,14 @@ function Hotspot({ position, label, tone, visited, delay, onInspect }: { positio
 }
 
 function PowderPrep({ controls }: { controls: string[] }) {
+  const balanceDoor = useRef<THREE.Group>(null);
   const flowProven = controls.includes('Prove enclosure flow');
+  const draftShieldClosed = controls.includes('Close balance draft shield');
   const balanceZeroed = controls.includes('Zero analytical balance');
   const antistaticProven = controls.includes('Confirm antistatic state');
+  useFrame((_, delta) => {
+    if (balanceDoor.current) balanceDoor.current.position.x = THREE.MathUtils.damp(balanceDoor.current.position.x, draftShieldClosed ? 0.86 : 1.43, 3.4, delta);
+  });
   return <group position={[0, 0.18, 0]}>
     <LabBench position={[0, 0, 0.26]} width={2.62} />
     <mesh position={[-0.32, 2.22, -0.23]} castShadow><cylinderGeometry args={[0.18, 0.18, 0.62, 24]} /><meshStandardMaterial color="#73818a" metalness={0.85} roughness={0.27} /></mesh>
@@ -865,6 +870,19 @@ function PowderPrep({ controls }: { controls: string[] }) {
     <mesh position={[0.86, 0.925, 0.37]} rotation={[-0.08, 0, 0]}><planeGeometry args={[0.41, 0.16]} /><meshBasicMaterial color="#07151b" /></mesh>
     <mesh position={[0.86, 0.928, 0.375]} rotation={[-0.08, 0, 0]}><planeGeometry args={[0.28, 0.025]} /><meshBasicMaterial color={balanceZeroed ? '#51e19a' : '#4dd5ed'} /></mesh>
     <mesh position={[0.86, 0.985, 0.04]} castShadow><cylinderGeometry args={[0.19, 0.21, 0.045, 28]} /><meshStandardMaterial color="#d6dfe2" metalness={0.88} roughness={0.15} /></mesh>
+    <group>
+      {[0.54, 1.18].flatMap((x) => [1.02, 1.49].map((y) => <mesh key={`${x}-${y}`} position={[x, y, 0.04]} castShadow><boxGeometry args={[0.025, 0.025, 0.57]} /><meshStandardMaterial color="#788b92" metalness={0.86} roughness={0.18} /></mesh>))}
+      {[-0.235, 0.315].flatMap((z) => [0.54, 1.18].map((x) => <mesh key={`${x}-${z}`} position={[x, 1.255, z]} castShadow><boxGeometry args={[0.025, 0.5, 0.025]} /><meshStandardMaterial color="#788b92" metalness={0.86} roughness={0.18} /></mesh>))}
+      <mesh position={[0.86, 1.255, -0.235]}><planeGeometry args={[0.61, 0.45]} /><meshPhysicalMaterial color="#a9d5dc" transparent opacity={0.12} transmission={0.3} roughness={0.05} side={THREE.DoubleSide} /></mesh>
+      {[0.54, 1.18].map((x) => <mesh key={x} position={[x, 1.255, 0.04]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[0.55, 0.45]} /><meshPhysicalMaterial color="#a9d5dc" transparent opacity={0.1} transmission={0.28} roughness={0.05} side={THREE.DoubleSide} /></mesh>)}
+      <mesh position={[0.86, 1.49, 0.04]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[0.61, 0.55]} /><meshPhysicalMaterial color="#a9d5dc" transparent opacity={0.12} transmission={0.3} roughness={0.05} side={THREE.DoubleSide} /></mesh>
+      <group ref={balanceDoor} position={[1.43, 1.255, 0.325]}>
+        <mesh><planeGeometry args={[0.56, 0.45]} /><meshPhysicalMaterial color="#b8e1e5" transparent opacity={draftShieldClosed ? 0.17 : 0.11} transmission={0.32} roughness={0.04} side={THREE.DoubleSide} /></mesh>
+        <mesh position={[-0.22, 0, 0.018]} castShadow><boxGeometry args={[0.025, 0.17, 0.035]} /><meshStandardMaterial color="#6b7f87" metalness={0.82} roughness={0.18} /></mesh>
+      </group>
+      <mesh position={[0.86, 1.54, -0.17]}><boxGeometry args={[0.34, 0.08, 0.09]} /><meshStandardMaterial color="#344a53" metalness={0.68} roughness={0.3} /></mesh>
+      <mesh position={[0.86, 1.54, -0.12]}><planeGeometry args={[0.22, 0.025]} /><meshBasicMaterial color={draftShieldClosed ? '#51e19a' : '#f4b95f'} /></mesh>
+    </group>
     <group position={[-0.28, 0.66, 0.5]}>
       <RoundedBox args={[0.46, 0.035, 0.2]} radius={0.02} castShadow><meshStandardMaterial color="#d6dde0" metalness={0.7} roughness={0.22} /></RoundedBox>
       <mesh position={[0, 0.026, 0]}><boxGeometry args={[0.35, 0.018, 0.11]} /><meshStandardMaterial color="#d7ae63" roughness={0.72} /></mesh>
