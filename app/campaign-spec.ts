@@ -1,4 +1,4 @@
-export type CampaignCandidateId = 'C-42' | 'Z-17' | 'D-08';
+export type CampaignCandidateId = 'C-42' | 'Z-17' | 'D-08' | 'A-29';
 
 export type CampaignSpec = {
   id: CampaignCandidateId;
@@ -23,7 +23,7 @@ export type CampaignSpec = {
 
 export const campaignSpecs: CampaignSpec[] = [
   {
-    id: 'C-42', name: 'Ca-rich edge', formula: 'Ca₀.₅₂Ti₀.₄₈O₃', precursorLabel: 'Ca + Ti precursor lots', targetMass: '24.00 g',
+    id: 'C-42', name: 'Ca-rich edge', formula: 'CaTiO₃ + 8.3 mol% Ca excess', precursorLabel: 'Ca + Ti precursor lots', targetMass: '24.00 g',
     temperature: '980 °C', temperatureShort: '980 °C', dwell: '4.0 h', prediction: '96.4%', uncertainty: '±1.9%',
     profile: 'C42-980-4H', measured: '95.8', gap: '−0.2 pp', objectiveMet: false, insightReward: 46, thermalMinutes: 360, throughput: '0.17 runs / h', point: [196, 70],
   },
@@ -36,6 +36,11 @@ export const campaignSpecs: CampaignSpec[] = [
     id: 'D-08', name: 'Low-energy', formula: 'CaTiO₃', precursorLabel: 'stoichiometric Ca + Ti lots', targetMass: '24.00 g',
     temperature: '900 °C', temperatureShort: '900 °C', dwell: '6.0 h', prediction: '94.8%', uncertainty: '±1.2%',
     profile: 'D08-900-6H', measured: '95.1', gap: '−0.9 pp', objectiveMet: false, insightReward: 38, thermalMinutes: 480, throughput: '0.13 runs / h', point: [166, 112],
+  },
+  {
+    id: 'A-29', name: 'Model-learned', formula: 'CaTi₀.₉₈Zr₀.₀₂O₃', precursorLabel: 'Ca + Ti + Zr adaptive lots', targetMass: '24.00 g',
+    temperature: '1,000 °C', temperatureShort: '1000 °C', dwell: '3.75 h', prediction: '97.4%', uncertainty: '±0.9%',
+    profile: 'A29-1000-3H45', measured: '97.0', gap: '+1.0 pp', objectiveMet: true, insightReward: 65, thermalMinutes: 345, throughput: '0.17 runs / h', point: [212, 82],
   },
 ];
 

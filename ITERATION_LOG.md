@@ -1130,6 +1130,26 @@ portions, enclosure proof, live balance value, or the actual material record rel
   22.4998 g measurement at −0.2 mg, and final RUN-045-P → BC-045 release; caught and corrected a
   0.01 g rounding mismatch in the initial three-precursor program during that review.
 
+## Critique 63: model memory did not change the playable design space
+
+Qualified results accumulated in a ledger, but the same three candidates remained forever. The
+`LEARN` step therefore changed a score without producing new experimental agency.
+
+### Changes
+
+- Added an adaptive candidate slot that remains visibly locked until two qualified campaign results
+  have entered model memory, then expands the design space from three to four playable recipes.
+- Added A-29 as a learned intermediate: CaTi₀.₉₈Zr₀.₀₂O₃, 1,000 °C, 3.75-hour dwell, 345-minute
+  thermal cycle, 97.4% prediction at ±0.9%, and a distinct 97.0% qualified outcome.
+- Propagated A-29 through preparation (13.28 g CaCO₃, 10.39 g TiO₂, 0.33 g ZrO₂), robot mass
+  splitting, furnace program A29-1000-3H45, XRD peak pattern, objective verdict, and reward.
+- Rejected the first draft of the adaptive formula during scientific review: a normalized cation
+  ratio attached to O₃ was not charge-balanced. Replaced it with defensible B-site Zr substitution
+  and recalculated all precursor fractions; also relabeled C-42 as CaTiO₃ + 8.3 mol% Ca excess rather
+  than presenting its non-stoichiometric precursor ratio as a phase formula.
+- Browser-verified that three retained results unlock a green A-29 candidate inside campaign control,
+  while an in-progress run keeps all recipes disabled and preserves governance.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

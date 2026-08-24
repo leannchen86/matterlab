@@ -53,6 +53,8 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
   const recipe = getCampaignSpec(run.selected);
   const currentRunNumber = Number(run.runNumber ?? 42);
   const history = Array.isArray(run.history) ? run.history : [];
+  const adaptiveUnlocked = history.length >= 2;
+  const availableRecipes = adaptiveUnlocked ? recipes : recipes.filter((candidate) => candidate.id !== 'A-29');
   const identity = getCampaignIdentity(currentRunNumber);
   const fault = run.stage === 2 ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 6 ? 'qc' : null;
   const primary = getPrimaryAction(run.stage, identity.runId);
@@ -96,7 +98,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
 
       <div className="campaign-workspace">
         <aside className="campaign-designer">
-          <div className="campaign-panel-head"><div><span>EXPERIMENT DESIGN</span><b>AI CANDIDATES</b></div><em>03</em></div>
+          <div className="campaign-panel-head"><div><span>EXPERIMENT DESIGN</span><b>{adaptiveUnlocked ? 'ADAPTIVE CANDIDATES' : 'AI CANDIDATES'}</b></div><em>{String(availableRecipes.length).padStart(2, '0')}</em></div>
           <div className="campaign-design-space" aria-label="Composition and temperature design space">
             <svg viewBox="0 0 320 180" role="img" aria-label={`${recipe.id} selected in the materials design space`}>
               <defs><radialGradient id="campaignHalo"><stop offset="0" stopColor="#4dd5ed" stopOpacity=".24" /><stop offset="1" stopColor="#4dd5ed" stopOpacity="0" /></radialGradient></defs>
@@ -121,12 +123,13 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
             <footer><span><i /> PRIOR</span><span><i className="proposal" /> PROPOSED</span><b>{history.length} RUNS · UNCERTAINTY {recipe.uncertainty}</b></footer>
           </div>
           <div className="candidate-list">
-            {recipes.map((candidate) => {
+            {availableRecipes.map((candidate) => {
               const measured = [...history].reverse().find((result) => result.candidate === candidate.id);
-              return <button key={candidate.id} type="button" className={candidate.id === run.selected ? 'active' : ''} disabled={run.stage > 0} onClick={() => updateRun({ selected: candidate.id, message: `${candidate.id} selected. Review its synthesis envelope before release.` })}>
+              return <button key={candidate.id} type="button" className={`${candidate.id === run.selected ? 'active ' : ''}${candidate.id === 'A-29' ? 'learned' : ''}`} disabled={run.stage > 0} onClick={() => updateRun({ selected: candidate.id, message: `${candidate.id} selected. Review its synthesis envelope before release.` })}>
                 <span>{candidate.id}</span><div><b>{candidate.name}</b><small>{candidate.formula}</small></div><em>{measured ? `${measured.measured}% ${measured.objectiveMet ? '✓' : '·'}` : candidate.prediction}</em>
               </button>;
             })}
+            {!adaptiveUnlocked && <div className="candidate-lock"><span>◇</span><div><b>ADAPTIVE SLOT LOCKED</b><small>retain 2 qualified results</small></div><em>{history.length} / 2</em></div>}
           </div>
           <div className="recipe-envelope"><span>SYNTHESIS ENVELOPE</span><div><b>{recipe.temperature}</b><small>calcination</small></div><div><b>{recipe.dwell}</b><small>dwell</small></div><div><b>{recipe.prediction}</b><small>predicted phase</small></div></div>
           {history.length > 0 && <div className="campaign-history"><span>MODEL MEMORY</span>{history.slice(-3).map((result) => <div key={result.runNumber}><b>RUN-{String(result.runNumber).padStart(3, '0')}</b><i>{result.candidate}</i><em className={result.objectiveMet ? 'hit' : 'miss'}>{result.measured}%</em></div>)}</div>}
