@@ -2469,7 +2469,8 @@ as `HOLD` because the new operator session had not repeated the walkaround.
 
 - Keep the deliberate per-session physical-walkaround hold as the gate to new console actions.
 - At campaign stage 9, render the vacuum, stage-clearance, and final beam-blank witnesses from the retained
-  completed acquisition rather than from the empty current-session button history.
+  completed acquisition rather than from the empty current-session button history; apply the same rule to the
+  XRD enclosure and closed-shutter witnesses while reviewing a retained stage-7 pattern.
 - Preserve the distinction between historical equipment evidence and present operator authorization: the
   instrument remains truthful while review/release controls still require a fresh physical walkaround.
 

@@ -372,8 +372,10 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
       if (item === 'gripper pressure valid') return operations.some((operation) => ['Prove gripper state', 'Acquire witness coupon', 'Acquire force witness', 'Prove carrier handshake', 'Execute crucible dosing'].includes(operation));
     }
     if (station.id === 'XRD-03') {
-      if (item === 'enclosure closed') return operations.includes('Close radiation enclosure');
-      if (item === 'shutter feedback closed') return operations.includes('Prove shutter feedback');
+      // Stage 7 reviews an already-retained pattern. The acquisition interlocks remain part of
+      // that record even when this operator's review/walkaround session is new.
+      if (item === 'enclosure closed') return campaignStage >= 7 || operations.includes('Close radiation enclosure');
+      if (item === 'shutter feedback closed') return campaignStage >= 7 || operations.includes('Prove shutter feedback');
     }
     if (station.id === 'SEM-01') {
       // Stage 9 is a retained, completed acquisition. A new browser session deliberately expires
