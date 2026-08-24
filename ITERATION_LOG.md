@@ -2528,6 +2528,21 @@ only one qualified observation.
 - Keep older same-recipe observations in model memory and posterior learning without overstating them as a
   controlled reproducibility pair.
 
+## Critique 137: custom precursor programs approximated substitution by scaling fixed batch masses
+
+The authored-material workbench displayed plausible CaCO3, TiO2, and ZrO2 quantities, but its custom calculation
+perturbed fixed 24 g baseline masses. That approximation drifted from the molar substitution expressed by the
+formula, especially as Zr content increased.
+
+### Changes
+
+- Calculate custom precursor proportions from the CaCO3, TiO2, and ZrO2 formula weights and the authored Ca,
+  Ti, and Zr site fractions.
+- Apply Ca excess on a molar basis, replace Ti with Zr on the B site, then normalize the complete precursor
+  charge to the governed target mass.
+- Preserve the existing lot identities, two-decimal balance instructions, and exact target-total contract while
+  making the displayed preparation record chemically consistent with the user-authored formula.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

@@ -449,10 +449,13 @@ function PrepCampaignPanel({ selected, runNumber, operations }: { selected: stri
   const offset = spec.id === 'Z-17' ? -.0002 : spec.id === 'D-08' ? .0001 : .0002;
   const actual = (target + offset).toFixed(4);
   const lots = spec.composition ? (() => {
-    const rawCa = 13.35 * (1 + spec.composition.caExcess / 100);
-    const rawTi = 10.65 * (1 - spec.composition.zrDopant / 100);
-    const rawZr = 0.1525 * spec.composition.zrDopant;
-    const scale = 24 / (rawCa + rawTi + rawZr);
+    const caMoles = 1 + spec.composition.caExcess / 100;
+    const tiMoles = 1 - spec.composition.zrDopant / 100;
+    const zrMoles = spec.composition.zrDopant / 100;
+    const rawCa = caMoles * 100.0869; // CaCO3 formula weight, g mol-1
+    const rawTi = tiMoles * 79.8658; // TiO2 formula weight, g mol-1
+    const rawZr = zrMoles * 123.222; // ZrO2 formula weight, g mol-1
+    const scale = target / (rawCa + rawTi + rawZr);
     return [
       { lot: 'CA-21A', material: 'CaCO₃', mass: `${(rawCa * scale).toFixed(2)} g` },
       { lot: 'TI-09C', material: 'TiO₂', mass: `${(rawTi * scale).toFixed(2)} g` },
