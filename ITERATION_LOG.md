@@ -2138,6 +2138,38 @@ furnace with insulated doors and discrete observation windows.
 - Browser QA compared the active RUN-048 chamber pair in focused inspection view and confirmed the revised
   door geometry, independent hardware, hotspot placement, and occupied/qualified state remain legible.
 
+## Critique 113: the XRD permissive had no physical consequence
+
+The diffractometer showed its goniometer clearly, but proving shutter feedback only changed an indicator. The
+radiation enclosure remained visibly open even after the local control state said the exposure boundary was
+established.
+
+### Changes
+
+- Added a framed lead-glass sliding enclosure with metal guide rails, radiation marking, and a dedicated
+  interlock module around the XRD goniometer.
+- Keep the door parked open for specimen loading and physical inspection, then animate it closed only when
+  `Prove shutter feedback` is retained through the HMI sequence.
+- Tie the enclosure interlock lamp and glass treatment to the same permissive instead of creating a second,
+  decorative state model.
+- Browser QA completed the XRD walkaround and HMI sequence, then returned to the asset and confirmed the
+  framed door was closed, the goniometer remained visible through the shield, and the interlock lamp was green.
+
+## Critique 114: entering the lab blocked the walkaround
+
+The persistent `ENTER LAB` control overlapped the bottom-left physical-walkaround panel in focused views.
+Clicking the first inspection point could hit the aisle CTA instead, switch to immersive walk mode, and leave
+the inspection unrecorded.
+
+### Changes
+
+- Hide the human-scale entry CTA while an asset is already in focused inspection mode; it remains available
+  from overview and aisle navigation where it has a distinct purpose.
+- Restore the full walkaround panel as the top interaction surface, allowing its HOLDER / HMI / SHUTTER and
+  equivalent equipment checks to be completed without a competing hit target.
+- Browser QA completed all three XRD checks in place with no camera-mode switch, verified the 3 / 3 retained
+  state, and opened the local console from the newly unobstructed panel.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

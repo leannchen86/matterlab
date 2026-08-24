@@ -1055,11 +1055,13 @@ function Furnace({ active, controls, scenarioId, phase, thermalBayLevel, campaig
 
 function Xrd({ active, controls }: { active: boolean; controls: string[] }) {
   const stage = useRef<THREE.Group>(null);
+  const enclosureDoor = useRef<THREE.Group>(null);
   const homed = controls.includes('Home specimen stage');
   const shutterProven = controls.includes('Prove shutter feedback');
   const referenceRead = controls.includes('Read reference position');
   useFrame((_, delta) => {
     if (stage.current) stage.current.rotation.y = THREE.MathUtils.damp(stage.current.rotation.y, homed ? 0 : 0.55, 3.2, delta);
+    if (enclosureDoor.current) enclosureDoor.current.position.x = THREE.MathUtils.damp(enclosureDoor.current.position.x, shutterProven ? -0.12 : 1.96, 3.4, delta);
   });
   return <group position={[0, 0.18, 0]}>
     <RoundedBox args={[2.5, 2.25, 1.55]} radius={0.18} smoothness={5} position={[0, 1.15, 0]} castShadow>
@@ -1085,7 +1087,7 @@ function Xrd({ active, controls }: { active: boolean; controls: string[] }) {
       <Line points={[[-0.48, 0.37, 0.03], [0, -0.1, 0.03], [0.47, 0.4, 0.03]]} color={shutterProven ? '#51e19a' : active ? '#f4b95f' : '#6f8591'} lineWidth={shutterProven || active ? 1.4 : 0.7} transparent opacity={shutterProven || active ? 0.92 : 0.35} />
     </group>
     <Line points={[[ -1.06, 0.36, 0.805], [1.06, 0.36, 0.805]]} color="#829099" lineWidth={0.55} transparent opacity={0.6} />
-    <Line points={[[0.77, 0.43, 0.82], [0.77, 2.01, 0.82]]} color="#7b8a92" lineWidth={0.55} transparent opacity={0.5} />
+      <Line points={[[0.77, 0.43, 0.82], [0.77, 2.01, 0.82]]} color="#7b8a92" lineWidth={0.55} transparent opacity={0.5} />
     {[0.74, 1.3, 1.86].map((y) => <mesh key={y} position={[0.79, y, 0.838]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.026, 0.026, 0.13, 12]} /><meshStandardMaterial color="#46545c" metalness={0.82} roughness={0.2} /></mesh>)}
     <mesh position={[-0.96, 0.48, 0.837]}><planeGeometry args={[0.25, 0.17]} /><meshStandardMaterial color="#d7ad48" roughness={0.56} /></mesh>
     <mesh position={[-0.96, 0.48, 0.842]} rotation={[0, 0, 0.76]}><boxGeometry args={[0.16, 0.018, 0.006]} /><meshBasicMaterial color="#20262a" /></mesh>
@@ -1094,6 +1096,20 @@ function Xrd({ active, controls }: { active: boolean; controls: string[] }) {
     <RoundedBox args={[0.42, 0.62, 0.1]} radius={0.04} position={[0.9, 0.62, 0.8]}><meshBasicMaterial color="#0a161c" /></RoundedBox>
     <mesh position={[0.9, 0.69, 0.856]}><planeGeometry args={[0.26, 0.026]} /><meshBasicMaterial color={referenceRead ? '#51e19a' : active ? '#4dd5ed' : '#5c7583'} /></mesh>
     {[0.81, 0.98].map((x, index) => { const proven = index === 0 ? shutterProven : referenceRead; return <mesh key={x} position={[x, 0.48, 0.858]}><circleGeometry args={[0.035, 16]} /><meshStandardMaterial color={proven ? '#51e19a' : index === 0 ? '#617883' : '#f4b95f'} emissive={proven ? '#238253' : index === 0 ? '#172a31' : '#6d471c'} emissiveIntensity={proven ? 1.1 : 0.45} /></mesh>; })}
+    <group ref={enclosureDoor} position={[1.96, 1.39, 0.925]}>
+      <mesh position={[0, 0.67, 0]} castShadow><boxGeometry args={[2.02, 0.085, 0.09]} /><meshPhysicalMaterial color="#6d7d84" metalness={0.88} roughness={0.2} clearcoat={0.28} /></mesh>
+      <mesh position={[0, -0.67, 0]} castShadow><boxGeometry args={[2.02, 0.085, 0.09]} /><meshPhysicalMaterial color="#6d7d84" metalness={0.88} roughness={0.2} clearcoat={0.28} /></mesh>
+      {[-0.97, 0.97].map((x) => <mesh key={x} position={[x, 0, 0]} castShadow><boxGeometry args={[0.085, 1.42, 0.09]} /><meshPhysicalMaterial color="#687980" metalness={0.88} roughness={0.2} clearcoat={0.28} /></mesh>)}
+      <mesh position={[0, 0, 0.01]}><planeGeometry args={[1.84, 1.25]} /><meshPhysicalMaterial color="#7699a0" transparent opacity={shutterProven ? 0.28 : 0.18} transmission={0.24} roughness={0.08} metalness={0.12} /></mesh>
+      <mesh position={[-0.78, 0.47, 0.07]}><planeGeometry args={[0.23, 0.2]} /><meshBasicMaterial color="#d9b94f" /></mesh>
+      <mesh position={[-0.78, 0.47, 0.076]} rotation={[0, 0, 0.78]}><boxGeometry args={[0.14, 0.02, 0.008]} /><meshBasicMaterial color="#252a28" /></mesh>
+      <group position={[0.82, -0.48, 0.08]}>
+        <mesh><boxGeometry args={[0.12, 0.25, 0.08]} /><meshStandardMaterial color="#35464d" metalness={0.72} roughness={0.28} /></mesh>
+        <mesh position={[0, 0.07, 0.045]}><circleGeometry args={[0.026, 14]} /><meshStandardMaterial color={shutterProven ? '#51e19a' : '#f4b95f'} emissive={shutterProven ? '#1d6543' : '#6c451b'} emissiveIntensity={0.8} /></mesh>
+      </group>
+    </group>
+    <mesh position={[-0.12, 2.13, 0.9]} castShadow><boxGeometry args={[2.12, 0.07, 0.12]} /><meshStandardMaterial color="#52636a" metalness={0.86} roughness={0.22} /></mesh>
+    <mesh position={[-0.12, 0.64, 0.9]} castShadow><boxGeometry args={[2.12, 0.07, 0.12]} /><meshStandardMaterial color="#52636a" metalness={0.86} roughness={0.22} /></mesh>
   </group>;
 }
 
