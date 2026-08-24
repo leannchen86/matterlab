@@ -2018,6 +2018,22 @@ specific machine.
 - Browser QA selected SEM-01 from the blueprint and confirmed the simulator entered the immersive SEM/EDS
   aisle with the correct equipment model, station selection, walk controls, and local-console action.
 
+## Critique 106: the blueprint showed equipment, not the experiment
+
+Even after the assets became walkable, the map did not reveal where the current material was headed. The
+player still had to leave the spatial view and read a route card to understand the next physical handoff.
+
+### Changes
+
+- Added a live experiment-route beacon showing the retained run identity, current or next station, and compact
+  state (`NEXT`, `ACTIVE`, `REVIEW`, or `DIAG`).
+- Highlight the current asset with a cyan equipment boundary, replace its generic online label with the live
+  route state, and animate the exact branch connecting it to the material-transfer spine.
+- Replaced the decorative spine animation with a pulsing sample-location marker derived from the actual
+  campaign stage, so the map no longer implies material is continuously moving when it is not.
+- Browser QA confirmed RUN-048 at stage zero visibly resolves to PREP-01 / NEXT, with the preparation asset,
+  transfer point, and branch highlighted while the remaining equipment stays online but inactive.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
