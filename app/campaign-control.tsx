@@ -151,6 +151,15 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const sourceResult = [...history].reverse().find((result) => result.runNumber < currentRunNumber);
   const sourceSpec = sourceResult ? getCampaignSpec(sourceResult.candidate) : null;
   const isConfirmationRun = Boolean(sourceResult && sourceResult.candidate === recipe.id);
+  const sourceOperations = sourceResult ? getCampaignOperations(sourceResult.runNumber, sourceResult.thermalBayLevel ?? run.thermalBayLevel) : null;
+  const conditionLabels: Record<string, string> = { 'grip-force': 'FORCE CHECK', contamination: 'CLEAN RECOVERY', nominal: 'NOMINAL', 'thermocouple-drift': 'TC OFFSET', 'door-seal': 'SEAL RECOVERY', current: 'CURRENT SI', 'trend-review': 'TREND CHECK', 'age-due': 'DUE SI' };
+  const conditionLabel = (condition: string) => conditionLabels[condition] ?? condition.toUpperCase();
+  const routeCovariates = sourceOperations ? [
+    { label: 'ROBOT', before: conditionLabel(sourceOperations.robotCondition), after: conditionLabel(operations.robotCondition) },
+    { label: 'FURNACE', before: conditionLabel(sourceOperations.furnaceCondition), after: conditionLabel(operations.furnaceCondition) },
+    { label: 'XRD', before: conditionLabel(sourceOperations.referenceCondition), after: conditionLabel(operations.referenceCondition) },
+  ] : [];
+  const changedCovariates = routeCovariates.filter((factor) => factor.before !== factor.after).length;
   const experimentFactors = sourceSpec?.composition && recipe.composition && sourceSpec.id !== recipe.id ? [
     { label: 'CA EXCESS', before: `${sourceSpec.composition.caExcess > 0 ? '+' : ''}${sourceSpec.composition.caExcess}%`, after: `${recipe.composition.caExcess > 0 ? '+' : ''}${recipe.composition.caExcess}%`, changed: sourceSpec.composition.caExcess !== recipe.composition.caExcess },
     { label: 'ZR', before: `${sourceSpec.composition.zrDopant}%`, after: `${recipe.composition.zrDopant}%`, changed: sourceSpec.composition.zrDopant !== recipe.composition.zrDopant },
@@ -477,7 +486,8 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
           </div>}
 
           {run.stage >= 7 && isConfirmationRun && sourceResult && <div className={`replicate-result ${evaluation.met ? 'robust' : 'unstable'}`}>
-            <header><div><span>REPRODUCIBILITY RESULT</span><b>{evaluation.met ? 'BOUNDARY REPEATED · CANDIDATE ROBUST' : 'BOUNDARY FAILED · CANDIDATE NOT ROBUST'}</b></div><em>n = 2</em></header>
+            <header><div><span>REPRODUCIBILITY RESULT</span><b>{evaluation.met ? 'BOUNDARY REPEATED · CANDIDATE ROBUST' : 'BOUNDARY FAILED · ROBUSTNESS NOT DEMONSTRATED'}</b></div><em>n = 2</em></header>
+            <div className={`comparability-audit ${changedCovariates ? 'conditional' : 'matched'}`}><div><span>COMPARABILITY AUDIT</span><b>{changedCovariates ? `${changedCovariates} ROUTE CONDITIONS CHANGED` : 'ROUTES MATCHED'}</b></div>{routeCovariates.map((factor) => <span key={factor.label}><i>{factor.label}</i><b>{factor.before}</b><u>→</u><em>{factor.after}</em></span>)}<strong>{changedCovariates ? 'ATTRIBUTION CONDITIONAL' : 'MATERIAL EFFECT ISOLATED'}</strong></div>
             <div className="replicate-pair"><article><span>RUN-{String(sourceResult.runNumber).padStart(3, '0')}</span><b>{sourceResult.measured}%</b><small>{sourceResult.elapsed} MIN</small></article><i>↔</i><article><span>{identity.runId}</span><b>{observedMeasured}%</b><small>{retainedElapsed} MIN</small></article></div>
             <dl><div><dt>RECIPE</dt><dd>{recipe.id} × 2</dd></div><div><dt>PHASE SPREAD</dt><dd>{Math.abs(Number(observedMeasured) - Number(sourceResult.measured)).toFixed(1)} pp</dd></div><div><dt>FLOOR</dt><dd>{phaseFloor.toFixed(1)}%</dd></div><div><dt>VERDICT</dt><dd>{evaluation.met ? 'REPEATED PASS' : 'MARGIN LOST'}</dd></div></dl>
             <em>{evaluation.met ? 'RELEASE ROBUSTNESS CLAIM' : 'RETURN TO DESIGN SPACE'}</em>

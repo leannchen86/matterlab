@@ -1943,6 +1943,25 @@ fact that the same recipe had already passed once.
 - Browser visual QA confirmed that the overview remains visually equipment-first: the 3D lab stays central,
   while the repeat failure is legible in compact machine-status language without reopening campaign control.
 
+## Critique 102: the repeat comparison ignored changed equipment context
+
+RUN-046 and RUN-047 held chemistry and thermal program constant, but their operational routes differed.
+Treating the 0.2-percentage-point shift as an isolated material effect would overstate what the experiment
+actually demonstrated.
+
+### Changes
+
+- Added a comparability audit above the replicate values. It compares robot, furnace, and XRD condition
+  pathways using the retained deterministic equipment state for each run.
+- RUN-046 → RUN-047 now exposes FORCE CHECK → CLEAN RECOVERY, TC OFFSET → SEAL RECOVERY, and CURRENT SI →
+  DUE SI. All interventions were recovered and qualified, but they remain experimental covariates.
+- Changed the failed-repeat headline from a categorical candidate judgment to `ROBUSTNESS NOT DEMONSTRATED`
+  and label attribution as conditional when route conditions differ.
+- Kept the operational verdict strict: the mission margin was still lost, so the candidate cannot be called
+  robust. The new audit prevents the AI loop from claiming that chemistry alone caused the difference.
+- Browser QA confirmed the additional evidence remains a compact instrument-style strip rather than a
+  narrative explanation, preserving the low-text control-room aesthetic.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
