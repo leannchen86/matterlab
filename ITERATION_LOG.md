@@ -2442,6 +2442,23 @@ enabled `Execute transfer` and allowed green autonomous motion.
 - Render the first blocked process-start command as an amber HMI tile with `quality / service hold`; it cannot
   be clicked until the station is released by the active scenario or campaign.
 
+## Critique 131: the build blueprint collapsed every utility into one passive box
+
+The spatial facility view already made material flow, expansion sockets, and bottlenecks legible, but a single
+`UTIL · GAS · VAC · EXHAUST` strip made sophisticated instruments appear to have interchangeable services.
+
+### Changes
+
+- Add an interactive `MATERIAL / UTILITIES` blueprint-layer switch without leaving the build surface.
+- Trace independent animated exhaust, vacuum, nitrogen/gas, and electrical trunks from the utility spine to
+  their consuming assets while dimming the material route beneath the service overlay.
+- Attach compact in-place demand/readiness tags: negative-pressure prep exhaust, furnace exhaust loading,
+  microscopy vacuum, BET nitrogen plus vacuum, TGA nitrogen pressure, and robot electrical demand.
+- Replace the footer legend contextually so the utility layer reads as a service-boundary and capacity map,
+  moving the build mode closer to an engineering-layout game rather than a generic upgrade screen.
+- Browser QA caught SVG service paths inheriting a fill and becoming opaque polygons; separate path stroke and
+  endpoint fill rules now keep every instrument visible beneath a clean, schematic utility network.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

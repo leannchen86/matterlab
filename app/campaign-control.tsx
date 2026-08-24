@@ -626,6 +626,7 @@ function FacilityBuildModal({ thermalBayLevel, stagingBayLevel, scheduled, insig
   const qualified = thermalBayLevel >= 2;
   const storageQualified = stagingBayLevel >= 2;
   const [selectedExpansion, setSelectedExpansion] = useState<'thermal' | 'storage'>(qualified && !storageQualified ? 'storage' : 'thermal');
+  const [blueprintLayer, setBlueprintLayer] = useState<'route' | 'utilities'>('route');
   const canCommission = commissioningAvailable && insight >= 120 && !scheduled;
   const buildState = qualified ? 'QUALIFIED' : scheduled ? 'COMMISSIONING SCHEDULED' : commissioningAvailable ? insight >= 120 ? 'READY TO COMMISSION' : '120 RP REQUIRED' : 'FINISH ACTIVE ROUTE';
   const handleAssetKey = (event: KeyboardEvent<SVGGElement>, stationId: string) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onViewAsset(stationId); } };
@@ -637,9 +638,10 @@ function FacilityBuildModal({ thermalBayLevel, stagingBayLevel, scheduled, insig
       <header><div><p className="section-kicker">FACILITY CONFIGURATION · LAB 04</p><h2>Build the experiment line</h2></div><button type="button" onClick={onClose} aria-label="Close facility configuration">×</button></header>
       <div className="facility-build-status"><span>INSTALLED ASSETS<b>{storageQualified ? '08' : '07'} ONLINE</b></span><span>THERMAL LANES<b>{thermalBayLevel} / 2</b></span><span>CAMPAIGN WAIT<b>{queueMinutes} MIN</b></span><span>BUILD CURRENCY<b>{insight} RP</b></span></div>
       <div className="facility-build-workspace">
-        <div className="facility-blueprint">
+        <div className={`facility-blueprint ${blueprintLayer}`}>
           <div className={`facility-route-chip ${constraintKind ? 'hold' : ''}`}><span>LIVE EXPERIMENT ROUTE</span><b>{activeRunId} → {activeStationId}</b><em>{activeStatus}</em></div>
-          <svg viewBox="0 0 760 430" role="group" aria-label="Interactive top-down layout of materials laboratory and its process flow">
+          <div className="facility-layer-switch" role="group" aria-label="Blueprint data layer"><button type="button" className={blueprintLayer === 'route' ? 'active' : ''} onClick={() => setBlueprintLayer('route')}>MATERIAL</button><button type="button" className={blueprintLayer === 'utilities' ? 'active' : ''} onClick={() => setBlueprintLayer('utilities')}>UTILITIES</button></div>
+          <svg viewBox="0 0 760 430" role="group" aria-label={`Interactive top-down materials laboratory ${blueprintLayer === 'utilities' ? 'utility service overlay' : 'process flow layout'}`}>
             <defs><pattern id="facilityBuildGrid" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M14 0H0V14" /></pattern><linearGradient id="facilityFlow" x1="0" x2="1"><stop stopColor="#43c5df" stopOpacity=".2" /><stop offset=".5" stopColor="#85e4d4" /><stop offset="1" stopColor="#43c5df" stopOpacity=".2" /></linearGradient></defs>
             <rect className="blueprint-floor" x="20" y="20" width="720" height="390" rx="4" />
             <path className="blueprint-grid" d="M20 20h720v390H20z" fill="url(#facilityBuildGrid)" />
@@ -654,9 +656,21 @@ function FacilityBuildModal({ thermalBayLevel, stagingBayLevel, scheduled, insig
             <g className="build-asset" role="button" tabIndex={0} aria-label="Walk to BET-02 surface area analyzer" onClick={() => onViewAsset('BET-02')} onKeyDown={(event) => handleAssetKey(event, 'BET-02')}><rect x="474" y="278" width="152" height="82" rx="3" /><text className="asset-id" x="486" y="296">BET-02</text><text className="asset-name" x="486" y="311">SURFACE AREA</text><path d="M495 324h18v25h-18zm28-8h18v33h-18zm28 5h18v28h-18" /><text className="asset-state" x="580" y="351">ONLINE</text></g>
             <g className="build-asset narrow" role="button" tabIndex={0} aria-label="Walk to TGA-01 thermal analyzer" onClick={() => onViewAsset('TGA-01')} onKeyDown={(event) => handleAssetKey(event, 'TGA-01')}><rect x="652" y="278" width="69" height="82" rx="3" /><text className="asset-id" x="662" y="296">TGA</text><text className="asset-name" x="662" y="311">THERMAL</text><path d="M665 344c6 0 9-22 15-22s7 17 13 17 7-9 16-9" /></g>
             <g className="utility-spine"><rect x="652" y="45" width="69" height="188" rx="3" /><text x="666" y="62">UTIL</text><path d="M670 79v130m20-130v130m20-130v130" /><circle cx="670" cy="103" r="4" /><circle cx="690" cy="143" r="4" /><circle cx="710" cy="183" r="4" /><text transform="translate(667 224) rotate(-90)">GAS · VAC · EXHAUST</text></g>
+            {blueprintLayer === 'utilities' && <g className="utility-overlay">
+              <g className="service-lines exhaust"><path d="M670 103H206V96M670 103H626V96" /><circle cx="206" cy="96" r="3" /><circle cx="626" cy="96" r="3" /></g>
+              <g className="service-lines vacuum"><path d="M690 143v109H416v67M690 252H550v26" /><circle cx="416" cy="319" r="3" /><circle cx="550" cy="278" r="3" /></g>
+              <g className="service-lines gas"><path d="M710 183v73H626v63M710 256v22" /><circle cx="626" cy="319" r="3" /><circle cx="710" cy="278" r="3" /></g>
+              <g className="service-lines power"><path d="M710 79H416v17M710 79H206v239M710 79H626" /><circle cx="416" cy="96" r="3" /><circle cx="206" cy="318" r="3" /><circle cx="626" cy="79" r="3" /></g>
+              <g className="service-tag" transform="translate(62 109)"><rect width="85" height="17" rx="2" /><text x="6" y="11">EXH · −12 Pa</text></g>
+              <g className="service-tag" transform="translate(482 112)"><rect width="82" height="17" rx="2" /><text x="6" y="11">EXH · 68%</text></g>
+              <g className="service-tag" transform="translate(272 333)"><rect width="98" height="17" rx="2" /><text x="6" y="11">VAC · 2.1e−5 Pa</text></g>
+              <g className="service-tag" transform="translate(482 333)"><rect width="91" height="17" rx="2" /><text x="6" y="11">N₂ + VAC · READY</text></g>
+              <g className="service-tag" transform="translate(653 333)"><rect width="66" height="17" rx="2" /><text x="6" y="11">N₂ · 1.0 bar</text></g>
+              <g className="service-tag" transform="translate(272 112)"><rect width="91" height="17" rx="2" /><text x="6" y="11">ELEC · 4.8 kW</text></g>
+            </g>}
             <circle className={`flow-token ${constraintKind ? 'hold' : ''}`} cx={activeFlowX} cy="215" r="5" /><text className="aisle-label" x="57" y="390">MAIN PERSONNEL AISLE</text><path className="aisle" d="M56 377h665" /><text className="north" x="718" y="38">N ↑</text>
           </svg>
-          <footer><span><i className="online" />ONLINE</span><span><i className="flow" />MATERIAL FLOW</span><span><i className="socket" />EXPANSION SOCKET</span><strong>SELECT ASSET · WALK OR INSPECT</strong><b>LAYOUT REV 04.8</b></footer>
+          <footer>{blueprintLayer === 'route' ? <><span><i className="online" />ONLINE</span><span><i className="flow" />MATERIAL FLOW</span><span><i className="socket" />EXPANSION SOCKET</span></> : <><span><i className="gas" />N₂ / GAS</span><span><i className="vacuum" />VACUUM</span><span><i className="exhaust" />EXHAUST</span><span><i className="power" />ELECTRICAL</span></>}<strong>{blueprintLayer === 'route' ? 'SELECT ASSET · WALK OR INSPECT' : 'SERVICE BOUNDARY · DEMAND + READINESS'}</strong><b>LAYOUT REV 04.8</b></footer>
         </div>
         <aside className="facility-build-controls">
           <article className={`facility-bottleneck ${constraintKind ? 'constrained' : ''}`}><span>ACTIVE BOTTLENECK</span><b>{constraintKind ? constraintLabel : queueMinutes > 30 ? 'THERMAL QUEUE' : 'NO CRITICAL CONSTRAINT'}</b><div><i style={{ width: `${constraintKind ? 78 : Math.min(100, Math.max(18, queueMinutes * 1.25))}%` }} /></div><small>{constraintKind ? constraintMetric : `${queueMinutes} MIN CAMPAIGN WAIT · ${thermalBayLevel} PARALLEL LANE${thermalBayLevel === 1 ? '' : 'S'}`}</small></article>
