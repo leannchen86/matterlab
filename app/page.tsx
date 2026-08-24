@@ -46,7 +46,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const campaign = useCampaignSnapshot();
   const campaignSpec = getCampaignSpec(campaign.selected);
   const campaignIdentity = getCampaignIdentity(campaign.runNumber);
-  const campaignOperations = getCampaignOperations(campaign.runNumber);
+  const campaignOperations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
   const campaignActive = campaign.stage > 0;
   const [phase, setPhase] = useState(0);
   const [modal, setModal] = useState<Modal>(null);
@@ -396,12 +396,12 @@ function ActionPanel({ phase, onCampaign, onQc, onLineage, onRelease, onAdvance,
   if (campaign.stage > 0) {
     const spec = getCampaignSpec(campaign.selected);
     const identity = getCampaignIdentity(campaign.runNumber);
-    const operations = getCampaignOperations(campaign.runNumber);
+    const operations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
     const campaignStates = {
       1: { tag: 'CAMPAIGN EXECUTION', title: `${identity.runId} powder preparation`, body: `${spec.formula} is released to PREP-01. Physical lot, mass, and enclosure checks own the next gate.`, metric: spec.targetMass, tone: 'run' },
       2: { tag: 'ROBOT CELL HOLD', title: 'Gripper cleanliness fault', body: 'The robot stopped before dosing. A cleaned gripper and witness coupon are required before material behavior can be trusted.', metric: `${operations.robotRecoveryMinutes} min recovery`, tone: 'warn' },
       3: { tag: 'ROBOT SYNTHESIS', title: `${identity.carrier} in dosing`, body: 'Six crucible positions are executing under the governed carrier handshake.', metric: '6 positions', tone: 'run' },
-      4: { tag: 'FURNACE BOTTLENECK', title: `${identity.runId} queued`, body: `FURN-04 is capacity one. ${operations.activeFurnaceRun} must complete and the carrier hold location must be proven.`, metric: `Q01 · ${operations.queueMinutes} min`, tone: 'warn' },
+      4: { tag: campaign.thermalBayLevel >= 2 ? 'THERMAL LANE READINESS' : 'FURNACE BOTTLENECK', title: `${identity.runId} · ${operations.furnaceLane}`, body: campaign.thermalBayLevel >= 2 ? `Chamber A remains occupied by ${operations.activeFurnaceRun}. Qualified chamber B needs an independent readiness proof before load.` : `FURN-04 is capacity one. ${operations.activeFurnaceRun} must complete and the carrier hold location must be proven.`, metric: `${operations.furnaceLane} · ${operations.queueMinutes} min`, tone: 'warn' },
       5: { tag: 'THERMAL EXECUTION', title: `${spec.profile} active`, body: `${identity.thermalSample} is under the full ${spec.temperature} / ${spec.dwell} governed thermal history.`, metric: `${spec.thermalMinutes} min`, tone: 'run' },
       6: { tag: 'XRD QUALITY GATE', title: `${identity.runId} specimen held`, body: 'A current NIST Si reference must pass before the campaign diffraction pattern can be acquired.', metric: `${operations.referenceAgeHours} h since QC`, tone: 'warn' },
       7: { tag: spec.objectiveMet ? 'CAMPAIGN TARGET MET' : 'VALID NEGATIVE', title: `${identity.runId} · ${spec.measured}% phase`, body: `The Si control passed at ${operations.referenceResult}. This qualified result is retained for the next model proposal.`, metric: spec.gap, tone: 'ready' },

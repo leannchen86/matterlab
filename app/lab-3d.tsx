@@ -21,6 +21,7 @@ type SceneProps = {
   campaignStage: number;
   campaignSelected: string;
   campaignRunNumber: number;
+  campaignThermalBayLevel: number;
   scenarioId: ScenarioId;
   cameraMode: CameraMode;
   lightingMode: LightingMode;
@@ -63,7 +64,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -73,7 +74,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
   const selectedStation = stations[selectedIndex];
   const campaignIndex = getCampaignStationIndex(campaignStage);
   const inspectionKey = getInspectionKey(selectedId, selectedIndex, campaignStage, campaignSelected, campaignRunNumber);
-  const selectedHotspots = getInspectionPoints(selectedIndex, scenarioId, phase, campaignStage, campaignSelected, campaignRunNumber);
+  const selectedHotspots = getInspectionPoints(selectedIndex, scenarioId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel);
   const inspected = visited[inspectionKey] ?? [];
   const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? observationRecord.point : null;
   const campaignState = getCampaignRoomState(campaignStage, campaignSelected);
@@ -114,10 +115,11 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
             stateOverride={campaignIndex === index ? campaignState.label : undefined}
             showHotspots={selectedId === station.id && cameraMode === 'focus'}
             inspected={visited[getInspectionKey(station.id, index, campaignStage, campaignSelected, campaignRunNumber)] ?? []}
-            inspectionPoints={getInspectionPoints(index, scenarioId, phase, campaignStage, campaignSelected, campaignRunNumber)}
+            inspectionPoints={getInspectionPoints(index, scenarioId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel)}
             controls={controlFeedback?.[station.id] ?? []}
             scenarioId={scenarioId}
             phase={phase}
+            thermalBayLevel={campaignThermalBayLevel}
             onInspect={inspect}
             onFocus={() => onCameraMode('focus')}
             onSelect={onSelect}
@@ -560,7 +562,7 @@ function SampleStagingRack() {
   </group>;
 }
 
-function StationCell({ station, index, position, selected, active, toneOverride, stateOverride, showHotspots, inspected, inspectionPoints, controls, scenarioId, phase, onInspect, onFocus, onSelect }: {
+function StationCell({ station, index, position, selected, active, toneOverride, stateOverride, showHotspots, inspected, inspectionPoints, controls, scenarioId, phase, thermalBayLevel, onInspect, onFocus, onSelect }: {
   station: Station;
   index: number;
   position: [number, number, number];
@@ -574,6 +576,7 @@ function StationCell({ station, index, position, selected, active, toneOverride,
   controls: string[];
   scenarioId: ScenarioId;
   phase: number;
+  thermalBayLevel: number;
   onInspect: (label: string) => void;
   onFocus: () => void;
   onSelect: (id: string) => void;
@@ -594,7 +597,7 @@ function StationCell({ station, index, position, selected, active, toneOverride,
       </RoundedBox>
       <Line points={[[-1.54, 0.082, -1.36], [1.54, 0.082, -1.36], [1.54, 0.082, 1.36], [-1.54, 0.082, 1.36], [-1.54, 0.082, -1.36]]} color={selected ? '#4dd5ed' : tone} lineWidth={selected ? 1.05 : 0.55} transparent opacity={selected ? 0.48 : 0.12} />
       {[-1.36, 1.36].flatMap((x) => [-1.18, 1.18].map((z) => <mesh key={`${x}-${z}`} position={[x, 0.09, z]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.035, 0.055, 16]} /><meshStandardMaterial color="#687681" metalness={0.78} roughness={0.26} /></mesh>))}
-      <Equipment index={index} active={active} tone={tone} focused={showHotspots} controls={controls} scenarioId={scenarioId} phase={phase} />
+      <Equipment index={index} active={active} tone={tone} focused={showHotspots} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} />
       {showHotspots && <InspectionHotspots points={inspectionPoints} tone={tone} inspected={inspected} onInspect={onInspect} />}
       <StatusBeacon position={[1.32, 0.34, 1.08]} color={tone} active={active || selected} />
       <ControlProofLights count={controls.length} />
@@ -607,10 +610,10 @@ function StationCell({ station, index, position, selected, active, toneOverride,
   );
 }
 
-function Equipment({ index, active, tone, focused, controls, scenarioId, phase }: { index: number; active: boolean; tone: string; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number }) {
+function Equipment({ index, active, tone, focused, controls, scenarioId, phase, thermalBayLevel }: { index: number; active: boolean; tone: string; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number }) {
   if (index === 0) return <PowderPrep controls={controls} />;
   if (index === 1) return <RobotCell active={active} focused={focused} controls={controls} />;
-  if (index === 2) return <Furnace active={active} controls={controls} scenarioId={scenarioId} phase={phase} />;
+  if (index === 2) return <Furnace active={active} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} />;
   if (index === 3) return <Xrd active={active} controls={controls} />;
   if (index === 4) return <SemEds active={active} controls={controls} />;
   if (index === 5) return <Bet active={active} tone={tone} controls={controls} />;
@@ -629,10 +632,10 @@ const HOTSPOTS: InspectionPoint[][] = [
   [{ position: [-0.58, 1.12, 0.76], label: 'PAN', observation: 'matched empty-pan pair · clean', state: 'pass' }, { position: [0.82, 0.78, 0.7], label: 'PURGE', observation: 'N₂ flow stable · outlet clear', state: 'pass' }, { position: [0.08, 1.28, 0.82], label: 'FURNACE', observation: '28 °C · baseline check due', state: 'attention' }],
 ];
 
-function getCampaignInspectionPoints(index: number, stage: number, selected: string, runNumber: number): InspectionPoint[] | null {
+function getCampaignInspectionPoints(index: number, stage: number, selected: string, runNumber: number, thermalBayLevel = 1): InspectionPoint[] | null {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
-  const operations = getCampaignOperations(runNumber);
+  const operations = getCampaignOperations(runNumber, thermalBayLevel);
   if (stage === 1 && index === 0) return [
     { position: [-0.65, 1.25, 0.68], label: 'SASH', observation: '420 mm opening · LEV airflow proven', state: 'pass' },
     { position: [0.86, 0.97, 0.55], label: 'BALANCE', observation: `zero 0.000 g · ${spec.id} target ${spec.targetMass}`, state: 'pass' },
@@ -645,8 +648,8 @@ function getCampaignInspectionPoints(index: number, stage: number, selected: str
   ];
   if (stage >= 4 && stage <= 5 && index === 2) return [
     { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: stage === 4 ? `door closed · ${operations.activeFurnaceRun} cycle owns chamber` : `door chain closed · ${spec.temperature} profile active`, state: 'pass' },
-    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? `${operations.activeFurnaceRun} remaining ${operations.queueMinutes} min · ${identity.runId} Q01` : `${spec.profile} · ramp/dwell trace recording`, state: stage === 4 ? 'attention' : 'pass' },
-    { position: stage === 4 ? [0, 0.42, 1.04] : [0, 1.38, 0.94], label: 'CARRIER', observation: stage === 4 ? `${identity.carrier} parked at marked queue stand · seal intact` : `${identity.carrier} chamber occupancy confirmed`, state: stage === 4 ? 'attention' : 'pass' },
+    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? `${operations.activeFurnaceRun} in chamber A · ${operations.furnaceLane} ${operations.queueMinutes} min` : `${spec.profile} · ramp/dwell trace recording`, state: stage === 4 ? 'attention' : 'pass' },
+    { position: stage === 4 ? [0, 0.42, 1.04] : [0, 1.38, 0.94], label: 'CARRIER', observation: stage === 4 ? thermalBayLevel >= 2 ? `${identity.carrier} assigned chamber B · readiness proof pending` : `${identity.carrier} parked at marked queue stand · seal intact` : `${identity.carrier} chamber occupancy confirmed`, state: stage === 4 ? 'attention' : 'pass' },
   ];
   if (stage >= 6 && stage <= 7 && index === 3) return [
     { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: stage === 6 ? `NIST Si reference seated · ${identity.thermalSample} held` : `${identity.thermalSample} flat · reference accepted`, state: 'pass' },
@@ -661,8 +664,8 @@ function getCampaignInspectionPoints(index: number, stage: number, selected: str
   return null;
 }
 
-function getInspectionPoints(index: number, scenarioId: ScenarioId, phase: number, campaignStage = 0, campaignSelected = 'C-42', campaignRunNumber = 42): InspectionPoint[] {
-  const campaignPoints = getCampaignInspectionPoints(index, campaignStage, campaignSelected, campaignRunNumber);
+function getInspectionPoints(index: number, scenarioId: ScenarioId, phase: number, campaignStage = 0, campaignSelected = 'C-42', campaignRunNumber = 42, campaignThermalBayLevel = 1): InspectionPoint[] {
+  const campaignPoints = getCampaignInspectionPoints(index, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel);
   if (campaignPoints) return campaignPoints;
   if (scenarioId === 'xrd' && index === 3 && phase >= 1) return [
     { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: phase >= 4 ? 'run holder clear · specimen record retained' : 'NIST Si seated · surface clean', state: 'pass' },
@@ -858,7 +861,7 @@ function RobotArm({ active, homed, gripperProven }: { active: boolean; homed: bo
   </group>;
 }
 
-function Furnace({ active, controls, scenarioId, phase }: { active: boolean; controls: string[]; scenarioId: ScenarioId; phase: number }) {
+function Furnace({ active, controls, scenarioId, phase, thermalBayLevel }: { active: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number }) {
   const relayRead = controls.includes('Read overtemperature relay');
   const doorVerified = controls.includes('Verify door chain');
   const emptyConfirmed = controls.includes('Confirm empty-cell state');
@@ -872,20 +875,24 @@ function Furnace({ active, controls, scenarioId, phase }: { active: boolean; con
   const chamberIntensity = recovered ? 0.55 : recoveryHeld ? 0.32 : emptyConfirmed && !active ? 0.4 : active ? 2.7 : recoveryScenario ? 1.35 : 0.65;
   const statusGreen = relayRead || recovered;
   const doorGreen = doorVerified || recovered;
+  const dualChamber = scenarioId === 'xrd' && thermalBayLevel >= 2;
   return <group position={[0, 0.18, 0]}>
-    <RoundedBox args={[2.05, 2.22, 1.5]} radius={0.09} smoothness={4} position={[0, 1.15, 0]} castShadow>
+    <RoundedBox args={[dualChamber ? 2.62 : 2.05, 2.22, 1.5]} radius={0.09} smoothness={4} position={[0, 1.15, 0]} castShadow>
       <meshPhysicalMaterial color="#59636a" metalness={0.9} roughness={0.2} clearcoat={0.34} />
     </RoundedBox>
-    <RoundedBox args={[1.52, 1.18, 0.12]} radius={0.05} position={[0, 1.37, 0.79]}>
-      <meshStandardMaterial color="#15191c" metalness={0.6} roughness={0.38} />
-    </RoundedBox>
-    <mesh position={[0, 1.39, 0.858]}><planeGeometry args={[1.18, 0.76]} /><meshStandardMaterial color={chamberColor} emissive={chamberEmissive} emissiveIntensity={chamberIntensity} roughness={0.85} /></mesh>
-    <pointLight position={[0, 1.4, 1.1]} intensity={recovered ? 1.5 : recoveryHeld ? 0.8 : emptyConfirmed && !active ? 1.2 : active ? 12 : recoveryScenario ? 5 : 2} color={recovered ? '#51e19a' : recoveryHeld ? '#d6894f' : emptyConfirmed && !active ? '#51e19a' : '#ff8b3d'} distance={3} decay={2} />
+    {(dualChamber ? [-0.62, 0.62] : [0]).map((chamberX, index) => <group key={chamberX}>
+      <RoundedBox args={[dualChamber ? 1.08 : 1.52, 1.18, 0.12]} radius={0.05} position={[chamberX, 1.37, 0.79]}>
+        <meshStandardMaterial color="#15191c" metalness={0.6} roughness={0.38} />
+      </RoundedBox>
+      <mesh position={[chamberX, 1.39, 0.858]}><planeGeometry args={[dualChamber ? 0.82 : 1.18, 0.76]} /><meshStandardMaterial color={index === 1 ? '#101d18' : chamberColor} emissive={index === 1 ? '#1f6b4a' : chamberEmissive} emissiveIntensity={index === 1 ? 0.55 : chamberIntensity} roughness={0.85} /></mesh>
+      <pointLight position={[chamberX, 1.4, 1.1]} intensity={index === 1 ? 1.3 : recovered ? 1.5 : recoveryHeld ? 0.8 : emptyConfirmed && !active ? 1.2 : active ? 12 : recoveryScenario ? 5 : 2} color={index === 1 ? '#51e19a' : recovered ? '#51e19a' : recoveryHeld ? '#d6894f' : emptyConfirmed && !active ? '#51e19a' : '#ff8b3d'} distance={2.5} decay={2} />
+      {dualChamber && <><mesh position={[chamberX, 1.93, 0.865]}><planeGeometry args={[0.52, 0.06]} /><meshBasicMaterial color={index === 0 ? '#f4b95f' : '#51e19a'} /></mesh><mesh position={[chamberX + 0.36, 0.84, 0.87]}><circleGeometry args={[0.035, 18]} /><meshStandardMaterial color={index === 0 ? '#f4b95f' : '#51e19a'} emissive={index === 0 ? '#704718' : '#1f6947'} emissiveIntensity={0.8} /></mesh></>}
+    </group>)}
     <RoundedBox args={[0.9, 0.32, 0.09]} radius={0.035} position={[-0.34, 0.55, 0.805]}>
       <meshBasicMaterial color="#08161c" />
     </RoundedBox>
     <mesh position={[-0.42, 0.56, 0.855]}><planeGeometry args={[0.42, 0.035]} /><meshBasicMaterial color={statusGreen ? '#51e19a' : recoveryHeld ? '#d6894f' : active ? '#f4b95f' : '#6a8290'} /></mesh>
-    <mesh position={[0.82, 1.36, 0.875]} castShadow><boxGeometry args={[0.07, 0.8, 0.08]} /><meshStandardMaterial color={doorGreen ? '#64d49f' : recoveryHeld ? '#c88b58' : '#9aa3a8'} emissive={doorGreen ? '#1c6545' : recoveryHeld ? '#5f321c' : '#000000'} emissiveIntensity={doorGreen || recoveryHeld ? 0.55 : 0} metalness={0.9} roughness={0.16} /></mesh>
+    <mesh position={[dualChamber ? 1.16 : 0.82, 1.36, 0.875]} castShadow><boxGeometry args={[0.07, 0.8, 0.08]} /><meshStandardMaterial color={doorGreen ? '#64d49f' : recoveryHeld ? '#c88b58' : '#9aa3a8'} emissive={doorGreen ? '#1c6545' : recoveryHeld ? '#5f321c' : '#000000'} emissiveIntensity={doorGreen || recoveryHeld ? 0.55 : 0} metalness={0.9} roughness={0.16} /></mesh>
     <mesh position={[0.71, 0.83, 0.87]}><circleGeometry args={[0.045, 18]} /><meshStandardMaterial color={chamberStateConfirmed ? '#51e19a' : '#6f7e82'} emissive={chamberStateConfirmed ? '#238253' : '#192428'} emissiveIntensity={chamberStateConfirmed ? 1 : 0.2} /></mesh>
   </group>;
 }

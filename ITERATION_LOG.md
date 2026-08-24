@@ -1261,6 +1261,27 @@ repeated exactly, so subsequent campaigns felt scripted rather than scheduled in
   checklist reports a 60-minute capacity wait, and the route schedule carries those identities without
   changing R-31's scientific formulation or evidence chain.
 
+## Critique 69: bottlenecks could be observed but never strategically changed
+
+The campaign exposed furnace capacity and queue delay, but the player could only wait. That taught
+incident response, not the facility-building tradeoff that makes an operations game replayable.
+
+### Changes
+
+- Added a persistent thermal-bay configuration decision inside campaign control. Before furnace
+  allocation closes, the player can spend 120 research points and 48 simulated minutes to commission
+  FURN-04's independent auxiliary chamber.
+- Grounded commissioning in equipment evidence rather than a cosmetic upgrade: chamber B requires an
+  empty cycle, a nine-point uniformity survey, independent temperature control, and retained IQ / OQ.
+- Changed the campaign schedule and route after commissioning. RUN-043 remains governed in chamber A,
+  while RUN-047 routes to qualified chamber B through a 9-minute readiness gate; the projected thermal
+  rate changes from 0.17 to 0.31 runs per hour.
+- Propagated the chosen configuration through persisted campaign state, elapsed time and insight,
+  checklist delay, station view, native furnace sequence, event narrative, and subsequent campaigns.
+- Rebuilt the 3D furnace as a visibly dual-chamber cabinet after commissioning: chamber A remains hot
+  and occupied while chamber B is separately indicated as qualified and ready. Desktop focus view and
+  the 390 × 844 campaign layout were visually checked after the live upgrade.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

@@ -47,13 +47,15 @@ const HMI_OPERATIONS: Record<string, [string, string, string]> = {
   'TGA-01': ['Tare balance channel', 'Prove purge path', 'Home autosampler carousel'],
 };
 
-function getCampaignHmiOperations(stationId: string, stage: number, selected: string, runNumber: number): string[] | null {
+function getCampaignHmiOperations(stationId: string, stage: number, selected: string, runNumber: number, thermalBayLevel = 1): string[] | null {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
   if (!stage) return null;
   if (stationId === 'ROBO-02' && stage === 2) return ['Verify safeguarded stop', 'Clean gripper tooling', 'Acquire witness coupon'];
   if (stationId === 'ROBO-02') return [`Scan ${identity.carrier} carrier`, 'Verify six dose positions', 'Execute crucible dosing'];
-  if (stationId === 'FURN-04' && stage === 4) return ['Read active profile state', 'Verify queue position', `Confirm ${identity.carrier} hold location`];
+  if (stationId === 'FURN-04' && stage === 4) return thermalBayLevel >= 2
+    ? ['Read chamber A profile state', 'Verify chamber B qualification', `Route ${identity.carrier} to chamber B`]
+    : ['Read active profile state', 'Verify queue position', `Confirm ${identity.carrier} hold location`];
   if (stationId === 'FURN-04') return ['Read overtemperature relay', 'Verify door chain', `Start ${spec.profile} profile`];
   if (stationId === 'XRD-03' && stage === 6) return ['Home specimen stage', 'Prove shutter feedback', 'Acquire Si reference', `Acquire ${identity.runId} pattern`];
   if (stationId === 'XRD-03') return ['Review Si control', 'Review phase fit', `Release ${identity.pattern} evidence`];
@@ -71,18 +73,19 @@ function getCampaignMethodStep(stage: number) {
 function completeCampaignMachineStage(stage: number) {
   if (stage < 1 || (stage > 6 && stage !== 8)) return null;
   try {
-    const current = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; elapsed?: number; insight?: number; selected?: string; runNumber?: number; history?: unknown[]; [key: string]: unknown };
+    const current = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; elapsed?: number; insight?: number; selected?: string; runNumber?: number; thermalBayLevel?: number; history?: unknown[]; [key: string]: unknown };
     if (Number(current.stage) !== stage) return null;
     const elapsed = Number(current.elapsed ?? 0);
     const insight = Number(current.insight ?? 248);
     const spec = getCampaignSpec(String(current.selected ?? 'C-42'));
     const identity = getCampaignIdentity(Number(current.runNumber ?? 42));
-    const runOps = getCampaignOperations(identity.runNumber);
+    const thermalBayLevel = Number(current.thermalBayLevel ?? 1);
+    const runOps = getCampaignOperations(identity.runNumber, thermalBayLevel);
     const transition = {
       1: { stage: 2, elapsed: 12, insight, message: `${identity.prepSample} evidence retained. ROBO-02 stopped on a gripper cleanliness fault before dosing.` },
       2: { stage: 3, elapsed: elapsed + runOps.robotRecoveryMinutes, insight: insight - 8, message: `Gripper cleaned and witness coupon passed after ${runOps.robotRecoveryMinutes} minutes. Robot synthesis resumed with lineage intact.` },
-      3: { stage: 4, elapsed: elapsed + 14, insight, message: `Six crucibles dosed and ${identity.carrier} released. FURN-04 is occupied by ${runOps.activeFurnaceRun}; ${identity.runId} is now queue constrained.` },
-      4: { stage: 5, elapsed: elapsed + runOps.queueMinutes, insight, message: `${runOps.activeFurnaceRun} cooled and unloaded after ${runOps.queueMinutes} minutes. Queue proof retained; ${identity.runId} entered ${spec.profile} at ${spec.temperature}.` },
+      3: { stage: 4, elapsed: elapsed + 14, insight, message: thermalBayLevel >= 2 ? `Six crucibles dosed and ${identity.carrier} released. ${runOps.furnaceLane} is qualified; independent readiness proof is required while chamber A runs ${runOps.activeFurnaceRun}.` : `Six crucibles dosed and ${identity.carrier} released. FURN-04A is occupied by ${runOps.activeFurnaceRun}; ${identity.runId} is now queue constrained.` },
+      4: { stage: 5, elapsed: elapsed + runOps.queueMinutes, insight, message: thermalBayLevel >= 2 ? `${runOps.furnaceLane} readiness proved in ${runOps.queueMinutes} minutes. ${identity.runId} entered ${spec.profile} independently while chamber A retained ${runOps.activeFurnaceRun}.` : `${runOps.activeFurnaceRun} cooled and unloaded after ${runOps.queueMinutes} minutes. Queue proof retained; ${identity.runId} entered ${spec.profile} at ${spec.temperature}.` },
       5: { stage: 6, elapsed: elapsed + spec.thermalMinutes, insight, message: `${spec.temperature} / ${spec.dwell} thermal trace retained. XRD specimen release is held; the last qualified Si reference is ${runOps.referenceAgeHours} hours old.` },
       6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `Reference passed at ${runOps.referenceResult}. ${spec.id} measured ${spec.measured}% target phase: valid evidence, ${spec.objectiveMet ? `${spec.gap} above the objective.` : `${spec.gap.replace('−', '')} below the objective.`}` },
       8: { stage: 9, elapsed: elapsed + 26, insight: insight + 15, message: `Four BSE fields and a representative EDS map retained. ${spec.id === 'D-08' ? 'Ti-rich cores support incomplete conversion as the follow-up hypothesis.' : 'Ca-rich secondary grains support precursor excess as the follow-up hypothesis.'}` },
@@ -103,14 +106,14 @@ function completeCampaignMachineStage(stage: number) {
   }
 }
 
-function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignStage = 0, selected = 'C-42', runNumber = 42): typeof profiles[string] {
+function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignStage = 0, selected = 'C-42', runNumber = 42, thermalBayLevel = 1): typeof profiles[string] {
   const profile = profiles[stationId] ?? profiles['XRD-03'];
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
-  const runOps = getCampaignOperations(runNumber);
+  const runOps = getCampaignOperations(runNumber, thermalBayLevel);
   if (campaignStage === 1 && stationId === 'PREP-01') return { ...profile, controller: `BAL-01 / LES-${spec.id.replace('-', '')}`, method: ['Scan precursor lots', `Weigh ${spec.id} formulation`, 'Homogenize + seal', `Release ${identity.runId}`], sample: [spec.id, identity.prepSample, identity.carrier], workOrder: `MAT-${identity.suffix}`, service: 'Campaign preparation · active', supplies: [spec.precursorLabel, `target ${spec.targetMass}`, 'sealed liners 14'] };
   if (campaignStage >= 2 && campaignStage <= 3 && stationId === 'ROBO-02') return { ...profile, controller: 'RC-02 / CAMPAIGN-PLC', safe: campaignStage === 2 ? ['area scanner clear', 'gate chain closed', 'cleaning mode selected'] : ['area scanner clear', 'gate chain closed', 'gripper witness valid'], method: [`Receive ${identity.carrier}`, 'Clean + witness gripper', 'Dose crucibles', 'Write carrier handshake'], sample: [identity.prepSample, identity.carrier, identity.furnaceQueue], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 2 ? 'Gripper cleanliness recovery · active' : 'Campaign dosing · active', health: campaignStage === 2 ? 79 : 90 };
-  if (campaignStage >= 4 && campaignStage <= 5 && stationId === 'FURN-04') return { ...profile, controller: `TC-04 / MES-Q${identity.suffix}`, method: [`Accept ${identity.carrier}`, 'Respect active queue', `Load ${spec.temperature} profile`, 'Cool + release'], sample: [identity.carrier, spec.profile, identity.thermalSample], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 4 ? `Queue 01 · ${runOps.activeFurnaceRun} active` : `${spec.profile} · active` };
+  if (campaignStage >= 4 && campaignStage <= 5 && stationId === 'FURN-04') return { ...profile, controller: thermalBayLevel >= 2 ? `TC-04A/B / MES-Q${identity.suffix}` : `TC-04 / MES-Q${identity.suffix}`, method: [`Accept ${identity.carrier}`, thermalBayLevel >= 2 ? 'Prove independent chamber' : 'Respect active queue', `Load ${spec.temperature} profile`, 'Cool + release'], sample: [identity.carrier, spec.profile, identity.thermalSample], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 4 ? `${runOps.furnaceLane} · ${runOps.queueMinutes} min readiness` : `${spec.profile} · ${runOps.furnaceLane} active` };
   if (campaignStage >= 6 && stationId === 'XRD-03') return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: ['Load NIST Si', `Prove ${runOps.referenceResult}`, `Acquire ${identity.runId}`, `Review ${spec.measured}% result`], sample: [identity.thermalSample, identity.xrdDataset, identity.pattern], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 6 ? `Si reference · ${runOps.referenceAgeHours} h` : `Valid result · target ${spec.objectiveMet ? 'met' : 'missed'}`, health: campaignStage === 6 ? 78 : 92 };
   if (campaignStage >= 8 && stationId === 'SEM-01') return { ...profile, controller: 'SEM-01 / DIAG-EDS', method: [`Load ${identity.thermalSample}`, 'Acquire four BSE fields', 'Acquire representative EDS map', 'Route mechanism hypothesis'], sample: [identity.thermalSample, `STUB-${identity.suffix}`, `MAP-${identity.suffix}`], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 8 ? 'Valid-negative diagnosis · active' : 'Representative follow-up · retained', health: 96 };
   if (scenarioId === 'facility' && stationId === 'PREP-01') return { ...profile, controller: 'MOVE-HMI / MES-A2', method: ['Scan both totes', 'Inspect powered jack', 'Secure load + route', 'Retain move receipt'], sample: ['LOT-3024-A', 'MOV-3024', 'REC-BET-02'], workOrder: 'MOV-3024', service: 'Powered-jack pre-use · current', supplies: ['restraint straps 6', 'spill kit sealed', 'tote covers 12'] };
@@ -140,13 +143,17 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
     if (typeof window === 'undefined') return 42;
     try { return Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').runNumber ?? 42); } catch { return 42; }
   });
+  const [campaignThermalBayLevel, setCampaignThermalBayLevel] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    try { return Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').thermalBayLevel ?? 1); } catch { return 1; }
+  });
   const campaignActive = scenarioId === 'xrd' && getCampaignStationId(campaignStage) === station.id;
   const contextKey = campaignActive ? `${station.id}:RUN-${campaignRunNumber}:${campaignSelected}:S${campaignStage}` : station.id;
-  const consoleStation = campaignActive ? getCampaignStationView(station, campaignStage, campaignSelected, campaignRunNumber) : station;
+  const consoleStation = campaignActive ? getCampaignStationView(station, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel) : station;
   const session = sessions[contextKey] ?? emptyConsoleSession();
   const completed = session.completed;
   const hmiOperations = session.hmiOperations;
-  const profile = getContextProfile(station.id, scenarioId, campaignActive ? campaignStage : 0, campaignSelected, campaignRunNumber);
+  const profile = getContextProfile(station.id, scenarioId, campaignActive ? campaignStage : 0, campaignSelected, campaignRunNumber, campaignThermalBayLevel);
   const activePhysicalChecks = campaignActive ? (enteredFromLab ? enteredChecks : []) : physicalChecks;
   const recordStationEvent = (type: string, text: string, action?: string) => window.dispatchEvent(new CustomEvent('mattershift:station-event', { detail: { stationId: station.id, type, text, action } }));
   const finish = () => {
@@ -177,10 +184,11 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
 
   useEffect(() => {
     const followCampaign = (event: Event) => {
-      const detail = (event as CustomEvent<{ stage?: number; selected?: string; runNumber?: number }>).detail;
+      const detail = (event as CustomEvent<{ stage?: number; selected?: string; runNumber?: number; thermalBayLevel?: number }>).detail;
       setCampaignStage(Number(detail?.stage ?? 0));
       if (detail?.selected) setCampaignSelected(String(detail.selected));
       if (detail?.runNumber) setCampaignRunNumber(Number(detail.runNumber));
+      if (detail?.thermalBayLevel) setCampaignThermalBayLevel(Number(detail.thermalBayLevel));
     };
     window.addEventListener('mattershift:campaign-state', followCampaign);
     return () => window.removeEventListener('mattershift:campaign-state', followCampaign);
@@ -224,7 +232,7 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
           </nav>
           <div className="console-main">
             <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>WALK <b>{activePhysicalChecks.length}/3</b></span><span><i className={consoleStation.tone === 'warn' ? 'alarm' : consoleStation.tone === 'off' ? '' : 'online'} />{consoleStation.state}</span></div>
-            {tab === 'hmi' && <HmiView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
+            {tab === 'hmi' && <HmiView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignThermalBayLevel={campaignThermalBayLevel} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
             {tab === 'les' && <LesView station={consoleStation} profile={profile} campaignStage={campaignActive ? campaignStage : 0} complete={completed.les} onComplete={finish} />}
             {tab === 'lims' && <LimsView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} complete={completed.lims} onComplete={finish} />}
             {tab === 'cmms' && <CmmsView profile={profile} complete={completed.cmms} onComplete={finish} />}
@@ -235,10 +243,10 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   </>;
 }
 
-function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected, campaignRunNumber, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
+function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignThermalBayLevel: number; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
   const releaseBlocked = station.tone === 'warn' || station.tone === 'off' || station.tone === 'hold';
   const walkaroundComplete = physicalChecks.length === 3;
-  const operationSteps = getCampaignHmiOperations(station.id, campaignStage, campaignSelected, campaignRunNumber) ?? (station.id === 'FURN-04' && station.state !== 'READY'
+  const operationSteps = getCampaignHmiOperations(station.id, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel) ?? (station.id === 'FURN-04' && station.state !== 'READY'
     ? ['Read overtemperature relay', 'Verify door chain', 'Confirm chamber occupancy']
     : HMI_OPERATIONS[station.id] ?? HMI_OPERATIONS['XRD-03']);
   const completedOperations = operationSteps.filter((operation) => operations.includes(operation)).length;
@@ -277,7 +285,7 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
     </div>
     {campaignStage === 1 && station.id === 'PREP-01' && <PrepCampaignPanel selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 2 && campaignStage <= 3 && station.id === 'ROBO-02' && <RobotCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
-    {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
+    {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} thermalBayLevel={campaignThermalBayLevel} operations={operations} />}
     {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 8 && station.id === 'SEM-01' && <SemCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {!campaignStage && scenarioId === 'bet' && station.id === 'BET-02' && <BetHmiPanel station={station} operations={operations} />}
@@ -378,14 +386,15 @@ function RobotCampaignPanel({ stage, selected, runNumber, operations }: { stage:
   </section>;
 }
 
-function FurnaceCampaignPanel({ stage, selected, runNumber, operations }: { stage: number; selected: string; runNumber: number; operations: string[] }) {
+function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, operations }: { stage: number; selected: string; runNumber: number; thermalBayLevel: number; operations: string[] }) {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
-  const runOps = getCampaignOperations(runNumber);
+  const runOps = getCampaignOperations(runNumber, thermalBayLevel);
   const queued = stage === 4;
-  const profileRead = operations.includes(queued ? 'Read active profile state' : 'Read overtemperature relay');
-  const secondGate = operations.includes(queued ? 'Verify queue position' : 'Verify door chain');
-  const finalGate = operations.includes(queued ? `Confirm ${identity.carrier} hold location` : `Start ${spec.profile} profile`);
+  const auxiliary = thermalBayLevel >= 2;
+  const profileRead = operations.includes(queued ? auxiliary ? 'Read chamber A profile state' : 'Read active profile state' : 'Read overtemperature relay');
+  const secondGate = operations.includes(queued ? auxiliary ? 'Verify chamber B qualification' : 'Verify queue position' : 'Verify door chain');
+  const finalGate = operations.includes(queued ? auxiliary ? `Route ${identity.carrier} to chamber B` : `Confirm ${identity.carrier} hold location` : `Start ${spec.profile} profile`);
   const setpoint = Number.parseFloat(spec.temperature);
   const dwellMinutes = Number.parseFloat(spec.dwell) * 60;
   const dwellFraction = Math.min(.66, Math.max(.42, dwellMinutes / spec.thermalMinutes));
@@ -394,7 +403,7 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, operations }: { stag
   const temperatureY = 146 - Math.min(1, setpoint / 1100) * 108;
   const thermalPath = `M42 146 C70 144 94 102 ${rampEnd} ${temperatureY} L${dwellEnd.toFixed(0)} ${temperatureY} C${(dwellEnd + 31).toFixed(0)} ${temperatureY + 8} 449 128 478 146`;
   const actualPath = `M42 147 C70 145 96 105 ${rampEnd} ${temperatureY + 3} L${dwellEnd.toFixed(0)} ${temperatureY + 3} C${(dwellEnd + 35).toFixed(0)} ${temperatureY + 12} 452 132 478 147`;
-  const status = queued ? finalGate ? 'QUEUE PROVEN' : secondGate ? 'LOCATION CHECK' : profileRead ? 'Q01 CONFIRMED' : 'OCCUPANCY HOLD' : finalGate ? 'PROFILE ACTIVE' : secondGate ? 'START ENABLED' : profileRead ? 'SAFETY CHAIN' : 'RECIPE LOADED';
+  const status = queued ? auxiliary ? finalGate ? 'LANE B READY' : secondGate ? 'ROUTE CHECK' : profileRead ? 'QUALIFICATION CHECK' : 'CHAMBER A ACTIVE' : finalGate ? 'QUEUE PROVEN' : secondGate ? 'LOCATION CHECK' : profileRead ? 'Q01 CONFIRMED' : 'OCCUPANCY HOLD' : finalGate ? 'PROFILE ACTIVE' : secondGate ? 'START ENABLED' : profileRead ? 'SAFETY CHAIN' : 'RECIPE LOADED';
   return <section className={`campaign-furnace-console${finalGate ? ' operation-complete' : ''}`}>
     <header><div><span>THERMAL PROCESS CONTROL</span><b>TC-04 / OT-04 · MAT-{identity.suffix} · {spec.profile}</b></div><em>{status}</em></header>
     <div className="campaign-furnace-layout">
@@ -402,9 +411,9 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, operations }: { stag
         <defs><pattern id="furnaceGrid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" className="grid" /></pattern><linearGradient id="furnaceGlow" x1="0" x2="1"><stop stopColor="#ff9a58" stopOpacity=".12" /><stop offset=".5" stopColor="#ff9a58" stopOpacity=".55" /><stop offset="1" stopColor="#ffca79" stopOpacity=".12" /></linearGradient></defs>
         <rect width="520" height="180" fill="url(#furnaceGrid)" />
         {queued ? <>
-          <text x="24" y="25">CAPACITY-ONE RESOURCE · PHYSICAL OCCUPANCY</text>
+          <text x="24" y="25">{auxiliary ? 'DUAL-CHAMBER BAY · INDEPENDENT CONTROLLERS' : 'CAPACITY-ONE RESOURCE · PHYSICAL OCCUPANCY'}</text>
           <rect x="26" y="42" width="170" height="91" rx="4" className="furnace-chamber" /><rect x="43" y="57" width="136" height="58" rx="3" className="furnace-hot-zone" /><path d="M54 103 C74 58 95 111 115 67 S153 105 169 64" className="heat-wave" /><text x="65" y="88">{runOps.activeFurnaceRun} ACTIVE</text><text x="71" y="103">{runOps.queueMinutes} MIN REMAINING</text>
-          <path d="M204 87 H252" className={finalGate ? 'queue-arrow released' : 'queue-arrow'} /><rect x="258" y="53" width="205" height="70" rx="3" className={secondGate ? 'queue-carrier proven' : 'queue-carrier'} /><text x="278" y="77">Q01 · {identity.runId}</text><text x="278" y="93">{identity.carrier} · {spec.profile}</text><text x="278" y="108">HOLD LOCATION {finalGate ? 'PROVEN' : 'PENDING'}</text>
+          <path d="M204 87 H252" className={finalGate ? 'queue-arrow released' : 'queue-arrow'} /><rect x="258" y="53" width="205" height="70" rx="3" className={secondGate ? 'queue-carrier proven' : 'queue-carrier'} /><text x="278" y="77">{auxiliary ? 'CHAMBER B' : 'Q01'} · {identity.runId}</text><text x="278" y="93">{identity.carrier} · {spec.profile}</text><text x="278" y="108">{auxiliary ? 'IQ / OQ' : 'HOLD LOCATION'} {finalGate ? 'PROVEN' : 'PENDING'}</text>
           <line x1="28" y1="151" x2="470" y2="151" className="timeline" /><rect x="28" y="145" width="206" height="12" className="timeline-active" /><rect x="237" y="145" width="222" height="12" className={finalGate ? 'timeline-queued proven' : 'timeline-queued'} /><text x="32" y="171">NOW</text><text x="224" y="171">+{runOps.queueMinutes} MIN</text><text x="436" y="171">+{runOps.queueMinutes + spec.thermalMinutes} MIN</text>
         </> : <>
           {[42, 146, 250, 354, 478].map((x) => <line key={`fx-${x}`} x1={x} x2={x} y1="23" y2="148" className="plot-grid" />)}{[38, 74, 110, 146].map((y) => <line key={`fy-${y}`} x1="42" x2="478" y1={y} y2={y} className="plot-grid" />)}
@@ -415,8 +424,8 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, operations }: { stag
         </>}
       </svg>
       <aside>
-        <div className={profileRead ? 'pass' : 'hold'}><span>{queued ? 'OCCUPANCY' : 'OVERTEMP'}</span><b>{queued ? runOps.activeFurnaceRun : profileRead ? 'ARMED' : 'READ'}</b><small>{queued ? 'capacity 1 / 1' : profileRead ? 'relay feedback true' : 'proof required'}</small></div>
-        <div className={secondGate ? 'pass' : 'waiting'}><span>{queued ? 'QUEUE' : 'DOOR CHAIN'}</span><b>{queued ? 'Q01' : secondGate ? 'CLOSED' : '—'}</b><small>{queued ? identity.carrier : secondGate ? 'interlock proven' : 'awaiting sequence'}</small></div>
+        <div className={profileRead ? 'pass' : 'hold'}><span>{queued ? auxiliary ? 'CHAMBER A' : 'OCCUPANCY' : 'OVERTEMP'}</span><b>{queued ? runOps.activeFurnaceRun : profileRead ? 'ARMED' : 'READ'}</b><small>{queued ? auxiliary ? 'independent TC active' : 'capacity 1 / 1' : profileRead ? 'relay feedback true' : 'proof required'}</small></div>
+        <div className={secondGate ? 'pass' : 'waiting'}><span>{queued ? auxiliary ? 'CHAMBER B' : 'QUEUE' : 'DOOR CHAIN'}</span><b>{queued ? auxiliary ? secondGate ? 'QUALIFIED' : 'VERIFY' : 'Q01' : secondGate ? 'CLOSED' : '—'}</b><small>{queued ? auxiliary ? 'empty cycle + survey' : identity.carrier : secondGate ? 'interlock proven' : 'awaiting sequence'}</small></div>
         <div className={finalGate ? 'pass' : 'waiting'}><span>{queued ? 'RELEASE' : 'THERMAL DOSE'}</span><b>{queued ? `${runOps.queueMinutes} min` : spec.temperature}</b><small>{queued ? finalGate ? 'location proven' : 'carrier held' : `${spec.dwell} dwell · air`}</small></div>
       </aside>
     </div>

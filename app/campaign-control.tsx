@@ -12,6 +12,7 @@ type CampaignRun = {
   insight: number;
   message: string;
   runNumber: number;
+  thermalBayLevel: number;
   history: CampaignResult[];
 };
 
@@ -21,6 +22,7 @@ const initialRun: CampaignRun = {
   elapsed: 0,
   insight: 248,
   runNumber: 42,
+  thermalBayLevel: 1,
   history: [],
   message: 'Select a candidate and release one governed experiment into the lab.',
 };
@@ -57,7 +59,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
   const diagnosisUnlocked = history.some((result) => result.candidate === 'D-08' && Boolean(result.diagnosis));
   const availableRecipes = recipes.filter((candidate) => (candidate.id !== 'A-29' || adaptiveUnlocked) && (candidate.id !== 'R-31' || diagnosisUnlocked));
   const identity = getCampaignIdentity(currentRunNumber);
-  const operations = getCampaignOperations(currentRunNumber);
+  const operations = getCampaignOperations(currentRunNumber, run.thermalBayLevel);
   const fault = run.stage === 2 ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 6 ? 'qc' : null;
   const primary = getPrimaryAction(run.stage, identity.runId);
 
@@ -69,7 +71,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
         : [...history, { runNumber: currentRunNumber, candidate: recipe.id, measured: recipe.measured, gap: recipe.gap, objectiveMet: recipe.objectiveMet, elapsed: run.elapsed }];
       const mechanismRecovery = run.stage >= 9 && recipe.id === 'D-08' && archivedHistory.some((result) => result.runNumber === currentRunNumber && Boolean(result.diagnosis));
       const nextSelected = mechanismRecovery ? 'R-31' : run.selected;
-      updateRun({ ...initialRun, insight: run.insight, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, message: mechanismRecovery
+      updateRun({ ...initialRun, insight: run.insight, thermalBayLevel: run.thermalBayLevel, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, message: mechanismRecovery
         ? `${identity.runId} diagnosis assimilated. R-31 raises thermal dose while preserving stoichiometry to test the incomplete-conversion hypothesis.`
         : `${identity.runId} archived. Select the next candidate.` });
     }
@@ -82,6 +84,17 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
   };
 
   const startDiagnosis = () => updateRun({ stage: 8, message: `${identity.thermalSample} routed to SEM-01. Four representative BSE fields and an EDS map are required before assigning a mechanism.` });
+
+  const commissionAuxiliaryChamber = () => {
+    if (run.thermalBayLevel >= 2 || run.stage > 3 || run.insight < 120) return;
+    const qualifiedOperations = getCampaignOperations(currentRunNumber, 2);
+    updateRun({
+      thermalBayLevel: 2,
+      elapsed: run.elapsed + 48,
+      insight: run.insight - 120,
+      message: `FURN-04B commissioned after an empty cycle and nine-point uniformity survey. ${identity.runId} now has a qualified auxiliary lane with a ${qualifiedOperations.queueMinutes}-minute readiness gate.`,
+    });
+  };
 
   const viewInLab = () => {
     const stationId = run.stage <= 1 ? 'PREP-01' : run.stage <= 3 ? 'ROBO-02' : run.stage <= 5 ? 'FURN-04' : run.stage <= 7 ? 'XRD-03' : 'SEM-01';
@@ -100,7 +113,7 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
         <div><span>OBJECTIVE</span><b>Target phase ≥ 96%</b></div>
         <div><span>LAB CLOCK</span><b>+{run.elapsed} min</b></div>
         <div><span>INSIGHT</span><b>{run.insight} RP</b></div>
-        <div><span>FURNACE-LIMITED RATE</span><b>{recipe.throughput}</b></div>
+        <div><span>FURNACE-LIMITED RATE</span><b>{run.thermalBayLevel >= 2 ? '0.31 runs / h' : recipe.throughput}</b></div>
         <div className={fault ? 'hud-alert' : ''}><span>ACTIVE CONSTRAINT</span><b>{fault === 'cell' ? 'ROBOT CELL' : fault === 'queue' ? 'FURNACE QUEUE' : fault === 'qc' ? 'XRD QC' : 'NONE'}</b></div>
       </div>
 
@@ -148,18 +161,18 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
           <div className="route-board">
             <RouteCell code="PREP-01" label="PREP" cycle="12 MIN" state={routeState(run.stage, 1, 2)} current={run.stage === 1} job={run.stage >= 1 ? identity.runId : 'OPEN'} />
             <RouteCell code="ROBO-02" label="SYNTHESIZE" cycle="14 MIN" state={run.stage === 2 ? 'fault' : routeState(run.stage, 3, 4)} current={run.stage === 3} job={run.stage === 2 ? 'CELL FAULT' : run.stage >= 3 ? identity.runId : 'WAIT'} />
-            <RouteCell code="FURN-04" label="CALCINE" cycle={`${recipe.thermalMinutes} MIN`} state={run.stage === 4 ? 'queued' : routeState(run.stage, 5, 6)} current={run.stage === 5} job={run.stage === 4 ? 'Q 01' : run.stage >= 5 ? identity.runId : operations.activeFurnaceRun} />
+            <RouteCell code={operations.furnaceLane} label="CALCINE" cycle={`${recipe.thermalMinutes} MIN`} state={run.stage === 4 ? 'queued' : routeState(run.stage, 5, 6)} current={run.stage === 5} job={run.stage === 4 ? run.thermalBayLevel >= 2 ? 'READY GATE' : 'Q 01' : run.stage >= 5 ? identity.runId : run.thermalBayLevel >= 2 ? 'QUALIFIED' : operations.activeFurnaceRun} />
             <RouteCell code="XRD-03" label="MEASURE" cycle="18 MIN" state={run.stage === 6 ? 'fault' : routeState(run.stage, 6, 7)} current={run.stage === 6} job={run.stage === 6 ? 'QC HOLD' : run.stage >= 7 ? identity.runId : 'RUN-038'} />
             <RouteCell code={run.stage >= 8 ? 'SEM-01' : 'MODEL'} label={run.stage >= 8 ? 'DIAGNOSE' : 'LEARN'} cycle={run.stage >= 8 ? '26 MIN' : 'GATED'} state={run.stage >= 9 ? 'complete' : run.stage === 8 ? 'active' : run.stage >= 7 ? 'complete' : 'waiting'} current={run.stage === 8} job={run.stage >= 9 ? '4 FIELDS + MAP' : run.stage === 8 ? identity.thermalSample : run.stage >= 7 ? `+${recipe.insightReward} RP` : 'EVIDENCE'} />
           </div>
 
           <div className={`constraint-console ${fault ? `fault-${fault}` : run.stage === 8 ? 'fault-qc' : run.stage >= 7 ? recipe.objectiveMet ? 'result-hit' : 'result-miss' : ''}`}>
-            <div className="constraint-signal"><span>{fault ? 'BOTTLENECK DETECTED' : run.stage === 8 ? 'DIAGNOSTIC BRANCH' : run.stage >= 9 ? 'MECHANISM EVIDENCE RETAINED' : run.stage >= 7 ? recipe.objectiveMet ? 'VALID RESULT · TARGET MET' : 'VALID RESULT · TARGET MISSED' : 'ROUTE STATUS'}</span><b>{fault === 'cell' ? 'ROBO-02 / CLEANLINESS' : fault === 'queue' ? 'FURN-04 / CAPACITY 1 OF 1' : fault === 'qc' ? 'XRD-03 / CONTROL DUE' : run.stage === 8 ? `SEM-01 / ${identity.thermalSample}` : run.stage >= 7 ? `${recipe.measured}% · GAP ${recipe.gap}` : 'FLOW NOMINAL'}</b><i /></div>
+            <div className="constraint-signal"><span>{fault ? 'BOTTLENECK DETECTED' : run.stage === 8 ? 'DIAGNOSTIC BRANCH' : run.stage >= 9 ? 'MECHANISM EVIDENCE RETAINED' : run.stage >= 7 ? recipe.objectiveMet ? 'VALID RESULT · TARGET MET' : 'VALID RESULT · TARGET MISSED' : 'ROUTE STATUS'}</span><b>{fault === 'cell' ? 'ROBO-02 / CLEANLINESS' : fault === 'queue' ? run.thermalBayLevel >= 2 ? 'FURN-04B / READINESS GATE' : 'FURN-04A / CAPACITY 1 OF 1' : fault === 'qc' ? 'XRD-03 / CONTROL DUE' : run.stage === 8 ? `SEM-01 / ${identity.thermalSample}` : run.stage >= 7 ? `${recipe.measured}% · GAP ${recipe.gap}` : 'FLOW NOMINAL'}</b><i /></div>
             <div className="constraint-visual" aria-label="Campaign queue visualization">
               <span className="queue-axis">QUEUE</span>
               <div className={`queue-token token-a ${run.stage >= 4 ? 'visible' : ''}`}>{identity.suffix}</div>
               <div className={`queue-token token-b ${run.stage === 4 ? 'visible' : ''}`}>{String(currentRunNumber + 1).padStart(3, '0')}</div>
-              <div className={`machine-aperture ${fault ? 'held' : ''}`}><i /><b>{fault ? 'HOLD' : 'READY'}</b></div>
+              <div className={`machine-aperture ${fault ? 'held' : ''}`}><i /><b>{fault ? run.thermalBayLevel >= 2 && fault === 'queue' ? 'QUAL' : 'HOLD' : 'READY'}</b></div>
               <em>{fault === 'queue' ? `${operations.queueMinutes} min wait` : fault === 'cell' ? `${operations.robotRecoveryMinutes} min recovery` : fault === 'qc' ? `${operations.referenceAgeHours} h since reference` : run.stage === 8 ? '4 fields + EDS map' : run.stage >= 9 ? 'diagnosis linked' : run.stage >= 7 ? recipe.objectiveMet ? 'objective achieved' : 'valid negative result' : 'no active delay'}</em>
             </div>
             <p>{run.message}</p>
@@ -168,9 +181,21 @@ export function CampaignControlModal({ onClose }: { onClose: () => void }) {
           <div className="campaign-timeline" aria-label="Equipment schedule">
             <header><span>EQUIPMENT SCHEDULE</span><b>NOW</b><i>+2 H</i><i>+4 H</i><i>+6 H</i></header>
             <div><span>ROBO-02</span><i className="bar robot" /><b>{identity.runId}</b></div>
-            <div><span>FURN-04</span><i className="bar furnace" /><b>{operations.activeFurnaceRun.replace('RUN-', '')}</b><i className="bar furnace queued" /><b>{identity.suffix}</b></div>
+            <div><span>FURN-04A</span><i className="bar furnace" /><b>{operations.activeFurnaceRun.replace('RUN-', '')}</b>{run.thermalBayLevel < 2 && <><i className="bar furnace queued" /><b>{identity.suffix}</b></>}</div>
+            {run.thermalBayLevel >= 2 && <div><span>FURN-04B</span><i className="bar furnace aux" /><b>{run.stage >= 5 ? identity.suffix : 'QUAL'}</b></div>}
             <div><span>XRD-03</span><i className="bar xrd" /><b>REF</b><i className="bar xrd queued" /><b>{identity.suffix}</b></div>
             {run.stage >= 8 && <div><span>SEM-01</span><i className="bar sem" /><b>{run.stage >= 9 ? 'MAP' : '4× BSE'}</b></div>}
+          </div>
+
+          <div className={`thermal-capacity-panel level-${run.thermalBayLevel}`}>
+            <header><div><span>THERMAL BAY CONFIGURATION</span><b>FURN-04 · INDEPENDENT CHAMBERS</b></div><em>{run.thermalBayLevel} / 2 QUALIFIED</em></header>
+            <div className="thermal-bay-mimic" aria-label={`Thermal bay with ${run.thermalBayLevel} qualified chamber${run.thermalBayLevel === 1 ? '' : 's'}`}>
+              <article className="online"><i /><span>CHAMBER A</span><b>{operations.activeFurnaceRun}</b><small>occupied · governed profile</small></article>
+              <i className="thermal-bus" />
+              <article className={run.thermalBayLevel >= 2 ? 'online auxiliary' : 'offline'}><i /><span>CHAMBER B</span><b>{run.thermalBayLevel >= 2 ? 'QUALIFIED' : 'NOT COMMISSIONED'}</b><small>{run.thermalBayLevel >= 2 ? `${operations.queueMinutes} min readiness · independent TC` : 'empty cycle + 9-point survey required'}</small></article>
+            </div>
+            <div className="thermal-capacity-metrics"><span>QUALIFICATION<b>{run.thermalBayLevel >= 2 ? 'IQ / OQ RETAINED' : '120 RP · 48 MIN'}</b></span><span>CAMPAIGN WAIT<b>{operations.queueMinutes} MIN</b></span><span>RATE<b>{run.thermalBayLevel >= 2 ? '0.31 RUNS / H' : recipe.throughput.toUpperCase()}</b></span></div>
+            {run.thermalBayLevel < 2 && <button type="button" disabled={run.stage > 3 || run.insight < 120} onClick={commissionAuxiliaryChamber}>{run.stage > 3 ? 'COMMISSIONING WINDOW CLOSED' : run.insight < 120 ? '120 RP REQUIRED' : 'COMMISSION CHAMBER B'}<span>→</span></button>}
           </div>
         </section>
       </div>

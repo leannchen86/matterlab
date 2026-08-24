@@ -2,6 +2,7 @@
 
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useCampaignSnapshot } from './campaign-context';
 import { LabCanvas } from './lab-canvas';
 import type { Station } from './sim-data';
 
@@ -22,18 +23,10 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
   const [controlFeedback, setControlFeedback] = useState<Record<string, string[]>>({});
   const [immersive, setImmersive] = useState(false);
   const [ambienceOn, setAmbienceOn] = useState(false);
-  const [campaignStage, setCampaignStage] = useState(() => {
-    if (typeof window === 'undefined') return 0;
-    try { return Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').stage ?? 0); } catch { return 0; }
-  });
-  const [campaignSelected, setCampaignSelected] = useState(() => {
-    if (typeof window === 'undefined') return 'C-42';
-    try { return String(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').selected ?? 'C-42'); } catch { return 'C-42'; }
-  });
-  const [campaignRunNumber, setCampaignRunNumber] = useState(() => {
-    if (typeof window === 'undefined') return 42;
-    try { return Number(JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}').runNumber ?? 42); } catch { return 42; }
-  });
+  const campaign = useCampaignSnapshot();
+  const campaignStage = campaign.stage;
+  const campaignSelected = campaign.selected;
+  const campaignRunNumber = campaign.runNumber;
   const activeCampaignStage = scenarioId === 'xrd' ? campaignStage : 0;
   const ambienceContext = useRef<AudioContext | null>(null);
 
@@ -82,18 +75,6 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
     const context = ambienceContext.current;
     ambienceContext.current = null;
     if (context) void context.close();
-  }, []);
-
-  useEffect(() => {
-    const followCampaign = (event: Event) => {
-      const detail = (event as CustomEvent<{ stage?: number; selected?: string; runNumber?: number }>).detail;
-      const stage = Number(detail?.stage ?? 0);
-      setCampaignStage(stage);
-      if (detail?.selected) setCampaignSelected(String(detail.selected));
-      if (detail?.runNumber) setCampaignRunNumber(Number(detail.runNumber));
-    };
-    window.addEventListener('mattershift:campaign-state', followCampaign);
-    return () => window.removeEventListener('mattershift:campaign-state', followCampaign);
   }, []);
 
   useEffect(() => {
@@ -187,7 +168,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
     ><span>{ambienceOn ? '◖' : '○'}</span>{ambienceOn ? 'LAB HUM ON' : 'LAB AUDIO'}</button>}
     {mode === '3d' && !immersive && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>HUMAN-SCALE AISLE</small><i>→</i></button>}
     {mode === '3d'
-      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={activeCampaignStage} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
+      ? <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={activeCampaignStage} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignThermalBayLevel={campaign.thermalBayLevel} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
       : <LabCanvas stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} onSelect={onSelect} />}
   </div>;
 
