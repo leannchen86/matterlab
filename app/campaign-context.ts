@@ -9,9 +9,10 @@ export type CampaignSnapshot = {
   selected: string;
   runNumber: number;
   thermalBayLevel: number;
+  inventory: { crucibles: number; liners: number; carbonTabs: number };
 };
 
-const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, thermalBayLevel: 1 };
+const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, thermalBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 } };
 const fallbackSerialized = JSON.stringify(fallbackCampaign);
 
 function readCampaign(): CampaignSnapshot {
@@ -23,6 +24,11 @@ function readCampaign(): CampaignSnapshot {
       selected: String(stored.selected ?? fallbackCampaign.selected),
       runNumber: Number(stored.runNumber ?? fallbackCampaign.runNumber),
       thermalBayLevel: Number(stored.thermalBayLevel ?? fallbackCampaign.thermalBayLevel),
+      inventory: {
+        crucibles: Number(stored.inventory?.crucibles ?? fallbackCampaign.inventory.crucibles),
+        liners: Number(stored.inventory?.liners ?? fallbackCampaign.inventory.liners),
+        carbonTabs: Number(stored.inventory?.carbonTabs ?? fallbackCampaign.inventory.carbonTabs),
+      },
     };
   } catch {
     return fallbackCampaign;

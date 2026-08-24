@@ -1345,6 +1345,24 @@ constraint and made repeated campaigns less like running a physical facility.
   a second player-controlled bottleneck alongside furnace capacity without turning the main lab view
   into an inventory spreadsheet.
 
+## Critique 73: consumables affected the game but had no place in the lab
+
+The inventory system introduced real execution pressure, yet the digital twin still showed the same
+static staging shelf regardless of stock. The player could replenish material without seeing the
+physical point-of-use location change.
+
+### Changes
+
+- Propagated persistent inventory into the 3D scene and rebuilt the existing staging rack around the
+  governed consumables: visible alumina crucibles, sealed liner packs, and conductive-tab cases now
+  scale with the actual available counts.
+- Added a physical amber receiving tote when any point-of-use material is below its next-execution
+  threshold; after a retained replenishment receipt, the tote clears and the rack visibly fills.
+- Added a rack beacon and a compact spatial HUD when PREP-01 is selected, carrying the same stock counts
+  and low/ready state as campaign control without covering the equipment view.
+- Kept the rack as part of the walkable scene rather than inventing another abstract station, preserving
+  the relationship between receiving, storage, preparation, and the technician's aisle.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

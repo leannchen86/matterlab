@@ -22,6 +22,7 @@ type SceneProps = {
   campaignSelected: string;
   campaignRunNumber: number;
   campaignThermalBayLevel: number;
+  campaignInventory: { crucibles: number; liners: number; carbonTabs: number };
   scenarioId: ScenarioId;
   cameraMode: CameraMode;
   lightingMode: LightingMode;
@@ -64,7 +65,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, campaignInventory, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -100,7 +101,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
         <FacilityLighting mode={lightingMode} />
 
         <LabArchitecture lightingMode={lightingMode} />
-        <OperationsProps scenarioId={scenarioId} phase={phase} />
+        <OperationsProps scenarioId={scenarioId} phase={phase} inventory={campaignInventory} />
         <MaterialRoute scenarioId={scenarioId} phase={phase} />
         <CampaignMaterialRoute stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} />
         {stations.map((station, index) => (cameraMode !== 'focus' || selectedId === station.id) ? (
@@ -149,6 +150,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
       <div className="scene-corner scene-corner-top"><span>LIVE SPATIAL TWIN</span><b>LAB 04 · BAY A/B</b></div>
       <div className="scene-corner scene-corner-bottom">{cameraMode === 'walk' ? <><span>WASD</span> MOVE <i>·</i> <span>DRAG</span> LOOK <i>·</i> <span>SELECT</span> APPROACH</> : <><span>DRAG</span> ORBIT <i>·</i> <span>SCROLL</span> ZOOM <i>·</i> <span>CLICK</span> INSPECT</>}</div>
       {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN TWIN · {getCampaignIdentity(campaignRunNumber).runId} · {campaignSelected}</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? campaignState.result : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
+      {selectedId === 'PREP-01' && <div className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}`}><span>POINT-OF-USE RACK</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>RACK-01</i></div>}
       {cameraMode === 'walk' && <div className="walk-hud">
         <header><span>HUMAN-SCALE AISLE</span><b>{selectedStation.id} · {selectedStation.name}</b></header>
         <div className="walk-pad" role="group" aria-label="Aisle movement controls">
@@ -437,7 +439,7 @@ function UtilityServices() {
   </group>;
 }
 
-function OperationsProps({ scenarioId, phase }: { scenarioId: ScenarioId; phase: number }) {
+function OperationsProps({ scenarioId, phase, inventory }: { scenarioId: ScenarioId; phase: number; inventory: { crucibles: number; liners: number; carbonTabs: number } }) {
   return <group>
     <group position={[-3.95, 0.08, 5.65]} rotation={[0, -0.12, 0]}>
       {[0.32, 1.02].map((y) => <RoundedBox key={y} args={[1.5, 0.12, 0.82]} radius={0.04} position={[0, y, 0]} castShadow><meshPhysicalMaterial color="#647481" metalness={0.8} roughness={0.25} clearcoat={0.28} /></RoundedBox>)}
@@ -448,7 +450,7 @@ function OperationsProps({ scenarioId, phase }: { scenarioId: ScenarioId; phase:
     <PoweredPalletJack scenarioId={scenarioId} phase={phase} />
     <GasServiceBay active={scenarioId === 'facility'} accepted={scenarioId === 'facility' && phase >= 3} />
     <FurnaceQuarantineStand active={scenarioId === 'furnace'} occupied={scenarioId === 'furnace' && phase >= 2} />
-    <SampleStagingRack />
+    <SampleStagingRack inventory={inventory} />
   </group>;
 }
 
@@ -540,25 +542,21 @@ function GasServiceBay({ active, accepted }: { active: boolean; accepted: boolea
   </group>;
 }
 
-function SampleStagingRack() {
+function SampleStagingRack({ inventory }: { inventory: { crucibles: number; liners: number; carbonTabs: number } }) {
+  const low = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
+  const crucibleCount = Math.min(12, inventory.crucibles);
+  const linerCount = Math.min(6, inventory.liners);
+  const tabCount = Math.min(6, inventory.carbonTabs);
   return <group position={[-8.18, 0.04, 5.45]} rotation={[0, Math.PI / 2, 0]}>
     {[-1.08, 1.08].flatMap((x) => [-0.24, 0.24].map((z) => <mesh key={`${x}-${z}`} position={[x, 1.18, z]} castShadow><boxGeometry args={[0.055, 2.32, 0.055]} /><meshStandardMaterial color="#69787d" metalness={0.86} roughness={0.22} /></mesh>))}
     {[0.22, 0.82, 1.42, 2.02].map((y) => <RoundedBox key={y} args={[2.28, 0.075, 0.58]} radius={0.02} position={[0, y, 0]} castShadow><meshPhysicalMaterial color="#697b80" metalness={0.83} roughness={0.24} clearcoat={0.18} /></RoundedBox>)}
-    {[-0.72, 0, 0.72].map((x, index) => <group key={x} position={[x, 0.49, 0]}>
-      <RoundedBox args={[0.54, 0.38, 0.46]} radius={0.035} castShadow><meshPhysicalMaterial color={['#c3b77c', '#91aeb3', '#aa8d75'][index]} roughness={0.48} clearcoat={0.2} /></RoundedBox>
-      <mesh position={[0, 0.02, 0.235]}><planeGeometry args={[0.3, 0.12]} /><meshBasicMaterial color="#e7e8dc" /></mesh>
-      <mesh position={[0, 0.02, 0.239]}><planeGeometry args={[0.2, 0.018]} /><meshBasicMaterial color={index === 1 ? '#68d4ad' : '#627985'} /></mesh>
-    </group>)}
-    {[-0.76, -0.25, 0.25, 0.76].map((x, index) => <group key={x} position={[x, 1.08, 0]}>
-      <mesh castShadow><cylinderGeometry args={[0.095, 0.085, 0.37, 18]} /><meshPhysicalMaterial color={['#d1ab67', '#88b8c3', '#c98165', '#aa97bf'][index]} roughness={0.35} clearcoat={0.38} /></mesh>
-      <mesh position={[0, 0.2, 0]}><cylinderGeometry args={[0.075, 0.075, 0.04, 18]} /><meshStandardMaterial color="#d7e0e2" metalness={0.62} roughness={0.22} /></mesh>
-    </group>)}
-    {[-0.68, 0.68].map((x, index) => <group key={x} position={[x, 1.72, 0]}>
-      <RoundedBox args={[0.72, 0.38, 0.48]} radius={0.035} castShadow><meshStandardMaterial color={index ? '#334c54' : '#3e4a50'} metalness={0.22} roughness={0.58} /></RoundedBox>
-      <mesh position={[0, 0, 0.25]}><planeGeometry args={[0.42, 0.11]} /><meshBasicMaterial color={index ? '#8fd2c1' : '#d4bd72'} /></mesh>
-    </group>)}
+    {Array.from({ length: crucibleCount }, (_, index) => { const x = -0.88 + (index % 6) * 0.35; const z = index < 6 ? -0.11 : 0.13; return <group key={`cruc-${index}`} position={[x, 0.47, z]}><mesh castShadow><cylinderGeometry args={[0.12, 0.1, 0.27, 20]} /><meshPhysicalMaterial color="#b9b19a" roughness={0.45} clearcoat={0.12} /></mesh><mesh position={[0, 0.14, 0]}><torusGeometry args={[0.095, 0.018, 10, 20]} /><meshStandardMaterial color="#d6cfbb" roughness={0.38} /></mesh></group>; })}
+    {Array.from({ length: linerCount }, (_, index) => { const x = -0.78 + (index % 3) * 0.78; const z = index < 3 ? -0.11 : 0.13; return <RoundedBox key={`liner-${index}`} args={[0.58, 0.12, 0.34]} radius={0.025} position={[x, 1.08, z]} castShadow><meshPhysicalMaterial color="#9fb7b2" roughness={0.36} clearcoat={0.22} /></RoundedBox>; })}
+    {Array.from({ length: tabCount }, (_, index) => <group key={`tab-${index}`} position={[-0.88 + index * 0.35, 1.7, 0]} rotation={[Math.PI / 2, 0, 0]}><mesh castShadow><cylinderGeometry args={[0.1, 0.1, 0.055, 22]} /><meshStandardMaterial color="#20282d" metalness={0.5} roughness={0.42} /></mesh><mesh position={[0, 0.03, 0]}><circleGeometry args={[0.055, 20]} /><meshBasicMaterial color="#0b0e10" /></mesh></group>)}
+    {low && <group position={[0, 0.43, -0.83]}><RoundedBox args={[1.46, 0.72, 0.76]} radius={0.06} castShadow><meshStandardMaterial color="#72512b" roughness={0.62} /></RoundedBox><mesh position={[0, 0.05, 0.386]}><planeGeometry args={[0.92, 0.22]} /><meshBasicMaterial color="#d4b66e" /></mesh><mesh position={[0, 0.05, 0.39]}><planeGeometry args={[0.62, 0.03]} /><meshBasicMaterial color="#5d4725" /></mesh></group>}
     <mesh position={[0, 2.34, 0.01]}><planeGeometry args={[1.52, 0.22]} /><meshBasicMaterial color="#233b3d" /></mesh>
-    <mesh position={[0, 2.34, 0.015]}><planeGeometry args={[1.08, 0.034]} /><meshBasicMaterial color="#8cb9b3" /></mesh>
+    <mesh position={[0, 2.34, 0.015]}><planeGeometry args={[1.08, 0.034]} /><meshBasicMaterial color={low ? '#f4b95f' : '#8cb9b3'} /></mesh>
+    <StatusBeacon position={[0.98, 2.3, 0.04]} color={low ? '#f4b95f' : '#51e19a'} active />
   </group>;
 }
 
