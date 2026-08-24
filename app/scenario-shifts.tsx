@@ -82,9 +82,10 @@ export function PlannerPanel({ scenario, phase }: { scenario: ScenarioId; phase:
   const campaign = useCampaignSnapshot();
   if (campaign.stage > 0 && scenario === 'xrd') {
     const spec = getCampaignSpec(campaign.selected);
+    const observedSpec = campaign.resultMeasured ? { ...spec, measured: campaign.resultMeasured } : spec;
     const identity = getCampaignIdentity(campaign.runNumber);
     const operations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
-    const evaluation = evaluateCampaignMission(spec, campaign.missionId, campaign.stage >= 7 ? campaign.resultElapsed : undefined);
+    const evaluation = evaluateCampaignMission(observedSpec, campaign.missionId, campaign.stage >= 7 ? campaign.resultElapsed : undefined);
     const cursor = campaign.stage === 8 ? 2 : campaign.stage >= 7 ? 3 : campaign.stage >= 6 ? 2 : 1;
     const status = campaign.stage >= 9 ? 'DIAGNOSIS LINKED · LEARNING' : campaign.stage === 8 ? 'SEM / EDS FOLLOW-UP' : campaign.stage >= 7 ? evaluation.met ? 'MISSION MET · LEARNING' : 'VALID MISS · LEARNING' : campaign.stage >= 6 ? 'MEASUREMENT GATE' : 'LAB EXECUTION';
     const request = campaign.stage >= 9 ? `Assimilate diagnosis · ${identity.runId}` : campaign.stage === 8 ? `Explain valid negative · ${identity.runId}` : campaign.stage >= 7 ? `Assimilate ${identity.runId} · ${evaluation.resultText}` : `Execute ${spec.id} · ${spec.formula}`;

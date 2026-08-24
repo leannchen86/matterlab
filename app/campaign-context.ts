@@ -11,13 +11,14 @@ export type CampaignSnapshot = {
   runNumber: number;
   elapsed: number;
   resultElapsed: number;
+  resultMeasured: string;
   missionId: CampaignMissionId;
   thermalBayLevel: number;
   inventory: { crucibles: number; liners: number; carbonTabs: number };
   backlog: Array<{ runNumber: number; candidate: string; missionId: CampaignMissionId }>;
 };
 
-const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, elapsed: 0, resultElapsed: 0, missionId: 'purity', thermalBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 }, backlog: [] };
+const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, elapsed: 0, resultElapsed: 0, resultMeasured: '', missionId: 'purity', thermalBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 }, backlog: [] };
 const fallbackSerialized = JSON.stringify(fallbackCampaign);
 
 function readCampaign(): CampaignSnapshot {
@@ -32,6 +33,7 @@ function readCampaign(): CampaignSnapshot {
       runNumber,
       elapsed: Number(stored.elapsed ?? fallbackCampaign.elapsed),
       resultElapsed: Number(retainedResult?.elapsed ?? 0),
+      resultMeasured: String(retainedResult?.measured ?? ''),
       missionId: stored.missionId === 'low-energy' || stored.missionId === 'throughput' ? stored.missionId : 'purity',
       thermalBayLevel: Number(stored.thermalBayLevel ?? fallbackCampaign.thermalBayLevel),
       inventory: {
@@ -59,11 +61,12 @@ export function getCampaignStationId(stage: number) {
   return '';
 }
 
-export function getCampaignStationView(station: Station, stage: number, selected: string, runNumber: number, thermalBayLevel = 1, missionId: CampaignMissionId = 'purity', resultElapsed = 0): Station {
+export function getCampaignStationView(station: Station, stage: number, selected: string, runNumber: number, thermalBayLevel = 1, missionId: CampaignMissionId = 'purity', resultElapsed = 0, resultMeasured = ''): Station {
   const spec = getCampaignSpec(selected);
+  const observedSpec = resultMeasured ? { ...spec, measured: resultMeasured } : spec;
   const identity = getCampaignIdentity(runNumber);
   const operations = getCampaignOperations(runNumber, thermalBayLevel);
-  const evaluation = evaluateCampaignMission(spec, missionId, stage >= 7 && resultElapsed > 0 ? resultElapsed : undefined);
+  const evaluation = evaluateCampaignMission(observedSpec, missionId, stage >= 7 && resultElapsed > 0 ? resultElapsed : undefined);
   if (stage === 1) return { ...station, state: 'CAMPAIGN PREP', tone: 'run', meta: `${spec.id} formulation · ${identity.runId}`, technicianView: [`Formula: ${spec.formula}`, `Run: ${identity.runId}`, `Target mass: ${spec.targetMass}`, `Carrier: ${identity.carrier}`] };
   if (stage === 2 && operations.robotCondition === 'contamination') return { ...station, state: 'CLEANLINESS HOLD', tone: 'warn', meta: 'Gripper witness required', technicianView: [`Run: ${identity.runId}`, 'Cell boundary: proven', 'Gripper: cleanliness fault', 'Witness coupon: due'] };
   if (stage === 2 && operations.robotCondition === 'grip-force') return { ...station, state: 'TOOLING CHECK', tone: 'warn', meta: 'Jaw-force witness required', technicianView: [`Run: ${identity.runId}`, 'Cell boundary: proven', 'Jaw pads: inspect seating', 'Force witness: due'] };
@@ -96,6 +99,6 @@ export function useCampaignSnapshot() {
 export function useCampaignStation(station: Station) {
   const campaign = useCampaignSnapshot();
   return getCampaignStationId(campaign.stage) === station.id
-    ? getCampaignStationView(station, campaign.stage, campaign.selected, campaign.runNumber, campaign.thermalBayLevel, campaign.missionId, campaign.resultElapsed)
+    ? getCampaignStationView(station, campaign.stage, campaign.selected, campaign.runNumber, campaign.thermalBayLevel, campaign.missionId, campaign.resultElapsed, campaign.resultMeasured)
     : station;
 }

@@ -46,10 +46,11 @@ function ShiftBoot({ label }: { label: string }) {
 function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const campaign = useCampaignSnapshot();
   const campaignSpec = getCampaignSpec(campaign.selected);
+  const campaignObservedSpec = campaign.resultMeasured ? { ...campaignSpec, measured: campaign.resultMeasured } : campaignSpec;
   const campaignIdentity = getCampaignIdentity(campaign.runNumber);
   const campaignOperations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
   const campaignMission = getCampaignMission(campaign.missionId);
-  const campaignEvaluation = evaluateCampaignMission(campaignSpec, campaign.missionId, campaign.stage >= 7 ? campaign.resultElapsed : undefined);
+  const campaignEvaluation = evaluateCampaignMission(campaignObservedSpec, campaign.missionId, campaign.stage >= 7 ? campaign.resultElapsed : undefined);
   const campaignActive = campaign.stage > 0;
   const [phase, setPhase] = useState(0);
   const [modal, setModal] = useState<Modal>(null);
@@ -193,7 +194,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
       : campaign.stage <= 5
         ? { nodes: [campaignIdentity.carrier, campaignIdentity.thermalSample, campaignSpec.profile], note: campaign.stage === 4 ? campaign.thermalBayLevel >= 2 ? `Carrier custody is retained while ${campaignOperations.furnaceLane} start-readiness is proved.` : 'Carrier custody is retained while the single-capacity furnace clears.' : campaignOperations.furnaceConstraint ? 'The loaded specimen remains held while the furnace condition is recovered and independently proved.' : 'The loaded specimen remains held behind the furnace start-readiness proof.' }
         : campaign.stage <= 7
-          ? { nodes: [campaignIdentity.thermalSample, campaignIdentity.xrdDataset, campaignIdentity.pattern], note: campaign.stage === 6 ? campaignOperations.referenceCondition === 'age-due' ? 'Diffraction release is held behind the due silicon-reference gate.' : campaignOperations.referenceCondition === 'trend-review' ? 'The silicon-control trend is being confirmed before specimen acquisition.' : 'The current silicon control is being reviewed before specimen acquisition.' : `${campaignIdentity.pattern} is qualified and linked to ${campaignSpec.measured}% target phase.` }
+          ? { nodes: [campaignIdentity.thermalSample, campaignIdentity.xrdDataset, campaignIdentity.pattern], note: campaign.stage === 6 ? campaignOperations.referenceCondition === 'age-due' ? 'Diffraction release is held behind the due silicon-reference gate.' : campaignOperations.referenceCondition === 'trend-review' ? 'The silicon-control trend is being confirmed before specimen acquisition.' : 'The current silicon control is being reviewed before specimen acquisition.' : `${campaignIdentity.pattern} is qualified and linked to ${campaignObservedSpec.measured}% target phase.` }
           : { nodes: [campaignIdentity.thermalSample, `SEM-${campaignIdentity.suffix}`, `EDS-${campaignIdentity.suffix}`], note: campaign.stage === 8 ? 'Four representative fields and a correlated elemental map are in acquisition.' : 'Representative microscopy evidence is linked as a mechanism hypothesis.' };
   const allQcChecks = Object.values(qcChecks).every(Boolean);
 
@@ -452,10 +453,11 @@ function ActionPanel({ phase, onCampaign, onQc, onLineage, onRelease, onAdvance,
   const campaign = useCampaignSnapshot();
   if (campaign.stage > 0) {
     const spec = getCampaignSpec(campaign.selected);
+    const observedSpec = campaign.resultMeasured ? { ...spec, measured: campaign.resultMeasured } : spec;
     const identity = getCampaignIdentity(campaign.runNumber);
     const operations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
     const mission = getCampaignMission(campaign.missionId);
-    const evaluation = evaluateCampaignMission(spec, campaign.missionId, campaign.stage >= 7 ? campaign.resultElapsed : undefined);
+    const evaluation = evaluateCampaignMission(observedSpec, campaign.missionId, campaign.stage >= 7 ? campaign.resultElapsed : undefined);
     const campaignStates = {
       1: { tag: 'CAMPAIGN EXECUTION', title: `${identity.runId} powder preparation`, body: `${spec.formula} is released to PREP-01. Physical lot, mass, and enclosure checks own the next gate.`, metric: spec.targetMass, tone: 'run' },
       2: operations.robotCondition === 'contamination'

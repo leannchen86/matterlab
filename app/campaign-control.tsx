@@ -98,7 +98,9 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const operations = getCampaignOperations(currentRunNumber, run.thermalBayLevel);
   const mission = getCampaignMission(run.missionId);
   const retainedResult = run.history.find((result) => result.runNumber === currentRunNumber);
-  const evaluation = evaluateCampaignMission(recipe, run.missionId, run.stage >= 7 ? retainedResult?.elapsed ?? run.elapsed : undefined);
+  const observedRecipe = retainedResult?.measured ? { ...recipe, measured: retainedResult.measured } : recipe;
+  const observedMeasured = observedRecipe.measured;
+  const evaluation = evaluateCampaignMission(observedRecipe, run.missionId, run.stage >= 7 ? retainedResult?.elapsed ?? run.elapsed : undefined);
   const retainedElapsed = retainedResult?.elapsed ?? run.elapsed;
   const retainedBayLevel = retainedResult?.thermalBayLevel ?? run.thermalBayLevel;
   const retainedOperations = getCampaignOperations(currentRunNumber, retainedBayLevel);
@@ -122,13 +124,13 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const alternateBayLevel = retainedBayLevel >= 2 ? 1 : 2;
   const alternateOperations = getCampaignOperations(currentRunNumber, alternateBayLevel);
   const counterfactualElapsed = retainedElapsed - retainedCycle.queue + alternateOperations.queueMinutes;
-  const counterfactualEvaluation = evaluateCampaignMission(recipe, 'throughput', counterfactualElapsed);
+  const counterfactualEvaluation = evaluateCampaignMission(observedRecipe, 'throughput', counterfactualElapsed);
   const capacityDelta = Math.abs(alternateOperations.queueMinutes - retainedCycle.queue);
   const cycleWithinTarget = retainedElapsed <= 420;
-  const followUp = getAuthoredCampaignFollowUp(recipe, run.missionId, retainedResult?.diagnosis);
+  const followUp = getAuthoredCampaignFollowUp(observedRecipe, run.missionId, retainedResult?.diagnosis);
   const followUpQueued = Boolean(followUp && backlog.some((item) => item.candidate === followUp.id));
   const confirmationQueued = backlog.some((item) => item.candidate === recipe.id);
-  const modelResidual = Number.parseFloat(recipe.measured) - Number.parseFloat(recipe.prediction);
+  const modelResidual = Number.parseFloat(observedMeasured) - Number.parseFloat(recipe.prediction);
   const followUpLever = !followUp?.composition || !recipe.composition ? 'MISSION-DIRECTED STEP'
     : followUp.composition.dwell < recipe.composition.dwell ? 'SHORTER DWELL'
       : followUp.composition.dwell > recipe.composition.dwell ? 'EXTEND DWELL'
@@ -143,11 +145,12 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const backlogPressure = backlog.length === 0 ? 'NO PLANS' : backlogThermalMinutes > backlogCapacityMinutes ? 'FURNACE CONGESTION' : 'CAPACITY BALANCED';
   const backlogMeanCompletion = meanThermalCompletion(backlog, run.thermalBayLevel);
   const phaseFloor = run.missionId === 'low-energy' ? 94.5 : run.missionId === 'throughput' ? 95.5 : 96;
-  const needsMicroscopy = Number(recipe.measured) < phaseFloor;
+  const needsMicroscopy = Number(observedMeasured) < phaseFloor;
   const resultDecision = run.resultDecision ?? (followUpQueued ? 'synthesize' : undefined);
   const evidenceDecisionOpen = run.stage === 7 && !evaluation.met && needsMicroscopy && Boolean(recipe.composition && followUp) && !resultDecision;
   const sourceResult = [...history].reverse().find((result) => result.runNumber < currentRunNumber);
   const sourceSpec = sourceResult ? getCampaignSpec(sourceResult.candidate) : null;
+  const isConfirmationRun = Boolean(sourceResult && sourceResult.candidate === recipe.id);
   const experimentFactors = sourceSpec?.composition && recipe.composition && sourceSpec.id !== recipe.id ? [
     { label: 'CA EXCESS', before: `${sourceSpec.composition.caExcess > 0 ? '+' : ''}${sourceSpec.composition.caExcess}%`, after: `${recipe.composition.caExcess > 0 ? '+' : ''}${recipe.composition.caExcess}%`, changed: sourceSpec.composition.caExcess !== recipe.composition.caExcess },
     { label: 'ZR', before: `${sourceSpec.composition.zrDopant}%`, after: `${recipe.composition.zrDopant}%`, changed: sourceSpec.composition.zrDopant !== recipe.composition.zrDopant },
@@ -162,7 +165,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
         : recipe.composition.zrDopant > sourceSpec.composition.zrDopant ? 'TARGET PHASE ↑'
           : recipe.composition.dwell < sourceSpec.composition.dwell ? 'CYCLE ↓ · PHASE HELD'
             : recipe.composition.temperature < sourceSpec.composition.temperature ? 'THERMAL DOSE ↓' : 'MISSION RESPONSE ↑';
-  const phaseResponse = sourceResult ? Number.parseFloat(recipe.measured) - Number.parseFloat(sourceResult.measured) : 0;
+  const phaseResponse = sourceResult ? Number.parseFloat(observedMeasured) - Number.parseFloat(sourceResult.measured) : 0;
   const inventory = { ...initialInventory, ...run.inventory };
   const inventoryLow = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
   const fault = run.stage === 2 && operations.robotConstraint ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 5 && operations.furnaceConstraint ? 'thermal' : run.stage === 6 && operations.referenceConstraint ? 'qc' : null;
@@ -206,7 +209,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
     else if (run.stage >= 7) {
       const archivedHistory = history.some((result) => result.runNumber === currentRunNumber)
         ? history
-        : [...history, { runNumber: currentRunNumber, candidate: recipe.id, measured: recipe.measured, gap: evaluation.gap, objectiveMet: evaluation.met, elapsed: run.elapsed, missionId: run.missionId }];
+        : [...history, { runNumber: currentRunNumber, candidate: recipe.id, measured: observedMeasured, gap: evaluation.gap, objectiveMet: evaluation.met, elapsed: run.elapsed, missionId: run.missionId }];
       const mechanismRecovery = run.stage >= 9 && recipe.id === 'D-08' && archivedHistory.some((result) => result.runNumber === currentRunNumber && Boolean(result.diagnosis));
       const diagnosticFollowUp = run.stage >= 9 && recipe.composition ? followUp : null;
       const nextPlan = !mechanismRecovery && !diagnosticFollowUp ? backlog[0] : undefined;
@@ -462,15 +465,22 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
 
           {run.stage >= 7 && recipe.composition && followUp && <div className="authored-learning">
             <header><div><span>{retainedResult?.diagnosis ? 'EVIDENCE UPDATE · SEM / EDS INFORMED' : 'MODEL UPDATE · AUTHORED MATERIAL'}</span><b>{recipe.id} → {followUp.id}</b></div><em>{modelResidual >= 0 ? '+' : '−'}{Math.abs(modelResidual).toFixed(1)} pp RESIDUAL</em></header>
-            <div className="learning-posterior"><span>PRIOR<b>{recipe.prediction}</b></span><i><u style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.prediction) - 90) * 10))}%` }} /><u className="measured" style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.measured) - 90) * 10))}%` }} /></i><span>MEASURED<b>{recipe.measured}%</b></span><span>CURRENT POINT<b>±2.1 → ±1.4%</b></span></div>
+            <div className="learning-posterior"><span>PRIOR<b>{recipe.prediction}</b></span><i><u style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.prediction) - 90) * 10))}%` }} /><u className="measured" style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(observedMeasured) - 90) * 10))}%` }} /></i><span>MEASURED<b>{observedMeasured}%</b></span><span>CURRENT POINT<b>±2.1 → ±1.4%</b></span></div>
             <div className="learning-proposal"><div><span>NEXT MISSION LEVER</span><b>{followUpLever}</b></div><dl><div><dt>RECIPE</dt><dd>{followUp.id}</dd></div><div><dt>PROGRAM</dt><dd>{followUp.temperatureShort} · {followUp.dwell}</dd></div><div><dt>MODEL</dt><dd>{followUp.prediction} · {followUp.uncertainty}</dd></div></dl><button type="button" disabled>✓ CANDIDATE GENERATED</button></div>
           </div>}
 
-          {run.stage >= 7 && recipe.composition && !followUp && evaluation.met && <div className="confirmation-gate">
+          {run.stage >= 7 && recipe.composition && !followUp && evaluation.met && !isConfirmationRun && <div className="confirmation-gate">
             <header><div><span>REPRODUCIBILITY GATE</span><b>MISSION CANDIDATE · ONE QUALIFIED RESULT</b></div><em>n = 1</em></header>
-            <div className="replicate-track"><article className="qualified"><i>1</i><span>{identity.runId}</span><b>{recipe.measured}%</b><small>{retainedElapsed} MIN · PASS</small></article><u>→</u><article className={confirmationQueued ? 'queued' : ''}><i>2</i><span>CONFIRMATION</span><b>{confirmationQueued ? `RUN-${String(currentRunNumber + 1).padStart(3, '0')}` : 'UNPLANNED'}</b><small>SAME RECIPE · SAME PROGRAM</small></article></div>
-            <dl><div><dt>RECIPE</dt><dd>{recipe.id}</dd></div><div><dt>PHASE FLOOR</dt><dd>{phaseFloor.toFixed(1)}%</dd></div><div><dt>OBSERVED</dt><dd>{recipe.measured}%</dd></div><div><dt>CONTROL</dt><dd>NO LEVER CHANGE</dd></div></dl>
+            <div className="replicate-track"><article className="qualified"><i>1</i><span>{identity.runId}</span><b>{observedMeasured}%</b><small>{retainedElapsed} MIN · PASS</small></article><u>→</u><article className={confirmationQueued ? 'queued' : ''}><i>2</i><span>CONFIRMATION</span><b>{confirmationQueued ? `RUN-${String(currentRunNumber + 1).padStart(3, '0')}` : 'UNPLANNED'}</b><small>SAME RECIPE · SAME PROGRAM</small></article></div>
+            <dl><div><dt>RECIPE</dt><dd>{recipe.id}</dd></div><div><dt>PHASE FLOOR</dt><dd>{phaseFloor.toFixed(1)}%</dd></div><div><dt>OBSERVED</dt><dd>{observedMeasured}%</dd></div><div><dt>CONTROL</dt><dd>NO LEVER CHANGE</dd></div></dl>
             <button type="button" disabled={confirmationQueued || backlog.length >= 3} onClick={queueConfirmation}>{confirmationQueued ? '✓ CONFIRMATION QUEUED' : 'QUEUE CONFIRMATION →'}</button>
+          </div>}
+
+          {run.stage >= 7 && isConfirmationRun && sourceResult && <div className={`replicate-result ${evaluation.met ? 'robust' : 'unstable'}`}>
+            <header><div><span>REPRODUCIBILITY RESULT</span><b>{evaluation.met ? 'BOUNDARY REPEATED · CANDIDATE ROBUST' : 'BOUNDARY FAILED · CANDIDATE NOT ROBUST'}</b></div><em>n = 2</em></header>
+            <div className="replicate-pair"><article><span>RUN-{String(sourceResult.runNumber).padStart(3, '0')}</span><b>{sourceResult.measured}%</b><small>{sourceResult.elapsed} MIN</small></article><i>↔</i><article><span>{identity.runId}</span><b>{observedMeasured}%</b><small>{retainedElapsed} MIN</small></article></div>
+            <dl><div><dt>RECIPE</dt><dd>{recipe.id} × 2</dd></div><div><dt>PHASE SPREAD</dt><dd>{Math.abs(Number(observedMeasured) - Number(sourceResult.measured)).toFixed(1)} pp</dd></div><div><dt>FLOOR</dt><dd>{phaseFloor.toFixed(1)}%</dd></div><div><dt>VERDICT</dt><dd>{evaluation.met ? 'REPEATED PASS' : 'MARGIN LOST'}</dd></div></dl>
+            <em>{evaluation.met ? 'RELEASE ROBUSTNESS CLAIM' : 'RETURN TO DESIGN SPACE'}</em>
           </div>}
 
           <div className={`shift-backlog ${backlog.length ? 'populated' : ''}`}>

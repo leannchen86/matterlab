@@ -199,6 +199,11 @@ export function getAuthoredCampaignFollowUp(spec: CampaignSpec, missionId: Campa
   return followUp.id === spec.id ? null : followUp;
 }
 
+export function getCampaignObservedPhase(spec: CampaignSpec, priorReplicateCount = 0) {
+  const replicateVariation = [0, -0.2, 0.1, -0.1][Math.max(0, priorReplicateCount) % 4] ?? 0;
+  return Math.max(89.5, Math.min(99.1, Number.parseFloat(spec.measured) + replicateVariation)).toFixed(1);
+}
+
 function customFormula({ caExcess, zrDopant }: CustomComposition) {
   const subscript = (value: string) => value.replace(/[0-9.]/g, (character) => ({ '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', '.': '.' })[character] ?? character);
   const tiFraction = (1 - zrDopant / 100).toFixed(2);

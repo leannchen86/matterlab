@@ -1902,6 +1902,29 @@ one boundary result at exactly 95.5% is not a robust qualification.
 - Browser QA queued U-2220 as RUN-047 after the 95.5% / 354-minute pass. The campaign retains RUN-046 as
   `n = 1`, shows the second slot as planned, and does not claim robustness before the repeat exists.
 
+## Critique 100: a confirmation repeat would have returned an identical synthetic number
+
+The reproducibility gate initially repeated the same static recipe result. That guaranteed a pass and made
+replication ceremonial, even when the first observation sat exactly on the scientific floor.
+
+### Changes
+
+- Added deterministic run-to-run phase variation only after the first observation of an unchanged recipe.
+  The formulation, process program, and equipment route remain identical; the measurement response can now
+  expose insufficient process margin.
+- Propagated the retained observed value rather than the recipe default through XRD acquisition and fit,
+  history, mission evaluation, campaign control, overview task cards, the AI experiment loop, the 3D XRD
+  readout, and result-driven follow-up policy.
+- Added a reproducibility-result panel that compares both run IDs, observed phase fractions, cycle times,
+  phase spread, mission floor, and robustness verdict. A failed repeat explicitly returns the scientist to
+  the design space rather than certifying the material.
+- Replayed RUN-047 end to end. Low crucible stock first blocked release, requiring a scanned and reconciled
+  point-of-use receipt. The repeat then encountered gripper contamination, a nine-minute furnace readiness
+  gate, door-seal uniformity loss, and an overdue Si reference before acquiring the qualified pattern.
+- Verified the XRD console showed 95.3% and −0.2 percentage point before attestation; overview, history, and
+  campaign control retained the same 95.3% / 364-minute result. RUN-046 at 95.5% versus RUN-047 at 95.3%
+  now yields `BOUNDARY FAILED · CANDIDATE NOT ROBUST` and proposes U-2320 or a diagnostic branch.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
