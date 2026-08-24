@@ -432,7 +432,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
         </aside>
 
         <section className="campaign-routing">
-          <div className="campaign-panel-head"><div><span>LIVE MATERIAL ROUTE</span><b>{identity.runId} · {recipe.id}</b></div><em>{run.stage >= 8 ? '09 / 09' : `${String(Math.min(run.stage + 1, 8)).padStart(2, '0')} / 08`}</em></div>
+          <div className="campaign-panel-head"><div><span>CURRENT SIM ROUTE</span><b>{identity.runId} · {recipe.id}</b></div><em>{run.stage >= 8 ? '09 / 09' : `${String(Math.min(run.stage + 1, 8)).padStart(2, '0')} / 08`}</em></div>
           {experimentFactors && changedFactors.length > 0 && <div className={`experiment-contract ${run.stage >= 7 ? phaseResponse >= 0 ? 'response-up' : 'response-down' : ''}`}>
             <div className="contract-source"><span>CONTROLLED EXPERIMENT</span><b>{sourceSpec?.id ?? 'SOURCE'} → {recipe.id}</b><small>{sourceResult?.diagnosis ? 'SEM / EDS EVIDENCE' : 'MODEL RESIDUAL'}</small></div>
             <div className="contract-change"><span>CHANGE ONE LEVER</span>{changedFactors.map((factor) => <b key={factor.label}>{factor.label}<i>{factor.before}</i><u>→</u><em>{factor.after}</em></b>)}</div>
@@ -639,7 +639,7 @@ function FacilityBuildModal({ thermalBayLevel, stagingBayLevel, scheduled, insig
       <div className="facility-build-status"><span>INSTALLED ASSETS<b>{storageQualified ? '08' : '07'} ONLINE</b></span><span>THERMAL LANES<b>{thermalBayLevel} / 2</b></span><span>CAMPAIGN WAIT<b>{queueMinutes} MIN</b></span><span>BUILD CURRENCY<b>{insight} RP</b></span></div>
       <div className="facility-build-workspace">
         <div className={`facility-blueprint ${blueprintLayer}`}>
-          <div className={`facility-route-chip ${constraintKind ? 'hold' : ''}`}><span>LIVE EXPERIMENT ROUTE</span><b>{activeRunId} → {activeStationId}</b><em>{activeStatus}</em></div>
+          <div className={`facility-route-chip ${constraintKind ? 'hold' : ''}`}><span>CURRENT SIM ROUTE</span><b>{activeRunId} → {activeStationId}</b><em>{activeStatus}</em></div>
           <div className="facility-layer-switch" role="group" aria-label="Blueprint data layer"><button type="button" className={blueprintLayer === 'route' ? 'active' : ''} onClick={() => setBlueprintLayer('route')}>MATERIAL</button><button type="button" className={blueprintLayer === 'utilities' ? 'active' : ''} onClick={() => setBlueprintLayer('utilities')}>UTILITIES</button></div>
           <svg viewBox="0 0 760 430" role="group" aria-label={`Interactive top-down materials laboratory ${blueprintLayer === 'utilities' ? 'utility service overlay' : 'process flow layout'}`}>
             <defs><pattern id="facilityBuildGrid" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M14 0H0V14" /></pattern><linearGradient id="facilityFlow" x1="0" x2="1"><stop stopColor="#43c5df" stopOpacity=".2" /><stop offset=".5" stopColor="#85e4d4" /><stop offset="1" stopColor="#43c5df" stopOpacity=".2" /></linearGradient></defs>

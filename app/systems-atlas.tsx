@@ -20,7 +20,7 @@ export function SystemsAtlasModal({ onClose }: { onClose: () => void }) {
         <div><p className="section-kicker">QUICK GUIDE</p><h2>How to play MatterShift</h2></div>
         <button type="button" onClick={onClose} aria-label="Close dialog">×</button>
       </header>
-      <p className="modal-intro">Explore the lab, notice what is wrong, and take the next sensible action. Everything else is optional detail.</p>
+      <p className="modal-intro">Explore the lab, notice what is wrong, and take the next sensible action. All incidents, IDs, readings, and outcomes are fictional simulation content.</p>
       <div className="quick-guide-steps">
         {steps.map((step) => <article key={step.number}><i>{step.number}</i><div><b>{step.title}</b><p>{step.body}</p></div></article>)}
       </div>

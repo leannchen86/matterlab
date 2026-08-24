@@ -96,7 +96,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
     onInspectionChange?.(inspectionKey, checks);
   };
   return (
-    <div className={`lab-3d camera-${cameraMode}`} aria-label="Orbitable 3D digital twin of seven materials laboratory stations">
+    <div className={`lab-3d camera-${cameraMode}`} aria-label="Interactive 3D simulation of seven materials laboratory stations">
       <Canvas
         shadows
         dpr={[1, 1.55]}
@@ -159,9 +159,9 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
       <nav className="scene-station-picker" aria-label="Select a lab station">
         {stations.map((station, index) => <button key={station.id} type="button" className={`${selectedId === station.id ? 'active ' : ''}${campaignIndex === index ? 'campaign-active' : ''}`} style={{ '--station-tone': campaignIndex === index ? campaignState.color : TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => onSelect(station.id)} onDoubleClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
       </nav>
-      <div className="scene-corner scene-corner-top"><span>LIVE SPATIAL TWIN</span><b>LAB 04 · BAY A/B</b></div>
+      <div className="scene-corner scene-corner-top"><span>3D LAB SIMULATION</span><b>INTERACTIVE TRAINING SPACE</b></div>
       <div className="scene-corner scene-corner-bottom">{cameraMode === 'walk' ? <><span>WASD</span> MOVE <i>·</i> <span>DRAG</span> LOOK <i>·</i> <span>SELECT</span> APPROACH</> : <><span>DRAG</span> ORBIT <i>·</i> <span>SCROLL</span> ZOOM <i>·</i> <span>CLICK</span> INSPECT</>}</div>
-      {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN TWIN · {getCampaignIdentity(campaignRunNumber).runId} · {campaignSelected}</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? campaignState.result : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
+      {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN SIM · {getCampaignIdentity(campaignRunNumber).runId} · {campaignSelected}</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? campaignState.result : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
       {campaignBacklog.length > 0 && <button type="button" className={`campaign-backlog-hud${campaignStage > 0 ? ' with-campaign' : ''}`} onClick={onOpenCampaign}><span>OPERATE SHIFT BACKLOG</span><b>{campaignBacklog.length} PLANS · {campaignBacklog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0)} FURNACE MIN</b><i>OPEN →</i></button>}
       {selectedId === 'PREP-01' && <button type="button" className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}${campaignBacklog.length ? ' with-backlog' : ''}`} onClick={onOpenInventory}><span>{campaignStagingBayLevel >= 2 ? 'OPERATE STG-02 CAROUSEL' : 'OPERATE POINT-OF-USE RACK'}</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>{campaignStagingBayLevel >= 2 ? 'RETRIEVE →' : 'OPEN →'}</i></button>}
       {cameraMode === 'walk' && <div className="walk-hud">

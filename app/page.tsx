@@ -36,10 +36,10 @@ export default function Home() {
 }
 
 function ShiftBoot({ label }: { label: string }) {
-  return <main className="shift-boot" role="status" aria-label={`Loading ${label.toLowerCase()} work order`}>
+  return <main className="shift-boot" role="status" aria-label={`Loading ${label.toLowerCase()} scenario`}>
     <div className="shift-boot-mark">M<span>²</span></div>
     <div className="shift-boot-rails" aria-hidden="true">{Array.from({ length: 7 }, (_, index) => <i key={index} />)}</div>
-    <div className="shift-boot-readout"><span /><div><b>CONFIGURING WORK ORDER</b><small>{label} · controlled state handoff</small></div></div>
+    <div className="shift-boot-readout"><span /><div><b>LOADING SCENARIO</b><small>{label} · simulated challenge</small></div></div>
   </main>;
 }
 
@@ -326,13 +326,13 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         </div>
         <div className="shift-readout">
           <span className="live-dot" />
-          <div><b>LAB ONLINE</b><small>{formatTime(minute)} · SIMULATION</small></div>
+          <div><b>SIMULATION READY</b><small>{formatTime(minute)} · FICTIONAL LAB</small></div>
         </div>
         <div className="header-actions">
           <button className="campaign-button" type="button" onClick={() => setModal('campaign')}>ADVANCED MODE</button>
           <button className="deck-button" type="button" onClick={() => setModal('deck')}>SCENARIOS <span>5</span></button>
           <button type="button" onClick={() => setModal('guide')}>HOW TO PLAY</button>
-          <button type="button" onClick={() => setLogOpen(true)}>ACTIVITY <span>{log.length}</span></button>
+          <button type="button" onClick={() => setLogOpen(true)}>SIM LOG <span>{log.length}</span></button>
         </div>
       </header>
 
@@ -416,7 +416,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
           <PlannerPanel scenario="xrd" phase={phase} />
 
           <section className="rail-section score-panel">
-            <div className="section-title-row"><p className="section-kicker">SHIFT HEALTH</p><span>LIVE</span></div>
+            <div className="section-title-row"><p className="section-kicker">SHIFT HEALTH</p><span>SIM</span></div>
             <Score label="Safety" value={scores.safety} />
             <Score label="Traceability" value={scores.traceability} />
             <Score label="Data integrity" value={scores.integrity} />
@@ -424,7 +424,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
           </section>
 
           <section className="rail-section lineage-card">
-            <div className="section-title-row"><p className="section-kicker">SAMPLE LINEAGE</p><span>LIVE</span></div>
+            <div className="section-title-row"><p className="section-kicker">SAMPLE LINEAGE</p><span>SIM</span></div>
             <div className="lineage-flow"><span>{campaignActive ? campaignLineage.nodes[0] : 'LOT-91'}</span><i>→</i><span>{campaignActive ? campaignLineage.nodes[1] : 'BC-184'}</span><i>→</i><span>{campaignActive ? campaignLineage.nodes[2] : phase >= 2 ? '5× ELIG' : '6× SPEC'}</span></div>
             <p>{campaignActive ? campaignLineage.note : phase >= 2 ? 'Five specimens cleared; specimen 06 is quarantined with a correction record.' : 'One physical label does not match the carrier manifest.'}</p>
           </section>

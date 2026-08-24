@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'MatterShift — Materials Lab Operations Simulator',
-  description: 'A scientifically grounded materials-lab simulation for designing, synthesizing, characterizing, and learning from experiments.',
+  description: 'An interactive fictional materials-lab game for exploring equipment, experiments, and scientific decisions.',
 };
 
 export default function RootLayout({
