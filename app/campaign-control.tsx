@@ -4,7 +4,8 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { buildCustomCampaignSpec, campaignMissions, campaignSpecs as recipes, customCompositionOptions, evaluateCampaignMission, forecastCampaignMission, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import type { CampaignMissionId, CampaignOperations, CampaignSpec, CustomComposition } from './campaign-spec';
 
-type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; missionId?: CampaignMissionId; diagnosis?: string };
+type CampaignCycle = { handling: number; queue: number; recovery: number; thermal: number; measure: number; decisions: number };
+type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; missionId?: CampaignMissionId; diagnosis?: string; thermalBayLevel?: number; cycle?: CampaignCycle };
 type CampaignInventory = { crucibles: number; liners: number; carbonTabs: number };
 type CampaignBacklogItem = { runNumber: number; candidate: string; missionId: CampaignMissionId };
 
@@ -23,6 +24,7 @@ type CampaignRun = {
   inventory: CampaignInventory;
   history: CampaignResult[];
   backlog: CampaignBacklogItem[];
+  plannedThermalUpgrade?: boolean;
 };
 
 const initialRun: CampaignRun = {
@@ -36,6 +38,7 @@ const initialRun: CampaignRun = {
   inventory: initialInventory,
   history: [],
   backlog: [],
+  plannedThermalUpgrade: false,
   message: 'Select a candidate and release one governed experiment into the lab.',
 };
 
@@ -93,6 +96,31 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const mission = getCampaignMission(run.missionId);
   const retainedResult = run.history.find((result) => result.runNumber === currentRunNumber);
   const evaluation = evaluateCampaignMission(recipe, run.missionId, run.stage >= 7 ? retainedResult?.elapsed ?? run.elapsed : undefined);
+  const retainedElapsed = retainedResult?.elapsed ?? run.elapsed;
+  const retainedBayLevel = retainedResult?.thermalBayLevel ?? run.thermalBayLevel;
+  const retainedOperations = getCampaignOperations(currentRunNumber, retainedBayLevel);
+  const knownCycleMinutes = 12 + retainedOperations.robotRecoveryMinutes + 14 + retainedOperations.queueMinutes + retainedOperations.furnaceRecoveryMinutes + recipe.thermalMinutes + 18;
+  const retainedCycle: CampaignCycle = retainedResult?.cycle ?? {
+    handling: 12 + retainedOperations.robotRecoveryMinutes + 14,
+    queue: retainedOperations.queueMinutes,
+    recovery: retainedOperations.furnaceRecoveryMinutes,
+    thermal: recipe.thermalMinutes,
+    measure: 18,
+    decisions: Math.max(0, retainedElapsed - knownCycleMinutes),
+  };
+  const cycleBreakdown = [
+    { id: 'handling', label: 'PREP + ROBOT', minutes: retainedCycle.handling },
+    { id: 'queue', label: 'QUEUE', minutes: retainedCycle.queue },
+    { id: 'recovery', label: 'RECOVERY', minutes: retainedCycle.recovery },
+    { id: 'thermal', label: 'THERMAL', minutes: retainedCycle.thermal },
+    { id: 'measure', label: 'XRD', minutes: retainedCycle.measure },
+    { id: 'decisions', label: 'DECISIONS', minutes: retainedCycle.decisions },
+  ].filter((item) => item.minutes > 0);
+  const alternateBayLevel = retainedBayLevel >= 2 ? 1 : 2;
+  const alternateOperations = getCampaignOperations(currentRunNumber, alternateBayLevel);
+  const counterfactualElapsed = retainedElapsed - retainedCycle.queue + alternateOperations.queueMinutes;
+  const counterfactualEvaluation = evaluateCampaignMission(recipe, 'throughput', counterfactualElapsed);
+  const capacityDelta = Math.abs(alternateOperations.queueMinutes - retainedCycle.queue);
   const selectedForecast = forecastCampaignMission(recipe, run.missionId);
   const backlogThermalMinutes = backlog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0);
   const backlogCapacityMinutes = run.thermalBayLevel >= 2 ? 720 : 360;
@@ -149,7 +177,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
       const nextSelected = mechanismRecovery ? 'R-31' : nextPlan?.candidate ?? run.selected;
       const nextMission = nextPlan?.missionId ?? run.missionId;
       const remainingBacklog = (nextPlan ? backlog.slice(1) : backlog).map((item, index) => ({ ...item, runNumber: currentRunNumber + index + 2 }));
-      updateRun({ ...initialRun, insight: run.insight, missionId: nextMission, thermalBayLevel: run.thermalBayLevel, customCandidate: run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, backlog: remainingBacklog, message: mechanismRecovery
+      updateRun({ ...initialRun, insight: run.insight, missionId: nextMission, thermalBayLevel: run.plannedThermalUpgrade ? 2 : run.thermalBayLevel, customCandidate: run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, backlog: remainingBacklog, plannedThermalUpgrade: false, message: mechanismRecovery
         ? `${identity.runId} diagnosis assimilated. R-31 raises thermal dose while preserving stoichiometry to test the incomplete-conversion hypothesis.`
         : nextPlan ? `${identity.runId} archived. RUN-${String(currentRunNumber + 1).padStart(3, '0')} loaded from the shift backlog: ${nextPlan.candidate} · ${getCampaignMission(nextPlan.missionId).shortLabel}.`
           : `${identity.runId} archived. Select the next candidate.` });
@@ -232,8 +260,20 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   };
 
   const commissionAuxiliaryChamber = () => {
-    if (run.thermalBayLevel >= 2 || run.stage > 3 || run.insight < 120) return;
+    if (run.thermalBayLevel >= 2 || run.plannedThermalUpgrade || run.insight < 120) return;
     const qualifiedOperations = getCampaignOperations(currentRunNumber, 2);
+    if (run.stage >= 7) {
+      const snapshottedHistory = history.map((result) => result.runNumber === currentRunNumber ? { ...result, thermalBayLevel: retainedBayLevel, cycle: retainedCycle } : result);
+      updateRun({
+        plannedThermalUpgrade: true,
+        elapsed: run.elapsed + 48,
+        insight: run.insight - 120,
+        history: snapshottedHistory,
+        message: `FURN-04B qualification scheduled after ${identity.runId}. The retained ${retainedElapsed}-minute result is unchanged; the next campaign will receive a ${qualifiedOperations.queueMinutes}-minute auxiliary-lane readiness gate.`,
+      });
+      return;
+    }
+    if (run.stage > 3) return;
     updateRun({
       thermalBayLevel: 2,
       elapsed: run.elapsed + 48,
@@ -331,6 +371,20 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
             <p>{run.message}</p>
           </div>
 
+          {run.stage >= 7 && run.missionId === 'throughput' && <div className={`cycle-ledger ${evaluation.met ? 'within' : 'over'}`}>
+            <header><div><span>RELEASE-TO-RESULT CYCLE</span><b>ACTUAL LOSS BUDGET · RETAINED RESULT</b></div><em>{evaluation.met ? `${420 - retainedElapsed} MIN MARGIN` : `${retainedElapsed - 420} MIN OVER`}</em></header>
+            <div className="cycle-ledger-bar" aria-label={`${retainedElapsed} minute campaign cycle broken down by handling, queue, recovery, thermal processing, measurement, and operator decisions`}>
+              {cycleBreakdown.map((item) => <i key={item.id} className={item.id} style={{ width: `${item.minutes / retainedElapsed * 100}%` }} />)}
+              <u style={{ left: `${Math.min(100, 420 / retainedElapsed * 100)}%` }}><span>420</span></u>
+            </div>
+            <div className="cycle-ledger-key">{cycleBreakdown.map((item) => <span key={item.id} className={item.id}><i />{item.label}<b>{item.minutes}m</b></span>)}<strong>{retainedElapsed} MIN</strong></div>
+            <div className={`capacity-counterfactual ${counterfactualEvaluation.met ? 'would-pass' : 'would-miss'}`}>
+              <div><span>CAPACITY COUNTERFACTUAL</span><b>{retainedBayLevel >= 2 ? 'WITHOUT FURN-04B' : 'QUALIFY FURN-04B'}</b></div>
+              <dl><div><dt>QUEUE</dt><dd>{retainedCycle.queue} → {alternateOperations.queueMinutes} min</dd></div><div><dt>CYCLE</dt><dd>{retainedElapsed} → {counterfactualElapsed} min</dd></div><div><dt>MISSION</dt><dd>{counterfactualEvaluation.met ? 'WOULD PASS' : `WOULD MISS · ${counterfactualEvaluation.gap}`}</dd></div></dl>
+              {retainedBayLevel < 2 ? <button type="button" disabled={run.plannedThermalUpgrade || run.insight < 120} onClick={commissionAuxiliaryChamber}>{run.plannedThermalUpgrade ? '✓ QUALIFICATION SCHEDULED' : 'QUALIFY FOR NEXT RUN · 120 RP'}</button> : <em>LANE B PROTECTS {capacityDelta} MIN</em>}
+            </div>
+          </div>}
+
           <div className={`shift-backlog ${backlog.length ? 'populated' : ''}`}>
             <header><div><span>SHIFT BACKLOG</span><b>UNRELEASED EXPERIMENTS</b></div><em>{backlog.length} / 3 PLANNED · {backlogPressure}</em></header>
             <div className="backlog-slots">
@@ -355,14 +409,14 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
           </div>
 
           <div className={`thermal-capacity-panel level-${run.thermalBayLevel}`}>
-            <header><div><span>THERMAL BAY CONFIGURATION</span><b>FURN-04 · INDEPENDENT CHAMBERS</b></div><em>{run.thermalBayLevel} / 2 QUALIFIED</em></header>
+            <header><div><span>THERMAL BAY CONFIGURATION</span><b>FURN-04 · INDEPENDENT CHAMBERS</b></div><em>{run.plannedThermalUpgrade ? '1 QUALIFIED · +1 SCHEDULED' : `${run.thermalBayLevel} / 2 QUALIFIED`}</em></header>
             <div className="thermal-bay-mimic" aria-label={`Thermal bay with ${run.thermalBayLevel} qualified chamber${run.thermalBayLevel === 1 ? '' : 's'}`}>
               <article className="online"><i /><span>CHAMBER A</span><b>{operations.activeFurnaceRun}</b><small>occupied · governed profile</small></article>
               <i className="thermal-bus" />
-              <article className={run.thermalBayLevel >= 2 ? 'online auxiliary' : 'offline'}><i /><span>CHAMBER B</span><b>{run.thermalBayLevel >= 2 ? 'QUALIFIED' : 'NOT COMMISSIONED'}</b><small>{run.thermalBayLevel >= 2 ? `${operations.queueMinutes} min readiness · independent TC` : 'empty cycle + 9-point survey required'}</small></article>
+              <article className={run.thermalBayLevel >= 2 ? 'online auxiliary' : run.plannedThermalUpgrade ? 'scheduled' : 'offline'}><i /><span>CHAMBER B</span><b>{run.thermalBayLevel >= 2 ? 'QUALIFIED' : run.plannedThermalUpgrade ? 'QUALIFICATION SCHEDULED' : 'NOT COMMISSIONED'}</b><small>{run.thermalBayLevel >= 2 ? `${operations.queueMinutes} min readiness · independent TC` : run.plannedThermalUpgrade ? 'post-run empty cycle + 9-point survey' : 'empty cycle + 9-point survey required'}</small></article>
             </div>
-            <div className="thermal-capacity-metrics"><span>QUALIFICATION<b>{run.thermalBayLevel >= 2 ? 'IQ / OQ RETAINED' : '120 RP · 48 MIN'}</b></span><span>CAMPAIGN WAIT<b>{operations.queueMinutes} MIN</b></span><span>RATE<b>{run.thermalBayLevel >= 2 ? '0.31 RUNS / H' : recipe.throughput.toUpperCase()}</b></span></div>
-            <button type="button" disabled={run.thermalBayLevel < 2 && (run.stage > 3 || run.insight < 120)} onClick={() => setCommissionOpen(true)}>{run.thermalBayLevel >= 2 ? 'VIEW IQ / OQ RECORD' : run.stage > 3 ? 'COMMISSIONING WINDOW CLOSED' : run.insight < 120 ? '120 RP REQUIRED' : 'OPEN COMMISSIONING'}<span>→</span></button>
+            <div className="thermal-capacity-metrics"><span>QUALIFICATION<b>{run.thermalBayLevel >= 2 ? 'IQ / OQ RETAINED' : run.plannedThermalUpgrade ? 'POST-RUN · SCHEDULED' : '120 RP · 48 MIN'}</b></span><span>CAMPAIGN WAIT<b>{operations.queueMinutes} MIN</b></span><span>RATE<b>{run.thermalBayLevel >= 2 ? '0.31 RUNS / H' : recipe.throughput.toUpperCase()}</b></span></div>
+            <button type="button" disabled={Boolean(run.plannedThermalUpgrade) || (run.thermalBayLevel < 2 && (run.stage > 3 || run.insight < 120))} onClick={() => setCommissionOpen(true)}>{run.thermalBayLevel >= 2 ? 'VIEW IQ / OQ RECORD' : run.plannedThermalUpgrade ? 'QUALIFICATION SCHEDULED' : run.stage > 3 ? 'COMMISSIONING WINDOW CLOSED' : run.insight < 120 ? '120 RP REQUIRED' : 'OPEN COMMISSIONING'}<span>{run.plannedThermalUpgrade ? '✓' : '→'}</span></button>
           </div>
         </section>
       </div>

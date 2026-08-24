@@ -67,7 +67,7 @@ function getCampaignHmiOperations(stationId: string, stage: number, selected: st
       : ['Verify safeguarded stop', 'Confirm clean tool ID', 'Prove carrier handshake'];
   if (stationId === 'ROBO-02') return [`Scan ${identity.carrier} carrier`, 'Verify six dose positions', 'Execute crucible dosing'];
   if (stationId === 'FURN-04' && stage === 4) return thermalBayLevel >= 2
-    ? ['Read chamber A profile state', 'Verify chamber B qualification', `Route ${identity.carrier} to chamber B`]
+    ? ['Read chamber A profile state', 'Confirm chamber B readiness', `Route ${identity.carrier} to chamber B`]
     : ['Read active profile state', 'Verify queue position', `Confirm ${identity.carrier} hold location`];
   if (stationId === 'FURN-04') return getFurnaceStartOperations(runOps, spec.profile);
   if (stationId === 'XRD-03' && stage === 6) return runOps.referenceCondition === 'age-due'
@@ -138,7 +138,24 @@ function completeCampaignMachineStage(stage: number) {
     if (!transition) return null;
     const history = Array.isArray(current.history) ? current.history : [];
     const nextHistory = stage === 6
-      ? [...history, { runNumber: identity.runNumber, candidate: spec.id, measured: spec.measured, gap: evaluation.gap, objectiveMet: evaluation.met, missionId, elapsed: transition.elapsed }]
+      ? [...history, {
+        runNumber: identity.runNumber,
+        candidate: spec.id,
+        measured: spec.measured,
+        gap: evaluation.gap,
+        objectiveMet: evaluation.met,
+        missionId,
+        elapsed: transition.elapsed,
+        thermalBayLevel,
+        cycle: {
+          handling: 12 + runOps.robotRecoveryMinutes + 14,
+          queue: runOps.queueMinutes,
+          recovery: runOps.furnaceRecoveryMinutes,
+          thermal: spec.thermalMinutes,
+          measure: 18,
+          decisions: Math.max(0, transition.elapsed - (12 + runOps.robotRecoveryMinutes + 14 + runOps.queueMinutes + runOps.furnaceRecoveryMinutes + spec.thermalMinutes + 18)),
+        },
+      }]
       : stage === 8
         ? history.map((result) => result && typeof result === 'object' && 'runNumber' in result && Number((result as { runNumber?: number }).runNumber) === identity.runNumber ? { ...result, diagnosis: spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains' } : result)
         : history;
@@ -493,7 +510,7 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, bac
   const auxiliary = thermalBayLevel >= 2;
   const startOperations = getFurnaceStartOperations(runOps, spec.profile);
   const profileRead = operations.includes(queued ? auxiliary ? 'Read chamber A profile state' : 'Read active profile state' : startOperations[0]);
-  const secondGate = operations.includes(queued ? auxiliary ? 'Verify chamber B qualification' : 'Verify queue position' : startOperations[1]);
+  const secondGate = operations.includes(queued ? auxiliary ? 'Confirm chamber B readiness' : 'Verify queue position' : startOperations[1]);
   const thirdGate = queued || startOperations.length < 4 || operations.includes(startOperations[2]);
   const finalGate = operations.includes(queued ? auxiliary ? `Route ${identity.carrier} to chamber B` : `Confirm ${identity.carrier} hold location` : startOperations[startOperations.length - 1]);
   const setpoint = Number.parseFloat(spec.temperature);
@@ -504,7 +521,7 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, bac
   const temperatureY = 146 - Math.min(1, setpoint / 1100) * 108;
   const thermalPath = `M42 146 C70 144 94 102 ${rampEnd} ${temperatureY} L${dwellEnd.toFixed(0)} ${temperatureY} C${(dwellEnd + 31).toFixed(0)} ${temperatureY + 8} 449 128 478 146`;
   const actualPath = `M42 147 C70 145 96 105 ${rampEnd} ${temperatureY + 3} L${dwellEnd.toFixed(0)} ${temperatureY + 3} C${(dwellEnd + 35).toFixed(0)} ${temperatureY + 12} 452 132 478 147`;
-  const status = queued ? auxiliary ? finalGate ? 'LANE B READY' : secondGate ? 'ROUTE CHECK' : profileRead ? 'QUALIFICATION CHECK' : 'CHAMBER A ACTIVE' : finalGate ? 'QUEUE PROVEN' : secondGate ? 'LOCATION CHECK' : profileRead ? 'Q01 CONFIRMED' : 'OCCUPANCY HOLD' : finalGate ? 'PROFILE ACTIVE' : thirdGate ? 'START ENABLED' : secondGate ? runOps.furnaceCondition === 'thermocouple-drift' ? 'OFFSET APPLIED' : runOps.furnaceCondition === 'door-seal' ? 'LATCH ADJUSTED' : 'DOOR CHECK' : profileRead ? runOps.furnaceCondition === 'thermocouple-drift' ? 'TC BIAS CONFIRMED' : runOps.furnaceCondition === 'door-seal' ? 'SEAL LOSS CONFIRMED' : 'SAFETY CHAIN' : runOps.furnaceCondition === 'thermocouple-drift' ? 'TC OFFSET HOLD' : runOps.furnaceCondition === 'door-seal' ? 'DOOR SEAL HOLD' : 'RECIPE LOADED';
+  const status = queued ? auxiliary ? finalGate ? 'LANE B READY' : secondGate ? 'ROUTE CHECK' : profileRead ? 'LANE B CHECK' : 'CHAMBER A ACTIVE' : finalGate ? 'QUEUE PROVEN' : secondGate ? 'LOCATION CHECK' : profileRead ? 'Q01 CONFIRMED' : 'OCCUPANCY HOLD' : finalGate ? 'PROFILE ACTIVE' : thirdGate ? 'START ENABLED' : secondGate ? runOps.furnaceCondition === 'thermocouple-drift' ? 'OFFSET APPLIED' : runOps.furnaceCondition === 'door-seal' ? 'LATCH ADJUSTED' : 'DOOR CHECK' : profileRead ? runOps.furnaceCondition === 'thermocouple-drift' ? 'TC BIAS CONFIRMED' : runOps.furnaceCondition === 'door-seal' ? 'SEAL LOSS CONFIRMED' : 'SAFETY CHAIN' : runOps.furnaceCondition === 'thermocouple-drift' ? 'TC OFFSET HOLD' : runOps.furnaceCondition === 'door-seal' ? 'DOOR SEAL HOLD' : 'RECIPE LOADED';
   return <section className={`campaign-furnace-console${finalGate ? ' operation-complete' : ''}`}>
     <header><div><span>THERMAL PROCESS CONTROL</span><b>TC-04 / OT-04 · MAT-{identity.suffix} · {spec.profile}</b></div><em>{status}</em></header>
     <StationBacklogStrip backlog={backlog} station="furnace" lanes={thermalBayLevel} />
@@ -515,7 +532,7 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, bac
         {queued ? <>
           <text x="24" y="25">{auxiliary ? 'DUAL-CHAMBER BAY · INDEPENDENT CONTROLLERS' : 'CAPACITY-ONE RESOURCE · PHYSICAL OCCUPANCY'}</text>
           <rect x="26" y="42" width="170" height="91" rx="4" className="furnace-chamber" /><rect x="43" y="57" width="136" height="58" rx="3" className="furnace-hot-zone" /><path d="M54 103 C74 58 95 111 115 67 S153 105 169 64" className="heat-wave" /><text x="65" y="88">{runOps.activeFurnaceRun} ACTIVE</text><text x="71" y="103">{runOps.queueMinutes} MIN REMAINING</text>
-          <path d="M204 87 H252" className={finalGate ? 'queue-arrow released' : 'queue-arrow'} /><rect x="258" y="53" width="205" height="70" rx="3" className={secondGate ? 'queue-carrier proven' : 'queue-carrier'} /><text x="278" y="77">{auxiliary ? 'CHAMBER B' : 'Q01'} · {identity.runId}</text><text x="278" y="93">{identity.carrier} · {spec.profile}</text><text x="278" y="108">{auxiliary ? 'IQ / OQ' : 'HOLD LOCATION'} {finalGate ? 'PROVEN' : 'PENDING'}</text>
+          <path d="M204 87 H252" className={finalGate ? 'queue-arrow released' : 'queue-arrow'} /><rect x="258" y="53" width="205" height="70" rx="3" className={secondGate ? 'queue-carrier proven' : 'queue-carrier'} /><text x="278" y="77">{auxiliary ? 'CHAMBER B' : 'Q01'} · {identity.runId}</text><text x="278" y="93">{identity.carrier} · {spec.profile}</text><text x="278" y="108">{auxiliary ? 'IQ / OQ RETAINED' : `HOLD LOCATION ${finalGate ? 'PROVEN' : 'PENDING'}`}</text>
           <line x1="28" y1="151" x2="470" y2="151" className="timeline" /><rect x="28" y="145" width="206" height="12" className="timeline-active" /><rect x="237" y="145" width="222" height="12" className={finalGate ? 'timeline-queued proven' : 'timeline-queued'} /><text x="32" y="171">NOW</text><text x="224" y="171">+{runOps.queueMinutes} MIN</text><text x="436" y="171">+{runOps.queueMinutes + spec.thermalMinutes} MIN</text>
         </> : <>
           {[42, 146, 250, 354, 478].map((x) => <line key={`fx-${x}`} x1={x} x2={x} y1="23" y2="148" className="plot-grid" />)}{[38, 74, 110, 146].map((y) => <line key={`fy-${y}`} x1="42" x2="478" y1={y} y2={y} className="plot-grid" />)}
@@ -527,7 +544,7 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, bac
       </svg>
       <aside>
         <div className={profileRead ? 'pass' : 'hold'}><span>{queued ? auxiliary ? 'CHAMBER A' : 'OCCUPANCY' : runOps.furnaceCondition === 'thermocouple-drift' ? 'WITNESS TC' : runOps.furnaceCondition === 'door-seal' ? 'DOOR SURVEY' : 'OVERTEMP'}</span><b>{queued ? runOps.activeFurnaceRun : runOps.furnaceConstraint ? runOps.furnaceCondition === 'thermocouple-drift' ? '+11.8 °C' : '12.6 °C' : profileRead ? 'ARMED' : 'READ'}</b><small>{queued ? auxiliary ? 'independent TC active' : 'capacity 1 / 1' : profileRead ? runOps.furnaceResult : 'proof required'}</small></div>
-        <div className={secondGate && thirdGate ? 'pass' : secondGate ? 'review' : 'waiting'}><span>{queued ? auxiliary ? 'CHAMBER B' : 'QUEUE' : runOps.furnaceCondition === 'thermocouple-drift' ? 'TC / OVERTEMP' : runOps.furnaceCondition === 'door-seal' ? 'LATCH / CHAIN' : 'DOOR CHAIN'}</span><b>{queued ? auxiliary ? secondGate ? 'QUALIFIED' : 'VERIFY' : 'Q01' : thirdGate ? 'PROVEN' : secondGate ? 'VERIFY' : '—'}</b><small>{queued ? auxiliary ? 'empty cycle + survey' : identity.carrier : thirdGate ? 'independent proof retained' : secondGate ? 'secondary proof due' : 'awaiting sequence'}</small></div>
+        <div className={secondGate && thirdGate ? 'pass' : secondGate ? 'review' : 'waiting'}><span>{queued ? auxiliary ? 'CHAMBER B' : 'QUEUE' : runOps.furnaceCondition === 'thermocouple-drift' ? 'TC / OVERTEMP' : runOps.furnaceCondition === 'door-seal' ? 'LATCH / CHAIN' : 'DOOR CHAIN'}</span><b>{queued ? auxiliary ? secondGate ? 'READY' : 'VERIFY' : 'Q01' : thirdGate ? 'PROVEN' : secondGate ? 'VERIFY' : '—'}</b><small>{queued ? auxiliary ? 'independent TC + pre-start survey' : identity.carrier : thirdGate ? 'independent proof retained' : secondGate ? 'secondary proof due' : 'awaiting sequence'}</small></div>
         <div className={finalGate ? 'pass' : 'waiting'}><span>{queued ? 'RELEASE' : 'THERMAL DOSE'}</span><b>{queued ? `${runOps.queueMinutes} min` : spec.temperature}</b><small>{queued ? finalGate ? 'location proven' : 'carrier held' : finalGate ? `${spec.dwell} dwell · recovery retained` : `${runOps.furnaceRecoveryMinutes} min recovery`}</small></div>
       </aside>
     </div>

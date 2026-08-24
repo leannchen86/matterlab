@@ -1665,6 +1665,79 @@ the outcome. That contradicted the visible lab clock and made capacity decisions
   result was 96.7% at 433 minutes: composition passed, cycle missed by 13 minutes. Every result surface
   reported the same valid miss after a follow-up QA pass corrected one stale “target met” planner label.
 
+## Critique 89: an actual cycle miss still had no loss explanation
+
+The corrected rate mission finally responded to real operating delays, but its result surface reduced a
+433-minute experiment to a single “+13 min” gap. A technician could not see whether the constraint was
+thermal chemistry, queueing, equipment recovery, or an avoidable decision without reconstructing the
+entire event history.
+
+### Changes
+
+- Added a retained release-to-result loss budget to completed rate campaigns. Prep and robot handling,
+  furnace queue, condition recovery, governed thermal time, XRD acquisition, and operator-decision loss
+  are rendered as distinct segments rather than another text paragraph.
+- Placed the 420-minute mission boundary directly on the time bar and report either remaining margin or
+  overrun. The breakdown always uses the immutable result timestamp, so later diagnosis cannot rewrite
+  the historical bottleneck analysis.
+- Reconciled the budget against both faulted and healthy operations. The RUN-042 miss resolves to 30 min
+  handling, 37 min queue, 16 min recovery, 330 min thermal, 18 min XRD, and 2 min decision loss: 433 min
+  total. A fresh dual-chamber RUN-048 replay resolved to 30 + 14 + 4 + 330 + 18 = 396 minutes, visibly
+  crossing the same target with 24 minutes of margin.
+- Corrected the AI experiment-loop cursor so a retained XRD result moves from MEASURE to LEARN. Browser
+  QA replayed preparation, robot dosing, furnace-lane qualification, thermal execution, and XRD release;
+  the local HMIs, campaign result, planner state, and new loss budget all agreed on the 396-minute result.
+
+## Critique 90: bottleneck analysis was retrospective, not playable
+
+The loss budget explained a missed rate target but stopped at diagnosis. It still asked the player to
+mentally infer whether another furnace lane would matter, and it offered no governed way to invest in
+that change after learning from a completed run.
+
+### Changes
+
+- Added a capacity counterfactual beneath every retained rate result. It substitutes the deterministic
+  queue for the alternate furnace configuration while holding the measured material, recovery, thermal
+  profile, XRD acquisition, and decision history constant.
+- The healthy dual-chamber replay now proves its operational value: removing FURN-04B changes RUN-048
+  from 396 to 428 minutes and flips a 24-minute margin into an 8-minute miss. The faulted single-chamber
+  replay shows the inverse: qualifying FURN-04B changes RUN-042 from 433 to 407 minutes and would recover
+  the mission without pretending the original experiment was faster.
+- Made that analysis actionable. A player can spend 120 research points and 48 post-run minutes to
+  schedule an empty cycle and nine-point uniformity survey for the next campaign. The current result and
+  its route remain immutable; the auxiliary lane activates only when the next experiment is started.
+- Snapshotted the qualified chamber count and complete cycle decomposition into every newly retained
+  result. Post-result plant changes can no longer mutate historical queue, recovery, or decision losses.
+- Browser QA exercised the miss path, scheduled the qualification, and caught a contradictory
+  “commissioning window closed” label elsewhere in the same panel. The thermal-bay card now shows the
+  post-run work as scheduled consistently in its chamber, qualification, header, and command states.
+
+## Critique 91: a compound failure exposed cross-system vocabulary drift
+
+RUN-043 combined a robot grip-force witness, an already-qualified auxiliary furnace lane, a door-seal
+loss, and an overdue XRD control. The equipment screens were visually convincing, but the AI rail called
+the force check a cleanliness witness and described the auxiliary lane as a capacity-one queue. The
+furnace HMI also asked to “qualify” a chamber whose IQ/OQ record had already been retained.
+
+### Changes
+
+- Made the AI experiment gate derive its wording from the same deterministic operations state as the
+  equipment. It now distinguishes jaw-force, gripper cleanliness, nominal tooling, capacity-one queue,
+  qualified-lane readiness, overdue reference, trend confirmation, and current-control review.
+- Changed repeated auxiliary-furnace operation from “qualification” to start-readiness. The chamber now
+  presents IQ/OQ as retained evidence, then asks for its independent thermocouple and pre-start survey
+  before routing the new carrier.
+- Replaced generic furnace walkaround markers with condition-specific physical checks. A seal-loss run
+  now places GASKET, LATCH, and DOOR CHAIN markers on the machine; a thermocouple-drift run exposes
+  WITNESS TC, CONTROLLER, and OVERTEMP. Observations explain why closed feedback or a stable primary PV
+  cannot prove the missing physical condition.
+- Moved the gasket marker onto the visibly hot upper perimeter, aligning the interactive evidence with
+  the amber seal-loss cue and misaligned compression handle in the 3D asset.
+- Replayed the full compound run after the FURN-04B upgrade: jaw-force recovery, 16-minute lane-B gate,
+  21-minute seal recovery, a rejected closed-feedback shortcut, 330-minute thermal profile, and overdue
+  Si control. The retained result was 96.7% at 424 minutes. Its immutable budget reconciled to 37 min
+  handling, 16 min queue, 21 min recovery, 330 min thermal, 18 min XRD, and 2 min decision loss.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

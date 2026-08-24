@@ -682,6 +682,16 @@ function getCampaignInspectionPoints(index: number, stage: number, selected: str
     { position: [1.08, 1.48, 0.18], label: 'GRIPPER', observation: stage === 2 ? operations.robotCondition === 'contamination' ? 'residue witness visible · cleaning proof required' : operations.robotCondition === 'grip-force' ? 'jaw-force trend low · pad seating inspection due' : 'tool face clean · ID legible · nominal state' : `witness passed · jaws seated on ${identity.carrier}`, state: stage === 2 && operations.robotConstraint ? 'attention' : 'pass' },
     { position: [1.05, 0.92, -0.32], label: 'HMI', observation: stage === 2 ? operations.robotCondition === 'contamination' ? `${identity.runId} held before dosing · motion inhibited` : operations.robotCondition === 'grip-force' ? `${identity.runId} held for force witness · setup mode` : `${identity.runId} setup mode · handshake proof pending` : `${identity.runId} dosing 6 crucibles · route active`, state: stage === 2 && operations.robotConstraint ? 'attention' : 'pass' },
   ];
+  if (stage === 5 && index === 2 && operations.furnaceCondition === 'door-seal') return [
+    { position: [0, 1.78, 0.94], label: 'GASKET', observation: `upper-edge witness ${operations.furnaceResult} · hot-zone uniformity not proven`, state: 'attention' },
+    { position: [0.82, 1.55, 0.93], label: 'LATCH', observation: 'compression handle misaligned · mechanical adjustment required', state: 'attention' },
+    { position: [-0.38, 0.58, 0.9], label: 'DOOR CHAIN', observation: 'closed input TRUE · switch state is not a seal-uniformity proof', state: 'attention' },
+  ];
+  if (stage === 5 && index === 2 && operations.furnaceCondition === 'thermocouple-drift') return [
+    { position: [0, 1.38, 0.94], label: 'WITNESS TC', observation: `${operations.furnaceResult} · independent witness correction required`, state: 'attention' },
+    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'primary PV stable · cannot substitute for biased witness', state: 'attention' },
+    { position: [0.82, 1.55, 0.93], label: 'OVERTEMP', observation: 'independent trip proof required before thermal start', state: 'attention' },
+  ];
   if (stage >= 4 && stage <= 5 && index === 2) return [
     { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: stage === 4 ? `door closed · ${operations.activeFurnaceRun} cycle owns chamber` : operations.furnaceCondition === 'door-seal' ? 'door chain closed · latch compression witness inconsistent' : `door chain closed · ${spec.profile} start held`, state: stage === 5 && operations.furnaceCondition === 'door-seal' ? 'attention' : 'pass' },
     { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? `${operations.activeFurnaceRun} in chamber A · ${operations.furnaceLane} ${operations.queueMinutes} min` : operations.furnaceCondition === 'thermocouple-drift' ? `${operations.furnaceResult} · qualified offset proof required` : operations.furnaceCondition === 'door-seal' ? `${operations.furnaceResult} · edge loss above start limit` : `${operations.furnaceResult} · controller agreement nominal`, state: stage === 4 || stage === 5 && operations.furnaceConstraint ? 'attention' : 'pass' },
