@@ -1,5 +1,7 @@
 # MatterShift
 
+**[Launch the public virtual lab](https://leannchen86.github.io/mattershift-lab-sim/)**
+
 MatterShift is a browser simulation of a lab technician's shift inside an AI-enabled,
 high-throughput materials laboratory. The primary experience is an equipment-first operations
 console with five playable work orders. The shifts cover XRD quality control and SEM/EDS follow-up,
@@ -135,6 +137,7 @@ Open <http://localhost:3000/>.
 ```bash
 pnpm exec tsc --noEmit
 pnpm build
+pnpm build:pages
 pnpm lint
 ```
 

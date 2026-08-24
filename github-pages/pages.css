@@ -1,0 +1,10 @@
+:root {
+  --font-geist-sans: Inter, "Avenir Next", "Segoe UI", Arial, sans-serif;
+  --font-geist-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
