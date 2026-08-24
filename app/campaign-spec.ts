@@ -42,6 +42,10 @@ export type CampaignOperations = {
   activeFurnaceRun: string;
   furnaceLane: 'FURN-04A' | 'FURN-04B';
   queueMinutes: number;
+  furnaceCondition: 'nominal' | 'thermocouple-drift' | 'door-seal';
+  furnaceConstraint: boolean;
+  furnaceRecoveryMinutes: number;
+  furnaceResult: string;
   robotCondition: 'nominal' | 'grip-force' | 'contamination';
   robotConstraint: boolean;
   robotRecoveryMinutes: number;
@@ -235,6 +239,7 @@ export function getCampaignOperations(runNumber = 42, thermalBayLevel = 1): Camp
   const activeRunNumber = Math.max(1, runNumber - (2 + runNumber % 3));
   const referenceResults = ['+0.01° 2θ', '−0.02° 2θ', '+0.03° 2θ', '+0.00° 2θ'];
   const robotCondition = (['nominal', 'grip-force', 'contamination'] as const)[runNumber % 3];
+  const furnaceCondition = (['nominal', 'nominal', 'thermocouple-drift', 'door-seal'] as const)[runNumber % 4];
   const referenceCondition = (['current', 'trend-review', 'current', 'age-due'] as const)[runNumber % 4];
   const robotRecoveryMinutes = robotCondition === 'nominal'
     ? 4 + runNumber % 2
@@ -250,6 +255,10 @@ export function getCampaignOperations(runNumber = 42, thermalBayLevel = 1): Camp
     activeFurnaceRun: getCampaignIdentity(activeRunNumber).runId,
     furnaceLane: thermalBayLevel >= 2 ? 'FURN-04B' : 'FURN-04A',
     queueMinutes: thermalBayLevel >= 2 ? 8 + (runNumber * 5) % 9 : 36 + (runNumber * 17) % 31,
+    furnaceCondition,
+    furnaceConstraint: furnaceCondition !== 'nominal',
+    furnaceRecoveryMinutes: furnaceCondition === 'thermocouple-drift' ? 14 + runNumber % 4 : furnaceCondition === 'door-seal' ? 18 + runNumber % 5 : 4,
+    furnaceResult: furnaceCondition === 'thermocouple-drift' ? '+11.8 °C witness bias' : furnaceCondition === 'door-seal' ? '12.6 °C edge-center span' : '±4.2 °C agreement',
     robotCondition,
     robotConstraint: robotCondition !== 'nominal',
     robotRecoveryMinutes,

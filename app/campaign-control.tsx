@@ -101,12 +101,13 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const needsMicroscopy = Number(recipe.measured) < phaseFloor;
   const inventory = { ...initialInventory, ...run.inventory };
   const inventoryLow = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
-  const fault = run.stage === 2 && operations.robotConstraint ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 6 && operations.referenceConstraint ? 'qc' : null;
+  const fault = run.stage === 2 && operations.robotConstraint ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 5 && operations.furnaceConstraint ? 'thermal' : run.stage === 6 && operations.referenceConstraint ? 'qc' : null;
   const robotConditionLabel = operations.robotCondition === 'contamination' ? 'CLEANLINESS' : operations.robotCondition === 'grip-force' ? 'GRIP FORCE' : 'READINESS';
   const referenceConditionLabel = operations.referenceCondition === 'age-due' ? 'CONTROL DUE' : operations.referenceCondition === 'trend-review' ? 'TREND REVIEW' : 'CONTROL CURRENT';
   const conditionSignal = run.stage === 2
     ? operations.robotConstraint ? 'BOTTLENECK DETECTED' : 'ROBOT READINESS'
     : run.stage === 4 ? 'BOTTLENECK DETECTED'
+      : run.stage === 5 ? operations.furnaceConstraint ? 'EQUIPMENT CONDITION' : 'THERMAL START READINESS'
       : run.stage === 6 ? operations.referenceConstraint ? 'BOTTLENECK DETECTED' : 'MEASUREMENT READINESS'
         : run.stage === 8 ? 'DIAGNOSTIC BRANCH'
           : run.stage >= 9 ? 'MECHANISM EVIDENCE RETAINED'
@@ -115,12 +116,14 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const conditionDetail = run.stage === 2
     ? `ROBO-02 / ${robotConditionLabel}`
     : run.stage === 4 ? run.thermalBayLevel >= 2 ? 'FURN-04B / READINESS GATE' : 'FURN-04A / CAPACITY 1 OF 1'
+      : run.stage === 5 ? `FURN-04 / ${operations.furnaceCondition === 'thermocouple-drift' ? 'TC OFFSET HOLD' : operations.furnaceCondition === 'door-seal' ? 'DOOR SEAL HOLD' : 'START PROOF'}`
       : run.stage === 6 ? `XRD-03 / ${referenceConditionLabel}`
         : run.stage === 8 ? `SEM-01 / ${identity.thermalSample}`
           : run.stage >= 7 ? `${evaluation.resultText} · ${evaluation.gap}` : 'FLOW NOMINAL';
   const conditionMetric = run.stage === 2
     ? operations.robotConstraint ? `${operations.robotRecoveryMinutes} min recovery` : `${operations.robotRecoveryMinutes} min setup proof`
     : run.stage === 4 ? `${operations.queueMinutes} min wait`
+      : run.stage === 5 ? `${operations.furnaceRecoveryMinutes} min recovery`
       : run.stage === 6 ? `${operations.referenceAgeHours} h since reference`
         : run.stage === 8 ? '4 fields + EDS map'
           : run.stage >= 9 ? 'diagnosis linked'
@@ -252,7 +255,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
         <div><span>LAB CLOCK</span><b>+{run.elapsed} min</b></div>
         <div><span>INSIGHT</span><b>{run.insight} RP</b></div>
         <div><span>FURNACE-LIMITED RATE</span><b>{run.thermalBayLevel >= 2 ? '0.31 runs / h' : recipe.throughput}</b></div>
-        <div className={fault ? 'hud-alert' : ''}><span>ACTIVE CONSTRAINT</span><b>{fault === 'cell' ? 'ROBOT CELL' : fault === 'queue' ? 'FURNACE QUEUE' : fault === 'qc' ? 'XRD QC' : 'NONE'}</b></div>
+        <div className={fault ? 'hud-alert' : ''}><span>ACTIVE CONSTRAINT</span><b>{fault === 'cell' ? 'ROBOT CELL' : fault === 'queue' ? 'FURNACE QUEUE' : fault === 'thermal' ? 'FURNACE CHECK' : fault === 'qc' ? 'XRD QC' : 'NONE'}</b></div>
       </div>
 
       <div className="campaign-mission-strip" aria-label="Scientific mission selection">
@@ -306,7 +309,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
           <div className="route-board">
             <RouteCell code="PREP-01" label="PREP" cycle="12 MIN" state={routeState(run.stage, 1, 2)} current={run.stage === 1} job={run.stage >= 1 ? identity.runId : 'OPEN'} />
             <RouteCell code="ROBO-02" label="SYNTHESIZE" cycle="14 MIN" state={run.stage === 2 ? operations.robotConstraint ? 'fault' : 'active' : routeState(run.stage, 3, 4)} current={run.stage === 2 || run.stage === 3} job={run.stage === 2 ? operations.robotCondition === 'contamination' ? 'CONTAM HOLD' : operations.robotCondition === 'grip-force' ? 'FORCE CHECK' : 'READY CHECK' : run.stage >= 3 ? identity.runId : 'WAIT'} />
-            <RouteCell code={operations.furnaceLane} label="CALCINE" cycle={`${recipe.thermalMinutes} MIN`} state={run.stage === 4 ? 'queued' : routeState(run.stage, 5, 6)} current={run.stage === 5} job={run.stage === 4 ? run.thermalBayLevel >= 2 ? 'READY GATE' : 'Q 01' : run.stage >= 5 ? identity.runId : run.thermalBayLevel >= 2 ? 'QUALIFIED' : operations.activeFurnaceRun} />
+            <RouteCell code={operations.furnaceLane} label="CALCINE" cycle={`${recipe.thermalMinutes} MIN`} state={run.stage === 4 ? 'queued' : run.stage === 5 && operations.furnaceConstraint ? 'fault' : routeState(run.stage, 5, 6)} current={run.stage === 5} job={run.stage === 4 ? run.thermalBayLevel >= 2 ? 'READY GATE' : 'Q 01' : run.stage === 5 && operations.furnaceConstraint ? operations.furnaceCondition === 'thermocouple-drift' ? 'TC HOLD' : 'SEAL HOLD' : run.stage >= 5 ? identity.runId : run.thermalBayLevel >= 2 ? 'QUALIFIED' : operations.activeFurnaceRun} />
             <RouteCell code="XRD-03" label="MEASURE" cycle="18 MIN" state={run.stage === 6 ? operations.referenceConstraint ? 'fault' : 'active' : routeState(run.stage, 6, 7)} current={run.stage === 6} job={run.stage === 6 ? operations.referenceCondition === 'age-due' ? 'QC HOLD' : operations.referenceCondition === 'trend-review' ? 'TREND CHECK' : 'ACQUIRE' : run.stage >= 7 ? identity.runId : 'RUN-038'} />
             <RouteCell code={run.stage >= 8 ? 'SEM-01' : 'MODEL'} label={run.stage >= 8 ? 'DIAGNOSE' : 'LEARN'} cycle={run.stage >= 8 ? '26 MIN' : 'GATED'} state={run.stage >= 9 ? 'complete' : run.stage === 8 ? 'active' : run.stage >= 7 ? 'complete' : 'waiting'} current={run.stage === 8} job={run.stage >= 9 ? '4 FIELDS + MAP' : run.stage === 8 ? identity.thermalSample : run.stage >= 7 ? `+${recipe.insightReward} RP` : 'EVIDENCE'} />
           </div>
@@ -557,7 +560,11 @@ function getPrimaryAction(stage: number, runId: string, operations: CampaignOper
         : { label: 'PROVE ROBO-02 READY', hint: 'Confirm tool identity and the carrier handshake before dosing' },
     { label: 'OPERATE ROBO-02', hint: 'Prove the carrier and execute six-position dosing' },
     { label: 'OPERATE FURN-04', hint: 'Verify occupancy, Q01, and the physical hold location' },
-    { label: 'START FURN-04 PROFILE', hint: 'Prove the load and start the governed thermal cycle' },
+    operations.furnaceCondition === 'thermocouple-drift'
+      ? { label: 'RECOVER TC-04', hint: `Resolve ${operations.furnaceResult} before thermal start` }
+      : operations.furnaceCondition === 'door-seal'
+        ? { label: 'RECOVER FURN-04 SEAL', hint: `Correct ${operations.furnaceResult} before thermal start` }
+        : { label: 'START FURN-04 PROFILE', hint: 'Prove the load and start the governed thermal cycle' },
     operations.referenceCondition === 'age-due'
       ? { label: 'QUALIFY XRD-03', hint: `Run the due Si control before measuring ${runId}` }
       : operations.referenceCondition === 'trend-review'

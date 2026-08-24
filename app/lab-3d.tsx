@@ -648,7 +648,7 @@ function StationCell({ station, index, position, selected, active, toneOverride,
 function Equipment({ index, active, tone, focused, controls, scenarioId, phase, thermalBayLevel, campaignStage, campaignRunNumber }: { index: number; active: boolean; tone: string; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number; campaignStage: number; campaignRunNumber: number }) {
   if (index === 0) return <PowderPrep controls={controls} />;
   if (index === 1) return <RobotCell active={active} focused={focused} controls={controls} campaignStage={scenarioId === 'xrd' ? campaignStage : 0} campaignRunNumber={campaignRunNumber} />;
-  if (index === 2) return <Furnace active={active} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} />;
+  if (index === 2) return <Furnace active={active} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} campaignStage={campaignStage} campaignRunNumber={campaignRunNumber} />;
   if (index === 3) return <Xrd active={active} controls={controls} />;
   if (index === 4) return <SemEds active={active} controls={controls} />;
   if (index === 5) return <Bet active={active} tone={tone} controls={controls} />;
@@ -682,9 +682,9 @@ function getCampaignInspectionPoints(index: number, stage: number, selected: str
     { position: [1.05, 0.92, -0.32], label: 'HMI', observation: stage === 2 ? operations.robotCondition === 'contamination' ? `${identity.runId} held before dosing · motion inhibited` : operations.robotCondition === 'grip-force' ? `${identity.runId} held for force witness · setup mode` : `${identity.runId} setup mode · handshake proof pending` : `${identity.runId} dosing 6 crucibles · route active`, state: stage === 2 && operations.robotConstraint ? 'attention' : 'pass' },
   ];
   if (stage >= 4 && stage <= 5 && index === 2) return [
-    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: stage === 4 ? `door closed · ${operations.activeFurnaceRun} cycle owns chamber` : `door chain closed · ${spec.temperature} profile active`, state: 'pass' },
-    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? `${operations.activeFurnaceRun} in chamber A · ${operations.furnaceLane} ${operations.queueMinutes} min` : `${spec.profile} · ramp/dwell trace recording`, state: stage === 4 ? 'attention' : 'pass' },
-    { position: stage === 4 ? [0, 0.42, 1.04] : [0, 1.38, 0.94], label: 'CARRIER', observation: stage === 4 ? thermalBayLevel >= 2 ? `${identity.carrier} assigned chamber B · readiness proof pending` : `${identity.carrier} parked at marked queue stand · seal intact` : `${identity.carrier} chamber occupancy confirmed`, state: stage === 4 ? 'attention' : 'pass' },
+    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: stage === 4 ? `door closed · ${operations.activeFurnaceRun} cycle owns chamber` : operations.furnaceCondition === 'door-seal' ? 'door chain closed · latch compression witness inconsistent' : `door chain closed · ${spec.profile} start held`, state: stage === 5 && operations.furnaceCondition === 'door-seal' ? 'attention' : 'pass' },
+    { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? `${operations.activeFurnaceRun} in chamber A · ${operations.furnaceLane} ${operations.queueMinutes} min` : operations.furnaceCondition === 'thermocouple-drift' ? `${operations.furnaceResult} · qualified offset proof required` : operations.furnaceCondition === 'door-seal' ? `${operations.furnaceResult} · edge loss above start limit` : `${operations.furnaceResult} · controller agreement nominal`, state: stage === 4 || stage === 5 && operations.furnaceConstraint ? 'attention' : 'pass' },
+    { position: stage === 4 ? [0, 0.42, 1.04] : [0, 1.38, 0.94], label: 'CARRIER', observation: stage === 4 ? thermalBayLevel >= 2 ? `${identity.carrier} assigned chamber B · readiness proof pending` : `${identity.carrier} parked at marked queue stand · seal intact` : `${identity.carrier} loaded · ${spec.profile} not started`, state: stage === 4 || stage === 5 && operations.furnaceConstraint ? 'attention' : 'pass' },
   ];
   if (stage >= 6 && stage <= 7 && index === 3) return [
     { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: stage === 6 ? operations.referenceCondition === 'age-due' ? `NIST Si reference seated · ${identity.thermalSample} held` : operations.referenceCondition === 'trend-review' ? `NIST Si staged · ${identity.thermalSample} queued behind trend check` : `${identity.thermalSample} flat · current control linked` : `${identity.thermalSample} flat · reference accepted`, state: 'pass' },
@@ -931,7 +931,8 @@ function RobotProcessFixture({ mode, gripperProven }: { mode: 'idle' | 'recovery
   </group>;
 }
 
-function Furnace({ active, controls, scenarioId, phase, thermalBayLevel }: { active: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number }) {
+function Furnace({ active, controls, scenarioId, phase, thermalBayLevel, campaignStage, campaignRunNumber }: { active: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number; campaignStage: number; campaignRunNumber: number }) {
+  const campaignOperations = getCampaignOperations(campaignRunNumber, thermalBayLevel);
   const relayRead = controls.includes('Read overtemperature relay');
   const doorVerified = controls.includes('Verify door chain');
   const emptyConfirmed = controls.includes('Confirm empty-cell state');
@@ -939,12 +940,18 @@ function Furnace({ active, controls, scenarioId, phase, thermalBayLevel }: { act
   const recoveryScenario = scenarioId === 'furnace';
   const recovered = recoveryScenario && phase >= 3;
   const recoveryHeld = recoveryScenario && phase >= 1 && phase < 3;
+  const campaignStartHeld = scenarioId === 'xrd' && campaignStage === 5;
+  const tcHeld = campaignStartHeld && campaignOperations.furnaceCondition === 'thermocouple-drift';
+  const sealHeld = campaignStartHeld && campaignOperations.furnaceCondition === 'door-seal';
+  const offsetApplied = controls.includes('Apply qualified controller offset');
+  const latchAdjusted = controls.includes('Adjust latch compression');
+  const conditionHeld = recoveryHeld || campaignStartHeld;
   const chamberStateConfirmed = emptyConfirmed || occupancyConfirmed || recovered;
-  const chamberColor = recovered ? '#0e1916' : recoveryHeld ? '#1e1610' : emptyConfirmed && !active ? '#111a18' : '#28120b';
-  const chamberEmissive = recovered ? '#1f6b4a' : recoveryHeld ? '#8a4d25' : emptyConfirmed && !active ? '#1f6b4a' : '#e3672e';
-  const chamberIntensity = recovered ? 0.55 : recoveryHeld ? 0.32 : emptyConfirmed && !active ? 0.4 : active ? 2.7 : recoveryScenario ? 1.35 : 0.65;
-  const statusGreen = relayRead || recovered;
-  const doorGreen = doorVerified || recovered;
+  const chamberColor = recovered ? '#0e1916' : conditionHeld ? '#151819' : emptyConfirmed && !active ? '#111a18' : '#28120b';
+  const chamberEmissive = recovered ? '#1f6b4a' : conditionHeld ? '#5f351e' : emptyConfirmed && !active ? '#1f6b4a' : '#e3672e';
+  const chamberIntensity = recovered ? 0.55 : conditionHeld ? 0.18 : emptyConfirmed && !active ? 0.4 : active ? 2.7 : recoveryScenario ? 1.35 : 0.65;
+  const statusGreen = relayRead || recovered || tcHeld && offsetApplied;
+  const doorGreen = doorVerified || recovered || sealHeld && latchAdjusted;
   const dualChamber = scenarioId === 'xrd' && thermalBayLevel >= 2;
   return <group position={[0, 0.18, 0]}>
     <RoundedBox args={[dualChamber ? 2.62 : 2.05, 2.22, 1.5]} radius={0.09} smoothness={4} position={[0, 1.15, 0]} castShadow>
@@ -955,15 +962,29 @@ function Furnace({ active, controls, scenarioId, phase, thermalBayLevel }: { act
         <meshStandardMaterial color="#15191c" metalness={0.6} roughness={0.38} />
       </RoundedBox>
       <mesh position={[chamberX, 1.39, 0.858]}><planeGeometry args={[dualChamber ? 0.82 : 1.18, 0.76]} /><meshStandardMaterial color={index === 1 ? '#101d18' : chamberColor} emissive={index === 1 ? '#1f6b4a' : chamberEmissive} emissiveIntensity={index === 1 ? 0.55 : chamberIntensity} roughness={0.85} /></mesh>
-      <pointLight position={[chamberX, 1.4, 1.1]} intensity={index === 1 ? 1.3 : recovered ? 1.5 : recoveryHeld ? 0.8 : emptyConfirmed && !active ? 1.2 : active ? 12 : recoveryScenario ? 5 : 2} color={index === 1 ? '#51e19a' : recovered ? '#51e19a' : recoveryHeld ? '#d6894f' : emptyConfirmed && !active ? '#51e19a' : '#ff8b3d'} distance={2.5} decay={2} />
+      <pointLight position={[chamberX, 1.4, 1.1]} intensity={index === 1 ? 1.3 : recovered ? 1.5 : conditionHeld ? 0.55 : emptyConfirmed && !active ? 1.2 : active ? 12 : recoveryScenario ? 5 : 2} color={index === 1 ? '#51e19a' : recovered ? '#51e19a' : conditionHeld ? '#d6894f' : emptyConfirmed && !active ? '#51e19a' : '#ff8b3d'} distance={2.5} decay={2} />
       {dualChamber && <><mesh position={[chamberX, 1.93, 0.865]}><planeGeometry args={[0.52, 0.06]} /><meshBasicMaterial color={index === 0 ? '#f4b95f' : '#51e19a'} /></mesh><mesh position={[chamberX + 0.36, 0.84, 0.87]}><circleGeometry args={[0.035, 18]} /><meshStandardMaterial color={index === 0 ? '#f4b95f' : '#51e19a'} emissive={index === 0 ? '#704718' : '#1f6947'} emissiveIntensity={0.8} /></mesh></>}
     </group>)}
+    <Line points={[[dualChamber ? -1.19 : -0.77, 0.78, 0.868], [dualChamber ? -1.19 : -0.77, 1.96, 0.868], [dualChamber ? 1.19 : 0.77, 1.96, 0.868], [dualChamber ? 1.19 : 0.77, 0.78, 0.868]]} color={sealHeld ? '#f4b95f' : '#77848a'} lineWidth={sealHeld ? 1.8 : 0.65} transparent opacity={sealHeld ? 0.95 : 0.35} />
+    {sealHeld && <><Line points={[[dualChamber ? -1.19 : -0.77, 1.96, 0.884], [dualChamber ? 1.19 : 0.77, 1.96, 0.884]]} color="#ff8b3d" lineWidth={2.9} /><pointLight position={[0, 1.92, 1.03]} intensity={2.4} distance={1.2} color="#ff8b3d" decay={2} /></>}
+    {[-0.44, 0.44].map((offset) => <mesh key={offset} position={[dualChamber ? -1.25 : -0.83, 1.37 + offset, 0.87]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.035, 0.035, 0.17, 14]} /><meshStandardMaterial color="#a7b0b4" metalness={0.9} roughness={0.14} /></mesh>)}
     <RoundedBox args={[0.9, 0.32, 0.09]} radius={0.035} position={[-0.34, 0.55, 0.805]}>
       <meshBasicMaterial color="#08161c" />
     </RoundedBox>
-    <mesh position={[-0.42, 0.56, 0.855]}><planeGeometry args={[0.42, 0.035]} /><meshBasicMaterial color={statusGreen ? '#51e19a' : recoveryHeld ? '#d6894f' : active ? '#f4b95f' : '#6a8290'} /></mesh>
-    <mesh position={[dualChamber ? 1.16 : 0.82, 1.36, 0.875]} castShadow><boxGeometry args={[0.07, 0.8, 0.08]} /><meshStandardMaterial color={doorGreen ? '#64d49f' : recoveryHeld ? '#c88b58' : '#9aa3a8'} emissive={doorGreen ? '#1c6545' : recoveryHeld ? '#5f321c' : '#000000'} emissiveIntensity={doorGreen || recoveryHeld ? 0.55 : 0} metalness={0.9} roughness={0.16} /></mesh>
+    <mesh position={[-0.42, 0.56, 0.855]}><planeGeometry args={[0.42, 0.035]} /><meshBasicMaterial color={statusGreen ? '#51e19a' : conditionHeld ? '#d6894f' : active ? '#f4b95f' : '#6a8290'} /></mesh>
+    <mesh position={[-0.42, 0.62, 0.856]}><planeGeometry args={[tcHeld ? 0.29 : 0.18, 0.018]} /><meshBasicMaterial color={tcHeld ? offsetApplied ? '#51e19a' : '#f4b95f' : '#364c56'} /></mesh>
+    <mesh position={[dualChamber ? 1.16 : 0.82, 1.36, 0.875]} rotation={[0, 0, sealHeld && !latchAdjusted ? -0.08 : 0]} castShadow><boxGeometry args={[0.07, 0.8, 0.08]} /><meshStandardMaterial color={doorGreen ? '#64d49f' : conditionHeld ? '#c88b58' : '#9aa3a8'} emissive={doorGreen ? '#1c6545' : conditionHeld ? '#5f321c' : '#000000'} emissiveIntensity={doorGreen || conditionHeld ? 0.55 : 0} metalness={0.9} roughness={0.16} /></mesh>
     <mesh position={[0.71, 0.83, 0.87]}><circleGeometry args={[0.045, 18]} /><meshStandardMaterial color={chamberStateConfirmed ? '#51e19a' : '#6f7e82'} emissive={chamberStateConfirmed ? '#238253' : '#192428'} emissiveIntensity={chamberStateConfirmed ? 1 : 0.2} /></mesh>
+    {tcHeld && <group position={[-0.15, 1.78, 0.95]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.018, 0.018, 0.72, 12]} /><meshStandardMaterial color="#d7dee0" metalness={0.92} roughness={0.12} /></mesh>
+      <mesh position={[0, 0, 0.39]}><torusGeometry args={[0.055, 0.014, 10, 24]} /><meshStandardMaterial color={offsetApplied ? '#51e19a' : '#f4b95f'} emissive={offsetApplied ? '#1f6b4a' : '#764818'} emissiveIntensity={0.85} metalness={0.65} roughness={0.2} /></mesh>
+      <Line points={[[0, 0, 0.4], [-0.34, -0.12, 0.34], [-0.38, -0.66, 0.16], [-0.27, -1.08, -0.08]]} color={offsetApplied ? '#51e19a' : '#f4b95f'} lineWidth={1.15} />
+      <pointLight position={[0, 0, 0.42]} intensity={offsetApplied ? 1.3 : 2.1} distance={0.8} color={offsetApplied ? '#51e19a' : '#f4b95f'} decay={2} />
+    </group>}
+    <group position={[0.62, 2.34, -0.1]}>
+      <mesh castShadow><cylinderGeometry args={[0.18, 0.23, 0.54, 24]} /><meshStandardMaterial color="#68747a" metalness={0.88} roughness={0.2} /></mesh>
+      <mesh position={[0, 0.3, 0]}><cylinderGeometry args={[0.25, 0.18, 0.08, 24]} /><meshStandardMaterial color="#47545b" metalness={0.82} roughness={0.25} /></mesh>
+    </group>
   </group>;
 }
 
@@ -1216,7 +1237,9 @@ function getCampaignRoomState(stage: number, selected = 'C-42', runNumber = 42, 
   if (stage === 2) return { station: 'ROBO-02', label: 'CELL READINESS', color: '#4dd5ed', tone: 'running', result: '' };
   if (stage === 3) return { station: 'ROBO-02', label: `${spec.id} DOSING`, color: '#4dd5ed', tone: 'running', result: '' };
   if (stage === 4) return { station: 'FURN-04', label: 'QUEUE 01', color: '#f4b95f', tone: 'held', result: '' };
-  if (stage === 5) return { station: 'FURN-04', label: `${spec.temperatureShort} PROFILE`, color: '#ff955c', tone: 'running', result: '' };
+  if (stage === 5 && operations.furnaceCondition === 'thermocouple-drift') return { station: 'FURN-04', label: 'TC OFFSET HOLD', color: '#f4b95f', tone: 'held', result: '' };
+  if (stage === 5 && operations.furnaceCondition === 'door-seal') return { station: 'FURN-04', label: 'DOOR SEAL HOLD', color: '#f4b95f', tone: 'held', result: '' };
+  if (stage === 5) return { station: 'FURN-04', label: 'START READINESS', color: '#ff955c', tone: 'running', result: '' };
   if (stage === 6 && operations.referenceCondition === 'age-due') return { station: 'XRD-03', label: 'REFERENCE DUE', color: '#f4b95f', tone: 'held', result: '' };
   if (stage === 6 && operations.referenceCondition === 'trend-review') return { station: 'XRD-03', label: 'CONTROL TREND REVIEW', color: '#4dd5ed', tone: 'running', result: '' };
   if (stage === 6) return { station: 'XRD-03', label: 'ACQUISITION READY', color: '#4dd5ed', tone: 'running', result: '' };

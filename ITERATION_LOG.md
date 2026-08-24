@@ -1579,6 +1579,50 @@ and the simulation should quantify that tradeoff rather than simply decorate the
   total thermal demand remained 1,170 minutes. The lab clock advanced by four minutes and the active
   carrier, mission, queue hold, and instrument state were unchanged.
 
+## Critique 85: the thermal route always assumed a healthy furnace
+
+The queue made furnace capacity credible, but once a slot opened every load followed the same flawless
+start. That hid the equipment-condition work that often separates a trustworthy thermal history from a
+plausible-looking but invalid result.
+
+### Changes
+
+- Added deterministic nominal, witness-thermocouple-drift, and door-seal conditions. The campaign rail,
+  spatial twin, station inspector, route board, and action language now agree on the actual start hold.
+- Added condition-specific physical observations and native recovery sequences: controller-offset plus
+  independent overtemperature proof for thermocouple drift, and gasket/latch plus door-chain proof for
+  seal nonuniformity. LES, SCADA, and CMMS context use the same condition evidence.
+- Added a fault-shaped thermal trace, distinct HMI evidence cards, and explicit retained-recovery state.
+  Recovery minutes are added to the real campaign clock before the governed profile duration, so poor
+  equipment condition can turn an otherwise credible rate experiment into a mission miss.
+- Corrected the queue transition so an available chamber no longer claims the profile is already active.
+  The loaded specimen remains visibly held until condition recovery and the final start command pass.
+- Exercised RUN-042 from the 37-minute Q01 hold through a +11.8 °C witness bias. The four-step recovery
+  consumed 16 minutes, retained independent overtemperature proof, completed the 330-minute thermal
+  cycle, and reached XRD at +417 campaign minutes with all material identity and backlog state intact.
+
+## Critique 86: furnace faults lived in labels, not on the machine
+
+The new recovery logic was scientifically coherent, but the first visual pass still showed the same
+bright, apparently active chamber for every condition. A player walking the aisle should notice a loaded
+but inhibited furnace and at least one physical clue before reading the station inspector.
+
+### Changes
+
+- Made stage-five furnace loads visibly cold-held rather than falsely glowing like an active 1,020 °C
+  cycle. The amber chamber light is now deliberately subdued until the governed profile starts.
+- Added a stainless witness thermocouple, illuminated connector, routed signal lead, and controller
+  indication for the drift path. Applying the qualified offset changes both the probe and controller cue
+  from amber to green while preserving the original bias as evidence in the HMI.
+- Added a condition-sensitive door perimeter, hotter upper-seal witness, and visibly misaligned latch for
+  the seal-loss path. Latch adjustment changes the physical handle proof independently of the door chain.
+- Added real hinge hardware and an exhaust stack to improve the box-furnace silhouette even outside a
+  fault. Browser QA caught an implausible signal lead running upward into the ceiling; it was rerouted
+  down the door toward the local controller before the build was accepted.
+- Replayed RUN-042 from a clean origin through preparation, robot setup, six-position dosing, queue
+  release, and the thermocouple hold. The campaign control, physical asset, inspection observations, and
+  local HMI all showed the same +11.8 °C condition and 16-minute recovery requirement.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

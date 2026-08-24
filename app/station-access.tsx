@@ -49,6 +49,12 @@ const HMI_OPERATIONS: Record<string, [string, string, string]> = {
   'TGA-01': ['Tare balance channel', 'Prove purge path', 'Home autosampler carousel'],
 };
 
+function getFurnaceStartOperations(runOps: ReturnType<typeof getCampaignOperations>, profile: string) {
+  if (runOps.furnaceCondition === 'thermocouple-drift') return ['Review witness thermocouple', 'Apply qualified controller offset', 'Prove overtemperature independence', `Start ${profile} profile`];
+  if (runOps.furnaceCondition === 'door-seal') return ['Inspect door gasket witness', 'Adjust latch compression', 'Prove door-chain stability', `Start ${profile} profile`];
+  return ['Read overtemperature relay', 'Verify door chain', `Start ${profile} profile`];
+}
+
 function getCampaignHmiOperations(stationId: string, stage: number, selected: string, runNumber: number, thermalBayLevel = 1): string[] | null {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
@@ -63,7 +69,7 @@ function getCampaignHmiOperations(stationId: string, stage: number, selected: st
   if (stationId === 'FURN-04' && stage === 4) return thermalBayLevel >= 2
     ? ['Read chamber A profile state', 'Verify chamber B qualification', `Route ${identity.carrier} to chamber B`]
     : ['Read active profile state', 'Verify queue position', `Confirm ${identity.carrier} hold location`];
-  if (stationId === 'FURN-04') return ['Read overtemperature relay', 'Verify door chain', `Start ${spec.profile} profile`];
+  if (stationId === 'FURN-04') return getFurnaceStartOperations(runOps, spec.profile);
   if (stationId === 'XRD-03' && stage === 6) return runOps.referenceCondition === 'age-due'
     ? ['Home specimen stage', 'Prove shutter feedback', 'Acquire Si reference', `Acquire ${identity.runId} pattern`]
     : runOps.referenceCondition === 'trend-review'
@@ -109,13 +115,23 @@ function completeCampaignMachineStage(stage: number) {
       : runOps.referenceCondition === 'trend-review'
         ? `${spec.temperature} / ${spec.dwell} thermal trace retained. The ${runOps.referenceAgeHours}-hour Si control remains valid, but its position trend needs confirmation before specimen acquisition.`
         : `${spec.temperature} / ${spec.dwell} thermal trace retained. The ${runOps.referenceAgeHours}-hour Si control is current; XRD-03 is ready for specimen acquisition.`;
+    const furnaceEntryMessage = runOps.furnaceCondition === 'thermocouple-drift'
+      ? `${runOps.furnaceLane} became available after ${runOps.queueMinutes} minutes, but its independent witness reads ${runOps.furnaceResult}. Qualified offset recovery is required before ${spec.profile}.`
+      : runOps.furnaceCondition === 'door-seal'
+        ? `${runOps.furnaceLane} became available after ${runOps.queueMinutes} minutes. The preheat survey shows ${runOps.furnaceResult}; inspect gasket and latch compression before ${spec.profile}.`
+        : `${runOps.furnaceLane} became available after ${runOps.queueMinutes} minutes. Controller agreement is ${runOps.furnaceResult}; start-readiness proof remains.`;
+    const furnaceExitMessage = runOps.furnaceCondition === 'thermocouple-drift'
+      ? `Witness bias corrected and overtemperature independence proved in ${runOps.furnaceRecoveryMinutes} minutes.`
+      : runOps.furnaceCondition === 'door-seal'
+        ? `Door gasket and latch compression recovered in ${runOps.furnaceRecoveryMinutes} minutes.`
+        : `Controller, door chain, and overtemperature relay agreed in ${runOps.furnaceRecoveryMinutes} minutes.`;
     const robotInsightCost = runOps.robotCondition === 'contamination' ? 8 : runOps.robotCondition === 'grip-force' ? 4 : 0;
     const transition = {
       1: { stage: 2, elapsed: 12, insight, message: robotEntryMessage },
       2: { stage: 3, elapsed: elapsed + runOps.robotRecoveryMinutes, insight: insight - robotInsightCost, message: robotExitMessage },
       3: { stage: 4, elapsed: elapsed + 14, insight, message: thermalBayLevel >= 2 ? `Six crucibles dosed and ${identity.carrier} released. ${runOps.furnaceLane} is qualified; independent readiness proof is required while chamber A runs ${runOps.activeFurnaceRun}.` : `Six crucibles dosed and ${identity.carrier} released. FURN-04A is occupied by ${runOps.activeFurnaceRun}; ${identity.runId} is now queue constrained.` },
-      4: { stage: 5, elapsed: elapsed + runOps.queueMinutes, insight, message: thermalBayLevel >= 2 ? `${runOps.furnaceLane} readiness proved in ${runOps.queueMinutes} minutes. ${identity.runId} entered ${spec.profile} independently while chamber A retained ${runOps.activeFurnaceRun}.` : `${runOps.activeFurnaceRun} cooled and unloaded after ${runOps.queueMinutes} minutes. Queue proof retained; ${identity.runId} entered ${spec.profile} at ${spec.temperature}.` },
-      5: { stage: 6, elapsed: elapsed + spec.thermalMinutes, insight, message: referenceEntryMessage },
+      4: { stage: 5, elapsed: elapsed + runOps.queueMinutes, insight, message: furnaceEntryMessage },
+      5: { stage: 6, elapsed: elapsed + runOps.furnaceRecoveryMinutes + spec.thermalMinutes, insight, message: `${furnaceExitMessage} ${referenceEntryMessage}` },
       6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `${runOps.referenceCondition === 'current' ? 'Current control reviewed' : runOps.referenceCondition === 'trend-review' ? 'Confirmatory control passed' : 'Reference passed'} at ${runOps.referenceResult}. ${spec.id}: ${evaluation.resultText}; valid evidence, ${evaluation.met ? 'mission achieved.' : `${evaluation.constraintText}.`}` },
       8: { stage: 9, elapsed: elapsed + 26, insight: insight + 15, message: `Four BSE fields and a representative EDS map retained. ${spec.id === 'D-08' ? 'Ti-rich cores support incomplete conversion as the follow-up hypothesis.' : 'Ca-rich secondary grains support precursor excess as the follow-up hypothesis.'}` },
     }[stage];
@@ -147,7 +163,11 @@ function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignSt
     const conditionService = runOps.robotCondition === 'contamination' ? 'Gripper cleanliness recovery' : runOps.robotCondition === 'grip-force' ? 'Jaw-force verification' : 'Pre-dose cell readiness';
     return { ...profile, controller: 'RC-02 / CAMPAIGN-PLC', safe: campaignStage === 2 ? ['area scanner clear', 'gate chain closed', runOps.robotCondition === 'contamination' ? 'cleaning mode selected' : 'setup mode selected'] : ['area scanner clear', 'gate chain closed', 'gripper witness valid'], method: [`Receive ${identity.carrier}`, conditionMethod, 'Dose crucibles', 'Write carrier handshake'], sample: [identity.prepSample, identity.carrier, identity.furnaceQueue], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 2 ? `${conditionService} · active` : 'Campaign dosing · active', health: campaignStage === 2 ? runOps.robotCondition === 'nominal' ? 96 : runOps.robotCondition === 'grip-force' ? 86 : 79 : 90 };
   }
-  if (campaignStage >= 4 && campaignStage <= 5 && stationId === 'FURN-04') return { ...profile, controller: thermalBayLevel >= 2 ? `TC-04A/B / MES-Q${identity.suffix}` : `TC-04 / MES-Q${identity.suffix}`, method: [`Accept ${identity.carrier}`, thermalBayLevel >= 2 ? 'Prove independent chamber' : 'Respect active queue', `Load ${spec.temperature} profile`, 'Cool + release'], sample: [identity.carrier, spec.profile, identity.thermalSample], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 4 ? `${runOps.furnaceLane} · ${runOps.queueMinutes} min readiness` : `${spec.profile} · ${runOps.furnaceLane} active` };
+  if (campaignStage >= 4 && campaignStage <= 5 && stationId === 'FURN-04') {
+    const furnaceMethod = runOps.furnaceCondition === 'thermocouple-drift' ? 'Correct witnessed TC bias' : runOps.furnaceCondition === 'door-seal' ? 'Recover door sealing' : 'Prove start readiness';
+    const furnaceService = runOps.furnaceCondition === 'thermocouple-drift' ? `Witness TC drift · ${runOps.furnaceResult}` : runOps.furnaceCondition === 'door-seal' ? `Door-seal survey · ${runOps.furnaceResult}` : `Controller agreement · ${runOps.furnaceResult}`;
+    return { ...profile, controller: thermalBayLevel >= 2 ? `TC-04A/B / MES-Q${identity.suffix}` : `TC-04 / MES-Q${identity.suffix}`, method: [`Accept ${identity.carrier}`, campaignStage === 4 ? thermalBayLevel >= 2 ? 'Prove independent chamber' : 'Respect active queue' : furnaceMethod, `Load ${spec.temperature} profile`, 'Cool + release'], sample: [identity.carrier, spec.profile, identity.thermalSample], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 4 ? `${runOps.furnaceLane} · ${runOps.queueMinutes} min readiness` : furnaceService, health: campaignStage === 5 && runOps.furnaceConstraint ? 81 : 94 };
+  }
   if (campaignStage >= 6 && stationId === 'XRD-03') {
     const referenceMethod = runOps.referenceCondition === 'age-due' ? 'Acquire NIST Si' : runOps.referenceCondition === 'trend-review' ? 'Review trend + confirm Si' : 'Review current Si control';
     const referenceService = runOps.referenceCondition === 'age-due' ? 'Si reference due' : runOps.referenceCondition === 'trend-review' ? 'Si trend confirmation' : 'Si control current';
@@ -464,9 +484,11 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, bac
   const runOps = getCampaignOperations(runNumber, thermalBayLevel);
   const queued = stage === 4;
   const auxiliary = thermalBayLevel >= 2;
-  const profileRead = operations.includes(queued ? auxiliary ? 'Read chamber A profile state' : 'Read active profile state' : 'Read overtemperature relay');
-  const secondGate = operations.includes(queued ? auxiliary ? 'Verify chamber B qualification' : 'Verify queue position' : 'Verify door chain');
-  const finalGate = operations.includes(queued ? auxiliary ? `Route ${identity.carrier} to chamber B` : `Confirm ${identity.carrier} hold location` : `Start ${spec.profile} profile`);
+  const startOperations = getFurnaceStartOperations(runOps, spec.profile);
+  const profileRead = operations.includes(queued ? auxiliary ? 'Read chamber A profile state' : 'Read active profile state' : startOperations[0]);
+  const secondGate = operations.includes(queued ? auxiliary ? 'Verify chamber B qualification' : 'Verify queue position' : startOperations[1]);
+  const thirdGate = queued || startOperations.length < 4 || operations.includes(startOperations[2]);
+  const finalGate = operations.includes(queued ? auxiliary ? `Route ${identity.carrier} to chamber B` : `Confirm ${identity.carrier} hold location` : startOperations[startOperations.length - 1]);
   const setpoint = Number.parseFloat(spec.temperature);
   const dwellMinutes = Number.parseFloat(spec.dwell) * 60;
   const dwellFraction = Math.min(.66, Math.max(.42, dwellMinutes / spec.thermalMinutes));
@@ -475,7 +497,7 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, bac
   const temperatureY = 146 - Math.min(1, setpoint / 1100) * 108;
   const thermalPath = `M42 146 C70 144 94 102 ${rampEnd} ${temperatureY} L${dwellEnd.toFixed(0)} ${temperatureY} C${(dwellEnd + 31).toFixed(0)} ${temperatureY + 8} 449 128 478 146`;
   const actualPath = `M42 147 C70 145 96 105 ${rampEnd} ${temperatureY + 3} L${dwellEnd.toFixed(0)} ${temperatureY + 3} C${(dwellEnd + 35).toFixed(0)} ${temperatureY + 12} 452 132 478 147`;
-  const status = queued ? auxiliary ? finalGate ? 'LANE B READY' : secondGate ? 'ROUTE CHECK' : profileRead ? 'QUALIFICATION CHECK' : 'CHAMBER A ACTIVE' : finalGate ? 'QUEUE PROVEN' : secondGate ? 'LOCATION CHECK' : profileRead ? 'Q01 CONFIRMED' : 'OCCUPANCY HOLD' : finalGate ? 'PROFILE ACTIVE' : secondGate ? 'START ENABLED' : profileRead ? 'SAFETY CHAIN' : 'RECIPE LOADED';
+  const status = queued ? auxiliary ? finalGate ? 'LANE B READY' : secondGate ? 'ROUTE CHECK' : profileRead ? 'QUALIFICATION CHECK' : 'CHAMBER A ACTIVE' : finalGate ? 'QUEUE PROVEN' : secondGate ? 'LOCATION CHECK' : profileRead ? 'Q01 CONFIRMED' : 'OCCUPANCY HOLD' : finalGate ? 'PROFILE ACTIVE' : thirdGate ? 'START ENABLED' : secondGate ? runOps.furnaceCondition === 'thermocouple-drift' ? 'OFFSET APPLIED' : runOps.furnaceCondition === 'door-seal' ? 'LATCH ADJUSTED' : 'DOOR CHECK' : profileRead ? runOps.furnaceCondition === 'thermocouple-drift' ? 'TC BIAS CONFIRMED' : runOps.furnaceCondition === 'door-seal' ? 'SEAL LOSS CONFIRMED' : 'SAFETY CHAIN' : runOps.furnaceCondition === 'thermocouple-drift' ? 'TC OFFSET HOLD' : runOps.furnaceCondition === 'door-seal' ? 'DOOR SEAL HOLD' : 'RECIPE LOADED';
   return <section className={`campaign-furnace-console${finalGate ? ' operation-complete' : ''}`}>
     <header><div><span>THERMAL PROCESS CONTROL</span><b>TC-04 / OT-04 · MAT-{identity.suffix} · {spec.profile}</b></div><em>{status}</em></header>
     <StationBacklogStrip backlog={backlog} station="furnace" lanes={thermalBayLevel} />
@@ -491,15 +513,15 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, bac
         </> : <>
           {[42, 146, 250, 354, 478].map((x) => <line key={`fx-${x}`} x1={x} x2={x} y1="23" y2="148" className="plot-grid" />)}{[38, 74, 110, 146].map((y) => <line key={`fy-${y}`} x1="42" x2="478" y1={y} y2={y} className="plot-grid" />)}
           <text x="12" y="42">{spec.temperature}</text><text x="18" y="149">23 °C</text><text x="40" y="169">0</text><text x="224" y="169">TIME · MIN</text><text x="460" y="169">{spec.thermalMinutes}</text>
-          <path d={thermalPath} className="thermal-setpoint" /><path d={actualPath} className={finalGate ? 'thermal-actual active' : 'thermal-actual'} />
+          <path d={thermalPath} className="thermal-setpoint" /><path d={actualPath} className={finalGate ? 'thermal-actual active' : runOps.furnaceConstraint ? 'thermal-actual fault' : 'thermal-actual'} />
           <line x1={rampEnd} x2={rampEnd} y1="28" y2="151" className="phase-mark" /><line x1={dwellEnd} x2={dwellEnd} y1="28" y2="151" className="phase-mark" /><text x="75" y="27">RAMP</text><text x={rampEnd + 15} y="27">DWELL · {spec.dwell}</text><text x={dwellEnd + 14} y="27">COOL</text>
           {finalGate && <g className="profile-cursor"><line x1="72" x2="72" y1="27" y2="151" /><circle cx="72" cy="131" r="4" /><text x="79" y="137">PROFILE STARTED</text></g>}
         </>}
       </svg>
       <aside>
-        <div className={profileRead ? 'pass' : 'hold'}><span>{queued ? auxiliary ? 'CHAMBER A' : 'OCCUPANCY' : 'OVERTEMP'}</span><b>{queued ? runOps.activeFurnaceRun : profileRead ? 'ARMED' : 'READ'}</b><small>{queued ? auxiliary ? 'independent TC active' : 'capacity 1 / 1' : profileRead ? 'relay feedback true' : 'proof required'}</small></div>
-        <div className={secondGate ? 'pass' : 'waiting'}><span>{queued ? auxiliary ? 'CHAMBER B' : 'QUEUE' : 'DOOR CHAIN'}</span><b>{queued ? auxiliary ? secondGate ? 'QUALIFIED' : 'VERIFY' : 'Q01' : secondGate ? 'CLOSED' : '—'}</b><small>{queued ? auxiliary ? 'empty cycle + survey' : identity.carrier : secondGate ? 'interlock proven' : 'awaiting sequence'}</small></div>
-        <div className={finalGate ? 'pass' : 'waiting'}><span>{queued ? 'RELEASE' : 'THERMAL DOSE'}</span><b>{queued ? `${runOps.queueMinutes} min` : spec.temperature}</b><small>{queued ? finalGate ? 'location proven' : 'carrier held' : `${spec.dwell} dwell · air`}</small></div>
+        <div className={profileRead ? 'pass' : 'hold'}><span>{queued ? auxiliary ? 'CHAMBER A' : 'OCCUPANCY' : runOps.furnaceCondition === 'thermocouple-drift' ? 'WITNESS TC' : runOps.furnaceCondition === 'door-seal' ? 'DOOR SURVEY' : 'OVERTEMP'}</span><b>{queued ? runOps.activeFurnaceRun : runOps.furnaceConstraint ? runOps.furnaceCondition === 'thermocouple-drift' ? '+11.8 °C' : '12.6 °C' : profileRead ? 'ARMED' : 'READ'}</b><small>{queued ? auxiliary ? 'independent TC active' : 'capacity 1 / 1' : profileRead ? runOps.furnaceResult : 'proof required'}</small></div>
+        <div className={secondGate && thirdGate ? 'pass' : secondGate ? 'review' : 'waiting'}><span>{queued ? auxiliary ? 'CHAMBER B' : 'QUEUE' : runOps.furnaceCondition === 'thermocouple-drift' ? 'TC / OVERTEMP' : runOps.furnaceCondition === 'door-seal' ? 'LATCH / CHAIN' : 'DOOR CHAIN'}</span><b>{queued ? auxiliary ? secondGate ? 'QUALIFIED' : 'VERIFY' : 'Q01' : thirdGate ? 'PROVEN' : secondGate ? 'VERIFY' : '—'}</b><small>{queued ? auxiliary ? 'empty cycle + survey' : identity.carrier : thirdGate ? 'independent proof retained' : secondGate ? 'secondary proof due' : 'awaiting sequence'}</small></div>
+        <div className={finalGate ? 'pass' : 'waiting'}><span>{queued ? 'RELEASE' : 'THERMAL DOSE'}</span><b>{queued ? `${runOps.queueMinutes} min` : spec.temperature}</b><small>{queued ? finalGate ? 'location proven' : 'carrier held' : finalGate ? `${spec.dwell} dwell · recovery retained` : `${runOps.furnaceRecoveryMinutes} min recovery`}</small></div>
       </aside>
     </div>
   </section>;
