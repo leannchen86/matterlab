@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { evaluateCampaignMission, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
-import type { CampaignMissionId } from './campaign-spec';
+import type { CampaignMissionId, CampaignSpec } from './campaign-spec';
 import { getCampaignStationId, getCampaignStationView } from './campaign-context';
 import type { Station } from './sim-data';
 
@@ -559,6 +559,27 @@ const XRD_PEAKS: Record<string, Array<[number, number]>> = {
   'R-31': [[23.1, .18], [33.0, 1], [40.7, .38], [47.5, .57], [59.1, .74], [69.3, .34]],
 };
 
+function getSamplePeaks(spec: CampaignSpec) {
+  const retained = XRD_PEAKS[spec.id];
+  if (retained) return retained;
+  if (!spec.composition) return XRD_PEAKS['C-42'];
+  const { caExcess, zrDopant, temperature, dwell } = spec.composition;
+  const latticeShift = -zrDopant * .043;
+  const mainPhase = XRD_PEAKS['R-31'].map(([center, height]) => [center + latticeShift, height] as [number, number]);
+  const impurityScale = Math.max(.04, Math.min(.28, (100 - Number(spec.measured)) / 18));
+  const secondary: Array<[number, number]> = [];
+  if (Math.abs(caExcess) >= 4) {
+    secondary.push([29.38 + latticeShift * .18, impurityScale * (.75 + Math.abs(caExcess) / 16)]);
+    secondary.push([36.16, impurityScale * .58]);
+  }
+  if (temperature <= 950 || dwell <= 3.5) {
+    secondary.push([27.43, impurityScale * (temperature <= 900 ? 1.05 : .65)]);
+    secondary.push([54.32, impurityScale * .42]);
+  }
+  if (zrDopant >= 2) secondary.push([74.08 + latticeShift, Math.min(.22, .06 + zrDopant * .02)]);
+  return [...mainPhase, ...secondary].sort((left, right) => left[0] - right[0]);
+}
+
 function diffractionPath(peaks: Array<[number, number]>, baseline: number, amplitude: number) {
   return Array.from({ length: 151 }, (_, index) => {
     const angle = 10 + index * (70 / 150);
@@ -580,7 +601,7 @@ function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed
       ? operations.includes('Acquire confirmatory Si reference')
       : operations.includes('Review current Si control'));
   const sampleCaptured = stage >= 7 || operations.includes(`Acquire ${identity.runId} pattern`);
-  const samplePeaks = XRD_PEAKS[spec.id] ?? XRD_PEAKS['C-42'];
+  const samplePeaks = getSamplePeaks(spec);
   const referenceStatus = runOps.referenceCondition === 'age-due' ? 'CONTROL REQUIRED' : runOps.referenceCondition === 'trend-review' ? 'TREND REVIEW' : 'CURRENT CONTROL';
   return <section className={`campaign-xrd-console${sampleCaptured ? ' result-ready' : ''}`}>
     <header><div><span>DIFFRACTION ACQUISITION</span><b>{identity.xrdDataset} · Cu Kα · 10–80° 2θ</b></div><em>{sampleCaptured ? 'PATTERN COMPLETE' : referenceCaptured ? runOps.referenceCondition === 'current' ? 'CONTROL REVIEWED' : 'REFERENCE PASS' : referenceStatus}</em></header>

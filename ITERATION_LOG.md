@@ -1738,6 +1738,27 @@ furnace HMI also asked to “qualify” a chamber whose IQ/OQ record had already
   Si control. The retained result was 96.7% at 424 minutes. Its immutable budget reconciled to 37 min
   handling, 16 min queue, 21 min recovery, 330 min thermal, 18 min XRD, and 2 min decision loss.
 
+## Critique 92: authored materials inherited a stock diffraction pattern
+
+The formulation composer let a scientist choose Ca excess, Zr substitution, calcination temperature,
+and dwell, but the eventual XRD console fell back to the same Ca-rich trace for every custom recipe.
+That broke the most important feedback loop: changing chemistry did not visibly change evidence.
+
+### Changes
+
+- Added procedural diffraction patterns for scientist-authored candidates. Zr substitution shifts the
+  perovskite reflections to lower 2θ, while Ca imbalance introduces secondary reflections scaled by the
+  simulated impurity fraction.
+- Added anatase-like minor reflections for low-temperature or short-dwell routes and a high-angle
+  dopant-sensitive reflection. The established campaign candidates keep their retained reference traces;
+  only user-authored recipes are derived from their recorded composition and process parameters.
+- Replayed the full U-2121 route from the scientist workbench through powder preparation, contamination
+  recovery, six-position robot dosing, qualified furnace-B readiness, the 1,000 °C / 3.5 h program, and
+  current-control XRD acquisition. Its console showed a distinct multi-peak pattern and retained 96.5%
+  target phase at a 402-minute release-to-result cycle.
+- Corrected one remaining lineage sentence that described a dual-chamber run as waiting for a
+  single-capacity furnace. The live lineage now names the assigned qualified lane and its readiness proof.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
