@@ -1559,6 +1559,26 @@ that is where a technician decides whether a queue, service action, or handoff i
   RUN-044 Z-17, and RUN-045 C-42 above the live RUN-040 occupancy / RUN-042 Q01 mimic, with 1,170 minutes
   correctly flagged as load pressure. The new strip remained visually subordinate to the equipment.
 
+## Critique 84: backlog pressure was visible but not actionable
+
+The new utilization cues showed exactly where the bottleneck was, yet the player could only drag plans
+manually or buy more capacity. A real dispatch decision can improve flow without changing chemistry,
+and the simulation should quantify that tradeoff rather than simply decorate the queue.
+
+### Changes
+
+- Added lane-aware thermal scheduling. The planner now simulates list scheduling across one or two
+  qualified chambers and reports mean completion time in addition to aggregate furnace and XRD load.
+- Added two governed resequencing actions: shortest thermal duration first and lowest setpoint first.
+  Both preserve each candidate, mission, and unreleased material state, reissue future run numbers,
+  retain a dispatch message, and consume four minutes of real planning time.
+- Kept the manual earlier/later controls for scientific priority overrides; automated dispatch remains
+  a transparent suggestion rather than an opaque optimizer.
+- Tested shortest-duration dispatch while RUN-042 was physically held behind RUN-040. Z-17 and C-42
+  moved ahead of the six-hour D-08 route, lowering mean furnace completion from 820 to 730 minutes while
+  total thermal demand remained 1,170 minutes. The lab clock advanced by four minutes and the active
+  carrier, mission, queue hold, and instrument state were unchanged.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

@@ -41,6 +41,17 @@ const initialRun: CampaignRun = {
 
 const storageKey = 'mattershift-campaign-v2';
 
+function meanThermalCompletion(items: CampaignBacklogItem[], lanes: number) {
+  if (!items.length) return 0;
+  const laneLoads = Array.from({ length: Math.max(1, lanes) }, () => 0);
+  const completions = items.map((item) => {
+    const laneIndex = laneLoads.indexOf(Math.min(...laneLoads));
+    laneLoads[laneIndex] += getCampaignSpec(item.candidate).thermalMinutes;
+    return laneLoads[laneIndex];
+  });
+  return Math.round(completions.reduce((total, completion) => total + completion, 0) / completions.length);
+}
+
 export function CampaignControlModal({ autoOpenInventory = false, onClose }: { autoOpenInventory?: boolean; onClose: () => void }) {
   const [commissionOpen, setCommissionOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(autoOpenInventory);
@@ -85,6 +96,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const backlogThermalMinutes = backlog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0);
   const backlogCapacityMinutes = run.thermalBayLevel >= 2 ? 720 : 360;
   const backlogPressure = backlog.length === 0 ? 'NO PLANS' : backlogThermalMinutes > backlogCapacityMinutes ? 'FURNACE CONGESTION' : 'CAPACITY BALANCED';
+  const backlogMeanCompletion = meanThermalCompletion(backlog, run.thermalBayLevel);
   const phaseFloor = run.missionId === 'low-energy' ? 94.5 : run.missionId === 'throughput' ? 95.5 : 96;
   const needsMicroscopy = Number(recipe.measured) < phaseFloor;
   const inventory = { ...initialInventory, ...run.inventory };
@@ -191,6 +203,24 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const removeFromBacklog = (index: number) => {
     const removed = backlog[index];
     updateRun({ backlog: reindexBacklog(backlog.filter((_, itemIndex) => itemIndex !== index)), message: `${removed.candidate} removed from the unreleased backlog; no materials or equipment time had been committed.` });
+  };
+
+  const sequenceBacklog = (policy: 'shortest' | 'energy') => {
+    if (backlog.length < 2) return;
+    const before = meanThermalCompletion(backlog, run.thermalBayLevel);
+    const sorted = [...backlog].sort((left, right) => {
+      const leftSpec = getCampaignSpec(left.candidate);
+      const rightSpec = getCampaignSpec(right.candidate);
+      if (policy === 'shortest') return leftSpec.thermalMinutes - rightSpec.thermalMinutes;
+      const leftTemperature = leftSpec.composition?.temperature ?? Number(leftSpec.temperature.replace(/[^\d]/g, ''));
+      const rightTemperature = rightSpec.composition?.temperature ?? Number(rightSpec.temperature.replace(/[^\d]/g, ''));
+      return leftTemperature - rightTemperature || leftSpec.thermalMinutes - rightSpec.thermalMinutes;
+    });
+    const next = reindexBacklog(sorted);
+    const after = meanThermalCompletion(next, run.thermalBayLevel);
+    updateRun({ backlog: next, elapsed: run.elapsed + 4, message: policy === 'shortest'
+      ? `Dispatch review retained: shortest thermal job first. Mean furnace completion changes from ${before} to ${after} minutes; scientific missions and material status are unchanged.`
+      : `Dispatch review retained: lowest setpoint first. The furnace sequence now reduces early-shift thermal severity; mean completion is ${after} minutes.` });
   };
 
   const commissionAuxiliaryChamber = () => {
@@ -304,7 +334,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
                 return <article key={`${item.runNumber}-${item.candidate}-${slot}`} className={`mission-${item.missionId}`}><span>RUN-{String(item.runNumber).padStart(3, '0')}</span><b>{item.candidate} · {itemMission.shortLabel}</b><small>{itemSpec.temperatureShort} · {itemSpec.thermalMinutes} min furnace</small><nav aria-label={`Reorder ${item.candidate}`}><button type="button" disabled={slot === 0} onClick={() => moveBacklog(slot, -1)} aria-label={`Move ${item.candidate} earlier`}>↑</button><button type="button" disabled={slot === backlog.length - 1} onClick={() => moveBacklog(slot, 1)} aria-label={`Move ${item.candidate} later`}>↓</button><button type="button" onClick={() => removeFromBacklog(slot)} aria-label={`Remove ${item.candidate} from backlog`}>×</button></nav></article>;
               })}
             </div>
-            <footer><span>THERMAL DEMAND <b>{backlogThermalMinutes} MIN</b></span><span>XRD LOAD <b>{backlog.length * 18} MIN</b></span><span>LANES <b>{run.thermalBayLevel} QUALIFIED</b></span><i className={backlogPressure === 'FURNACE CONGESTION' ? 'hot' : ''} /></footer>
+            <footer><span>THERMAL DEMAND <b>{backlogThermalMinutes} MIN</b></span><span>MEAN COMPLETE <b>{backlogMeanCompletion} MIN</b></span><span>XRD LOAD <b>{backlog.length * 18} MIN</b></span><span>LANES <b>{run.thermalBayLevel} QUALIFIED</b></span><button type="button" disabled={backlog.length < 2} onClick={() => sequenceBacklog('shortest')}>↓ SHORTEST</button><button type="button" disabled={backlog.length < 2} onClick={() => sequenceBacklog('energy')}>↓ SETPOINT</button><i className={backlogPressure === 'FURNACE CONGESTION' ? 'hot' : ''} /></footer>
           </div>
 
           <div className="campaign-timeline" aria-label="Equipment schedule">
