@@ -331,7 +331,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         <div className="header-actions">
           <button className="campaign-button" type="button" onClick={() => setModal('campaign')}>CAMPAIGN LAB</button>
           <button className="deck-button" type="button" onClick={() => setModal('deck')}>SHIFT DECK <span>5</span></button>
-          <button type="button" onClick={() => setModal('guide')}>FIELD GUIDE</button>
+          <button type="button" onClick={() => setModal('guide')}>SYSTEMS ATLAS</button>
           <button type="button" onClick={() => setLogOpen(true)}>EVENT LEDGER <span>{log.length}</span></button>
           <div className="operator-chip"><span>LC</span><b>TECH-07</b></div>
         </div>

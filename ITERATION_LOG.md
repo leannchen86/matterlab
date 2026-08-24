@@ -2346,6 +2346,40 @@ button opened the valid retained session. The duplicate-looking controls contrad
 - Browser QA entered FURN-04B from the inspector, opened its three asset points, completed the walkaround, exited
   to the shift console, and reopened the inspector path with `WALK ✓` outside and `WALK 3 / 3` inside the HMI.
 
+## Critique 125: the reference layer still sounded like recruiting collateral
+
+The in-world reference had already shed external job links, but `FIELD GUIDE`, `Conceptual training`, a
+`training current` method flag, and one `Your job is...` instruction kept pulling the experience back toward
+courseware and the job-description research that originally inspired it.
+
+### Changes
+
+- Recast the reference as the `LAB SYSTEMS ATLAS`: an operating map from physical asset through governed
+  evidence to the autonomous experiment loop, with no recruiting, role-comparison, or external-resource frame.
+- Replace player-facing `Conceptual training` labels with `Simulation boundary`, preserving concise warnings
+  about real site controls without treating the player as a trainee.
+- Replace the LES method flag with `operator clearance current` and remove the imperative `Your job is...`
+  wording from furnace recovery; operator roles, AI training sets, and model ingestion remain where they are
+  genuine properties of the simulated systems.
+- Audit the full player-facing application for `FIELD GUIDE`, job-description, career-resource, and conceptual-
+  training copy; no such framing remains.
+
+## Critique 126: the renamed atlas still looked like a glossary
+
+The new simulator-native title fixed the framing, but a desktop capture showed six dense text cells under the
+two system maps. They explained the laboratory well yet did not meet the equipment-first, low-text visual bar.
+
+### Changes
+
+- Give every system an instrument mimic: registered sample records for LIMS/LES, a control trend for MES/SCADA,
+  a goniometer and diffraction peaks for XRD, column plus spectrum for SEM/EDS, balance/furnace traces for
+  TGA/DSC, and immersed cells plus isotherm for BET.
+- Convert the long bench paragraphs into compact console legends while retaining one short scientific sentence.
+- Add subtle grid, live-state, trace, and subsystem accents so the cards read as miniature HMIs rather than
+  illustrated documentation; keep the layout responsive as one card per row on narrow screens.
+- Desktop browser QA caught and corrected a case-mismatched SEM discriminator that initially left its mimic
+  empty; the retest requires all six cards to expose visible equipment geometry plus a live-state marker.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

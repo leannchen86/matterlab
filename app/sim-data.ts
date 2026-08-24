@@ -88,32 +88,32 @@ export const fieldGuide = [
   {
     term: 'LIMS / LES',
     role: 'Sample identity, methods, results, and governed laboratory execution.',
-    atBench: 'You see work queues, barcodes, required fields, exceptions, and review status—not just a database.',
+    atBench: 'QUEUES · BARCODES · REQUIRED FIELDS · EXCEPTIONS · REVIEW STATE',
   },
   {
     term: 'MES / SCADA',
     role: 'Operations coordination and supervisory visibility across equipment and process controls.',
-    atBench: 'You see equipment states, interlocks, alarms, recipes, and material movement while local controllers still own hard real-time control.',
+    atBench: 'STATES · INTERLOCKS · ALARMS · RECIPES · MATERIAL MOVES',
   },
   {
     term: 'XRD',
     role: 'Crystal-phase evidence from intensity versus diffraction angle.',
-    atBench: 'Sample preparation, reference checks, peak-position drift, fit residuals, and retained native patterns matter as much as the reported phase percentage.',
+    atBench: 'PREP · SI REFERENCE · DRIFT · RESIDUALS · NATIVE PATTERN',
   },
   {
     term: 'SEM / EDS',
     role: 'Surface morphology plus spatially local elemental composition.',
-    atBench: 'Mounting, vacuum compatibility, charging, acquisition conditions, and whether a field of view represents the specimen all affect interpretation.',
+    atBench: 'MOUNT · VACUUM · CHARGING · FIELDS · ACQUISITION CONTEXT',
   },
   {
     term: 'TGA / DSC',
     role: 'Mass change and heat-flow response across time or temperature.',
-    atBench: 'Pan selection, purge state, baseline/reference checks, sample mass, and thermal history are part of the result.',
+    atBench: 'PAN · PURGE · BASELINE · MASS · THERMAL HISTORY',
   },
   {
     term: 'BET',
     role: 'Specific surface area inferred from a gas-adsorption isotherm.',
-    atBench: 'Degassing history, adsorbate, leak checks, equilibrium criteria, and the selected fit region belong with the reported number.',
+    atBench: 'DEGAS · ADSORBATE · LEAK · EQUILIBRIUM · FIT REGION',
   },
 ];
 
