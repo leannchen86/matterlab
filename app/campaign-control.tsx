@@ -6,6 +6,7 @@ import type { CampaignMissionId, CampaignOperations, CampaignSpec, CustomComposi
 
 type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; missionId?: CampaignMissionId; diagnosis?: string };
 type CampaignInventory = { crucibles: number; liners: number; carbonTabs: number };
+type CampaignBacklogItem = { runNumber: number; candidate: string; missionId: CampaignMissionId };
 
 const initialInventory: CampaignInventory = { crucibles: 7, liners: 2, carbonTabs: 1 };
 
@@ -21,6 +22,7 @@ type CampaignRun = {
   customCandidate?: string;
   inventory: CampaignInventory;
   history: CampaignResult[];
+  backlog: CampaignBacklogItem[];
 };
 
 const initialRun: CampaignRun = {
@@ -33,6 +35,7 @@ const initialRun: CampaignRun = {
   thermalBayLevel: 1,
   inventory: initialInventory,
   history: [],
+  backlog: [],
   message: 'Select a candidate and release one governed experiment into the lab.',
 };
 
@@ -69,6 +72,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const recipe = getCampaignSpec(run.selected);
   const currentRunNumber = Number(run.runNumber ?? 42);
   const history = Array.isArray(run.history) ? run.history : [];
+  const backlog = Array.isArray(run.backlog) ? run.backlog : [];
   const adaptiveUnlocked = history.length >= 2;
   const diagnosisUnlocked = history.some((result) => result.candidate === 'D-08' && Boolean(result.diagnosis));
   const customCandidate = run.customCandidate ? getCampaignSpec(run.customCandidate) : null;
@@ -78,6 +82,9 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const mission = getCampaignMission(run.missionId);
   const evaluation = evaluateCampaignMission(recipe, run.missionId);
   const selectedForecast = forecastCampaignMission(recipe, run.missionId);
+  const backlogThermalMinutes = backlog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0);
+  const backlogCapacityMinutes = run.thermalBayLevel >= 2 ? 720 : 360;
+  const backlogPressure = backlog.length === 0 ? 'NO PLANS' : backlogThermalMinutes > backlogCapacityMinutes ? 'FURNACE CONGESTION' : 'CAPACITY BALANCED';
   const phaseFloor = run.missionId === 'low-energy' ? 94.5 : run.missionId === 'throughput' ? 95.5 : 96;
   const needsMicroscopy = Number(recipe.measured) < phaseFloor;
   const inventory = { ...initialInventory, ...run.inventory };
@@ -122,10 +129,14 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
         ? history
         : [...history, { runNumber: currentRunNumber, candidate: recipe.id, measured: recipe.measured, gap: evaluation.gap, objectiveMet: evaluation.met, elapsed: run.elapsed, missionId: run.missionId }];
       const mechanismRecovery = run.stage >= 9 && recipe.id === 'D-08' && archivedHistory.some((result) => result.runNumber === currentRunNumber && Boolean(result.diagnosis));
-      const nextSelected = mechanismRecovery ? 'R-31' : run.selected;
-      updateRun({ ...initialRun, insight: run.insight, missionId: run.missionId, thermalBayLevel: run.thermalBayLevel, customCandidate: run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, message: mechanismRecovery
+      const nextPlan = !mechanismRecovery ? backlog[0] : undefined;
+      const nextSelected = mechanismRecovery ? 'R-31' : nextPlan?.candidate ?? run.selected;
+      const nextMission = nextPlan?.missionId ?? run.missionId;
+      const remainingBacklog = (nextPlan ? backlog.slice(1) : backlog).map((item, index) => ({ ...item, runNumber: currentRunNumber + index + 2 }));
+      updateRun({ ...initialRun, insight: run.insight, missionId: nextMission, thermalBayLevel: run.thermalBayLevel, customCandidate: run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, backlog: remainingBacklog, message: mechanismRecovery
         ? `${identity.runId} diagnosis assimilated. R-31 raises thermal dose while preserving stoichiometry to test the incomplete-conversion hypothesis.`
-        : `${identity.runId} archived. Select the next candidate.` });
+        : nextPlan ? `${identity.runId} archived. RUN-${String(currentRunNumber + 1).padStart(3, '0')} loaded from the shift backlog: ${nextPlan.candidate} · ${getCampaignMission(nextPlan.missionId).shortLabel}.`
+          : `${identity.runId} archived. Select the next candidate.` });
     }
   };
 
@@ -159,6 +170,27 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const retainCustomCandidate = (candidate: CampaignSpec) => {
     updateRun({ selected: candidate.id, customCandidate: candidate.id, message: `${candidate.id} authored and retained in the candidate tray. Review its predicted envelope before release.` });
     setComposerOpen(false);
+  };
+
+  const reindexBacklog = (items: CampaignBacklogItem[]) => items.map((item, index) => ({ ...item, runNumber: currentRunNumber + index + 1 }));
+
+  const addToBacklog = () => {
+    if (run.stage > 0 || backlog.length >= 3) return;
+    const next = reindexBacklog([...backlog, { runNumber: 0, candidate: recipe.id, missionId: run.missionId }]);
+    updateRun({ backlog: next, message: `${recipe.id} added to the unreleased shift backlog under the ${mission.label.toLowerCase()} mission. Materials remain unissued until that run is released.` });
+  };
+
+  const moveBacklog = (index: number, direction: -1 | 1) => {
+    const destination = index + direction;
+    if (destination < 0 || destination >= backlog.length) return;
+    const next = [...backlog];
+    [next[index], next[destination]] = [next[destination], next[index]];
+    updateRun({ backlog: reindexBacklog(next), message: `Shift backlog reprioritized. RUN-${String(currentRunNumber + 1).padStart(3, '0')} remains the next unreleased experiment.` });
+  };
+
+  const removeFromBacklog = (index: number) => {
+    const removed = backlog[index];
+    updateRun({ backlog: reindexBacklog(backlog.filter((_, itemIndex) => itemIndex !== index)), message: `${removed.candidate} removed from the unreleased backlog; no materials or equipment time had been committed.` });
   };
 
   const commissionAuxiliaryChamber = () => {
@@ -200,7 +232,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
 
       <div className="campaign-workspace">
         <aside className="campaign-designer">
-          <div className="campaign-panel-head"><div><span>EXPERIMENT DESIGN</span><b>{diagnosisUnlocked ? 'MECHANISM CANDIDATES' : adaptiveUnlocked ? 'ADAPTIVE CANDIDATES' : 'AI CANDIDATES'}</b></div><div className="campaign-panel-tools"><button type="button" disabled={run.stage > 0} onClick={() => setComposerOpen(true)}>＋ COMPOSE</button><em>{String(availableRecipes.length).padStart(2, '0')}</em></div></div>
+          <div className="campaign-panel-head"><div><span>EXPERIMENT DESIGN</span><b>{diagnosisUnlocked ? 'MECHANISM CANDIDATES' : adaptiveUnlocked ? 'ADAPTIVE CANDIDATES' : 'AI CANDIDATES'}</b></div><div className="campaign-panel-tools"><button type="button" disabled={run.stage > 0} onClick={() => setComposerOpen(true)}>＋ COMPOSE</button><button type="button" disabled={run.stage > 0 || backlog.length >= 3} onClick={addToBacklog}>＋ QUEUE</button><em>{String(availableRecipes.length).padStart(2, '0')}</em></div></div>
           <div className="campaign-design-space" aria-label="Composition and temperature design space">
             <svg viewBox="0 0 320 180" role="img" aria-label={`${recipe.id} selected in the materials design space`}>
               <defs><radialGradient id="campaignHalo"><stop offset="0" stopColor="#4dd5ed" stopOpacity=".24" /><stop offset="1" stopColor="#4dd5ed" stopOpacity="0" /></radialGradient></defs>
@@ -259,6 +291,20 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
               <em>{conditionMetric}</em>
             </div>
             <p>{run.message}</p>
+          </div>
+
+          <div className={`shift-backlog ${backlog.length ? 'populated' : ''}`}>
+            <header><div><span>SHIFT BACKLOG</span><b>UNRELEASED EXPERIMENTS</b></div><em>{backlog.length} / 3 PLANNED · {backlogPressure}</em></header>
+            <div className="backlog-slots">
+              {[0, 1, 2].map((slot) => {
+                const item = backlog[slot];
+                if (!item) return <article className="empty" key={slot}><span>PLAN {slot + 1}</span><b>OPEN SLOT</b><small>select candidate · ＋ queue</small></article>;
+                const itemSpec = getCampaignSpec(item.candidate);
+                const itemMission = getCampaignMission(item.missionId);
+                return <article key={`${item.runNumber}-${item.candidate}-${slot}`} className={`mission-${item.missionId}`}><span>RUN-{String(item.runNumber).padStart(3, '0')}</span><b>{item.candidate} · {itemMission.shortLabel}</b><small>{itemSpec.temperatureShort} · {itemSpec.thermalMinutes} min furnace</small><nav aria-label={`Reorder ${item.candidate}`}><button type="button" disabled={slot === 0} onClick={() => moveBacklog(slot, -1)} aria-label={`Move ${item.candidate} earlier`}>↑</button><button type="button" disabled={slot === backlog.length - 1} onClick={() => moveBacklog(slot, 1)} aria-label={`Move ${item.candidate} later`}>↓</button><button type="button" onClick={() => removeFromBacklog(slot)} aria-label={`Remove ${item.candidate} from backlog`}>×</button></nav></article>;
+              })}
+            </div>
+            <footer><span>THERMAL DEMAND <b>{backlogThermalMinutes} MIN</b></span><span>XRD LOAD <b>{backlog.length * 18} MIN</b></span><span>LANES <b>{run.thermalBayLevel} QUALIFIED</b></span><i className={backlogPressure === 'FURNACE CONGESTION' ? 'hot' : ''} /></footer>
           </div>
 
           <div className="campaign-timeline" aria-label="Equipment schedule">

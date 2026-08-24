@@ -1500,6 +1500,28 @@ elsewhere to judge whether a proposal was a credible mission fit.
   risks under the low-energy mission, while D-08 became a model-edge option because its 900 °C route
   passes the hard energy constraint but its confidence interval crosses the phase floor.
 
+## Critique 81: the campaign still operated one run at a time
+
+The route board made one experiment feel operationally credible, but a real scientist or technician
+works against a shift backlog. Furnace demand, characterization load, and mission priorities only
+become strategic when several experiments are competing for the same equipment.
+
+### Changes
+
+- Added three persistent unreleased planning slots. Any candidate—including a scientist-authored one—
+  can be queued with its current scientific mission without consuming material or claiming equipment.
+- Added live backlog capacity telemetry for aggregate thermal minutes, XRD minutes, qualified furnace
+  lanes, and a visible congestion signal. This turns the optional second furnace chamber into a
+  planning decision as well as an isolated wait-time upgrade.
+- Added compact earlier/later/remove controls and automatic run-number reconciliation. Reprioritizing
+  a plan preserves candidate and mission identity while making the next experiment explicit.
+- Connected archive to backlog promotion: the next planned candidate and its original mission load
+  automatically into the following governed run; remaining plans advance without breaking run IDs.
+  Mechanism-recovery runs still take priority and shift the unreleased backlog safely.
+- Exercised a mixed three-run shift in production preview—D-08 energy, C-42 purity, and Z-17 rate—then
+  reordered Z-17 ahead of C-42. The board retained the correct missions, recomputed RUN-043 through
+  RUN-045, and exposed 1,170 minutes of thermal demand against one qualified lane as furnace congestion.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
