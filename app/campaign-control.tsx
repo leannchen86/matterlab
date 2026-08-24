@@ -127,6 +127,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const cycleWithinTarget = retainedElapsed <= 420;
   const followUp = getAuthoredCampaignFollowUp(recipe, run.missionId, retainedResult?.diagnosis);
   const followUpQueued = Boolean(followUp && backlog.some((item) => item.candidate === followUp.id));
+  const confirmationQueued = backlog.some((item) => item.candidate === recipe.id);
   const modelResidual = Number.parseFloat(recipe.measured) - Number.parseFloat(recipe.prediction);
   const followUpLever = !followUp?.composition || !recipe.composition ? 'MISSION-DIRECTED STEP'
     : followUp.composition.dwell < recipe.composition.dwell ? 'SHORTER DWELL'
@@ -145,6 +146,23 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const needsMicroscopy = Number(recipe.measured) < phaseFloor;
   const resultDecision = run.resultDecision ?? (followUpQueued ? 'synthesize' : undefined);
   const evidenceDecisionOpen = run.stage === 7 && !evaluation.met && needsMicroscopy && Boolean(recipe.composition && followUp) && !resultDecision;
+  const sourceResult = [...history].reverse().find((result) => result.runNumber < currentRunNumber);
+  const sourceSpec = sourceResult ? getCampaignSpec(sourceResult.candidate) : null;
+  const experimentFactors = sourceSpec?.composition && recipe.composition && sourceSpec.id !== recipe.id ? [
+    { label: 'CA EXCESS', before: `${sourceSpec.composition.caExcess > 0 ? '+' : ''}${sourceSpec.composition.caExcess}%`, after: `${recipe.composition.caExcess > 0 ? '+' : ''}${recipe.composition.caExcess}%`, changed: sourceSpec.composition.caExcess !== recipe.composition.caExcess },
+    { label: 'ZR', before: `${sourceSpec.composition.zrDopant}%`, after: `${recipe.composition.zrDopant}%`, changed: sourceSpec.composition.zrDopant !== recipe.composition.zrDopant },
+    { label: 'SETPOINT', before: `${sourceSpec.composition.temperature}°`, after: `${recipe.composition.temperature}°`, changed: sourceSpec.composition.temperature !== recipe.composition.temperature },
+    { label: 'DWELL', before: `${sourceSpec.composition.dwell}h`, after: `${recipe.composition.dwell}h`, changed: sourceSpec.composition.dwell !== recipe.composition.dwell },
+  ] : null;
+  const changedFactors = experimentFactors?.filter((factor) => factor.changed) ?? [];
+  const heldFactors = experimentFactors?.filter((factor) => !factor.changed) ?? [];
+  const experimentExpectation = !sourceSpec?.composition || !recipe.composition ? 'MISSION RESPONSE ↑'
+    : sourceResult?.diagnosis?.includes('Ca-rich') && recipe.composition.caExcess < sourceSpec.composition.caExcess ? 'SECONDARY PHASE ↓'
+      : sourceResult?.diagnosis?.includes('Ti-rich') && recipe.composition.dwell > sourceSpec.composition.dwell ? 'CORE CONVERSION ↑'
+        : recipe.composition.zrDopant > sourceSpec.composition.zrDopant ? 'TARGET PHASE ↑'
+          : recipe.composition.dwell < sourceSpec.composition.dwell ? 'CYCLE ↓ · PHASE HELD'
+            : recipe.composition.temperature < sourceSpec.composition.temperature ? 'THERMAL DOSE ↓' : 'MISSION RESPONSE ↑';
+  const phaseResponse = sourceResult ? Number.parseFloat(recipe.measured) - Number.parseFloat(sourceResult.measured) : 0;
   const inventory = { ...initialInventory, ...run.inventory };
   const inventoryLow = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
   const fault = run.stage === 2 && operations.robotConstraint ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 5 && operations.furnaceConstraint ? 'thermal' : run.stage === 6 && operations.referenceConstraint ? 'qc' : null;
@@ -251,6 +269,12 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
     if (!followUp || followUpQueued || backlog.length >= 3 || run.stage < 7) return;
     const next = reindexBacklog([...backlog, { runNumber: 0, candidate: followUp.id, missionId: run.missionId }]);
     updateRun({ backlog: next, resultDecision: 'synthesize', message: `${followUp.id} queued as a governed follow-up to ${recipe.id}. The completed ${identity.runId} result remains retained; the next run changes only the mission-directed process lever.` });
+  };
+
+  const queueConfirmation = () => {
+    if (confirmationQueued || backlog.length >= 3 || run.stage < 7 || !evaluation.met) return;
+    const next = reindexBacklog([...backlog, { runNumber: 0, candidate: recipe.id, missionId: run.missionId }]);
+    updateRun({ backlog: next, message: `${recipe.id} queued as a confirmation replicate. ${identity.runId} remains the first qualified observation; the repeat holds formulation, process, and mission constant before the candidate is treated as robust.` });
   };
 
   const moveBacklog = (index: number, direction: -1 | 1) => {
@@ -376,6 +400,13 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
 
         <section className="campaign-routing">
           <div className="campaign-panel-head"><div><span>LIVE MATERIAL ROUTE</span><b>{identity.runId} · {recipe.id}</b></div><em>{run.stage >= 8 ? '09 / 09' : `${String(Math.min(run.stage + 1, 8)).padStart(2, '0')} / 08`}</em></div>
+          {experimentFactors && changedFactors.length > 0 && <div className={`experiment-contract ${run.stage >= 7 ? phaseResponse >= 0 ? 'response-up' : 'response-down' : ''}`}>
+            <div className="contract-source"><span>CONTROLLED EXPERIMENT</span><b>{sourceSpec.id} → {recipe.id}</b><small>{sourceResult?.diagnosis ? 'SEM / EDS EVIDENCE' : 'MODEL RESIDUAL'}</small></div>
+            <div className="contract-change"><span>CHANGE ONE LEVER</span>{changedFactors.map((factor) => <b key={factor.label}>{factor.label}<i>{factor.before}</i><u>→</u><em>{factor.after}</em></b>)}</div>
+            <div className="contract-held"><span>HOLD CONSTANT</span><b>{heldFactors.map((factor) => factor.label).join(' · ')}</b><small>{heldFactors.map((factor) => factor.after).join(' · ')}</small></div>
+            <div className="contract-readout"><span>EXPECTED READOUT</span><b>{experimentExpectation}</b><small>XRD primary · microscopy optional</small></div>
+            <em>{run.stage >= 7 ? `${phaseResponse >= 0 ? '+' : '−'}${Math.abs(phaseResponse).toFixed(1)} pp PHASE RESPONSE` : 'RESULT PENDING'}</em>
+          </div>}
           <div className="route-board">
             <RouteCell code="PREP-01" label="PREP" cycle="12 MIN" state={routeState(run.stage, 1, 2)} current={run.stage === 1} job={run.stage >= 1 ? identity.runId : 'OPEN'} />
             <RouteCell code="ROBO-02" label="SYNTHESIZE" cycle="14 MIN" state={run.stage === 2 ? operations.robotConstraint ? 'fault' : 'active' : routeState(run.stage, 3, 4)} current={run.stage === 2 || run.stage === 3} job={run.stage === 2 ? operations.robotCondition === 'contamination' ? 'CONTAM HOLD' : operations.robotCondition === 'grip-force' ? 'FORCE CHECK' : 'READY CHECK' : run.stage >= 3 ? identity.runId : 'WAIT'} />
@@ -433,6 +464,13 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
             <header><div><span>{retainedResult?.diagnosis ? 'EVIDENCE UPDATE · SEM / EDS INFORMED' : 'MODEL UPDATE · AUTHORED MATERIAL'}</span><b>{recipe.id} → {followUp.id}</b></div><em>{modelResidual >= 0 ? '+' : '−'}{Math.abs(modelResidual).toFixed(1)} pp RESIDUAL</em></header>
             <div className="learning-posterior"><span>PRIOR<b>{recipe.prediction}</b></span><i><u style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.prediction) - 90) * 10))}%` }} /><u className="measured" style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.measured) - 90) * 10))}%` }} /></i><span>MEASURED<b>{recipe.measured}%</b></span><span>CURRENT POINT<b>±2.1 → ±1.4%</b></span></div>
             <div className="learning-proposal"><div><span>NEXT MISSION LEVER</span><b>{followUpLever}</b></div><dl><div><dt>RECIPE</dt><dd>{followUp.id}</dd></div><div><dt>PROGRAM</dt><dd>{followUp.temperatureShort} · {followUp.dwell}</dd></div><div><dt>MODEL</dt><dd>{followUp.prediction} · {followUp.uncertainty}</dd></div></dl><button type="button" disabled>✓ CANDIDATE GENERATED</button></div>
+          </div>}
+
+          {run.stage >= 7 && recipe.composition && !followUp && evaluation.met && <div className="confirmation-gate">
+            <header><div><span>REPRODUCIBILITY GATE</span><b>MISSION CANDIDATE · ONE QUALIFIED RESULT</b></div><em>n = 1</em></header>
+            <div className="replicate-track"><article className="qualified"><i>1</i><span>{identity.runId}</span><b>{recipe.measured}%</b><small>{retainedElapsed} MIN · PASS</small></article><u>→</u><article className={confirmationQueued ? 'queued' : ''}><i>2</i><span>CONFIRMATION</span><b>{confirmationQueued ? `RUN-${String(currentRunNumber + 1).padStart(3, '0')}` : 'UNPLANNED'}</b><small>SAME RECIPE · SAME PROGRAM</small></article></div>
+            <dl><div><dt>RECIPE</dt><dd>{recipe.id}</dd></div><div><dt>PHASE FLOOR</dt><dd>{phaseFloor.toFixed(1)}%</dd></div><div><dt>OBSERVED</dt><dd>{recipe.measured}%</dd></div><div><dt>CONTROL</dt><dd>NO LEVER CHANGE</dd></div></dl>
+            <button type="button" disabled={confirmationQueued || backlog.length >= 3} onClick={queueConfirmation}>{confirmationQueued ? '✓ CONFIRMATION QUEUED' : 'QUEUE CONFIRMATION →'}</button>
           </div>}
 
           <div className={`shift-backlog ${backlog.length ? 'populated' : ''}`}>

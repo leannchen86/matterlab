@@ -1865,6 +1865,43 @@ mechanism evidence had no effect on the experiment policy.
 - Verified that the diagnosis consumes the carbon tab, adds the 26-minute microscopy cycle, retains
   `Ca-rich secondary grains` as a hypothesis rather than proof, and unlocks a governed next experiment.
 
+## Critique 98: the next recipe lost its experimental rationale at release
+
+After a model or evidence-informed follow-up became the active run, campaign control showed the new
+formulation but no longer made the comparison to its parent explicit. A technician could execute it, yet
+the scientist could not quickly verify that only the intended factor changed.
+
+### Changes
+
+- Added a controlled-experiment contract directly above the live equipment route for linked custom runs.
+  It retains the parent and current recipe IDs, distinguishes model residual from SEM / EDS evidence, and
+  exposes the changed factor before release.
+- Display the unchanged formulation and process factors as held constants. The U-2120 → U-2220 replay,
+  for example, shows Zr 2% → 4% while Ca excess, 1,000 °C setpoint, and 2.5-hour dwell remain fixed.
+- Added an expected readout tied to the selected lever and a result-state phase response after XRD. The
+  contract survives every station handoff rather than living only in the model panel.
+- Replayed RUN-046 from release through PREP-01, a ROBO-02 force-witness recovery, six-position dosing,
+  FURN-04B assignment, an independent-thermocouple offset recovery, the governed thermal profile, and a
+  current-control XRD acquisition. U-2220 passed at 95.5% in 354 minutes and retained a +0.2 percentage-
+  point response against U-2120.
+
+## Critique 99: one successful run was treated as a finished optimization
+
+At the minimum dwell, the mission-aware policy had no shorter thermal step left. It responded to a rate
+pass by extending dwell, sacrificing throughput without a stated scientific objective. More importantly,
+one boundary result at exactly 95.5% is not a robust qualification.
+
+### Changes
+
+- Stop proposing a process change when a throughput candidate meets the phase floor at the minimum dwell.
+  The recipe policy now returns a confirmation requirement rather than inventing a worse optimization.
+- Added a visual reproducibility gate with replicate one qualified and replicate two unplanned. It shows
+  the exact recipe, phase floor, observed value, and `NO LEVER CHANGE` control condition.
+- Let the scientist queue a governed confirmation replicate into the normal unreleased backlog. The repeat
+  keeps formulation, program, and mission constant and produces an audit-ledger campaign decision.
+- Browser QA queued U-2220 as RUN-047 after the 95.5% / 354-minute pass. The campaign retains RUN-046 as
+  `n = 1`, shows the second slot as planned, and does not claim robustness before the repeat exists.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

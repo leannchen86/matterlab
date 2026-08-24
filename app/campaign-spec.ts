@@ -188,7 +188,8 @@ export function getAuthoredCampaignFollowUp(spec: CampaignSpec, missionId: Campa
     composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
   } else if (missionId === 'throughput') {
     if (measured >= 95.5 && composition.dwell > customCompositionOptions.dwell[0]) composition.dwell = step(customCompositionOptions.dwell, composition.dwell, -1);
-    else if (measured < 95.5 && composition.zrDopant < customCompositionOptions.zrDopant.at(-1)!) composition.zrDopant = step(customCompositionOptions.zrDopant, composition.zrDopant, 1);
+    else if (measured >= 95.5) return null;
+    else if (composition.zrDopant < customCompositionOptions.zrDopant.at(-1)!) composition.zrDopant = step(customCompositionOptions.zrDopant, composition.zrDopant, 1);
     else composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
   } else if (missionId === 'low-energy') {
     if (measured >= 94.5) composition.temperature = step(customCompositionOptions.temperature, composition.temperature, -1);
