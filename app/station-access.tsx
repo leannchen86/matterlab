@@ -315,9 +315,19 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
     setEnteredChecks([]);
     window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:return-to-lab', { detail: { stationId: station.id } })));
   };
+  const openStationAccess = () => {
+    if (campaignActive && physicalChecks.length < 3) {
+      window.dispatchEvent(new CustomEvent('mattershift:return-to-lab', { detail: { stationId: station.id } }));
+      return;
+    }
+    const retainWalkaround = campaignActive && physicalChecks.length === 3;
+    setEnteredFromLab(retainWalkaround);
+    setEnteredChecks(retainWalkaround ? physicalChecks : []);
+    setOpen(true);
+  };
 
   return <>
-    <button className="station-access-button" type="button" onClick={() => { setEnteredFromLab(false); setEnteredChecks([]); setOpen(true); }}><span>⌁</span><b>OPEN LOCAL CONSOLE</b><i>{campaignActive ? 'ENTER THROUGH 3D WALK · ' : physicalChecks.length === 3 ? 'WALK ✓ · ' : `WALK ${physicalChecks.length}/3 · `}HMI · LES · LIMS · CMMS</i><em>→</em></button>
+    <button className="station-access-button" type="button" onClick={openStationAccess}><span>⌁</span><b>{campaignActive && physicalChecks.length < 3 ? 'ENTER 3D WALKAROUND' : 'OPEN LOCAL CONSOLE'}</b><i>{physicalChecks.length === 3 ? 'WALK ✓ · ' : `WALK ${physicalChecks.length}/3 · `}HMI · LES · LIMS · CMMS</i><em>→</em></button>
     {open && <div className="modal-backdrop station-console-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) closeConsole(); }}>
       <section className="modal-card wide station-console" role="dialog" aria-modal="true" aria-label={`${consoleStation.name} local station console`}>
         <header><div><p className="section-kicker">LOCAL STATION ACCESS · {profile.controller}</p><h2>{station.id} / {consoleStation.name}</h2></div><div className="console-header-actions">{enteredFromLab && <button type="button" className="return-asset" onClick={returnToAsset}>← RETURN TO ASSET</button>}<button type="button" onClick={closeConsole} aria-label="Close">×</button></div></header>

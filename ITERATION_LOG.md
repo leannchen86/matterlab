@@ -2329,6 +2329,23 @@ normal local control whenever those stations were inspected outside their assign
 - Tie beam-blank proof to the upper SEM column collar with restrained green feedback, and browser-verify the
   initial 0 / 4 hold plus the independent 1 / 4 transition in both SCADA and the 3D asset.
 
+## Critique 124: the inspector opened a second walkaround-less console
+
+During an active campaign stage, a scientist could complete all three checks in the 3D asset and then use the
+right-side `OPEN LOCAL CONSOLE` button. That path opened a fresh context with `WALK 0 / 3`, while the in-scene
+button opened the valid retained session. The duplicate-looking controls contradicted each other.
+
+### Changes
+
+- Make an incomplete active campaign station's inspector action say `ENTER 3D WALKAROUND` and route into the
+  human-scale aisle instead of opening a knowingly blocked modal.
+- Once the campaign inspection is 3 / 3, change the same control to `OPEN LOCAL CONSOLE` and attach the retained
+  checks exactly as the in-scene handoff does.
+- Correct the parent lookup to use the run/candidate/stage-specific inspection key already used by the 3D twin;
+  the inspector previously read only a plain station ID and therefore could never see campaign checks.
+- Browser QA entered FURN-04B from the inspector, opened its three asset points, completed the walkaround, exited
+  to the shift console, and reopened the inspector path with `WALK ✓` outside and `WALK 3 / 3` inside the HMI.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
