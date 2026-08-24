@@ -2186,6 +2186,43 @@ what establishes the operator access boundary.
 - Browser QA proved the two states independently: both began on HOLD, enclosure closure moved only its
   permissive to TRUE and physically closed the door, while shutter feedback correctly remained amber / HOLD.
 
+## Critique 116: the robot safety cell was only four yellow posts
+
+ROBO-02 had a strong articulated arm and dosing fixture, but its safeguard was represented by sparse rails.
+At human scale it did not look like a cell that could actually prevent entry or produce a credible gate-chain
+failure.
+
+### Changes
+
+- Added subdivided wire-mesh panels to the rear, both sides, and split front of the cell while retaining enough
+  transparency to inspect the arm and six-position carrier.
+- Added a physical sliding gate that starts open and closes when the safeguarded-stop reset is proved.
+- Added a gate interlock module, state lamp, center light-curtain pair, and floor toe rail tied to the same
+  reset feedback used by the robot HMI and existing cell state.
+- Preserve lower panel opacity in focused inspection mode so the safeguard reads as real hardware without
+  obscuring gripper, HMI, and gate hotspots.
+- Browser QA inspected the open gate from the standard focus camera and the closed guard at human scale,
+  confirming the square welded mesh remains readable without hiding the arm or carrier positions.
+
+## Critique 117: resetting the PLC moved the physical gate
+
+The first guard iteration drove its sliding gate from `Reset safeguarded stop`. In a real robot cell, closing
+and latching the access gate establishes one input to the safety chain; the reset is a separate deliberate
+action and must not actuate the barrier by implication.
+
+### Changes
+
+- Added `Close access gate` as a distinct operation before reset in the generic robot sequence and before
+  autonomous dosing in campaign sequences.
+- Reordered contamination and jaw-force recovery so cleaning, inspection, and witness work occurs with access
+  available; only then does the operator close the gate and verify the safeguarded stop.
+- Drive the physical gate and interlock lamp from gate closure, while the light curtain and cage status remain
+  driven by the independent reset / scanner proof.
+- Make all three robot SCADA permissives stateful: gate chain, scanner, and gripper pressure now begin on HOLD
+  and clear only from their corresponding retained actions.
+- Browser QA proved the states independently: `Close access gate` closed the panel and cleared only gate chain;
+  the subsequent reset cleared scanner state and changed the light curtain while gripper pressure stayed held.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

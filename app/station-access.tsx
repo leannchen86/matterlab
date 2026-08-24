@@ -41,7 +41,7 @@ const profiles: Record<string, {
 
 const HMI_OPERATIONS: Record<string, string[]> = {
   'PREP-01': ['Prove enclosure flow', 'Zero analytical balance', 'Confirm antistatic state'],
-  'ROBO-02': ['Reset safeguarded stop', 'Home transfer axes', 'Prove gripper state'],
+  'ROBO-02': ['Close access gate', 'Reset safeguarded stop', 'Home transfer axes', 'Prove gripper state'],
   'FURN-04': ['Read overtemperature relay', 'Verify door chain', 'Confirm empty-cell state'],
   'XRD-03': ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Read reference position'],
   'SEM-01': ['Establish chamber vacuum', 'Verify stage clearance', 'Arm BSE / EDS detectors'],
@@ -61,11 +61,11 @@ function getCampaignHmiOperations(stationId: string, stage: number, selected: st
   const runOps = getCampaignOperations(runNumber, thermalBayLevel);
   if (!stage) return null;
   if (stationId === 'ROBO-02' && stage === 2) return runOps.robotCondition === 'contamination'
-    ? ['Verify safeguarded stop', 'Clean gripper tooling', 'Acquire witness coupon']
+    ? ['Clean gripper tooling', 'Acquire witness coupon', 'Close access gate', 'Verify safeguarded stop']
     : runOps.robotCondition === 'grip-force'
-      ? ['Verify safeguarded stop', 'Inspect jaw pads', 'Acquire force witness']
-      : ['Verify safeguarded stop', 'Confirm clean tool ID', 'Prove carrier handshake'];
-  if (stationId === 'ROBO-02') return [`Scan ${identity.carrier} carrier`, 'Verify six dose positions', 'Execute crucible dosing'];
+      ? ['Inspect jaw pads', 'Acquire force witness', 'Close access gate', 'Verify safeguarded stop']
+      : ['Confirm clean tool ID', 'Close access gate', 'Verify safeguarded stop', 'Prove carrier handshake'];
+  if (stationId === 'ROBO-02') return [`Scan ${identity.carrier} carrier`, 'Verify six dose positions', 'Close access gate', 'Execute crucible dosing'];
   if (stationId === 'FURN-04' && stage === 4) return thermalBayLevel >= 2
     ? ['Read chamber A profile state', 'Confirm chamber B readiness', `Route ${identity.carrier} to chamber B`]
     : ['Read active profile state', 'Verify queue position', `Confirm ${identity.carrier} hold location`];
@@ -351,6 +351,11 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
   const semFieldsReady = operations.includes('Acquire four BSE fields');
   const semEdsReady = operations.includes('Acquire representative EDS map');
   const safeState = (item: string) => {
+    if (station.id === 'ROBO-02') {
+      if (item === 'gate chain closed') return operations.includes('Close access gate');
+      if (item === 'area scanner clear') return operations.includes('Reset safeguarded stop') || operations.includes('Verify safeguarded stop');
+      if (item === 'gripper pressure valid') return operations.some((operation) => ['Prove gripper state', 'Acquire witness coupon', 'Acquire force witness', 'Prove carrier handshake', 'Execute crucible dosing'].includes(operation));
+    }
     if (station.id === 'XRD-03') {
       if (item === 'enclosure closed') return operations.includes('Close radiation enclosure');
       if (item === 'shutter feedback closed') return operations.includes('Prove shutter feedback');

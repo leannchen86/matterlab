@@ -880,12 +880,13 @@ function PowderPrep({ controls }: { controls: string[] }) {
 
 function RobotCell({ active, focused, controls, campaignStage, campaignRunNumber }: { active: boolean; focused: boolean; controls: string[]; campaignStage: number; campaignRunNumber: number }) {
   const campaignOperations = getCampaignOperations(campaignRunNumber);
+  const gateClosed = controls.includes('Close access gate');
   const safeguardReset = controls.includes('Reset safeguarded stop') || controls.includes('Verify safeguarded stop');
   const axesHomed = controls.includes('Home transfer axes') || controls.some((operation) => ['Clean gripper tooling', 'Inspect jaw pads', 'Confirm clean tool ID'].includes(operation));
   const gripperProven = campaignStage >= 3 || controls.includes('Prove gripper state') || controls.some((operation) => ['Acquire witness coupon', 'Acquire force witness', 'Prove carrier handshake'].includes(operation));
   const robotMode = campaignStage === 2 ? campaignOperations.robotConstraint ? 'recovery' : 'transfer' : campaignStage === 3 ? 'dose' : active ? 'transfer' : 'idle';
   return <group position={[0, 0.18, 0]}>
-    <SafetyCage focused={focused} reset={safeguardReset} />
+    <SafetyCage focused={focused} gateClosed={gateClosed} reset={safeguardReset} />
     <RobotArm mode={robotMode} homed={axesHomed} gripperProven={gripperProven} />
     <RobotProcessFixture mode={robotMode} gripperProven={gripperProven} />
     <RoundedBox args={[0.72, 1.1, 0.5]} radius={0.05} position={[1.05, 0.72, -0.62]} castShadow>
@@ -896,15 +897,53 @@ function RobotCell({ active, focused, controls, campaignStage, campaignRunNumber
   </group>;
 }
 
-function SafetyCage({ focused, reset }: { focused: boolean; reset: boolean }) {
+function SafetyCage({ focused, gateClosed, reset }: { focused: boolean; gateClosed: boolean; reset: boolean }) {
+  const gate = useRef<THREE.Group>(null);
   const posts: [number, number, number][] = [[-1.35, 1.15, -1.05], [1.35, 1.15, -1.05], [-1.35, 1.15, 1.05], [1.35, 1.15, 1.05]];
+  useFrame((_, delta) => {
+    if (gate.current) gate.current.position.x = THREE.MathUtils.damp(gate.current.position.x, gateClosed ? 0 : 1.06, 3.1, delta);
+  });
+  const panelOpacity = focused ? 0.13 : 0.2;
   return <group>
     {posts.map((position, index) => <mesh key={index} position={position} castShadow><boxGeometry args={[0.055, 2.25, 0.055]} /><meshStandardMaterial color={reset && index === 2 ? '#51e19a' : '#c89a38'} emissive={reset && index === 2 ? '#1d6042' : '#000000'} emissiveIntensity={reset && index === 2 ? 0.55 : 0} metalness={0.55} roughness={0.34} transparent={focused} opacity={focused ? 0.78 : 1} /></mesh>)}
     {[0.55, 1.65].map((y) => <group key={y}>
       <mesh position={[0, y, -1.05]}><boxGeometry args={[2.7, 0.035, 0.035]} /><meshStandardMaterial color="#926e28" metalness={0.4} transparent={focused} opacity={focused ? 0.56 : 1} /></mesh>
       <mesh position={[0, y, 1.05]}><boxGeometry args={[2.7, 0.035, 0.035]} /><meshStandardMaterial color="#926e28" metalness={0.4} transparent={focused} opacity={focused ? 0.56 : 1} /></mesh>
     </group>)}
+    <group position={[0, 1.15, -1.045]}><CageMeshPanel width={2.62} height={2.08} columns={13} rows={9} opacity={panelOpacity} /></group>
+    {[-1.345, 1.345].map((x) => <group key={x} position={[x, 1.15, 0]} rotation={[0, Math.PI / 2, 0]}><CageMeshPanel width={2.04} height={2.08} columns={10} rows={9} opacity={panelOpacity} /></group>)}
+    <group position={[-0.67, 1.15, 1.052]}><CageMeshPanel width={1.3} height={2.08} columns={7} rows={9} opacity={panelOpacity + 0.04} /></group>
+    <group ref={gate} position={[1.06, 0, 0]}>
+      <group position={[0.67, 1.15, 1.052]}><CageMeshPanel width={1.3} height={2.08} columns={7} rows={9} opacity={panelOpacity + 0.04} /></group>
+      <mesh position={[0.02, 1.15, 1.065]} castShadow><boxGeometry args={[0.045, 2.08, 0.045]} /><meshStandardMaterial color="#a77b28" metalness={0.58} roughness={0.34} /></mesh>
+      <group position={[0.11, 1.28, 1.11]}>
+        <RoundedBox args={[0.22, 0.34, 0.1]} radius={0.025} castShadow><meshStandardMaterial color="#26353a" metalness={0.7} roughness={0.3} /></RoundedBox>
+        <mesh position={[0, 0.07, 0.056]}><circleGeometry args={[0.035, 16]} /><meshStandardMaterial color={gateClosed ? '#51e19a' : '#f4b95f'} emissive={gateClosed ? '#1e6b48' : '#6b451c'} emissiveIntensity={0.9} /></mesh>
+        <mesh position={[0, -0.08, 0.056]}><boxGeometry args={[0.1, 0.035, 0.015]} /><meshBasicMaterial color="#72848a" /></mesh>
+      </group>
+    </group>
+    {[-0.06, 0.06].map((x) => <mesh key={x} position={[x, 1.14, 1.075]}><boxGeometry args={[0.018, 1.84, 0.025]} /><meshBasicMaterial color={reset ? '#51e19a' : '#4dd5ed'} transparent opacity={reset ? 0.42 : 0.72} /></mesh>)}
+    <mesh position={[0, 0.095, 1.05]} castShadow><boxGeometry args={[2.64, 0.09, 0.12]} /><meshStandardMaterial color="#4b4c3f" metalness={0.56} roughness={0.44} /></mesh>
   </group>;
+}
+
+function CageMeshPanel({ width, height, columns, rows, opacity }: { width: number; height: number; columns: number; rows: number; opacity: number }) {
+  const geometry = useMemo(() => {
+    const vertices: number[] = [];
+    for (let column = 0; column <= columns; column += 1) {
+      const x = -width / 2 + width * column / columns;
+      vertices.push(x, -height / 2, 0, x, height / 2, 0);
+    }
+    for (let row = 0; row <= rows; row += 1) {
+      const y = -height / 2 + height * row / rows;
+      vertices.push(-width / 2, y, 0, width / 2, y, 0);
+    }
+    const meshGeometry = new THREE.BufferGeometry();
+    meshGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    return meshGeometry;
+  }, [columns, height, rows, width]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <lineSegments geometry={geometry}><lineBasicMaterial color="#b58a32" transparent opacity={opacity} /></lineSegments>;
 }
 
 function RobotArm({ mode, homed, gripperProven }: { mode: 'idle' | 'recovery' | 'dose' | 'transfer'; homed: boolean; gripperProven: boolean }) {
