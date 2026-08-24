@@ -434,7 +434,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
         <section className="campaign-routing">
           <div className="campaign-panel-head"><div><span>LIVE MATERIAL ROUTE</span><b>{identity.runId} · {recipe.id}</b></div><em>{run.stage >= 8 ? '09 / 09' : `${String(Math.min(run.stage + 1, 8)).padStart(2, '0')} / 08`}</em></div>
           {experimentFactors && changedFactors.length > 0 && <div className={`experiment-contract ${run.stage >= 7 ? phaseResponse >= 0 ? 'response-up' : 'response-down' : ''}`}>
-            <div className="contract-source"><span>CONTROLLED EXPERIMENT</span><b>{sourceSpec.id} → {recipe.id}</b><small>{sourceResult?.diagnosis ? 'SEM / EDS EVIDENCE' : 'MODEL RESIDUAL'}</small></div>
+            <div className="contract-source"><span>CONTROLLED EXPERIMENT</span><b>{sourceSpec?.id ?? 'SOURCE'} → {recipe.id}</b><small>{sourceResult?.diagnosis ? 'SEM / EDS EVIDENCE' : 'MODEL RESIDUAL'}</small></div>
             <div className="contract-change"><span>CHANGE ONE LEVER</span>{changedFactors.map((factor) => <b key={factor.label}>{factor.label}<i>{factor.before}</i><u>→</u><em>{factor.after}</em></b>)}</div>
             <div className="contract-held"><span>HOLD CONSTANT</span><b>{heldFactors.map((factor) => factor.label).join(' · ')}</b><small>{heldFactors.map((factor) => factor.after).join(' · ')}</small></div>
             <div className="contract-readout"><span>EXPECTED READOUT</span><b>{experimentExpectation}</b><small>XRD primary · microscopy optional</small></div>

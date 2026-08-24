@@ -133,6 +133,7 @@ Open <http://localhost:3000/>.
 ## Verify
 
 ```bash
+pnpm exec tsc --noEmit
 pnpm build
 pnpm lint
 ```

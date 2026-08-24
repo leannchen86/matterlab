@@ -2488,6 +2488,18 @@ framing could pull later design work away from the fictional scientist experienc
 - State explicitly that the lab is fictional and is not an internal representation of any company, laboratory,
   or instrument manufacturer.
 
+## Critique 134: the framework build concealed two TypeScript contract failures
+
+Vinext lint and production builds were green, but an independent `tsc --noEmit` pass found a nullable source
+recipe in the controlled-experiment card and a widened station-tone literal in the campaign view hook.
+
+### Changes
+
+- Guard the source recipe identifier at the experiment-contract render boundary.
+- Give the campaign station hook an explicit `Station` return contract so future state variants cannot silently
+  widen safety/status tones beyond the supported visual vocabulary.
+- Add standalone TypeScript verification to the final release gate alongside ESLint and the production build.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

@@ -103,7 +103,7 @@ export function useCampaignSnapshot() {
   return JSON.parse(serialized) as CampaignSnapshot;
 }
 
-export function useCampaignStation(station: Station) {
+export function useCampaignStation(station: Station): Station {
   const campaign = useCampaignSnapshot();
   if (getCampaignStationId(campaign.stage) !== station.id) return station;
   const view = getCampaignStationView(station, campaign.stage, campaign.selected, campaign.runNumber, campaign.thermalBayLevel, campaign.missionId, campaign.resultElapsed, campaign.resultMeasured);
