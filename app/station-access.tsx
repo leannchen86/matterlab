@@ -50,14 +50,23 @@ const HMI_OPERATIONS: Record<string, [string, string, string]> = {
 function getCampaignHmiOperations(stationId: string, stage: number, selected: string, runNumber: number, thermalBayLevel = 1): string[] | null {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
+  const runOps = getCampaignOperations(runNumber, thermalBayLevel);
   if (!stage) return null;
-  if (stationId === 'ROBO-02' && stage === 2) return ['Verify safeguarded stop', 'Clean gripper tooling', 'Acquire witness coupon'];
+  if (stationId === 'ROBO-02' && stage === 2) return runOps.robotCondition === 'contamination'
+    ? ['Verify safeguarded stop', 'Clean gripper tooling', 'Acquire witness coupon']
+    : runOps.robotCondition === 'grip-force'
+      ? ['Verify safeguarded stop', 'Inspect jaw pads', 'Acquire force witness']
+      : ['Verify safeguarded stop', 'Confirm clean tool ID', 'Prove carrier handshake'];
   if (stationId === 'ROBO-02') return [`Scan ${identity.carrier} carrier`, 'Verify six dose positions', 'Execute crucible dosing'];
   if (stationId === 'FURN-04' && stage === 4) return thermalBayLevel >= 2
     ? ['Read chamber A profile state', 'Verify chamber B qualification', `Route ${identity.carrier} to chamber B`]
     : ['Read active profile state', 'Verify queue position', `Confirm ${identity.carrier} hold location`];
   if (stationId === 'FURN-04') return ['Read overtemperature relay', 'Verify door chain', `Start ${spec.profile} profile`];
-  if (stationId === 'XRD-03' && stage === 6) return ['Home specimen stage', 'Prove shutter feedback', 'Acquire Si reference', `Acquire ${identity.runId} pattern`];
+  if (stationId === 'XRD-03' && stage === 6) return runOps.referenceCondition === 'age-due'
+    ? ['Home specimen stage', 'Prove shutter feedback', 'Acquire Si reference', `Acquire ${identity.runId} pattern`]
+    : runOps.referenceCondition === 'trend-review'
+      ? ['Home specimen stage', 'Prove shutter feedback', 'Review Si control trend', 'Acquire confirmatory Si reference', `Acquire ${identity.runId} pattern`]
+      : ['Home specimen stage', 'Prove shutter feedback', 'Review current Si control', `Acquire ${identity.runId} pattern`];
   if (stationId === 'XRD-03') return ['Review Si control', 'Review phase fit', `Release ${identity.pattern} evidence`];
   if (stationId === 'SEM-01' && stage === 8) return ['Establish chamber vacuum', 'Acquire four BSE fields', 'Acquire representative EDS map'];
   if (stationId === 'SEM-01') return ['Review field coverage', 'Review EDS association', `Release ${identity.runId} diagnosis`];
@@ -81,13 +90,29 @@ function completeCampaignMachineStage(stage: number) {
     const identity = getCampaignIdentity(Number(current.runNumber ?? 42));
     const thermalBayLevel = Number(current.thermalBayLevel ?? 1);
     const runOps = getCampaignOperations(identity.runNumber, thermalBayLevel);
+    const robotEntryMessage = runOps.robotCondition === 'contamination'
+      ? `${identity.prepSample} evidence retained. ROBO-02 stopped on a gripper cleanliness fault before dosing.`
+      : runOps.robotCondition === 'grip-force'
+        ? `${identity.prepSample} evidence retained. ROBO-02 detected grip-force drift during its pre-dose tool check.`
+        : `${identity.prepSample} evidence retained. ROBO-02 is nominal; tool identity and carrier handshake remain to be proved.`;
+    const robotExitMessage = runOps.robotCondition === 'contamination'
+      ? `Gripper cleaned and witness coupon passed after ${runOps.robotRecoveryMinutes} minutes. Robot synthesis resumed with lineage intact.`
+      : runOps.robotCondition === 'grip-force'
+        ? `Jaw pads were reseated and the force witness passed after ${runOps.robotRecoveryMinutes} minutes. Robot synthesis resumed with controlled grip force.`
+        : `Tool identity and carrier handshake passed in ${runOps.robotRecoveryMinutes} minutes. Robot synthesis entered dosing without a recovery delay.`;
+    const referenceEntryMessage = runOps.referenceCondition === 'age-due'
+      ? `${spec.temperature} / ${spec.dwell} thermal trace retained. XRD specimen release is held; the last qualified Si reference is ${runOps.referenceAgeHours} hours old.`
+      : runOps.referenceCondition === 'trend-review'
+        ? `${spec.temperature} / ${spec.dwell} thermal trace retained. The ${runOps.referenceAgeHours}-hour Si control remains valid, but its position trend needs confirmation before specimen acquisition.`
+        : `${spec.temperature} / ${spec.dwell} thermal trace retained. The ${runOps.referenceAgeHours}-hour Si control is current; XRD-03 is ready for specimen acquisition.`;
+    const robotInsightCost = runOps.robotCondition === 'contamination' ? 8 : runOps.robotCondition === 'grip-force' ? 4 : 0;
     const transition = {
-      1: { stage: 2, elapsed: 12, insight, message: `${identity.prepSample} evidence retained. ROBO-02 stopped on a gripper cleanliness fault before dosing.` },
-      2: { stage: 3, elapsed: elapsed + runOps.robotRecoveryMinutes, insight: insight - 8, message: `Gripper cleaned and witness coupon passed after ${runOps.robotRecoveryMinutes} minutes. Robot synthesis resumed with lineage intact.` },
+      1: { stage: 2, elapsed: 12, insight, message: robotEntryMessage },
+      2: { stage: 3, elapsed: elapsed + runOps.robotRecoveryMinutes, insight: insight - robotInsightCost, message: robotExitMessage },
       3: { stage: 4, elapsed: elapsed + 14, insight, message: thermalBayLevel >= 2 ? `Six crucibles dosed and ${identity.carrier} released. ${runOps.furnaceLane} is qualified; independent readiness proof is required while chamber A runs ${runOps.activeFurnaceRun}.` : `Six crucibles dosed and ${identity.carrier} released. FURN-04A is occupied by ${runOps.activeFurnaceRun}; ${identity.runId} is now queue constrained.` },
       4: { stage: 5, elapsed: elapsed + runOps.queueMinutes, insight, message: thermalBayLevel >= 2 ? `${runOps.furnaceLane} readiness proved in ${runOps.queueMinutes} minutes. ${identity.runId} entered ${spec.profile} independently while chamber A retained ${runOps.activeFurnaceRun}.` : `${runOps.activeFurnaceRun} cooled and unloaded after ${runOps.queueMinutes} minutes. Queue proof retained; ${identity.runId} entered ${spec.profile} at ${spec.temperature}.` },
-      5: { stage: 6, elapsed: elapsed + spec.thermalMinutes, insight, message: `${spec.temperature} / ${spec.dwell} thermal trace retained. XRD specimen release is held; the last qualified Si reference is ${runOps.referenceAgeHours} hours old.` },
-      6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `Reference passed at ${runOps.referenceResult}. ${spec.id} measured ${spec.measured}% target phase: valid evidence, ${spec.objectiveMet ? `${spec.gap} above the objective.` : `${spec.gap.replace('−', '')} below the objective.`}` },
+      5: { stage: 6, elapsed: elapsed + spec.thermalMinutes, insight, message: referenceEntryMessage },
+      6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `${runOps.referenceCondition === 'current' ? 'Current control reviewed' : runOps.referenceCondition === 'trend-review' ? 'Confirmatory control passed' : 'Reference passed'} at ${runOps.referenceResult}. ${spec.id} measured ${spec.measured}% target phase: valid evidence, ${spec.objectiveMet ? `${spec.gap} above the objective.` : `${spec.gap.replace('−', '')} below the objective.`}` },
       8: { stage: 9, elapsed: elapsed + 26, insight: insight + 15, message: `Four BSE fields and a representative EDS map retained. ${spec.id === 'D-08' ? 'Ti-rich cores support incomplete conversion as the follow-up hypothesis.' : 'Ca-rich secondary grains support precursor excess as the follow-up hypothesis.'}` },
     }[stage];
     if (!transition) return null;
@@ -112,9 +137,17 @@ function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignSt
   const identity = getCampaignIdentity(runNumber);
   const runOps = getCampaignOperations(runNumber, thermalBayLevel);
   if (campaignStage === 1 && stationId === 'PREP-01') return { ...profile, controller: `BAL-01 / LES-${spec.id.replace('-', '')}`, method: ['Scan precursor lots', `Weigh ${spec.id} formulation`, 'Homogenize + seal', `Release ${identity.runId}`], sample: [spec.id, identity.prepSample, identity.carrier], workOrder: `MAT-${identity.suffix}`, service: 'Campaign preparation · active', supplies: [spec.precursorLabel, `target ${spec.targetMass}`, 'sealed liners 14'] };
-  if (campaignStage >= 2 && campaignStage <= 3 && stationId === 'ROBO-02') return { ...profile, controller: 'RC-02 / CAMPAIGN-PLC', safe: campaignStage === 2 ? ['area scanner clear', 'gate chain closed', 'cleaning mode selected'] : ['area scanner clear', 'gate chain closed', 'gripper witness valid'], method: [`Receive ${identity.carrier}`, 'Clean + witness gripper', 'Dose crucibles', 'Write carrier handshake'], sample: [identity.prepSample, identity.carrier, identity.furnaceQueue], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 2 ? 'Gripper cleanliness recovery · active' : 'Campaign dosing · active', health: campaignStage === 2 ? 79 : 90 };
+  if (campaignStage >= 2 && campaignStage <= 3 && stationId === 'ROBO-02') {
+    const conditionMethod = runOps.robotCondition === 'contamination' ? 'Clean + witness gripper' : runOps.robotCondition === 'grip-force' ? 'Inspect pads + force witness' : 'Prove tool ID + handshake';
+    const conditionService = runOps.robotCondition === 'contamination' ? 'Gripper cleanliness recovery' : runOps.robotCondition === 'grip-force' ? 'Jaw-force verification' : 'Pre-dose cell readiness';
+    return { ...profile, controller: 'RC-02 / CAMPAIGN-PLC', safe: campaignStage === 2 ? ['area scanner clear', 'gate chain closed', runOps.robotCondition === 'contamination' ? 'cleaning mode selected' : 'setup mode selected'] : ['area scanner clear', 'gate chain closed', 'gripper witness valid'], method: [`Receive ${identity.carrier}`, conditionMethod, 'Dose crucibles', 'Write carrier handshake'], sample: [identity.prepSample, identity.carrier, identity.furnaceQueue], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 2 ? `${conditionService} · active` : 'Campaign dosing · active', health: campaignStage === 2 ? runOps.robotCondition === 'nominal' ? 96 : runOps.robotCondition === 'grip-force' ? 86 : 79 : 90 };
+  }
   if (campaignStage >= 4 && campaignStage <= 5 && stationId === 'FURN-04') return { ...profile, controller: thermalBayLevel >= 2 ? `TC-04A/B / MES-Q${identity.suffix}` : `TC-04 / MES-Q${identity.suffix}`, method: [`Accept ${identity.carrier}`, thermalBayLevel >= 2 ? 'Prove independent chamber' : 'Respect active queue', `Load ${spec.temperature} profile`, 'Cool + release'], sample: [identity.carrier, spec.profile, identity.thermalSample], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 4 ? `${runOps.furnaceLane} · ${runOps.queueMinutes} min readiness` : `${spec.profile} · ${runOps.furnaceLane} active` };
-  if (campaignStage >= 6 && stationId === 'XRD-03') return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: ['Load NIST Si', `Prove ${runOps.referenceResult}`, `Acquire ${identity.runId}`, `Review ${spec.measured}% result`], sample: [identity.thermalSample, identity.xrdDataset, identity.pattern], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 6 ? `Si reference · ${runOps.referenceAgeHours} h` : `Valid result · target ${spec.objectiveMet ? 'met' : 'missed'}`, health: campaignStage === 6 ? 78 : 92 };
+  if (campaignStage >= 6 && stationId === 'XRD-03') {
+    const referenceMethod = runOps.referenceCondition === 'age-due' ? 'Acquire NIST Si' : runOps.referenceCondition === 'trend-review' ? 'Review trend + confirm Si' : 'Review current Si control';
+    const referenceService = runOps.referenceCondition === 'age-due' ? 'Si reference due' : runOps.referenceCondition === 'trend-review' ? 'Si trend confirmation' : 'Si control current';
+    return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: [referenceMethod, `Prove ${runOps.referenceResult}`, `Acquire ${identity.runId}`, `Review ${spec.measured}% result`], sample: [identity.thermalSample, identity.xrdDataset, identity.pattern], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 6 ? `${referenceService} · ${runOps.referenceAgeHours} h` : `Valid result · target ${spec.objectiveMet ? 'met' : 'missed'}`, health: campaignStage === 6 ? runOps.referenceConstraint ? 78 : 94 : 92 };
+  }
   if (campaignStage >= 8 && stationId === 'SEM-01') return { ...profile, controller: 'SEM-01 / DIAG-EDS', method: [`Load ${identity.thermalSample}`, 'Acquire four BSE fields', 'Acquire representative EDS map', 'Route mechanism hypothesis'], sample: [identity.thermalSample, `STUB-${identity.suffix}`, `MAP-${identity.suffix}`], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 8 ? 'Valid-negative diagnosis · active' : 'Representative follow-up · retained', health: 96 };
   if (scenarioId === 'xrd' && stationId === 'FURN-04' && thermalBayLevel >= 2) return { ...profile, controller: 'TC-04A/B / ASSET-PLC', safe: ['chamber A chain independent', 'chamber B chain independent', 'overtemperature relays armed'], method: ['Review chamber assignment', 'Review IQ / OQ survey', 'Verify controller independence', 'Retain asset state'], sample: ['FURN-04A', 'FURN-04B', 'OQ-04B-990'], workOrder: 'OQ-04B', service: 'Chamber B IQ / OQ · retained', health: 95, supplies: ['survey TC set', 'empty hearth', 'door seal kit'] };
   if (scenarioId === 'facility' && stationId === 'PREP-01') return { ...profile, controller: 'MOVE-HMI / MES-A2', method: ['Scan both totes', 'Inspect powered jack', 'Secure load + route', 'Retain move receipt'], sample: ['LOT-3024-A', 'MOV-3024', 'REC-BET-02'], workOrder: 'MOV-3024', service: 'Powered-jack pre-use · current', supplies: ['restraint straps 6', 'spill kit sealed', 'tote covers 12'] };
@@ -236,7 +269,7 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
             <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>WALK <b>{activePhysicalChecks.length}/3</b></span><span><i className={consoleStation.tone === 'warn' ? 'alarm' : consoleStation.tone === 'off' ? '' : 'online'} />{consoleStation.state}</span></div>
             {tab === 'hmi' && <HmiView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignThermalBayLevel={campaignThermalBayLevel} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
             {tab === 'les' && <LesView station={consoleStation} profile={profile} campaignStage={campaignActive ? campaignStage : 0} complete={completed.les} onComplete={finish} />}
-            {tab === 'lims' && <LimsView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} complete={completed.lims} onComplete={finish} />}
+            {tab === 'lims' && <LimsView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} complete={completed.lims} onComplete={finish} />}
             {tab === 'cmms' && <CmmsView profile={profile} complete={completed.cmms} onComplete={finish} />}
           </div>
         </div>
@@ -347,25 +380,40 @@ const CRUCIBLE_POSITIONS = [[362, 64], [408, 64], [454, 64], [362, 116], [408, 1
 function RobotCampaignPanel({ stage, selected, runNumber, operations }: { stage: number; selected: string; runNumber: number; operations: string[] }) {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
+  const runOps = getCampaignOperations(runNumber);
   const recovery = stage === 2;
   const boundaryProven = stage >= 3 || operations.includes('Verify safeguarded stop');
-  const toolClean = stage >= 3 || operations.includes('Clean gripper tooling');
-  const witnessPassed = stage >= 3 || operations.includes('Acquire witness coupon');
+  const toolingChecked = stage >= 3 || (runOps.robotCondition === 'contamination'
+    ? operations.includes('Clean gripper tooling')
+    : runOps.robotCondition === 'grip-force'
+      ? operations.includes('Inspect jaw pads')
+      : operations.includes('Confirm clean tool ID'));
+  const witnessPassed = stage >= 3 || (runOps.robotCondition === 'contamination'
+    ? operations.includes('Acquire witness coupon')
+    : runOps.robotCondition === 'grip-force'
+      ? operations.includes('Acquire force witness')
+      : operations.includes('Prove carrier handshake'));
   const carrierScanned = stage >= 3 && operations.includes(`Scan ${identity.carrier} carrier`);
   const positionsProven = stage >= 3 && operations.includes('Verify six dose positions');
   const dosingComplete = stage >= 3 && operations.includes('Execute crucible dosing');
   const perPosition = `${(Number.parseFloat(spec.targetMass) / 6).toFixed(2)} g`;
   const armPath = recovery
-    ? witnessPassed ? 'M178 96 L238 58 L302 83' : toolClean ? 'M178 96 L224 129 L302 126' : 'M178 96 L232 83 L278 104'
+    ? witnessPassed ? 'M178 96 L238 58 L302 83' : toolingChecked ? 'M178 96 L224 129 L302 126' : 'M178 96 L232 83 L278 104'
     : dosingComplete ? 'M178 96 L272 52 L408 90' : positionsProven ? 'M178 96 L278 70 L362 64' : carrierScanned ? 'M178 96 L252 126 L322 132' : 'M178 96 L228 74 L270 92';
   const endpoint = recovery
-    ? witnessPassed ? [302, 83] : toolClean ? [302, 126] : [278, 104]
+    ? witnessPassed ? [302, 83] : toolingChecked ? [302, 126] : [278, 104]
     : dosingComplete ? [408, 90] : positionsProven ? [362, 64] : carrierScanned ? [322, 132] : [270, 92];
-  const status = recovery ? witnessPassed ? 'WITNESS PASS' : toolClean ? 'CLEANING COMPLETE' : boundaryProven ? 'CLEANING ENABLED' : 'SAFEGUARD HOLD' : dosingComplete ? 'DOSE COMPLETE' : positionsProven ? 'PROGRAM PROVEN' : carrierScanned ? 'CARRIER BOUND' : 'IDENTITY REQUIRED';
+  const status = recovery
+    ? witnessPassed
+      ? runOps.robotCondition === 'contamination' ? 'CLEAN WITNESS PASS' : runOps.robotCondition === 'grip-force' ? 'FORCE WITNESS PASS' : 'CELL READY'
+      : toolingChecked
+        ? runOps.robotCondition === 'contamination' ? 'CLEANING COMPLETE' : runOps.robotCondition === 'grip-force' ? 'PADS INSPECTED' : 'TOOL ID CONFIRMED'
+        : boundaryProven ? runOps.robotCondition === 'contamination' ? 'CLEANING ENABLED' : 'SETUP ENABLED' : 'SAFEGUARD HOLD'
+    : dosingComplete ? 'DOSE COMPLETE' : positionsProven ? 'PROGRAM PROVEN' : carrierScanned ? 'CARRIER BOUND' : 'IDENTITY REQUIRED';
   return <section className={`campaign-robot-console${dosingComplete || witnessPassed ? ' operation-complete' : ''}`}>
     <header><div><span>ROBOT CELL PROGRAM</span><b>RC-02 · MAT-{identity.suffix} · {spec.id}</b></div><em>{status}</em></header>
     <div className="campaign-robot-layout">
-      <svg viewBox="0 0 520 180" role="img" aria-label={`${identity.runId} robotic ${recovery ? 'gripper recovery' : 'six-position dosing'} program`}>
+      <svg viewBox="0 0 520 180" role="img" aria-label={`${identity.runId} robotic ${recovery ? `${runOps.robotCondition} setup` : 'six-position dosing'} program`}>
         <defs><pattern id="robotGrid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" className="grid" /></pattern><linearGradient id="robotArmMetal" x1="0" x2="1"><stop stopColor="#a9bac2" /><stop offset=".55" stopColor="#536977" /><stop offset="1" stopColor="#c8d3d6" /></linearGradient></defs>
         <rect width="520" height="180" fill="url(#robotGrid)" />
         <path d="M20 18 H488 V160 H20 Z" className={boundaryProven ? 'cell-boundary proven' : 'cell-boundary'} />
@@ -381,7 +429,7 @@ function RobotCampaignPanel({ stage, selected, runNumber, operations }: { stage:
       </svg>
       <aside>
         <div className={carrierScanned || recovery ? recovery ? 'waiting' : 'pass' : 'hold'}><span>CARRIER</span><b>{recovery ? 'NOT LOADED' : identity.carrier}</b><small>{recovery ? 'recovery mode' : carrierScanned ? 'identity bound' : 'scan required'}</small></div>
-        <div className={witnessPassed ? 'pass' : toolClean ? 'review' : 'hold'}><span>TOOL WITNESS</span><b>{witnessPassed ? 'PASS' : toolClean ? 'DUE' : 'CONTAM'}</b><small>{witnessPassed ? 'coupon retained' : toolClean ? 'acquire coupon' : 'clean gripper'}</small></div>
+        <div className={witnessPassed ? 'pass' : toolingChecked ? 'review' : runOps.robotCondition === 'nominal' ? 'waiting' : 'hold'}><span>{runOps.robotCondition === 'grip-force' ? 'GRIP FORCE' : runOps.robotCondition === 'nominal' ? 'TOOL / HANDSHAKE' : 'TOOL WITNESS'}</span><b>{witnessPassed ? 'PASS' : toolingChecked ? 'DUE' : runOps.robotCondition === 'contamination' ? 'CONTAM' : runOps.robotCondition === 'grip-force' ? 'DRIFT' : 'VERIFY'}</b><small>{witnessPassed ? runOps.robotCondition === 'nominal' ? 'carrier handshake retained' : 'witness retained' : toolingChecked ? runOps.robotCondition === 'grip-force' ? 'acquire force witness' : runOps.robotCondition === 'nominal' ? 'prove carrier handshake' : 'acquire coupon' : runOps.robotCondition === 'grip-force' ? 'inspect jaw pads' : runOps.robotCondition === 'nominal' ? 'confirm clean tool ID' : 'clean gripper'}</small></div>
         <div className={dosingComplete ? 'pass' : positionsProven ? 'review' : 'waiting'}><span>MASS PROGRAM</span><b>{perPosition} × 6</b><small>{dosingComplete ? `${spec.targetMass} total` : positionsProven ? 'positions proven' : 'execution held'}</small></div>
       </aside>
     </div>
@@ -456,11 +504,16 @@ function XrdCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
   const runOps = getCampaignOperations(runNumber);
-  const referenceCaptured = stage >= 7 || operations.includes('Acquire Si reference');
+  const referenceCaptured = stage >= 7 || (runOps.referenceCondition === 'age-due'
+    ? operations.includes('Acquire Si reference')
+    : runOps.referenceCondition === 'trend-review'
+      ? operations.includes('Acquire confirmatory Si reference')
+      : operations.includes('Review current Si control'));
   const sampleCaptured = stage >= 7 || operations.includes(`Acquire ${identity.runId} pattern`);
   const samplePeaks = XRD_PEAKS[spec.id] ?? XRD_PEAKS['C-42'];
+  const referenceStatus = runOps.referenceCondition === 'age-due' ? 'CONTROL REQUIRED' : runOps.referenceCondition === 'trend-review' ? 'TREND REVIEW' : 'CURRENT CONTROL';
   return <section className={`campaign-xrd-console${sampleCaptured ? ' result-ready' : ''}`}>
-    <header><div><span>DIFFRACTION ACQUISITION</span><b>{identity.xrdDataset} · Cu Kα · 10–80° 2θ</b></div><em>{sampleCaptured ? 'PATTERN COMPLETE' : referenceCaptured ? 'REFERENCE PASS' : 'CONTROL REQUIRED'}</em></header>
+    <header><div><span>DIFFRACTION ACQUISITION</span><b>{identity.xrdDataset} · Cu Kα · 10–80° 2θ</b></div><em>{sampleCaptured ? 'PATTERN COMPLETE' : referenceCaptured ? runOps.referenceCondition === 'current' ? 'CONTROL REVIEWED' : 'REFERENCE PASS' : referenceStatus}</em></header>
     <div className="campaign-xrd-layout">
       <svg viewBox="0 0 660 210" role="img" aria-label={`${identity.runId} simulated XRD reference and diffraction pattern`}>
         <defs><linearGradient id="xrdFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#4dd5ed" stopOpacity=".25" /><stop offset="1" stopColor="#4dd5ed" stopOpacity="0" /></linearGradient></defs>
@@ -474,7 +527,7 @@ function XrdCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
         <text x="38" y="198">10°</text><text x="324" y="198">2θ</text><text x="609" y="198">80°</text>
       </svg>
       <aside>
-        <div className={referenceCaptured ? 'pass' : 'hold'}><span>REFERENCE</span><b>{referenceCaptured ? runOps.referenceResult : `${runOps.referenceAgeHours} H OLD`}</b><small>{referenceCaptured ? 'within ±0.05°' : 'specimen inhibited'}</small></div>
+        <div className={referenceCaptured ? 'pass' : runOps.referenceConstraint ? 'hold' : 'review'}><span>REFERENCE</span><b>{referenceCaptured ? runOps.referenceResult : `${runOps.referenceAgeHours} H OLD`}</b><small>{referenceCaptured ? 'within ±0.05°' : runOps.referenceCondition === 'trend-review' ? 'confirm position trend' : runOps.referenceCondition === 'current' ? 'review before sample' : 'specimen inhibited'}</small></div>
         <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${spec.measured}%` : '—'}</b><small>{sampleCaptured ? `Rwp ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}%` : 'awaiting pattern'}</small></div>
         <div className={sampleCaptured ? spec.objectiveMet ? 'pass' : 'miss' : 'waiting'}><span>OBJECTIVE</span><b>{sampleCaptured ? spec.gap : '≥ 96%'}</b><small>{sampleCaptured ? spec.objectiveMet ? 'target met' : 'valid negative' : 'campaign gate'}</small></div>
       </aside>
@@ -598,7 +651,7 @@ function LesView({ station, profile, campaignStage, complete, onComplete }: { st
   </div>;
 }
 
-function LimsView({ station, profile, scenarioId, campaignStage, campaignSelected, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; complete: boolean; onComplete: () => void }) {
+function LimsView({ station, profile, scenarioId, campaignStage, campaignSelected, campaignRunNumber, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; complete: boolean; onComplete: () => void }) {
   const itemNotes = campaignStage
     ? ['campaign formulation / physical input', 'governed run + carrier association', 'native evidence package']
     : scenarioId === 'facility'
@@ -609,7 +662,13 @@ function LimsView({ station, profile, scenarioId, campaignStage, campaignSelecte
   const facilityState = station.id === 'PREP-01'
     ? station.state === 'BAY RELEASED' ? 'MOVE RECEIVED' : station.state === 'TRANSFER READY' ? 'MOVE RELEASED' : 'MOVE HOLD'
     : station.state === 'READY' ? 'ELIGIBLE' : station.state === 'DATA REVIEW' ? 'WINDOW HOLD' : station.state === 'QC READY' ? 'CONTROL READY' : 'SERVICE HOLD';
-  const chainState = campaignStage === 2 ? 'CONTAM HOLD' : campaignStage === 4 ? 'QUEUE HOLD' : campaignStage === 6 ? 'QC HOLD' : campaignStage >= 7 ? getCampaignSpec(campaignSelected).objectiveMet ? 'VALID · HIT' : 'VALID · MISS' : campaignStage ? 'IN PROCESS' : scenarioId === 'furnace' ? 'CENSORED' : scenarioId === 'bet' ? 'RECONCILE' : scenarioId === 'tga' ? 'PAN HOLD' : scenarioId === 'facility' ? facilityState : 'QC HOLD';
+  const campaignOperations = getCampaignOperations(campaignRunNumber);
+  const chainState = campaignStage === 2
+    ? campaignOperations.robotCondition === 'contamination' ? 'CONTAM HOLD' : campaignOperations.robotCondition === 'grip-force' ? 'FORCE CHECK' : 'SETUP PROOF'
+    : campaignStage === 4 ? 'QUEUE HOLD'
+      : campaignStage === 6 ? campaignOperations.referenceCondition === 'age-due' ? 'QC HOLD' : campaignOperations.referenceCondition === 'trend-review' ? 'TREND CHECK' : 'ACQUIRE'
+        : campaignStage >= 7 ? getCampaignSpec(campaignSelected).objectiveMet ? 'VALID · HIT' : 'VALID · MISS'
+          : campaignStage ? 'IN PROCESS' : scenarioId === 'furnace' ? 'CENSORED' : scenarioId === 'bet' ? 'RECONCILE' : scenarioId === 'tga' ? 'PAN HOLD' : scenarioId === 'facility' ? facilityState : 'QC HOLD';
   return <div className="console-view">
     <div className="console-view-head"><div><p className="section-kicker">LIMS / SAMPLE IDENTITY</p><h3>Physical item ↔ digital record</h3></div><span>CHAIN LOCKED</span></div>
     <div className="lims-layout"><div className="lims-chain">{profile.sample.map((item, index) => <div key={item}><span>{['SOURCE', 'SPECIMEN / RUN', 'DATASET'][index]}</span><b>{item}</b><Barcode seed={index + item.length} /><small>{itemNotes[index]}</small></div>)}</div><div className="lineage-connector"><i /><i /><span>{chainState}</span></div><aside className="lims-facts"><p className="mini-label">REQUIRED LINKS</p><div><span>lot / batch</span><b>BOUND</b></div><div><span>operator</span><b>TECH-07</b></div><div><span>method revision</span><b>08</b></div><div><span>raw file hash</span><b>READY</b></div></aside></div>

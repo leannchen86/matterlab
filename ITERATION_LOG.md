@@ -1397,6 +1397,31 @@ run produced the same generic sweep. The player still needed text to understand 
 - Preserved safeguards and focus transparency while making the campaign stage—not decorative animation—
   own the robot pose and material state.
 
+## Critique 76: repeat campaigns replayed the same faults
+
+Campaign recipes, queue times, and results varied, but every run still encountered a gripper
+contamination hold and an aged XRD reference. The simulation taught two useful failures while making
+the laboratory feel scripted rather than like a shift with changing equipment conditions.
+
+### Changes
+
+- Added deterministic run conditions across three robot states—nominal readiness, grip-force drift,
+  and contamination—and three XRD-control states—current, trend review, and age due. Adjacent runs now
+  produce different operating work without relying on random state the player cannot reproduce.
+- Propagated each condition through the 3D station label and beacon, physical walkaround observations,
+  local HMI sequence, LES method context, LIMS chain state, campaign route, technician checklist, and
+  shift action card. A nominal check is shown as active work, not falsely styled as a fault.
+- Made the HMI work technically distinct: contamination requires cleaning plus a coupon, grip drift
+  requires jaw-pad inspection plus a force witness, and nominal setup requires tool identity plus a
+  carrier handshake. XRD similarly distinguishes reviewing a current control, confirming a trend, and
+  acquiring a fully due reference.
+- Varied operational consequences: nominal setup carries no insight penalty, force verification costs
+  less than contamination recovery, and elapsed time follows the actual condition. Unsafe bypass
+  feedback now explains the specific consequence—contamination ambiguity or a dropped/misdosed carrier.
+- Kept RUN-047 on its established contamination and 13-hour reference-due branch, then exercised that
+  route through robot dosing, dual-furnace readiness, the thermal profile, the 3D XRD walkaround, and
+  the native four-step reference-control console.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

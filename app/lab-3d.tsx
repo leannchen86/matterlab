@@ -79,7 +79,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
   const selectedHotspots = getInspectionPoints(selectedIndex, scenarioId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel);
   const inspected = visited[inspectionKey] ?? [];
   const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? observationRecord.point : null;
-  const campaignState = getCampaignRoomState(campaignStage, campaignSelected);
+  const campaignState = getCampaignRoomState(campaignStage, campaignSelected, campaignRunNumber);
   const inspect = (label: string) => {
     const point = selectedHotspots.find((hotspot) => hotspot.label === label);
     if (point) setObservationRecord({ stationId: selectedId, point });
@@ -123,6 +123,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
             phase={phase}
             thermalBayLevel={campaignThermalBayLevel}
             campaignStage={campaignStage}
+            campaignRunNumber={campaignRunNumber}
             onInspect={inspect}
             onFocus={() => onCameraMode('focus')}
             onSelect={onSelect}
@@ -562,7 +563,7 @@ function SampleStagingRack({ inventory, onOpenInventory }: { inventory: { crucib
   </group>;
 }
 
-function StationCell({ station, index, position, selected, active, toneOverride, stateOverride, showHotspots, inspected, inspectionPoints, controls, scenarioId, phase, thermalBayLevel, campaignStage, onInspect, onFocus, onSelect }: {
+function StationCell({ station, index, position, selected, active, toneOverride, stateOverride, showHotspots, inspected, inspectionPoints, controls, scenarioId, phase, thermalBayLevel, campaignStage, campaignRunNumber, onInspect, onFocus, onSelect }: {
   station: Station;
   index: number;
   position: [number, number, number];
@@ -578,6 +579,7 @@ function StationCell({ station, index, position, selected, active, toneOverride,
   phase: number;
   thermalBayLevel: number;
   campaignStage: number;
+  campaignRunNumber: number;
   onInspect: (label: string) => void;
   onFocus: () => void;
   onSelect: (id: string) => void;
@@ -598,7 +600,7 @@ function StationCell({ station, index, position, selected, active, toneOverride,
       </RoundedBox>
       <Line points={[[-1.54, 0.082, -1.36], [1.54, 0.082, -1.36], [1.54, 0.082, 1.36], [-1.54, 0.082, 1.36], [-1.54, 0.082, -1.36]]} color={selected ? '#4dd5ed' : tone} lineWidth={selected ? 1.05 : 0.55} transparent opacity={selected ? 0.48 : 0.12} />
       {[-1.36, 1.36].flatMap((x) => [-1.18, 1.18].map((z) => <mesh key={`${x}-${z}`} position={[x, 0.09, z]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.035, 0.055, 16]} /><meshStandardMaterial color="#687681" metalness={0.78} roughness={0.26} /></mesh>))}
-      <Equipment index={index} active={active} tone={tone} focused={showHotspots} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} campaignStage={campaignStage} />
+      <Equipment index={index} active={active} tone={tone} focused={showHotspots} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} campaignStage={campaignStage} campaignRunNumber={campaignRunNumber} />
       {showHotspots && <InspectionHotspots points={inspectionPoints} tone={tone} inspected={inspected} onInspect={onInspect} />}
       <StatusBeacon position={[1.32, 0.34, 1.08]} color={tone} active={active || selected} />
       <ControlProofLights count={controls.length} />
@@ -611,9 +613,9 @@ function StationCell({ station, index, position, selected, active, toneOverride,
   );
 }
 
-function Equipment({ index, active, tone, focused, controls, scenarioId, phase, thermalBayLevel, campaignStage }: { index: number; active: boolean; tone: string; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number; campaignStage: number }) {
+function Equipment({ index, active, tone, focused, controls, scenarioId, phase, thermalBayLevel, campaignStage, campaignRunNumber }: { index: number; active: boolean; tone: string; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number; campaignStage: number; campaignRunNumber: number }) {
   if (index === 0) return <PowderPrep controls={controls} />;
-  if (index === 1) return <RobotCell active={active} focused={focused} controls={controls} campaignStage={scenarioId === 'xrd' ? campaignStage : 0} />;
+  if (index === 1) return <RobotCell active={active} focused={focused} controls={controls} campaignStage={scenarioId === 'xrd' ? campaignStage : 0} campaignRunNumber={campaignRunNumber} />;
   if (index === 2) return <Furnace active={active} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} />;
   if (index === 3) return <Xrd active={active} controls={controls} />;
   if (index === 4) return <SemEds active={active} controls={controls} />;
@@ -644,8 +646,8 @@ function getCampaignInspectionPoints(index: number, stage: number, selected: str
   ];
   if (stage >= 2 && stage <= 3 && index === 1) return [
     { position: [-1.32, 1.45, 1.06], label: 'GATE', observation: 'CH1 safeguard closed · scanner field clear', state: 'pass' },
-    { position: [1.08, 1.48, 0.18], label: 'GRIPPER', observation: stage === 2 ? 'residue witness visible · cleaning proof required' : `clean witness passed · jaws seated on ${identity.carrier}`, state: stage === 2 ? 'attention' : 'pass' },
-    { position: [1.05, 0.92, -0.32], label: 'HMI', observation: stage === 2 ? `${identity.runId} held before dosing · motion inhibited` : `${identity.runId} dosing 6 crucibles · route active`, state: stage === 2 ? 'attention' : 'pass' },
+    { position: [1.08, 1.48, 0.18], label: 'GRIPPER', observation: stage === 2 ? operations.robotCondition === 'contamination' ? 'residue witness visible · cleaning proof required' : operations.robotCondition === 'grip-force' ? 'jaw-force trend low · pad seating inspection due' : 'tool face clean · ID legible · nominal state' : `witness passed · jaws seated on ${identity.carrier}`, state: stage === 2 && operations.robotConstraint ? 'attention' : 'pass' },
+    { position: [1.05, 0.92, -0.32], label: 'HMI', observation: stage === 2 ? operations.robotCondition === 'contamination' ? `${identity.runId} held before dosing · motion inhibited` : operations.robotCondition === 'grip-force' ? `${identity.runId} held for force witness · setup mode` : `${identity.runId} setup mode · handshake proof pending` : `${identity.runId} dosing 6 crucibles · route active`, state: stage === 2 && operations.robotConstraint ? 'attention' : 'pass' },
   ];
   if (stage >= 4 && stage <= 5 && index === 2) return [
     { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: stage === 4 ? `door closed · ${operations.activeFurnaceRun} cycle owns chamber` : `door chain closed · ${spec.temperature} profile active`, state: 'pass' },
@@ -653,8 +655,8 @@ function getCampaignInspectionPoints(index: number, stage: number, selected: str
     { position: stage === 4 ? [0, 0.42, 1.04] : [0, 1.38, 0.94], label: 'CARRIER', observation: stage === 4 ? thermalBayLevel >= 2 ? `${identity.carrier} assigned chamber B · readiness proof pending` : `${identity.carrier} parked at marked queue stand · seal intact` : `${identity.carrier} chamber occupancy confirmed`, state: stage === 4 ? 'attention' : 'pass' },
   ];
   if (stage >= 6 && stage <= 7 && index === 3) return [
-    { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: stage === 6 ? `NIST Si reference seated · ${identity.thermalSample} held` : `${identity.thermalSample} flat · reference accepted`, state: 'pass' },
-    { position: [0.9, 0.7, 0.92], label: 'HMI', observation: stage === 6 ? `${operations.referenceAgeHours} h since reference · specimen release inhibited` : `${operations.referenceResult} · ${spec.measured}% target phase`, state: stage === 6 ? 'attention' : 'pass' },
+    { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: stage === 6 ? operations.referenceCondition === 'age-due' ? `NIST Si reference seated · ${identity.thermalSample} held` : operations.referenceCondition === 'trend-review' ? `NIST Si staged · ${identity.thermalSample} queued behind trend check` : `${identity.thermalSample} flat · current control linked` : `${identity.thermalSample} flat · reference accepted`, state: 'pass' },
+    { position: [0.9, 0.7, 0.92], label: 'HMI', observation: stage === 6 ? operations.referenceCondition === 'age-due' ? `${operations.referenceAgeHours} h since reference · specimen release inhibited` : operations.referenceCondition === 'trend-review' ? `${operations.referenceAgeHours} h control · position trend confirmation due` : `${operations.referenceAgeHours} h control · within governed window` : `${operations.referenceResult} · ${spec.measured}% target phase`, state: stage === 6 && operations.referenceCondition !== 'current' ? 'attention' : 'pass' },
     { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', observation: 'closed feedback TRUE · radiation chain healthy', state: 'pass' },
   ];
   if (stage >= 8 && index === 4) return [
@@ -789,11 +791,12 @@ function PowderPrep({ controls }: { controls: string[] }) {
   </group>;
 }
 
-function RobotCell({ active, focused, controls, campaignStage }: { active: boolean; focused: boolean; controls: string[]; campaignStage: number }) {
-  const safeguardReset = controls.includes('Reset safeguarded stop');
-  const axesHomed = controls.includes('Home transfer axes');
-  const gripperProven = controls.includes('Prove gripper state');
-  const robotMode = campaignStage === 2 ? 'recovery' : campaignStage === 3 ? 'dose' : active ? 'transfer' : 'idle';
+function RobotCell({ active, focused, controls, campaignStage, campaignRunNumber }: { active: boolean; focused: boolean; controls: string[]; campaignStage: number; campaignRunNumber: number }) {
+  const campaignOperations = getCampaignOperations(campaignRunNumber);
+  const safeguardReset = controls.includes('Reset safeguarded stop') || controls.includes('Verify safeguarded stop');
+  const axesHomed = controls.includes('Home transfer axes') || controls.some((operation) => ['Clean gripper tooling', 'Inspect jaw pads', 'Confirm clean tool ID'].includes(operation));
+  const gripperProven = campaignStage >= 3 || controls.includes('Prove gripper state') || controls.some((operation) => ['Acquire witness coupon', 'Acquire force witness', 'Prove carrier handshake'].includes(operation));
+  const robotMode = campaignStage === 2 ? campaignOperations.robotConstraint ? 'recovery' : 'transfer' : campaignStage === 3 ? 'dose' : active ? 'transfer' : 'idle';
   return <group position={[0, 0.18, 0]}>
     <SafetyCage focused={focused} reset={safeguardReset} />
     <RobotArm mode={robotMode} homed={axesHomed} gripperProven={gripperProven} />
@@ -1171,14 +1174,19 @@ function getInspectionKey(stationId: string, stationIndex: number, campaignStage
   return getCampaignStationIndex(campaignStage) === stationIndex ? `${stationId}:RUN-${runNumber}:${selected}:S${campaignStage}` : stationId;
 }
 
-function getCampaignRoomState(stage: number, selected = 'C-42') {
+function getCampaignRoomState(stage: number, selected = 'C-42', runNumber = 42) {
   const spec = getCampaignSpec(selected);
+  const operations = getCampaignOperations(runNumber);
   if (stage === 1) return { station: 'PREP-01', label: `${spec.id} PREP`, color: '#4dd5ed', tone: 'running', result: '' };
-  if (stage === 2) return { station: 'ROBO-02', label: 'CLEANLINESS FAULT', color: '#f4b95f', tone: 'held', result: '' };
+  if (stage === 2 && operations.robotCondition === 'contamination') return { station: 'ROBO-02', label: 'CLEANLINESS FAULT', color: '#f4b95f', tone: 'held', result: '' };
+  if (stage === 2 && operations.robotCondition === 'grip-force') return { station: 'ROBO-02', label: 'GRIP-FORCE CHECK', color: '#f4b95f', tone: 'held', result: '' };
+  if (stage === 2) return { station: 'ROBO-02', label: 'CELL READINESS', color: '#4dd5ed', tone: 'running', result: '' };
   if (stage === 3) return { station: 'ROBO-02', label: `${spec.id} DOSING`, color: '#4dd5ed', tone: 'running', result: '' };
   if (stage === 4) return { station: 'FURN-04', label: 'QUEUE 01', color: '#f4b95f', tone: 'held', result: '' };
   if (stage === 5) return { station: 'FURN-04', label: `${spec.temperatureShort} PROFILE`, color: '#ff955c', tone: 'running', result: '' };
-  if (stage === 6) return { station: 'XRD-03', label: 'QC HOLD', color: '#f4b95f', tone: 'held', result: '' };
+  if (stage === 6 && operations.referenceCondition === 'age-due') return { station: 'XRD-03', label: 'REFERENCE DUE', color: '#f4b95f', tone: 'held', result: '' };
+  if (stage === 6 && operations.referenceCondition === 'trend-review') return { station: 'XRD-03', label: 'CONTROL TREND REVIEW', color: '#4dd5ed', tone: 'running', result: '' };
+  if (stage === 6) return { station: 'XRD-03', label: 'ACQUISITION READY', color: '#4dd5ed', tone: 'running', result: '' };
   if (stage === 7) return { station: 'XRD-03', label: `${spec.measured}% · TARGET ${spec.objectiveMet ? 'MET' : 'MISSED'}`, color: spec.objectiveMet ? '#51e19a' : '#8fcf8f', tone: 'complete', result: spec.objectiveMet ? 'TARGET MET' : 'VALID NEGATIVE' };
   if (stage === 8) return { station: 'SEM-01', label: 'REPRESENTATIVE FOLLOW-UP', color: '#b7d4d8', tone: 'running', result: 'DIAGNOSTIC RUN' };
   if (stage >= 9) return { station: 'SEM-01', label: spec.id === 'D-08' ? 'TI-RICH CORES' : 'CA-RICH SECONDARY GRAINS', color: '#51e19a', tone: 'complete', result: 'DIAGNOSIS LINKED' };
@@ -1195,7 +1203,7 @@ function CampaignMaterialRoute({ stage, selected, runNumber }: { stage: number; 
   const curve = useMemo(() => new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.12), [points]);
   const route = useMemo(() => curve.getPoints(64), [curve]);
   const target = stage <= 1 ? 0.02 : stage <= 3 ? 0.25 : stage <= 5 ? 0.5 : stage <= 7 ? 0.75 : 0.98;
-  const state = getCampaignRoomState(stage, selected);
+  const state = getCampaignRoomState(stage, selected, runNumber);
   const identity = getCampaignIdentity(runNumber);
   useFrame(({ clock }, delta) => {
     current.current = THREE.MathUtils.damp(current.current, target, 3.2, delta);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 import { campaignSpecs as recipes, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import type { CampaignOperations } from './campaign-spec';
 
 type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; diagnosis?: string };
 type CampaignInventory = { crucibles: number; liners: number; carbonTabs: number };
@@ -71,8 +72,31 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
   const operations = getCampaignOperations(currentRunNumber, run.thermalBayLevel);
   const inventory = { ...initialInventory, ...run.inventory };
   const inventoryLow = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
-  const fault = run.stage === 2 ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 6 ? 'qc' : null;
-  const primary = getPrimaryAction(run.stage, identity.runId);
+  const fault = run.stage === 2 && operations.robotConstraint ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 6 && operations.referenceConstraint ? 'qc' : null;
+  const robotConditionLabel = operations.robotCondition === 'contamination' ? 'CLEANLINESS' : operations.robotCondition === 'grip-force' ? 'GRIP FORCE' : 'READINESS';
+  const referenceConditionLabel = operations.referenceCondition === 'age-due' ? 'CONTROL DUE' : operations.referenceCondition === 'trend-review' ? 'TREND REVIEW' : 'CONTROL CURRENT';
+  const conditionSignal = run.stage === 2
+    ? operations.robotConstraint ? 'BOTTLENECK DETECTED' : 'ROBOT READINESS'
+    : run.stage === 4 ? 'BOTTLENECK DETECTED'
+      : run.stage === 6 ? operations.referenceConstraint ? 'BOTTLENECK DETECTED' : 'MEASUREMENT READINESS'
+        : run.stage === 8 ? 'DIAGNOSTIC BRANCH'
+          : run.stage >= 9 ? 'MECHANISM EVIDENCE RETAINED'
+            : run.stage >= 7 ? recipe.objectiveMet ? 'VALID RESULT · TARGET MET' : 'VALID RESULT · TARGET MISSED'
+              : 'ROUTE STATUS';
+  const conditionDetail = run.stage === 2
+    ? `ROBO-02 / ${robotConditionLabel}`
+    : run.stage === 4 ? run.thermalBayLevel >= 2 ? 'FURN-04B / READINESS GATE' : 'FURN-04A / CAPACITY 1 OF 1'
+      : run.stage === 6 ? `XRD-03 / ${referenceConditionLabel}`
+        : run.stage === 8 ? `SEM-01 / ${identity.thermalSample}`
+          : run.stage >= 7 ? `${recipe.measured}% · GAP ${recipe.gap}` : 'FLOW NOMINAL';
+  const conditionMetric = run.stage === 2
+    ? operations.robotConstraint ? `${operations.robotRecoveryMinutes} min recovery` : `${operations.robotRecoveryMinutes} min setup proof`
+    : run.stage === 4 ? `${operations.queueMinutes} min wait`
+      : run.stage === 6 ? `${operations.referenceAgeHours} h since reference`
+        : run.stage === 8 ? '4 fields + EDS map'
+          : run.stage >= 9 ? 'diagnosis linked'
+            : run.stage >= 7 ? recipe.objectiveMet ? 'objective achieved' : 'valid negative result' : 'no active delay';
+  const primary = getPrimaryAction(run.stage, identity.runId, operations);
 
   const advance = () => {
     if (run.stage === 0) {
@@ -97,7 +121,9 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
 
   const rejectShortcut = (kind: 'robot' | 'furnace') => {
     updateRun({ message: kind === 'robot'
-      ? 'Command blocked: bypassing the cleanliness witness would make contamination indistinguishable from material behavior.'
+      ? operations.robotCondition === 'grip-force'
+        ? 'Command blocked: bypassing the force witness could turn an intermittent grip into a carrier drop or cross-position dosing error.'
+        : 'Command blocked: bypassing the cleanliness witness would make contamination indistinguishable from material behavior.'
       : `Command blocked: shortening ${operations.activeFurnaceRun} violates its governed thermal profile. ${identity.runId} remains queued.` });
   };
 
@@ -195,20 +221,20 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
           <div className="campaign-panel-head"><div><span>LIVE MATERIAL ROUTE</span><b>{identity.runId} · {recipe.id}</b></div><em>{run.stage >= 8 ? '09 / 09' : `${String(Math.min(run.stage + 1, 8)).padStart(2, '0')} / 08`}</em></div>
           <div className="route-board">
             <RouteCell code="PREP-01" label="PREP" cycle="12 MIN" state={routeState(run.stage, 1, 2)} current={run.stage === 1} job={run.stage >= 1 ? identity.runId : 'OPEN'} />
-            <RouteCell code="ROBO-02" label="SYNTHESIZE" cycle="14 MIN" state={run.stage === 2 ? 'fault' : routeState(run.stage, 3, 4)} current={run.stage === 3} job={run.stage === 2 ? 'CELL FAULT' : run.stage >= 3 ? identity.runId : 'WAIT'} />
+            <RouteCell code="ROBO-02" label="SYNTHESIZE" cycle="14 MIN" state={run.stage === 2 ? operations.robotConstraint ? 'fault' : 'active' : routeState(run.stage, 3, 4)} current={run.stage === 2 || run.stage === 3} job={run.stage === 2 ? operations.robotCondition === 'contamination' ? 'CONTAM HOLD' : operations.robotCondition === 'grip-force' ? 'FORCE CHECK' : 'READY CHECK' : run.stage >= 3 ? identity.runId : 'WAIT'} />
             <RouteCell code={operations.furnaceLane} label="CALCINE" cycle={`${recipe.thermalMinutes} MIN`} state={run.stage === 4 ? 'queued' : routeState(run.stage, 5, 6)} current={run.stage === 5} job={run.stage === 4 ? run.thermalBayLevel >= 2 ? 'READY GATE' : 'Q 01' : run.stage >= 5 ? identity.runId : run.thermalBayLevel >= 2 ? 'QUALIFIED' : operations.activeFurnaceRun} />
-            <RouteCell code="XRD-03" label="MEASURE" cycle="18 MIN" state={run.stage === 6 ? 'fault' : routeState(run.stage, 6, 7)} current={run.stage === 6} job={run.stage === 6 ? 'QC HOLD' : run.stage >= 7 ? identity.runId : 'RUN-038'} />
+            <RouteCell code="XRD-03" label="MEASURE" cycle="18 MIN" state={run.stage === 6 ? operations.referenceConstraint ? 'fault' : 'active' : routeState(run.stage, 6, 7)} current={run.stage === 6} job={run.stage === 6 ? operations.referenceCondition === 'age-due' ? 'QC HOLD' : operations.referenceCondition === 'trend-review' ? 'TREND CHECK' : 'ACQUIRE' : run.stage >= 7 ? identity.runId : 'RUN-038'} />
             <RouteCell code={run.stage >= 8 ? 'SEM-01' : 'MODEL'} label={run.stage >= 8 ? 'DIAGNOSE' : 'LEARN'} cycle={run.stage >= 8 ? '26 MIN' : 'GATED'} state={run.stage >= 9 ? 'complete' : run.stage === 8 ? 'active' : run.stage >= 7 ? 'complete' : 'waiting'} current={run.stage === 8} job={run.stage >= 9 ? '4 FIELDS + MAP' : run.stage === 8 ? identity.thermalSample : run.stage >= 7 ? `+${recipe.insightReward} RP` : 'EVIDENCE'} />
           </div>
 
           <div className={`constraint-console ${fault ? `fault-${fault}` : run.stage === 8 ? 'fault-qc' : run.stage >= 7 ? recipe.objectiveMet ? 'result-hit' : 'result-miss' : ''}`}>
-            <div className="constraint-signal"><span>{fault ? 'BOTTLENECK DETECTED' : run.stage === 8 ? 'DIAGNOSTIC BRANCH' : run.stage >= 9 ? 'MECHANISM EVIDENCE RETAINED' : run.stage >= 7 ? recipe.objectiveMet ? 'VALID RESULT · TARGET MET' : 'VALID RESULT · TARGET MISSED' : 'ROUTE STATUS'}</span><b>{fault === 'cell' ? 'ROBO-02 / CLEANLINESS' : fault === 'queue' ? run.thermalBayLevel >= 2 ? 'FURN-04B / READINESS GATE' : 'FURN-04A / CAPACITY 1 OF 1' : fault === 'qc' ? 'XRD-03 / CONTROL DUE' : run.stage === 8 ? `SEM-01 / ${identity.thermalSample}` : run.stage >= 7 ? `${recipe.measured}% · GAP ${recipe.gap}` : 'FLOW NOMINAL'}</b><i /></div>
+            <div className="constraint-signal"><span>{conditionSignal}</span><b>{conditionDetail}</b><i /></div>
             <div className="constraint-visual" aria-label="Campaign queue visualization">
               <span className="queue-axis">QUEUE</span>
               <div className={`queue-token token-a ${run.stage >= 4 ? 'visible' : ''}`}>{identity.suffix}</div>
               <div className={`queue-token token-b ${run.stage === 4 ? 'visible' : ''}`}>{String(currentRunNumber + 1).padStart(3, '0')}</div>
               <div className={`machine-aperture ${fault ? 'held' : ''}`}><i /><b>{fault ? run.thermalBayLevel >= 2 && fault === 'queue' ? 'QUAL' : 'HOLD' : 'READY'}</b></div>
-              <em>{fault === 'queue' ? `${operations.queueMinutes} min wait` : fault === 'cell' ? `${operations.robotRecoveryMinutes} min recovery` : fault === 'qc' ? `${operations.referenceAgeHours} h since reference` : run.stage === 8 ? '4 fields + EDS map' : run.stage >= 9 ? 'diagnosis linked' : run.stage >= 7 ? recipe.objectiveMet ? 'objective achieved' : 'valid negative result' : 'no active delay'}</em>
+              <em>{conditionMetric}</em>
             </div>
             <p>{run.message}</p>
           </div>
@@ -237,7 +263,7 @@ export function CampaignControlModal({ autoOpenInventory = false, onClose }: { a
 
       <footer className="campaign-actions">
         <div><span>PLAYER COMMAND</span><b>{run.stage === 8 || run.stage >= 9 ? primary.hint : run.stage >= 7 ? `${recipe.id} · ${recipe.measured}% · ${recipe.gap}` : primary.hint}</b></div>
-        {run.stage === 2 && <button type="button" className="secondary" onClick={() => rejectShortcut('robot')}>BYPASS WITNESS</button>}
+        {run.stage === 2 && operations.robotConstraint && <button type="button" className="secondary" onClick={() => rejectShortcut('robot')}>{operations.robotCondition === 'grip-force' ? 'BYPASS FORCE WITNESS' : 'BYPASS CLEAN WITNESS'}</button>}
         {run.stage === 4 && <button type="button" className="secondary" onClick={() => rejectShortcut('furnace')}>SHORTEN {operations.activeFurnaceRun}</button>}
         {run.stage === 7 && !recipe.objectiveMet && <button type="button" className="secondary diagnosis" onClick={startDiagnosis}>ROUTE TO SEM / EDS</button>}
         <button type="button" onClick={run.stage > 0 && (run.stage < 7 || run.stage === 8) ? viewInLab : advance}>{primary.label}<span>→</span></button>
@@ -366,15 +392,23 @@ function routeState(stage: number, active: number, complete: number) {
   return 'waiting';
 }
 
-function getPrimaryAction(stage: number, runId: string) {
+function getPrimaryAction(stage: number, runId: string, operations: CampaignOperations) {
   return [
     { label: 'QUEUE GOVERNED RUN', hint: 'Release the selected recipe to PREP-01' },
     { label: 'OPERATE PREP-01', hint: 'Walk down the setup, then prove the preparation controls' },
-    { label: 'RECOVER ROBO-02', hint: 'Inspect, clean, and qualify the gripper at the cell' },
+    operations.robotCondition === 'contamination'
+      ? { label: 'RECOVER ROBO-02', hint: 'Inspect, clean, and qualify the gripper at the cell' }
+      : operations.robotCondition === 'grip-force'
+        ? { label: 'PROVE ROBO-02 TOOLING', hint: 'Inspect the jaw pads and acquire a governed force witness' }
+        : { label: 'PROVE ROBO-02 READY', hint: 'Confirm tool identity and the carrier handshake before dosing' },
     { label: 'OPERATE ROBO-02', hint: 'Prove the carrier and execute six-position dosing' },
     { label: 'OPERATE FURN-04', hint: 'Verify occupancy, Q01, and the physical hold location' },
     { label: 'START FURN-04 PROFILE', hint: 'Prove the load and start the governed thermal cycle' },
-    { label: 'QUALIFY XRD-03', hint: `Run the Si control before measuring ${runId}` },
+    operations.referenceCondition === 'age-due'
+      ? { label: 'QUALIFY XRD-03', hint: `Run the due Si control before measuring ${runId}` }
+      : operations.referenceCondition === 'trend-review'
+        ? { label: 'REVIEW XRD-03 TREND', hint: `Confirm the Si trend before measuring ${runId}` }
+        : { label: 'OPERATE XRD-03', hint: `Review the current Si control and acquire ${runId}` },
     { label: 'START NEXT CAMPAIGN', hint: 'AI-eligible result · objective missed by 0.2 percentage point' },
     { label: 'OPERATE SEM-01', hint: 'Acquire representative BSE fields and an EDS map' },
     { label: 'PROPOSE RECOVERY RUN', hint: 'Use the diagnosis to change the next governed experiment' },

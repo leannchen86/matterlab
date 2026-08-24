@@ -25,7 +25,11 @@ export type CampaignOperations = {
   activeFurnaceRun: string;
   furnaceLane: 'FURN-04A' | 'FURN-04B';
   queueMinutes: number;
+  robotCondition: 'nominal' | 'grip-force' | 'contamination';
+  robotConstraint: boolean;
   robotRecoveryMinutes: number;
+  referenceCondition: 'current' | 'trend-review' | 'age-due';
+  referenceConstraint: boolean;
   referenceAgeHours: number;
   referenceResult: string;
 };
@@ -65,12 +69,28 @@ export function getCampaignSpec(id?: string) {
 export function getCampaignOperations(runNumber = 42, thermalBayLevel = 1): CampaignOperations {
   const activeRunNumber = Math.max(1, runNumber - (2 + runNumber % 3));
   const referenceResults = ['+0.01° 2θ', '−0.02° 2θ', '+0.03° 2θ', '+0.00° 2θ'];
+  const robotCondition = (['nominal', 'grip-force', 'contamination'] as const)[runNumber % 3];
+  const referenceCondition = (['current', 'trend-review', 'current', 'age-due'] as const)[runNumber % 4];
+  const robotRecoveryMinutes = robotCondition === 'nominal'
+    ? 4 + runNumber % 2
+    : robotCondition === 'grip-force'
+      ? 9 + (runNumber % 3) * 2
+      : 12 + (runNumber % 4) * 3;
+  const referenceAgeHours = referenceCondition === 'current'
+    ? 2 + runNumber % 3
+    : referenceCondition === 'trend-review'
+      ? 6 + runNumber % 2
+      : 8 + runNumber % 7;
   return {
     activeFurnaceRun: getCampaignIdentity(activeRunNumber).runId,
     furnaceLane: thermalBayLevel >= 2 ? 'FURN-04B' : 'FURN-04A',
     queueMinutes: thermalBayLevel >= 2 ? 8 + (runNumber * 5) % 9 : 36 + (runNumber * 17) % 31,
-    robotRecoveryMinutes: 12 + (runNumber % 4) * 3,
-    referenceAgeHours: 8 + runNumber % 7,
+    robotCondition,
+    robotConstraint: robotCondition !== 'nominal',
+    robotRecoveryMinutes,
+    referenceCondition,
+    referenceConstraint: referenceCondition === 'age-due',
+    referenceAgeHours,
     referenceResult: referenceResults[runNumber % referenceResults.length],
   };
 }

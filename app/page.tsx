@@ -148,21 +148,21 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const progress = Math.round((displayedCompletedTasks / 7) * 100);
   const campaignTasks = [
     { number: '01', title: 'Prepare formulation', note: campaign.stage >= 2 ? `${campaignIdentity.prepSample} released` : `${campaignSpec.targetMass} · ${campaignSpec.formula}`, start: 1, complete: 2 },
-    { number: '02', title: 'Run robot synthesis', note: campaign.stage === 2 ? 'Cleanliness witness due' : campaign.stage >= 4 ? `${campaignIdentity.carrier} dosed` : '6 crucible positions', start: 2, complete: 4 },
+    { number: '02', title: 'Run robot synthesis', note: campaign.stage === 2 ? campaignOperations.robotCondition === 'contamination' ? 'Cleanliness witness due' : campaignOperations.robotCondition === 'grip-force' ? 'Grip-force witness due' : 'Tool ID + handshake check' : campaign.stage >= 4 ? `${campaignIdentity.carrier} dosed` : '6 crucible positions', start: 2, complete: 4 },
     { number: '03', title: 'Clear furnace queue', note: campaign.stage >= 5 ? 'Capacity slot secured' : `Q01 · ${campaignOperations.queueMinutes} min`, start: 4, complete: 5 },
     { number: '04', title: 'Execute thermal profile', note: campaign.stage >= 6 ? `${campaignSpec.profile} retained` : `${campaignSpec.temperature} · ${campaignSpec.dwell}`, start: 5, complete: 6 },
-    { number: '05', title: 'Qualify XRD result', note: campaign.stage >= 7 ? `${campaignIdentity.pattern} qualified` : 'NIST Si reference gate', start: 6, complete: 7 },
+    { number: '05', title: 'Qualify XRD result', note: campaign.stage >= 7 ? `${campaignIdentity.pattern} qualified` : campaignOperations.referenceCondition === 'age-due' ? 'NIST Si reference due' : campaignOperations.referenceCondition === 'trend-review' ? 'Si control trend review' : 'Current Si control', start: 6, complete: 7 },
     { number: '06', title: 'Interpret evidence', note: campaign.stage >= 8 ? 'Valid negative retained' : `${campaignSpec.prediction} ${campaignSpec.uncertainty} predicted`, start: 7, complete: 8 },
     { number: '07', title: 'Test mechanism', note: campaign.stage >= 9 ? 'Representative map linked' : 'SEM / EDS diagnostic branch', start: 8, complete: 9 },
   ];
   const campaignLineage = campaign.stage <= 1
     ? { nodes: [campaignSpec.id, campaignIdentity.prepSample, campaignIdentity.carrier], note: `${campaignSpec.precursorLabel} are being weighed and bound to the campaign manifest.` }
     : campaign.stage <= 3
-      ? { nodes: [campaignIdentity.prepSample, campaignIdentity.carrier, '6× CRUC'], note: campaign.stage === 2 ? 'Material is held before dosing until the gripper witness passes.' : 'Six crucible positions are linked to the governed robot program.' }
+      ? { nodes: [campaignIdentity.prepSample, campaignIdentity.carrier, '6× CRUC'], note: campaign.stage === 2 ? campaignOperations.robotCondition === 'contamination' ? 'Material is held before dosing until the cleanliness witness passes.' : campaignOperations.robotCondition === 'grip-force' ? 'Material is held before dosing until the jaw-force witness passes.' : 'Material is staged while tool identity and the carrier handshake are proved.' : 'Six crucible positions are linked to the governed robot program.' }
       : campaign.stage <= 5
         ? { nodes: [campaignIdentity.carrier, campaignIdentity.thermalSample, campaignSpec.profile], note: campaign.stage === 4 ? 'Carrier custody is retained while the single-capacity furnace clears.' : 'The specimen is accumulating its governed thermal history.' }
         : campaign.stage <= 7
-          ? { nodes: [campaignIdentity.thermalSample, campaignIdentity.xrdDataset, campaignIdentity.pattern], note: campaign.stage === 6 ? 'Diffraction release is held behind the silicon-reference gate.' : `${campaignIdentity.pattern} is qualified and linked to ${campaignSpec.measured}% target phase.` }
+          ? { nodes: [campaignIdentity.thermalSample, campaignIdentity.xrdDataset, campaignIdentity.pattern], note: campaign.stage === 6 ? campaignOperations.referenceCondition === 'age-due' ? 'Diffraction release is held behind the due silicon-reference gate.' : campaignOperations.referenceCondition === 'trend-review' ? 'The silicon-control trend is being confirmed before specimen acquisition.' : 'The current silicon control is being reviewed before specimen acquisition.' : `${campaignIdentity.pattern} is qualified and linked to ${campaignSpec.measured}% target phase.` }
           : { nodes: [campaignIdentity.thermalSample, `SEM-${campaignIdentity.suffix}`, `EDS-${campaignIdentity.suffix}`], note: campaign.stage === 8 ? 'Four representative fields and a correlated elemental map are in acquisition.' : 'Representative microscopy evidence is linked as a mechanism hypothesis.' };
   const allQcChecks = Object.values(qcChecks).every(Boolean);
 
@@ -422,11 +422,19 @@ function ActionPanel({ phase, onCampaign, onQc, onLineage, onRelease, onAdvance,
     const operations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
     const campaignStates = {
       1: { tag: 'CAMPAIGN EXECUTION', title: `${identity.runId} powder preparation`, body: `${spec.formula} is released to PREP-01. Physical lot, mass, and enclosure checks own the next gate.`, metric: spec.targetMass, tone: 'run' },
-      2: { tag: 'ROBOT CELL HOLD', title: 'Gripper cleanliness fault', body: 'The robot stopped before dosing. A cleaned gripper and witness coupon are required before material behavior can be trusted.', metric: `${operations.robotRecoveryMinutes} min recovery`, tone: 'warn' },
+      2: operations.robotCondition === 'contamination'
+        ? { tag: 'ROBOT CELL HOLD', title: 'Gripper cleanliness fault', body: 'The robot stopped before dosing. A cleaned gripper and witness coupon are required before material behavior can be trusted.', metric: `${operations.robotRecoveryMinutes} min recovery`, tone: 'warn' }
+        : operations.robotCondition === 'grip-force'
+          ? { tag: 'ROBOT TOOLING CHECK', title: 'Grip-force drift detected', body: 'The pre-dose tool check is outside its nominal band. Inspect the jaw pads and retain a force witness before handling the carrier.', metric: `${operations.robotRecoveryMinutes} min verification`, tone: 'warn' }
+          : { tag: 'ROBOT CELL READINESS', title: `${identity.runId} setup proof`, body: 'The robot is nominal. Confirm tool identity and the carrier handshake before enabling six-position dosing.', metric: `${operations.robotRecoveryMinutes} min setup`, tone: 'run' },
       3: { tag: 'ROBOT SYNTHESIS', title: `${identity.carrier} in dosing`, body: 'Six crucible positions are executing under the governed carrier handshake.', metric: '6 positions', tone: 'run' },
       4: { tag: campaign.thermalBayLevel >= 2 ? 'THERMAL LANE READINESS' : 'FURNACE BOTTLENECK', title: `${identity.runId} · ${operations.furnaceLane}`, body: campaign.thermalBayLevel >= 2 ? `Chamber A remains occupied by ${operations.activeFurnaceRun}. Qualified chamber B needs an independent readiness proof before load.` : `FURN-04 is capacity one. ${operations.activeFurnaceRun} must complete and the carrier hold location must be proven.`, metric: `${operations.furnaceLane} · ${operations.queueMinutes} min`, tone: 'warn' },
       5: { tag: 'THERMAL EXECUTION', title: `${spec.profile} active`, body: `${identity.thermalSample} is under the full ${spec.temperature} / ${spec.dwell} governed thermal history.`, metric: `${spec.thermalMinutes} min`, tone: 'run' },
-      6: { tag: 'XRD QUALITY GATE', title: `${identity.runId} specimen held`, body: 'A current NIST Si reference must pass before the campaign diffraction pattern can be acquired.', metric: `${operations.referenceAgeHours} h since QC`, tone: 'warn' },
+      6: operations.referenceCondition === 'age-due'
+        ? { tag: 'XRD QUALITY GATE', title: `${identity.runId} specimen held`, body: 'A current NIST Si reference must pass before the campaign diffraction pattern can be acquired.', metric: `${operations.referenceAgeHours} h since QC`, tone: 'warn' }
+        : operations.referenceCondition === 'trend-review'
+          ? { tag: 'XRD TREND REVIEW', title: `${identity.runId} awaiting confirmation`, body: 'The Si control remains within its age window, but its position trend needs a confirmatory acquisition before the specimen.', metric: `${operations.referenceAgeHours} h control`, tone: 'run' }
+          : { tag: 'XRD ACQUISITION', title: `${identity.runId} ready to measure`, body: 'The Si control is current. Review its governed result, prove the shutter chain, and acquire the specimen pattern.', metric: `${operations.referenceAgeHours} h control`, tone: 'run' },
       7: { tag: spec.objectiveMet ? 'CAMPAIGN TARGET MET' : 'VALID NEGATIVE', title: `${identity.runId} · ${spec.measured}% phase`, body: `The Si control passed at ${operations.referenceResult}. This qualified result is retained for the next model proposal.`, metric: spec.gap, tone: 'ready' },
       8: { tag: 'SEM / EDS FOLLOW-UP', title: `${identity.runId} diagnostic branch`, body: 'Four representative BSE fields and a correlated EDS map are required before assigning a mechanism to the valid negative.', metric: '0 / 4 fields', tone: 'run' },
       9: { tag: 'DIAGNOSIS LINKED', title: `${identity.runId} mechanism hypothesis`, body: `${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'} are retained as a follow-up hypothesis, not treated as bulk proof.`, metric: '4 / 4 fields', tone: 'ready' },
