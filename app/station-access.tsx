@@ -35,7 +35,7 @@ const profiles: Record<string, {
   'FURN-04': { controller: 'TC-04 / OT-04', safe: ['door interlock closed', 'overtemp relay armed', 'exhaust flow proven'], method: ['Verify occupancy', 'Load recipe', 'Ramp + dwell', 'Cool / release'], sample: ['BC-207', 'RCP-1000C', 'RUN-882'], workOrder: 'CAL-092', service: 'Thermocouple survey · 18 d', health: 91, supplies: ['type-K TC 3', 'hearth plate', 'door rope'] },
   'XRD-03': { controller: 'XRD-03 / RAD-PLC', safe: ['enclosure closed', 'shutter feedback closed', 'generator standby'], method: ['Load reference', 'Align holder', 'Acquire scan', 'Review control limit'], sample: ['BC-184-06', 'CA-TI-031', 'PAT-7738'], workOrder: 'QC-2841', service: 'NIST Si reference · due', health: 76, supplies: ['zero-background holders 4', 'Si standard', 'Kapton film'] },
   'SEM-01': { controller: 'SEM-01 / VAC-1', safe: ['chamber vented or pumped', 'stage Z clearance valid', 'HV blanked'], method: ['Mount stub', 'Pump chamber', 'Set field + kV', 'Capture BSE / EDS'], sample: ['CA-TI-031', 'STUB-118', 'MAP-04'], workOrder: 'PM-318', service: 'Aperture clean · 23 d', health: 96, supplies: ['carbon tabs 41', 'Al stubs 18', 'aperture set'] },
-  'BET-02': { controller: 'BET-02 / VAC-MFD', safe: ['vacuum trend stable', 'N₂ supply in range', 'tube ports isolated'], method: ['Verify pretreatment', 'Enter dry mass', 'Leak test', 'Acquire isotherm'], sample: ['ADS-77-C', 'DEGAS-771', 'ISO-220'], workOrder: 'MX-233', service: 'Vendor recommission · open', health: 63, supplies: ['sample tubes 12', 'filler rods 8', 'LN₂ dewar'] },
+  'BET-02': { controller: 'BET-02 / VAC-MFD', safe: ['vacuum trend stable', 'N₂ supply in range', 'tube ports isolated', '77 K bath in analysis position'], method: ['Verify pretreatment', 'Enter dry mass', 'Leak test', 'Acquire isotherm'], sample: ['ADS-77-C', 'DEGAS-771', 'ISO-220'], workOrder: 'MX-233', service: 'Vendor recommission · open', health: 63, supplies: ['sample tubes 12', 'filler rods 8', 'LN₂ dewar'] },
   'TGA-01': { controller: 'TGA-01 / GAS-3', safe: ['furnace near ambient', 'purge path proven', 'autosampler clear'], method: ['Select pan pair', 'Record sample mass', 'Run baseline / method', 'Review mass + heat flow'], sample: ['LOT-91-T', 'PANSET-14', 'THM-208'], workOrder: 'QC-621', service: 'Baseline + balance check · due', health: 84, supplies: ['Al pans 26', 'Pt pans 4', 'pan crimper'] },
 };
 
@@ -45,7 +45,7 @@ const HMI_OPERATIONS: Record<string, string[]> = {
   'FURN-04': ['Read overtemperature relay', 'Verify door chain', 'Confirm empty-cell state'],
   'XRD-03': ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Read reference position'],
   'SEM-01': ['Establish chamber vacuum', 'Verify stage clearance', 'Arm BSE / EDS detectors'],
-  'BET-02': ['Isolate analysis ports', 'Run manifold leak check', 'Prove N₂ supply state'],
+  'BET-02': ['Isolate analysis ports', 'Run manifold leak check', 'Prove N₂ supply state', 'Position 77 K Dewar'],
   'TGA-01': ['Tare balance channel', 'Prove purge path', 'Home autosampler carousel'],
 };
 
@@ -360,12 +360,14 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
       if (item === 'enclosure closed') return operations.includes('Close radiation enclosure');
       if (item === 'shutter feedback closed') return operations.includes('Prove shutter feedback');
     }
-    if (!campaignStage && scenarioId === 'bet' && station.id === 'BET-02') {
+    if (station.id === 'BET-02') {
       if (item === 'vacuum trend stable') return operations.includes('Run manifold leak check');
       if (item === 'N₂ supply in range') return operations.includes('Prove N₂ supply state');
       if (item === 'tube ports isolated') return operations.includes('Isolate analysis ports');
+      if (item === '77 K bath in analysis position') return operations.includes('Position 77 K Dewar');
     }
-    if (!campaignStage && scenarioId === 'tga' && station.id === 'TGA-01') {
+    if (station.id === 'TGA-01') {
+      if (item === 'furnace near ambient') return operations.includes('Tare balance channel');
       if (item === 'purge path proven') return operations.includes('Prove purge path');
       if (item === 'autosampler clear') return operations.includes('Home autosampler carousel');
     }
@@ -701,16 +703,17 @@ function BetHmiPanel({ station, operations }: { station: Station; operations: st
   const portsIsolated = operations.includes('Isolate analysis ports');
   const leakPassed = operations.includes('Run manifold leak check');
   const nitrogenProven = operations.includes('Prove N₂ supply state');
+  const dewarPositioned = operations.includes('Position 77 K Dewar');
   const reviewState = station.state === 'REVIEW';
   const running = station.state === 'ANALYZING';
-  const status = nitrogenProven ? 'ACCEPTANCE EVIDENCE READY' : leakPassed ? 'N₂ PROOF REQUIRED' : portsIsolated ? 'LEAK CHECK READY' : 'PORT ISOLATION REQUIRED';
+  const status = dewarPositioned ? 'MEASUREMENT START STATE PROVEN' : nitrogenProven ? '77 K BATH REQUIRED' : leakPassed ? 'N₂ PROOF REQUIRED' : portsIsolated ? 'LEAK CHECK READY' : 'PORT ISOLATION REQUIRED';
   const pressurePath = leakPassed
     ? 'M268 62 C294 86 316 104 340 116 S391 127 418 130 S458 132 491 132'
     : 'M268 62 H491';
   const isothermPath = reviewState || running
     ? 'M268 151 C289 149 306 145 322 139 S350 123 365 105 S391 80 413 70 S455 62 491 60'
     : 'M268 151 H491';
-  return <section className={`native-characterizer-console bet-console${nitrogenProven ? ' operation-complete' : ''}`}>
+  return <section className={`native-characterizer-console bet-console${dewarPositioned ? ' operation-complete' : ''}`}>
     <header><div><span>GAS SORPTION MANIFOLD</span><b>BET-02 · PORTS 1–4 · MX-233</b></div><em>{status}</em></header>
     <div className="native-characterizer-layout">
       <svg viewBox="0 0 520 180" role="img" aria-label="BET-02 four-port vacuum manifold and adsorption isotherm control">
@@ -731,6 +734,7 @@ function BetHmiPanel({ station, operations }: { station: Station; operations: st
         <div className={portsIsolated ? 'pass' : 'hold'}><span>PORT VALVES</span><b>{portsIsolated ? '4 / 4 ISOLATED' : 'LOCKED'}</b><small>{portsIsolated ? 'cross-port path blocked' : 'prove service boundary'}</small></div>
         <div className={leakPassed ? 'pass' : portsIsolated ? 'review' : 'waiting'}><span>BASE PRESSURE</span><b>{leakPassed ? '3.2e−4 mbar' : '—'}</b><small>{leakPassed ? 'leak criterion met' : 'evacuation held'}</small></div>
         <div className={nitrogenProven ? 'pass' : 'waiting'}><span>ADSORBATE N₂</span><b>{nitrogenProven ? '4.8 bar' : 'UNPROVEN'}</b><small>{reviewState ? 'ALU-21 control under review' : nitrogenProven ? 'identity + supply linked' : 'supply proof required'}</small></div>
+        <div className={dewarPositioned ? 'pass' : nitrogenProven ? 'review' : 'waiting'}><span>CRYOGENIC BATH</span><b>{dewarPositioned ? '77 K · LIFTED' : 'PARKED'}</b><small>{dewarPositioned ? 'cell bulbs immersed' : nitrogenProven ? 'position Dewar under cells' : 'gas proof required first'}</small></div>
       </aside>
     </div>
   </section>;

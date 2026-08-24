@@ -2223,6 +2223,39 @@ action and must not actuate the barrier by implication.
 - Browser QA proved the states independently: `Close access gate` closed the panel and cleared only gate chain;
   the subsequent reset cleared scanner state and changed the light curtain while gripper pressure stayed held.
 
+## Critique 118: the BET analyzer had no 77 K measurement boundary
+
+The four-port gas-sorption model showed sample cells, vacuum service, and nitrogen supply, but it could appear
+ready without the cryogenic bath required for a conventional 77 K nitrogen-adsorption measurement. That made
+the analyzer look plausible while omitting one of its most recognizable physical operations.
+
+### Changes
+
+- Added an insulated, liquid-filled four-position Dewar on a modeled lift below the adsorption cells; it parks
+  clear for setup and rises around all four cell bulbs only from retained local control.
+- Added `Position 77 K Dewar` after port isolation, manifold leak proof, and adsorbate-gas proof as a fourth
+  ordered control step and an independent start permissive.
+- Extended the native BET HMI with a cryogenic-bath readback that remains parked / held after all gas and vacuum
+  checks, then reports 77 K and immersed cells only when the lift action is retained.
+- Browser QA proved the intermediate 3 / 4 hold, then returned to the 3D asset and confirmed the raised bath
+  physically envelopes the sample-cell bulbs while safe-state attestation becomes available.
+
+## Critique 119: off-mission characterizer permissives defaulted true
+
+Inspecting BET-02 or TGA-01 during the persistent campaign showed an internally contradictory HMI: the local
+sequence began at zero, but instrument permissives inherited a default true state because their mappings only
+ran inside the corresponding standalone incident.
+
+### Changes
+
+- Apply BET vacuum, gas, port, and cryogenic proofs whenever BET-02 is opened, independent of the surrounding
+  scenario or campaign stage.
+- Apply the same station-scoped rule to TGA balance/start-temperature, purge, and autosampler proofs.
+- Removed the Dewar's DOM-overlay badge after QA found it could render above the station-console backdrop; the
+  physical bath and its instrument readback carry the state without visual bleed.
+- Browser QA reopened BET-02 from the active campaign and confirmed all four machine permissives begin on HOLD,
+  clear one at a time, and agree with the 0 / 4 through 4 / 4 sequence counter.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

@@ -1204,9 +1204,14 @@ function SemEds({ active, controls }: { active: boolean; controls: string[] }) {
 }
 
 function Bet({ active, tone, controls }: { active: boolean; tone: string; controls: string[] }) {
+  const dewarLift = useRef<THREE.Group>(null);
   const portsIsolated = controls.includes('Isolate analysis ports');
   const leakCheckPassed = controls.includes('Run manifold leak check');
   const gasProven = controls.includes('Prove N₂ supply state');
+  const dewarPositioned = controls.includes('Position 77 K Dewar');
+  useFrame((_, delta) => {
+    if (dewarLift.current) dewarLift.current.position.y = THREE.MathUtils.damp(dewarLift.current.position.y, dewarPositioned ? 0.99 : 0.51, 3.4, delta);
+  });
   return <group position={[0, 0.18, 0]}>
     <RoundedBox args={[2.0, 2.2, 1.42]} radius={0.1} smoothness={4} position={[-0.28, 1.14, 0]} castShadow>
       <meshPhysicalMaterial color="#4b5b67" metalness={0.78} roughness={0.25} clearcoat={0.4} />
@@ -1221,6 +1226,22 @@ function Bet({ active, tone, controls }: { active: boolean; tone: string; contro
       <mesh position={[0, 0.47, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.085, 0.016, 8, 20]} /><meshStandardMaterial color={i === 2 ? '#b7853d' : '#688796'} metalness={0.72} roughness={0.25} /></mesh>
       <mesh position={[0, -0.48, 0]}><cylinderGeometry args={[0.125, 0.145, 0.18, 22]} /><meshPhysicalMaterial color="#8a9aa2" metalness={0.7} roughness={0.22} clearcoat={0.25} /></mesh>
     </group>)}
+    <group ref={dewarLift} position={[-0.28, 0.51, 0.86]}>
+      <RoundedBox args={[1.42, 0.54, 0.58]} radius={0.1} smoothness={4} castShadow>
+        <meshPhysicalMaterial color="#b8c4c7" metalness={0.9} roughness={0.16} clearcoat={0.5} />
+      </RoundedBox>
+      <RoundedBox args={[1.22, 0.43, 0.48]} radius={0.075} smoothness={4} position={[0, 0.075, 0.012]}>
+        <meshPhysicalMaterial color="#182b34" metalness={0.42} roughness={0.18} clearcoat={0.3} />
+      </RoundedBox>
+      <mesh position={[0, 0.295, 0.03]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[1.08, 0.36]} />
+        <meshPhysicalMaterial color="#83d9ef" emissive="#327d99" emissiveIntensity={dewarPositioned ? 0.65 : 0.2} transparent opacity={0.62} roughness={0.08} transmission={0.22} />
+      </mesh>
+      {[-0.44, -0.14, 0.15, 0.44].map((x) => <mesh key={x} position={[x, 0.3, 0.03]}><torusGeometry args={[0.092, 0.015, 8, 22]} /><meshStandardMaterial color="#778d96" metalness={0.86} roughness={0.17} /></mesh>)}
+      <mesh position={[0, -0.32, -0.08]} castShadow><boxGeometry args={[0.5, 0.12, 0.42]} /><meshStandardMaterial color="#465a65" metalness={0.78} roughness={0.27} /></mesh>
+      <mesh position={[0, -0.43, -0.08]} castShadow><cylinderGeometry args={[0.08, 0.1, 0.2, 18]} /><meshStandardMaterial color="#5d7079" metalness={0.8} roughness={0.23} /></mesh>
+      {dewarPositioned && [-0.43, -0.12, 0.18, 0.43].map((x, index) => <Line key={x} points={[[x, 0.32, 0.05], [x - 0.04, 0.45 + (index % 2) * 0.04, 0.04], [x + 0.02, 0.55, 0.02]]} color="#bcefff" lineWidth={0.65} transparent opacity={0.5} />)}
+    </group>
     <mesh position={[-0.28, 1.98, 0.81]}><boxGeometry args={[1.25, 0.05, 0.06]} /><meshStandardMaterial color="#7e939e" metalness={0.8} /></mesh>
     {[-0.72, -0.42, -0.13, 0.16].map((x) => <group key={`valve-${x}`} position={[x, 2.04, 0.82]} rotation={[0, portsIsolated ? Math.PI / 2 : 0, 0]}>
       <mesh><cylinderGeometry args={[0.035, 0.035, 0.12, 14]} /><meshStandardMaterial color="#9eaaae" metalness={0.9} roughness={0.14} /></mesh>
@@ -1239,7 +1260,7 @@ function Bet({ active, tone, controls }: { active: boolean; tone: string; contro
       </group>)}
       <mesh position={[0, -0.13, 0]}><boxGeometry args={[0.38, 0.12, 0.14]} /><meshStandardMaterial color="#415460" metalness={0.72} roughness={0.28} /></mesh>
     </group>
-    <Line points={[[0.98, 1.39, 0.1], [0.8, 1.92, 0.1], [0.3, 1.98, 0.1]]} color={tone} lineWidth={0.8} transparent opacity={0.55} />
+    <Line points={[[0.98, 1.39, 0.1], [0.8, 1.92, 0.1], [0.3, 1.98, 0.1]]} color={gasProven ? '#51e19a' : tone} lineWidth={gasProven ? 1.35 : 0.8} transparent opacity={gasProven ? 0.84 : 0.55} />
     <Line points={[[0.82, 1.48, 0.12], [0.55, 1.94, 0.12], [-0.28, 2.02, 0.12]]} color="#738b98" lineWidth={1.4} transparent opacity={0.72} />
   </group>;
 }
