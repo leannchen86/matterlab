@@ -1,7 +1,7 @@
-import { fieldGuide } from './sim-data';
+import { systemsAtlas } from './sim-data';
 
-export function FieldGuideModal({ onClose }: { onClose: () => void }) {
-  return <div className="modal-backdrop" role="presentation"><section className="modal-card wide" role="dialog" aria-modal="true" aria-label="Lab systems atlas"><header><div><p className="section-kicker">CAMPAIGN SYSTEMS + CHARACTERIZATION</p><h2>Lab systems atlas</h2></div><button type="button" onClick={onClose} aria-label="Close dialog">×</button></header><p className="modal-intro">The operating map for this lab. Trace a material from physical asset to governed evidence, then decide what the autonomous campaign may try next.</p><CampaignLoopMap /><AccessBoundaryMap /><div className="guide-grid">{fieldGuide.map((item) => <article key={item.term}><AtlasEquipmentGlyph term={item.term} /><div><b>{item.term}</b><p>{item.role}</p><small>{item.atBench}</small></div></article>)}</div></section></div>;
+export function SystemsAtlasModal({ onClose }: { onClose: () => void }) {
+  return <div className="modal-backdrop" role="presentation"><section className="modal-card wide" role="dialog" aria-modal="true" aria-label="Lab systems atlas"><header><div><p className="section-kicker">CAMPAIGN SYSTEMS + CHARACTERIZATION</p><h2>Lab systems atlas</h2></div><button type="button" onClick={onClose} aria-label="Close dialog">×</button></header><p className="modal-intro">The operating map for this lab. Trace a material from physical asset to governed evidence, then decide what the autonomous campaign may try next.</p><CampaignLoopMap /><AccessBoundaryMap /><div className="guide-grid">{systemsAtlas.map((item) => <article key={item.term}><AtlasEquipmentGlyph term={item.term} /><div><b>{item.term}</b><p>{item.role}</p><small>{item.atBench}</small></div></article>)}</div></section></div>;
 }
 
 function CampaignLoopMap() {

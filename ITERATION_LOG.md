@@ -2500,6 +2500,18 @@ recipe in the controlled-experiment card and a widened station-tone literal in t
   widen safety/status tones beyond the supported visual vocabulary.
 - Add standalone TypeScript verification to the final release gate alongside ESLint and the production build.
 
+## Critique 135: obsolete Field Guide names survived in the source architecture
+
+Player-visible copy was clean, but the shared modal filename, component, and exported data still used the old
+Field Guide name. Event-ledger drawers also exposed an unlabeled `×` control to assistive technology.
+
+### Changes
+
+- Rename the shared module, component, and data export to `systems-atlas` / `SystemsAtlasModal` / `systemsAtlas`
+  across every playable incident.
+- Remove the old source module entirely so repository searches no longer surface a competing product concept.
+- Give every event-ledger close control an explicit accessible name while preserving the compact visual button.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

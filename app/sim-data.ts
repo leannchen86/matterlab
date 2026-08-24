@@ -84,7 +84,7 @@ export const baseStations: Station[] = [
   },
 ];
 
-export const fieldGuide = [
+export const systemsAtlas = [
   {
     term: 'LIMS / LES',
     role: 'Sample identity, methods, results, and governed laboratory execution.',
