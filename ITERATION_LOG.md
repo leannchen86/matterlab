@@ -1302,6 +1302,26 @@ and measurement evidence should be operated, inspected, and retained by the play
 - Added a persistent read-only qualification view after commissioning, and visually checked the full
   record at desktop and 390 × 844 widths with its stacked mobile control sequence.
 
+## Critique 71: the upgraded furnace existed in geometry but not in the asset system
+
+After Chamber B passed IQ / OQ, the campaign route and 3D cabinet recognized the new capacity, but
+the ordinary station inspector and CMMS still described a single box furnace. That made the expansion
+feel like a campaign modifier instead of a persistent, governed change to the laboratory.
+
+### Changes
+
+- Made the dual-chamber configuration a facility-level station state. The lab inspector now reports
+  Chamber A's live owner, Chamber B's qualified state, its measured 7.4 °C uniformity span, and the
+  retained IQ / OQ record even when the current campaign is working at another station.
+- Rebuilt the local furnace mimic as two independently indicated chambers: the occupied hot Chamber A
+  and the qualified, cool Chamber B remain visibly distinct outside the commissioning workflow.
+- Added a configuration-specific console session and asset controller identity so commissioning evidence
+  cannot be confused with the original single-chamber record or a transient campaign execution.
+- Added an auditable CMMS qualification record for FURN-04B with the 990 °C OQ cycle, nine-point mean,
+  span-versus-limit decision, locked record ID, and next 180-day uniformity verification.
+- Updated local-console naming and accessibility context to follow the configured asset rather than the
+  original base catalog entry.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

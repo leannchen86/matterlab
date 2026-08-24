@@ -86,6 +86,20 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   }, [minute]);
 
   const stations = useMemo(() => baseStations.map((station): Station => {
+    if (station.id === 'FURN-04' && campaign.thermalBayLevel >= 2) return {
+      ...station,
+      name: 'Dual-chamber furnace',
+      state: 'A RUN / B READY',
+      tone: 'ready',
+      meta: `A ${campaignOperations.activeFurnaceRun} · B qualified`,
+      technicianView: [
+        `Chamber A: ${campaignOperations.activeFurnaceRun}`,
+        'Chamber B: qualified',
+        'Uniformity: 7.4 °C span',
+        'Qualification: IQ / OQ retained',
+      ],
+      dataProducts: [...station.dataProducts, 'thermal uniformity record'],
+    };
     if (station.id === 'XRD-03' && phase >= 1) return {
       ...station,
       state: phase === 4 ? 'RUN COMPLETE' : 'READY',
@@ -115,7 +129,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         : ['Vacuum: stable', 'Specimen: SPEC-184-03', 'Target: bright inclusion', 'Coverage: 1 field only'],
     };
     return station;
-  }), [phase]);
+  }), [phase, campaign.thermalBayLevel, campaignOperations.activeFurnaceRun]);
 
   const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[0];
   const selected = useCampaignStation(selectedBase);

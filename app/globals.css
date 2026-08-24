@@ -376,6 +376,12 @@ button { font: inherit; }
 .health-dial { width: 158px; height: 158px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(var(--cyan) 0 var(--health), #1a293b var(--health) 360deg); box-shadow: 0 0 28px #4dd5ed14; }.health-dial::before { content: ''; position: absolute; width: 124px; height: 124px; border-radius: 50%; background: #0a141f; box-shadow: inset 0 0 18px #000a; }.health-dial > div { position: relative; z-index: 2; text-align: center; }.health-dial b { display: block; color: #d0dce5; font: 700 34px var(--font-geist-mono); }.health-dial span { color: #60758a; font: 650 6px var(--font-geist-mono); letter-spacing: .08em; }
 .maintenance-timeline > div { position: relative; min-height: 74px; padding: 5px 0 12px 28px; border-left: 1px solid #2a4057; }.maintenance-timeline i { position: absolute; left: -6px; top: 5px; width: 11px; height: 11px; border: 2px solid #344d65; border-radius: 50%; background: #0b151f; }.maintenance-timeline span { display: block; color: #607388; font: 650 6px var(--font-geist-mono); }.maintenance-timeline b { display: block; margin-top: 6px; color: #9eafbe; font-size: 9px; }.maintenance-timeline small { display: block; margin-top: 4px; color: #617287; font: 500 7px var(--font-geist-mono); }.maintenance-timeline .complete i { border-color: var(--green); background: #153f31; }.maintenance-timeline .active i { border-color: var(--amber); background: #4a3618; box-shadow: 0 0 10px #f4b95f55; }.maintenance-timeline .active b { color: #d8e1e7; }
 .spares-card > div { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid #203147; color: #8a9aaa; font: 550 7px var(--font-geist-mono); }.spares-card > div i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }.spares-card > div i.stock-low { background: var(--amber); box-shadow: 0 0 7px #f4b95f77; }
+.cmms-qualification-record { border: 1px solid #356b58; background: linear-gradient(150deg, #10261f, #0a1517 68%); box-shadow: inset 0 0 25px #4ad7960b, 0 12px 24px #0005; }
+.cmms-qualification-record header { display: flex; align-items: center; justify-content: space-between; min-height: 35px; padding: 0 11px; border-bottom: 1px solid #294b40; color: #658b80; font: 650 6px var(--font-geist-mono); letter-spacing: .08em; }
+.cmms-qualification-record header b { padding: 3px 5px; border: 1px solid #3d8067; color: var(--green); font-size: 6px; }
+.cmms-qualification-record > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; padding: 0 11px; border-bottom: 1px solid #203d35; font: 600 7px var(--font-geist-mono); }
+.cmms-qualification-record > div span { color: #627b76; }.cmms-qualification-record > div b { color: #b2c9c1; text-align: right; }
+.cmms-qualification-record footer { min-height: 31px; display: flex; align-items: center; gap: 7px; padding: 0 11px; color: #62aa8d; font: 650 6px var(--font-geist-mono); }.cmms-qualification-record footer i { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px #51e19a88; }
 .readout-list { border: 1px solid #1f2e42; background: #090f18; }
 .readout-list > div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #182438; font: 500 8px var(--font-geist-mono); }
 .readout-list > div:last-child { border: 0; }.readout-list span { color: #65758b; }.readout-list b { color: #afbdcf; font-weight: 600; text-align: right; }
@@ -768,7 +774,7 @@ button { font: inherit; }
   .console-action { align-items: stretch; flex-direction: column; padding: 10px; }
   .console-action p { min-height: 22px; line-height: 1.4; }.console-action button { width: 100%; min-width: 0; }
   .les-layout, .lims-layout, .cmms-layout { display: block; padding: 11px; }
-  .method-card, .lims-facts, .spares-card { margin-top: 12px; }
+  .method-card, .lims-facts, .spares-card, .cmms-qualification-record { margin-top: 12px; }
   .lims-chain { grid-template-columns: 1fr; gap: 8px; }
   .lims-chain > div { min-height: 112px; }
   .lims-chain > div:not(:last-child)::after, .lineage-connector { display: none; }
