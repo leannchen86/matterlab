@@ -2543,6 +2543,18 @@ formula, especially as Zr content increased.
 - Preserve the existing lot identities, two-decimal balance instructions, and exact target-total contract while
   making the displayed preparation record chemically consistent with the user-authored formula.
 
+## Critique 138: a repeated mission boundary was displayed as proof of robustness
+
+The adjacent confirmation produced a tight 0.3 percentage-point spread, but the two runs traversed different
+controlled recovery paths. The comparability audit preserved that distinction while the facility headline used
+the stronger phrase “robustness pass.” Agreement alone does not establish robustness under changed covariates.
+
+### Changes
+
+- Report the qualified result as a repeated mission boundary, not a general robustness claim.
+- Direct the player to the campaign comparability audit before making a stronger inference.
+- Align the shift checklist, action panel, and spatial twin verdicts around the same cautious language.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
