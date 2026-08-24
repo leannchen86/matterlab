@@ -2034,6 +2034,24 @@ player still had to leave the spatial view and read a route card to understand t
 - Browser QA confirmed RUN-048 at stage zero visibly resolves to PREP-01 / NEXT, with the preparation asset,
   transfer point, and branch highlighted while the remaining equipment stays online but inactive.
 
+## Critique 107: a bottleneck looked identical to normal flow
+
+The live route located the sample, but equipment holds and queue gates used the same cyan treatment as an
+actively executing step. A player scanning the floor plan could not tell movement from waiting.
+
+### Changes
+
+- Project the campaign's retained condition state into the facility view: robot readiness faults, furnace
+  queue or condition holds, and XRD reference constraints now switch the route from cyan `ACTIVE` to amber
+  `HOLD`.
+- Change the affected asset boundary, transfer branch, and sample-location marker together so the spatial
+  signal remains legible without adding warning paragraphs.
+- Bind the bottleneck card to the real equipment condition and recovery metric rather than showing only a
+  generic thermal utilization bar.
+- Advanced RUN-048 through PREP-01 and both governed ROBO-02 gates during browser QA. At the resulting
+  FURN-04B readiness gate, the map correctly showed `RUN-048 → FURN-04 · HOLD`, a 14-minute wait, and an
+  amber furnace branch while both chambers remained individually online.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
