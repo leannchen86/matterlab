@@ -3,39 +3,39 @@ type Scores = { safety: number; traceability: number; integrity: number; uptime:
 
 const trails: Record<Scenario, { label: string; detail: string }[]> = {
   xrd: [
-    { label: 'QC RESTORED', detail: 'reference' },
-    { label: 'ID CONTROLLED', detail: 'quarantine' },
-    { label: 'CELL RELEASED', detail: '5 eligible' },
-    { label: 'AI HELD', detail: 'anomaly' },
-    { label: 'EVIDENCE BUILT', detail: 'SEM / EDS' },
+    { label: 'MACHINE CHECK PASSED', detail: 'XRD reference' },
+    { label: 'LABEL CORRECTED', detail: 'sample 06 held' },
+    { label: 'SAMPLES RELEASED', detail: '5 ready' },
+    { label: 'UNKNOWN PEAK HELD', detail: 'not ignored' },
+    { label: 'FOUR FIELDS CHECKED', detail: 'element map' },
   ],
   bet: [
-    { label: 'SERVICE ACCEPTED', detail: 'blank + leak' },
-    { label: 'PREP LINKED', detail: 'degas record' },
-    { label: 'RUN RELEASED', detail: '4 samples' },
-    { label: 'CONTROL FLAGGED', detail: '168 m²/g' },
-    { label: 'RECHECK QUEUED', detail: 'AI held' },
+    { label: 'ANALYZER CHECKED', detail: 'blank + leak' },
+    { label: 'TUBE MATCHED', detail: 'preparation record' },
+    { label: 'TEST COMPLETED', detail: '4 samples' },
+    { label: 'LOW REFERENCE FLAGGED', detail: '168 m²/g' },
+    { label: 'REPEAT QUEUED', detail: 'change held' },
   ],
   furnace: [
-    { label: 'TRACE RETAINED', detail: '742 °C' },
-    { label: 'LOAD HELD', detail: 'BC-207' },
-    { label: 'CELL VERIFIED', detail: 'empty cycle' },
-    { label: 'RUN CENSORED', detail: 'excluded' },
-    { label: 'REPLAN READY', detail: 'replacement' },
+    { label: 'OLD TRACE SAVED', detail: '742 °C' },
+    { label: 'SAMPLE HELD', detail: 'BC-207' },
+    { label: 'EMPTY TEST PASSED', detail: 'furnace + robot' },
+    { label: 'OLD RUN EXCLUDED', detail: 'not comparable' },
+    { label: 'NEW RUN READY', detail: 'safe restart' },
   ],
   tga: [
-    { label: 'BASELINE HELD', detail: 'offset retained' },
-    { label: 'PANSET BOUND', detail: 'PANSET-14' },
-    { label: 'BLANK PASSED', detail: 'paired pans' },
-    { label: 'ARTIFACT FLAGGED', detail: 'purge step' },
-    { label: 'REPEAT QUEUED', detail: 'AI held' },
+    { label: 'FAILED BASELINE SAVED', detail: '+0.28 mg' },
+    { label: 'PANS MATCHED', detail: 'PANSET-14' },
+    { label: 'EMPTY TEST PASSED', detail: 'paired pans' },
+    { label: 'GAS OVERLAP FLAGGED', detail: '412 °C' },
+    { label: 'REPEAT QUEUED', detail: 'change held' },
   ],
   facility: [
-    { label: 'LOAD SECURED', detail: 'route proven' },
-    { label: 'TOTE BOUND', detail: 'LOT-3024' },
-    { label: 'BOUNDARY PROVEN', detail: 'gas service' },
-    { label: 'CONTROL LINKED', detail: 'post-change' },
-    { label: 'AI GATED', detail: 'transition held' },
+    { label: 'LOAD SECURED', detail: 'route clear' },
+    { label: 'TOTE MATCHED', detail: 'LOT-3024-A' },
+    { label: 'GAS CHECK PASSED', detail: 'leak test' },
+    { label: 'ANALYZER CHECKED', detail: 'ALU-21' },
+    { label: 'UNCERTAIN RUNS HELD', detail: 'before proof' },
   ],
 };
 
@@ -59,10 +59,10 @@ export function DebriefVisual({ scenario, scores, exceptionCount = 0 }: { scenar
       </svg>
     </div>
     <div className={`debrief-trail${exceptionCount ? ' recovered' : ''}`}>
-      <header><span>RETAINED EVIDENCE TRAIL</span><b>5 / 5 LINKED</b></header>
+      <header><span>WHAT YOU PROVED</span><b>{trails[scenario].length} CHECKS SAVED</b></header>
       {exceptionCount > 0 && <div className="recovery-band" role="status"><i>!</i><b>{exceptionCount} BLOCKED {exceptionCount === 1 ? 'ATTEMPT' : 'ATTEMPTS'}</b><span>recovered · retained in ledger</span></div>}
       <div>{trails[scenario].map((item, index) => <article key={item.label}><i>{index + 1}</i><b>{item.label}</b><small>{item.detail}</small></article>)}</div>
-      <footer><span>PHYSICAL</span><i>→</i><span>DIGITAL</span><i>→</i><span>SCIENTIFIC</span><i>→</i><span>AI-ELIGIBLE</span></footer>
+      <footer><span>CHECKED</span><i>→</i><span>RECORDED</span><i>→</i><span>REVIEWED</span></footer>
     </div>
   </div>;
 }
