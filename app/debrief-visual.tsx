@@ -39,24 +39,14 @@ const trails: Record<Scenario, { label: string; detail: string }[]> = {
   ],
 };
 
-export function DebriefVisual({ scenario, scores, exceptionCount = 0 }: { scenario: Scenario; scores: Scores; exceptionCount?: number }) {
-  const values = [scores.safety, scores.traceability, scores.integrity, scores.uptime];
-  const point = (value: number, index: number) => {
-    const angle = -Math.PI / 2 + index * Math.PI / 2;
-    const radius = 41 * value / 100;
-    return `${55 + Math.cos(angle) * radius},${55 + Math.sin(angle) * radius}`;
-  };
-  const grid = (value: number) => values.map((_, index) => point(value, index)).join(' ');
+export function DebriefVisual({ scenario, exceptionCount = 0, elapsedMinutes = 0, logCount = 0 }: { scenario: Scenario; scores: Scores; exceptionCount?: number; elapsedMinutes?: number; logCount?: number }) {
   return <div className="debrief-visual">
-    <div className="debrief-radar" aria-label={`Shift profile: safety ${scores.safety}, traceability ${scores.traceability}, data integrity ${scores.integrity}, uptime ${scores.uptime}`}>
-      <span>SHIFT PROFILE</span>
-      <svg viewBox="0 0 110 110" role="img" aria-hidden="true">
-        {[25, 50, 75, 100].map((level) => <polygon key={level} className="radar-grid" points={grid(level)} />)}
-        <path className="radar-axis" d="M55 9V101M9 55H101" />
-        <polygon className="radar-value" points={values.map(point).join(' ')} />
-        {values.map((value, index) => { const [x, y] = point(value, index).split(','); return <circle key={index} cx={x} cy={y} r="2.5" />; })}
-        <text x="55" y="7" textAnchor="middle">SAFETY</text><text x="104" y="57">TRACE</text><text x="55" y="108" textAnchor="middle">INTEGRITY</text><text x="6" y="57" textAnchor="end">UPTIME</text>
-      </svg>
+    <div className="debrief-outcomes" aria-label={`Mission outcome: ${elapsedMinutes} elapsed minutes, ${exceptionCount} blocked attempts, ${logCount} recorded events`}>
+      <span>MISSION OUTCOME</span>
+      <div><b>+{elapsedMinutes}</b><small>LAB MINUTES</small></div>
+      <div className={exceptionCount ? 'attention' : ''}><b>{exceptionCount}</b><small>BLOCKED ACTIONS</small></div>
+      <div><b>{logCount}</b><small>RECORDED EVENTS</small></div>
+      <p>{exceptionCount ? 'You recovered without losing the evidence.' : 'Clean run: no unsafe or unsupported action was attempted.'}</p>
     </div>
     <div className={`debrief-trail${exceptionCount ? ' recovered' : ''}`}>
       <header><span>WHAT YOU PROVED</span><b>{trails[scenario].length} CHECKS SAVED</b></header>

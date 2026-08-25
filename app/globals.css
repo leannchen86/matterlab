@@ -1187,6 +1187,41 @@ button { font: inherit; }
 .campaign-view-plan .candidate-lock { min-height: 51px; }
 .campaign-view-run .campaign-mission-strip,
 .campaign-view-review .campaign-mission-strip { display: none; }
+
+/* Gameplay loop: concrete costs, recoverable failures, and an optional field manual. */
+.mission-telemetry { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 12px; border: 1px solid #273a50; background: #080f18; }
+.mission-telemetry span { min-width: 0; padding: 7px 6px; border-right: 1px solid #273a50; color: #60738a; font: 700 8px var(--font-geist-mono); letter-spacing: .06em; }
+.mission-telemetry span:last-child { border-right: 0; }
+.mission-telemetry b { display: block; margin-top: 4px; overflow: hidden; color: #b5c4d4; font-size: 9px; letter-spacing: 0; white-space: nowrap; text-overflow: ellipsis; }
+.mission-telemetry .attention { background: #20150d; color: #ac7541; }
+.mission-telemetry .attention b { color: var(--amber); }
+
+.feedback.bad { position: relative; margin: 12px 17px; padding: 27px 12px 11px; border: 1px solid #805235; border-left: 4px solid var(--amber); background: linear-gradient(90deg, #28170d, #151018); color: #e1b783; font: 650 11px/1.55 var(--font-geist-sans); }
+.feedback.bad::before { content: 'ACTION BLOCKED · RECOVERY TIME LOGGED'; position: absolute; top: 8px; left: 12px; color: var(--amber); font: 800 8px var(--font-geist-mono); letter-spacing: .09em; }
+.blank-release-shortcut, .control-certificate-shortcut { width: 100%; min-height: 34px; margin-top: 8px; border: 1px solid #755033; background: #1e140d; color: #d2a269; font: 750 9px var(--font-geist-mono); cursor: pointer; }
+.blank-release-shortcut:hover, .blank-release-shortcut:focus-visible, .control-certificate-shortcut:hover, .control-certificate-shortcut:focus-visible { border-color: var(--amber); background: #2a1b10; outline: 1px solid #f4b95f44; }
+
+.field-rules { margin: 13px 17px; padding-top: 13px; border-top: 1px solid #293c52; }
+.field-rules > div { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; margin-top: 8px; }
+.field-rules article { padding: 10px; border: 1px solid #30465d; background: #0b1621; }
+.field-rules b { display: block; color: #8fd6df; font: 750 9px var(--font-geist-mono); }
+.field-rules p { margin: 5px 0 0; color: #a4b2c2; font-size: 10px; line-height: 1.5; }
+
+.debrief-outcomes { min-width: 160px; display: grid; grid-template-columns: repeat(3, 1fr); align-content: start; border: 1px solid #2b4358; background: #09131d; }
+.debrief-outcomes > span { grid-column: 1 / -1; padding: 9px 10px; border-bottom: 1px solid #2b4358; color: #6d8498; font: 750 9px var(--font-geist-mono); letter-spacing: .08em; }
+.debrief-outcomes > div { padding: 12px 8px; border-right: 1px solid #263b4e; text-align: center; }
+.debrief-outcomes > div:nth-of-type(3) { border-right: 0; }
+.debrief-outcomes b, .debrief-outcomes small { display: block; }
+.debrief-outcomes b { color: #b9d1dc; font: 800 20px var(--font-geist-mono); }
+.debrief-outcomes small { margin-top: 4px; color: #667d91; font: 700 7px var(--font-geist-mono); }
+.debrief-outcomes .attention { background: #20150d; }
+.debrief-outcomes .attention b { color: var(--amber); }
+.debrief-outcomes > p { grid-column: 1 / -1; margin: 0; padding: 10px; border-top: 1px solid #263b4e; color: #93a6b7; font-size: 10px; line-height: 1.45; }
+
+@media (max-width: 620px) {
+  .field-rules > div { grid-template-columns: 1fr; }
+  .debrief-visual { grid-template-columns: 1fr; }
+}
 .campaign-view-run :is(.evidence-fork, .authored-learning, .confirmation-gate, .replicate-result, .cycle-ledger) { display: none; }
 .campaign-view-review :is(.experiment-contract, .route-board, .constraint-console, .shift-backlog, .campaign-timeline, .thermal-capacity-panel) { display: none; }
 .campaign-view-review .campaign-routing { min-height: 430px; }
