@@ -204,7 +204,7 @@ function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignSt
   return profile;
 }
 
-export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = [] }: { station: Station; scenarioId?: ScenarioId; physicalChecks?: string[] }) {
+export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = false, physicalChecks = [] }: { station: Station; scenarioId?: ScenarioId; campaignEnabled?: boolean; physicalChecks?: string[] }) {
   const [open, setOpen] = useState(false);
   const [enteredFromLab, setEnteredFromLab] = useState(false);
   const [enteredChecks, setEnteredChecks] = useState<string[]>([]);
@@ -218,8 +218,8 @@ export function StationAccess({ station, scenarioId = 'xrd', physicalChecks = []
   const [campaignMissionId, setCampaignMissionId] = useState<CampaignMissionId>('purity');
   const [campaignThermalBayLevel, setCampaignThermalBayLevel] = useState(1);
   const [campaignBacklog, setCampaignBacklog] = useState<CampaignBacklogItem[]>([]);
-  const campaignActive = scenarioId === 'xrd' && getCampaignStationId(campaignStage) === station.id;
-  const facilityConfigured = scenarioId === 'xrd' && station.id === 'FURN-04' && campaignThermalBayLevel >= 2;
+  const campaignActive = campaignEnabled && scenarioId === 'xrd' && getCampaignStationId(campaignStage) === station.id;
+  const facilityConfigured = campaignEnabled && scenarioId === 'xrd' && station.id === 'FURN-04' && campaignThermalBayLevel >= 2;
   const contextKey = campaignActive ? `${station.id}:RUN-${campaignRunNumber}:${campaignSelected}:${campaignMissionId}:S${campaignStage}` : facilityConfigured ? `${station.id}:CONFIG-L2` : station.id;
   const consoleStation = campaignActive ? getCampaignStationView(station, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, campaignMissionId, campaignResultElapsed, campaignResultMeasured) : station;
   const session = sessions[contextKey] ?? emptyConsoleSession();

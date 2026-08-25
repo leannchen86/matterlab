@@ -52,42 +52,20 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const campaignMission = getCampaignMission(campaign.missionId);
   const campaignEvaluation = evaluateCampaignMission(campaignObservedSpec, campaign.missionId, campaign.stage >= 7 ? campaign.resultElapsed : undefined);
   const confirmationSpread = campaign.confirmationSource ? Math.abs(Number(campaign.resultMeasured) - Number(campaign.confirmationSource.measured)).toFixed(1) : '';
-  const campaignActive = campaign.stage > 0;
+  const [campaignMode, setCampaignMode] = useState(false);
+  const campaignActive = campaignMode && campaign.stage > 0;
   const [phase, setPhase] = useState(0);
   const [modal, setModal] = useState<Modal>(null);
   const [selectedOverride, setSelectedId] = useState('');
-  const selectedId = selectedOverride || getCampaignStationId(campaign.stage) || 'XRD-03';
+  const selectedId = selectedOverride || (campaignActive ? getCampaignStationId(campaign.stage) : '') || 'XRD-03';
   const [minute, setMinute] = useState(8 * 60 + 16);
   const [log, setLog] = useState<LogItem[]>(initialLog);
-  const [ledgerHydrated, setLedgerHydrated] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
-  const [qcChecks, setQcChecks] = useState({ holder: false, standard: false, interlock: false });
   const [qcRan, setQcRan] = useState(false);
   const [labelsScanned, setLabelsScanned] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [scores, setScores] = useState<Scores>({ safety: 100, traceability: 82, integrity: 68, uptime: 91 });
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
-
-  useEffect(() => {
-    const hydrateLedger = window.setTimeout(() => {
-      try {
-        const retained = JSON.parse(window.localStorage.getItem(ledgerStorageKey) ?? '[]') as LogItem[];
-        if (Array.isArray(retained) && retained.length) {
-          const bounded = retained.slice(-80);
-          setLog(bounded);
-          const [hours, minutes] = bounded.at(-1)!.time.split(':').map(Number);
-          if (Number.isFinite(hours) && Number.isFinite(minutes)) setMinute(hours * 60 + minutes);
-        }
-      } catch { /* no-op */ }
-      setLedgerHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(hydrateLedger);
-  }, []);
-
-  useEffect(() => {
-    if (!ledgerHydrated) return;
-    try { window.localStorage.setItem(ledgerStorageKey, JSON.stringify(log.slice(-80))); } catch { /* no-op */ }
-  }, [ledgerHydrated, log]);
 
   useEffect(() => {
     const followCampaignStation = (event: Event) => {
@@ -100,7 +78,10 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   }, []);
 
   useEffect(() => {
-    const openCampaign = (event: Event) => setModal((event as CustomEvent<{ view?: string }>).detail?.view === 'facility' ? 'campaign-facility' : 'campaign');
+    const openCampaign = (event: Event) => {
+      setCampaignMode(true);
+      setModal((event as CustomEvent<{ view?: string }>).detail?.view === 'facility' ? 'campaign-facility' : 'campaign');
+    };
     window.addEventListener('mattershift:open-campaign', openCampaign);
     return () => window.removeEventListener('mattershift:open-campaign', openCampaign);
   }, []);
@@ -200,8 +181,6 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         : campaign.stage <= 7
           ? { nodes: [campaignIdentity.thermalSample, campaignIdentity.xrdDataset, campaignIdentity.pattern], note: campaign.stage === 6 ? campaignOperations.referenceCondition === 'age-due' ? 'Diffraction release is held behind the due silicon-reference gate.' : campaignOperations.referenceCondition === 'trend-review' ? 'The silicon-control trend is being confirmed before specimen acquisition.' : 'The current silicon control is being reviewed before specimen acquisition.' : `${campaignIdentity.pattern} is qualified and linked to ${campaignObservedSpec.measured}% target phase.` }
           : { nodes: [campaignIdentity.thermalSample, `SEM-${campaignIdentity.suffix}`, `EDS-${campaignIdentity.suffix}`], note: campaign.stage === 8 ? 'Four representative fields and a correlated elemental map are in acquisition.' : 'Representative microscopy evidence is linked as a mechanism hypothesis.' };
-  const allQcChecks = Object.values(qcChecks).every(Boolean);
-
   const appendLog = (type: string, text: string, addMinutes = 0) => {
     const nextMinute = minute + addMinutes;
     setMinute(nextMinute);
@@ -230,7 +209,6 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const openQc = () => { setFeedback(''); setModal('qc'); setSelectedId('XRD-03'); };
 
   const runReference = () => {
-    if (!allQcChecks) return;
     setQcRan(true);
     setFeedback('Reference scan complete. Peak-position error is now inside the control limit.');
     appendLog('qc', 'XRD-03 Si reference completed: +0.02° 2θ; control limit ±0.05°.', 14);
@@ -329,7 +307,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
           <div><b>SIMULATION READY</b><small>{formatTime(minute)} · FICTIONAL LAB</small></div>
         </div>
         <div className="header-actions">
-          <button className="campaign-button" type="button" onClick={() => setModal('campaign')}>ADVANCED MODE</button>
+          <button className="campaign-button" type="button" onClick={() => { setCampaignMode(true); setModal('campaign'); }}>ADVANCED MODE</button>
           <button className="deck-button" type="button" onClick={() => setModal('deck')}>SCENARIOS <span>5</span></button>
           <button type="button" onClick={() => setModal('guide')}>HOW TO PLAY</button>
           <button type="button" onClick={() => setLogOpen(true)}>SIM LOG <span>{log.length}</span></button>
@@ -358,8 +336,8 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
                 <Task number="02" title="Verify balance" note="Check mass within limit" status="done" />
                 <Task number="03" title="Resolve XRD QC" note={phase >= 1 ? 'Returned to service' : 'Reference peak shifted'} status={phase >= 1 ? 'done' : 'active'} onClick={phase < 1 ? openQc : undefined} />
                 <Task number="04" title="Reconcile carrier" note={phase >= 2 ? '5 eligible · 1 quarantined' : 'BC-184 · 6 crucibles'} status={phase >= 2 ? 'done' : phase === 1 ? 'active' : 'pending'} onClick={phase === 1 ? openLineage : undefined} />
-                <Task number="05" title="Release workcell" note={phase >= 3 ? 'Carrier accepted' : 'Awaiting identity gate'} status={phase >= 3 ? 'done' : phase === 2 ? 'active' : 'pending'} onClick={phase === 2 ? releaseCarrier : undefined} />
-                <Task number="06" title="Review XRD result" note={phase >= 5 ? 'Follow-up assigned' : 'Pattern + phase analysis'} status={phase >= 5 ? 'done' : phase === 4 ? 'active' : 'pending'} onClick={phase === 4 ? () => setModal('evidence') : undefined} />
+                <Task number="05" title="Start the robot" note={phase >= 3 ? 'Carrier accepted' : 'Awaiting identity gate'} status={phase >= 3 ? 'done' : phase === 2 ? 'active' : 'pending'} onClick={phase === 2 ? releaseCarrier : undefined} />
+                <Task number="06" title={phase === 3 ? 'See the result' : 'Review the XRD result'} note={phase >= 5 ? 'Follow-up assigned' : phase === 3 ? 'Test run is ready' : 'Pattern + phase analysis'} status={phase >= 5 ? 'done' : phase === 3 || phase === 4 ? 'active' : 'pending'} onClick={phase === 3 ? advanceRun : phase === 4 ? () => setModal('evidence') : undefined} />
                 <Task number="07" title="Triage with SEM / EDS" note={phase >= 6 ? '4 fields + map linked' : 'Inclusion follow-up'} status={phase >= 6 ? 'done' : phase === 5 ? 'active' : 'pending'} onClick={phase === 5 ? () => { setSelectedId('SEM-01'); setModal('sem'); } : undefined} />
               </>}
             </ol>
@@ -388,7 +366,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
             <div className="legend"><span><i className="ready" />ready</span><span><i className="run" />active</span><span><i className="warn" />attention</span></div>
           </div>
 
-          <LabViewport stations={stations} selectedId={selectedId} phase={phase} inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} />
+          <LabViewport stations={stations} selectedId={selectedId} phase={phase} campaignEnabled={campaignMode} inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} />
 
           <footer className="facility-footer">
             <div><span>ENV</span><b>22.1 °C</b><small>41% RH</small></div>
@@ -399,10 +377,10 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         </section>
 
         <aside className="right-rail">
-          <ActionPanel phase={phase} onCampaign={() => setModal('campaign')} onQc={openQc} onLineage={openLineage} onRelease={releaseCarrier} onAdvance={advanceRun} onEvidence={() => setModal('evidence')} onSem={() => { setSelectedId('SEM-01'); setModal('sem'); }} onComplete={() => setModal('complete')} />
+          <ActionPanel phase={phase} campaignActive={campaignActive} onCampaign={() => setModal('campaign')} onQc={openQc} onLineage={openLineage} onRelease={releaseCarrier} onAdvance={advanceRun} onEvidence={() => setModal('evidence')} onSem={() => { setSelectedId('SEM-01'); setModal('sem'); }} onComplete={() => setModal('complete')} />
 
           <section className="rail-section station-inspector">
-            <div className="section-title-row"><p className="section-kicker">SELECTED EQUIPMENT</p><span className={selected.tone}>{selected.state}</span></div>
+            <div className="section-title-row"><p className="section-kicker">SELECTED EQUIPMENT · SIMULATED</p><span className={selected.tone}>{selected.state}</span></div>
             <div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div>
             <p>{selected.purpose}</p>
             <div className="readout-list">
@@ -410,10 +388,10 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
             </div>
             <p className="mini-label">OUTPUTS</p>
             <div className="tag-list">{selected.dataProducts.map((item) => <span key={item}>{item}</span>)}</div>
-            <StationAccess station={selected} scenarioId="xrd" physicalChecks={physicalInspections[selectedInspectionKey] ?? []} />
+            <StationAccess station={selected} scenarioId="xrd" campaignEnabled={campaignMode} physicalChecks={physicalInspections[selectedInspectionKey] ?? []} />
           </section>
 
-          <PlannerPanel scenario="xrd" phase={phase} />
+          <PlannerPanel scenario="xrd" phase={phase} campaignActive={campaignActive} />
 
           <section className="rail-section score-panel">
             <div className="section-title-row"><p className="section-kicker">SHIFT HEALTH</p><span>SIM</span></div>
@@ -431,14 +409,14 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         </aside>
       </div>
 
-      {modal === 'qc' && <QcModal checks={qcChecks} setChecks={setQcChecks} allChecked={allQcChecks} ran={qcRan} feedback={feedback} onRun={runReference} onDisposition={dispositionQc} onClose={() => setModal(null)} />}
+      {modal === 'qc' && <QcModal ran={qcRan} feedback={feedback} onRun={runReference} onDisposition={dispositionQc} onClose={() => setModal(null)} />}
       {modal === 'lineage' && <LineageModal scanned={labelsScanned} onScan={() => { setLabelsScanned(true); setFeedback('Mismatch found: manifest SPEC-184-06; physical label SPEC-148-06.'); appendLog('lineage', 'Carrier BC-184 scan found one identifier mismatch.', 3); }} feedback={feedback} onResolve={resolveLineage} onClose={() => setModal(null)} />}
       {modal === 'evidence' && <EvidenceModal feedback={feedback} onDecide={decideEvidence} onClose={() => setModal(null)} />}
       {modal === 'sem' && <SemEdsModal feedback={feedback} onDecide={decideSem} onClose={() => setModal(null)} />}
       {modal === 'guide' && <SystemsAtlasModal onClose={() => setModal(null)} />}
       {(modal === 'campaign' || modal === 'campaign-inventory' || modal === 'campaign-facility') && <CampaignControlModal autoOpenInventory={modal === 'campaign-inventory'} autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
       {modal === 'deck' && <ShiftDeckModal active="xrd" onChoose={onSwitch} onClose={() => setModal(null)} />}
-      {modal === 'complete' && <CompleteModal scores={scores} logCount={log.length} exceptionCount={log.filter((event) => event.type === 'exception').length} onReset={resetShift} onClose={() => setModal(null)} />}
+      {modal === 'complete' && <CompleteModal scores={scores} logCount={log.length} exceptionCount={log.filter((event) => event.type === 'exception').length} onReset={resetShift} onDeck={() => setModal('deck')} onClose={() => setModal(null)} />}
       {logOpen && <LedgerDrawer log={log} onClose={() => setLogOpen(false)} />}
     </main>
   );
@@ -453,9 +431,9 @@ function Score({ label, value }: { label: string; value: number }) {
   return <div className="score-row"><div><span>{label}</span><b>{value}</b></div><div className="score-track"><i style={{ width: `${value}%` }} /></div></div>;
 }
 
-function ActionPanel({ phase, onCampaign, onQc, onLineage, onRelease, onAdvance, onEvidence, onSem, onComplete }: { phase: number; onCampaign: () => void; onQc: () => void; onLineage: () => void; onRelease: () => void; onAdvance: () => void; onEvidence: () => void; onSem: () => void; onComplete: () => void }) {
+function ActionPanel({ phase, campaignActive, onCampaign, onQc, onLineage, onRelease, onAdvance, onEvidence, onSem, onComplete }: { phase: number; campaignActive: boolean; onCampaign: () => void; onQc: () => void; onLineage: () => void; onRelease: () => void; onAdvance: () => void; onEvidence: () => void; onSem: () => void; onComplete: () => void }) {
   const campaign = useCampaignSnapshot();
-  if (campaign.stage > 0) {
+  if (campaignActive && campaign.stage > 0) {
     const spec = getCampaignSpec(campaign.selected);
     const observedSpec = campaign.resultMeasured ? { ...spec, measured: campaign.resultMeasured } : spec;
     const identity = getCampaignIdentity(campaign.runNumber);
@@ -507,14 +485,14 @@ function ModalShell({ title, kicker, children, onClose, wide = false }: { title:
   return <div className="modal-backdrop" role="presentation"><section className={`modal-card ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}><header><div><p className="section-kicker">{kicker}</p><h2>{title}</h2></div><button type="button" onClick={onClose} aria-label="Close dialog">×</button></header>{children}</section></div>;
 }
 
-function QcModal({ checks, setChecks, allChecked, ran, feedback, onRun, onDisposition, onClose }: { checks: { holder: boolean; standard: boolean; interlock: boolean }; setChecks: React.Dispatch<React.SetStateAction<{ holder: boolean; standard: boolean; interlock: boolean }>>; allChecked: boolean; ran: boolean; feedback: string; onRun: () => void; onDisposition: (correct: boolean) => void; onClose: () => void }) {
+function QcModal({ ran, feedback, onRun, onDisposition, onClose }: { ran: boolean; feedback: string; onRun: () => void; onDisposition: (correct: boolean) => void; onClose: () => void }) {
   const items = [
     { key: 'holder' as const, title: 'Clean the sample holder', note: 'Dust can distort the reading.' },
     { key: 'standard' as const, title: 'Check the reference sample', note: 'Make sure it is the correct silicon standard.' },
     { key: 'interlock' as const, title: 'Close the safety cover', note: 'The instrument will not run while it is open.' },
   ];
   return <ModalShell title="Check the XRD" kicker="STEP 1 · MACHINE CHECK" onClose={onClose} wide>
-    <div className="modal-grid qc-grid"><div><p className="modal-intro">The last reading was outside the safe range. Complete these three checks, then test the machine with a known sample.</p><div className="check-stack">{items.map((item) => <label key={item.key} className={checks[item.key] ? 'checked' : ''}><input type="checkbox" checked={checks[item.key]} onChange={() => setChecks((current) => ({ ...current, [item.key]: !current[item.key] }))} /><span>{checks[item.key] ? '✓' : ''}</span><div><b>{item.title}</b><small>{item.note}</small></div></label>)}</div><button className="modal-run" type="button" disabled={!allChecked || ran} onClick={onRun}>{ran ? 'CHECK COMPLETE' : 'RUN REFERENCE CHECK · 8 MIN'}</button></div><div className="control-card"><p className="mini-label">READING VS. SAFE RANGE</p><div className="control-chart"><i className="limit top" /><i className="center" /><i className="limit bottom" /><span style={{ left: '12%', top: '43%' }} /><span style={{ left: '28%', top: '51%' }} /><span style={{ left: '46%', top: '47%' }} /><span className="bad" style={{ left: '64%', top: '8%' }} />{ran && <span className="new" style={{ left: '84%', top: '40%' }} />}</div><div className="control-legend"><span>LOW</span><b>TARGET</b><span>HIGH</span></div><div className="result-box"><span>BEFORE</span><b>OUT OF RANGE</b><span>NOW</span><b>{ran ? 'PASS' : '—'}</b></div>{ran && <div className="decision-stack"><p className="mini-label">WHAT SHOULD HAPPEN TO THE OLD RESULTS?</p><button type="button" onClick={() => onDisposition(true)}>Discard them and test again</button><button type="button" className="secondary" onClick={() => onDisposition(false)}>Keep them without retesting</button></div>}</div></div>{feedback && <p className={`feedback ${feedback.startsWith('Unsafe') ? 'bad' : ''}`}>{feedback}</p>}
+    <div className="modal-grid qc-grid"><div><p className="modal-intro">The last reading was outside the allowed range. Review what the reference check controls, then test the machine with a known sample.</p><div className="evidence-brief">{items.map((item) => <article key={item.key}><i>•</i><div><b>{item.title}</b><small>{item.note}</small></div></article>)}</div><button className="modal-run" type="button" disabled={ran} onClick={onRun}>{ran ? 'CHECK COMPLETE' : 'RUN REFERENCE CHECK · 8 MIN'}</button></div><div className="control-card"><p className="mini-label">PEAK ERROR · ALLOWED RANGE ±0.05° 2θ</p><div className="control-chart"><i className="limit top" /><i className="center" /><i className="limit bottom" /><span style={{ left: '12%', top: '43%' }} /><span style={{ left: '28%', top: '51%' }} /><span style={{ left: '46%', top: '47%' }} /><span className="bad" style={{ left: '64%', top: '8%' }} />{ran && <span className="new" style={{ left: '84%', top: '40%' }} />}</div><div className="control-legend"><span>−0.05°</span><b>TARGET · 0°</b><span>+0.05°</span></div><div className="result-box"><span>BEFORE</span><b>OUT OF RANGE</b><span>NOW</span><b>{ran ? '+0.02° · PASS' : '—'}</b></div>{ran && <div className="decision-stack"><p className="mini-label">WHAT SHOULD HAPPEN TO THE OLD RESULTS?</p><button type="button" onClick={() => onDisposition(true)}>Discard them and test again</button><button type="button" className="secondary" onClick={() => onDisposition(false)}>Keep them without retesting</button></div>}</div></div>{feedback && <p className={`feedback ${feedback.startsWith('Unsafe') ? 'bad' : ''}`}>{feedback}</p>}
   </ModalShell>;
 }
 
@@ -524,18 +502,19 @@ function LineageModal({ scanned, onScan, feedback, onResolve, onClose }: { scann
 }
 
 function EvidenceModal({ feedback, onDecide, onClose }: { feedback: string; onDecide: (correct: boolean) => void; onClose: () => void }) {
-  return <ModalShell title="Characterization result review" kicker="RESULT GATE · RUN CA-TI-031" onClose={onClose} wide><div className="evidence-grid"><div className="trace-panel"><div className="panel-heading"><span>XRD DIFFRACTION PATTERN</span><b>XRD-03 · RUN 031</b></div><div className="xrd-chart" aria-label="Simulated XRD trace with one unresolved peak"><i style={{ left: '9%', height: '16%' }} /><i style={{ left: '19%', height: '40%' }} /><i style={{ left: '31%', height: '84%' }} /><i style={{ left: '44%', height: '35%' }} /><i className="unknown" style={{ left: '54%', height: '52%' }} /><i style={{ left: '67%', height: '29%' }} /><i style={{ left: '78%', height: '63%' }} /><i style={{ left: '91%', height: '22%' }} /><span>UNRESOLVED · 36.1°</span></div><div className="axis"><span>10°</span><b>2θ</b><span>80°</span></div></div><div className="report-panel"><div className="panel-heading"><span>PHASE-ANALYSIS RESULT</span><b>method v2.4</b></div><div className="report-metric"><span>Target phase</span><b>94.2%</b></div><div className="report-metric"><span>Fit Rwp</span><b>8.6%</b></div><div className="report-metric"><span>Campaign target</span><b>≥ 90%</b></div><div className="report-status">TARGET MET</div><p>Operator review still required for the unassigned reflection.</p></div></div><div className="ai-proposal"><div><span>AI PLANNER · PROPOSED NEXT RUN</span><h3>Increase dwell 4 h → 6 h at 1,000 °C</h3><p>Expected target fraction: 97% · confidence 0.82</p></div><b>READY</b></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onDecide(true)}>Flag anomaly · request SEM/EDS follow-up</button><button type="button" className="secondary" onClick={() => onDecide(false)}>Accept AI next-run plan</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+  return <ModalShell title="Characterization result review" kicker="RESULT GATE · RUN CA-TI-031" onClose={onClose} wide><div className="decision-question"><span>DECISION</span><b>Does the passing phase score justify the next run while one peak remains unexplained?</b></div><div className="evidence-grid"><div className="trace-panel"><div className="panel-heading"><span>XRD DIFFRACTION PATTERN · INTENSITY (COUNTS)</span><b>XRD-03 · RUN 031</b></div><div className="xrd-chart" aria-label="Simulated XRD intensity from 10 to 80 degrees two theta with one unresolved peak at 36.1 degrees"><i style={{ left: '9%', height: '16%' }} /><i style={{ left: '19%', height: '40%' }} /><i style={{ left: '31%', height: '84%' }} /><i style={{ left: '44%', height: '35%' }} /><i className="unknown" style={{ left: '54%', height: '52%' }} /><i style={{ left: '67%', height: '29%' }} /><i style={{ left: '78%', height: '63%' }} /><i style={{ left: '91%', height: '22%' }} /><span>UNRESOLVED · 36.1°</span></div><div className="axis"><span>10°</span><b>DIFFRACTION ANGLE · 2θ</b><span>80°</span></div></div><div className="report-panel"><div className="panel-heading"><span>PHASE-ANALYSIS RESULT</span><b>method v2.4</b></div><div className="report-metric"><span>Target phase</span><b>94.2%</b></div><div className="report-metric"><span>Fit Rwp</span><b>8.6%</b></div><div className="report-metric"><span>Campaign target</span><b>≥ 90%</b></div><div className="report-status">TARGET MET</div><p>One reflection remains unassigned, so the material explanation is incomplete.</p></div></div><div className="ai-proposal"><div><span>AI PLANNER · PROPOSED NEXT RUN</span><h3>Increase dwell 4 h → 6 h at 1,000 °C</h3><p>Expected target fraction: 97% · confidence 0.82</p></div><b>READY</b></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onDecide(true)}>Flag anomaly · request SEM/EDS follow-up</button><button type="button" className="secondary" onClick={() => onDecide(false)}>Accept AI next-run plan</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
 }
 
 function SemEdsModal({ feedback, onDecide, onClose }: { feedback: string; onDecide: (correct: boolean) => void; onClose: () => void }) {
   const grains = [[8, 15, 34, 27], [34, 9, 29, 36], [61, 12, 34, 25], [18, 41, 37, 30], [51, 38, 25, 26], [73, 39, 29, 33], [4, 70, 33, 24], [36, 67, 31, 28], [64, 72, 35, 22]];
   const peaks: [string, number, number][] = [['O', 24, 43], ['Si', 38, 72], ['Ca', 57, 88], ['Ti', 76, 64], ['Ti', 86, 31]];
-  return <ModalShell title="SEM / EDS inclusion triage" kicker="CHARACTERIZATION FOLLOW-UP · SPEC-184-03" onClose={onClose} wide><p className="modal-intro">The XRD result contains an unassigned reflection. A backscattered-electron field reveals one bright inclusion; the local spectrum can guide follow-up, but not represent the bulk by itself.</p><div className="sem-evidence-grid"><div className="micrograph-panel"><div className="panel-heading"><span>BSE MICROGRAPH · FIELD 01</span><b>SEM-01 · SPEC-184-03</b></div><div className="micrograph" aria-label="Simulated SEM micrograph with a bright inclusion">{grains.map(([left, top, width, height], index) => <i key={index} style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }} />)}<span className="bright-inclusion" /><b className="feature-tag">EDS ROI 01</b><em className="scale-bar">20 µm</em><i className="scan-line" /></div><div className="field-strip"><span className="active"><i />F01<b>inclusion</b></span><span><i />F02<b>queued</b></span><span><i />F03<b>queued</b></span><span><i />F04<b>queued</b></span></div></div><div className="eds-panel"><div className="panel-heading"><span>LOCAL EDS SPECTRUM</span><b>ROI 01</b></div><div className="eds-spectrum" aria-label="Simulated local EDS spectrum">{peaks.map(([label, left, height], index) => <i key={`${label}-${index}`} className={label === 'Si' ? 'flagged' : ''} style={{ left: `${left}%`, height: `${height}%` }}><b>{label}</b></i>)}</div><div className="report-metric"><span>Matrix</span><b>Ca · Ti · O</b></div><div className="report-metric flagged-metric"><span>Inclusion</span><b>Si elevated</b></div><div className="report-status warn-status">LOCAL EVIDENCE ONLY</div><p>Elemental signal is spatially local and acquisition-context dependent.</p></div></div><div className="ai-proposal"><div><span>FOLLOW-UP QUESTION</span><h3>Does the Si-rich feature explain the unresolved XRD reflection?</h3><p>Current coverage: 1 field · representativeness not established</p></div><b>OPEN</b></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onDecide(true)}>Acquire 4 fields + EDS map · route interpretation</button><button type="button" className="secondary" onClick={() => onDecide(false)}>Report first field as bulk explanation</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+  return <ModalShell title="SEM / EDS inclusion triage" kicker="CHARACTERIZATION FOLLOW-UP · SPEC-184-03" onClose={onClose} wide><div className="decision-question"><span>DECISION</span><b>Can one unusual field explain the whole sample?</b></div><p className="modal-intro">The bright inclusion is useful local evidence, but one field cannot represent the bulk by itself.</p><div className="sem-evidence-grid"><div className="micrograph-panel"><div className="panel-heading"><span>BSE MICROGRAPH · FIELD 01</span><b>SEM-01 · SPEC-184-03</b></div><div className="micrograph" aria-label="Simulated SEM micrograph with a bright inclusion">{grains.map(([left, top, width, height], index) => <i key={index} style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }} />)}<span className="bright-inclusion" /><b className="feature-tag">EDS ROI 01</b><em className="scale-bar">20 µm</em><i className="scan-line" /></div><div className="field-strip"><span className="active"><i />F01<b>inclusion</b></span><span><i />F02<b>queued</b></span><span><i />F03<b>queued</b></span><span><i />F04<b>queued</b></span></div></div><div className="eds-panel"><div className="panel-heading"><span>LOCAL EDS SPECTRUM · COUNTS</span><b>ROI 01</b></div><div className="eds-spectrum" aria-label="Simulated local EDS counts from zero to ten kiloelectronvolts"><span className="spectrum-y">COUNTS</span>{peaks.map(([label, left, height], index) => <i key={`${label}-${index}`} className={label === 'Si' ? 'flagged' : ''} style={{ left: `${left}%`, height: `${height}%` }}><b>{label}</b></i>)}</div><div className="spectrum-axis"><span>0</span><b>ENERGY · keV</b><span>10</span></div><div className="report-metric"><span>Matrix</span><b>Ca · Ti · O</b></div><div className="report-metric flagged-metric"><span>Inclusion</span><b>Si elevated</b></div><div className="report-status warn-status">LOCAL EVIDENCE ONLY</div><p>Elemental signal is spatially local and depends on where it was measured.</p></div></div><div className="ai-proposal"><div><span>FOLLOW-UP QUESTION</span><h3>Does the Si-rich feature explain the unresolved XRD reflection?</h3><p>Current coverage: 1 field · representativeness not established</p></div><b>OPEN</b></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onDecide(true)}>Acquire 4 fields + EDS map · route interpretation</button><button type="button" className="secondary" onClick={() => onDecide(false)}>Report first field as bulk explanation</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
 }
 
-function CompleteModal({ scores, logCount, exceptionCount, onReset, onClose }: { scores: Scores; logCount: number; exceptionCount: number; onReset: () => void; onClose: () => void }) {
+function CompleteModal({ scores, logCount, exceptionCount, onReset, onDeck, onClose }: { scores: Scores; logCount: number; exceptionCount: number; onReset: () => void; onDeck: () => void; onClose: () => void }) {
   const total = Math.round((scores.safety + scores.traceability + scores.integrity + scores.uptime) / 4);
-  return <ModalShell title="Campaign debrief" kicker="WO-2841 · COMPLETE" onClose={onClose}><div className="debrief-score"><span>RUN RATING</span><b>{total}</b><i>/ 100</i></div><p className="modal-intro">You returned an instrument to control, quarantined a mislabeled specimen, released a robot workcell, challenged an AI plan, and built a representative SEM/EDS follow-up package.</p><DebriefVisual scenario="xrd" scores={scores} exceptionCount={exceptionCount} /><div className="debrief-grid"><span>Safety<b>{scores.safety}</b></span><span>Traceability<b>{scores.traceability}</b></span><span>Data integrity<b>{scores.integrity}</b></span><span>Uptime<b>{scores.uptime}</b></span></div><div className="lesson-card"><b>What the controlled lab connects</b><p>Hands-on sample work, equipment health, controlled records, automation exceptions, and evidence that is fit for scientific and AI decisions.</p></div><p className="debrief-meta">{logCount} run events captured · 1 specimen quarantined · 2 characterization gates reviewed</p><button className="modal-run" type="button" onClick={onReset}>REPLAY INCIDENT</button></ModalShell>;
+  const deductions = [scores.safety < 100 && `Safety −${100 - scores.safety}`, scores.traceability < 100 && `Traceability −${100 - scores.traceability}`, scores.integrity < 100 && `Data integrity −${100 - scores.integrity}`, scores.uptime < 100 && `Uptime −${100 - scores.uptime}`].filter(Boolean).join(' · ');
+  return <ModalShell title="Mission debrief" kicker="WO-2841 · COMPLETE" onClose={onClose}><div className="debrief-score"><span>RUN RATING</span><b>{total}</b><i>/ 100</i></div><p className="modal-intro">You checked the instrument, protected the sample record, and investigated evidence that did not fit.</p><DebriefVisual scenario="xrd" scores={scores} exceptionCount={exceptionCount} /><div className="debrief-grid"><span>Safety<b>{scores.safety}</b></span><span>Traceability<b>{scores.traceability}</b></span><span>Data integrity<b>{scores.integrity}</b></span><span>Uptime<b>{scores.uptime}</b></span></div><p className="score-explanation"><b>Why the score changed:</b> {deductions || 'No deductions.'} {exceptionCount > 0 ? `· ${exceptionCount} blocked choice${exceptionCount === 1 ? '' : 's'} attempted.` : ''}</p><div className="lesson-card"><b>Key lesson</b><p>A passing headline number is not enough when the underlying pattern still contains unexplained evidence.</p></div><p className="debrief-meta">{logCount} run events · 1 specimen quarantined · 2 evidence gates reviewed</p><div className="debrief-actions"><button type="button" onClick={onDeck}>NEXT SCENARIO</button><button type="button" onClick={onReset}>REPLAY</button></div></ModalShell>;
 }
 
 function LedgerDrawer({ log, onClose }: { log: LogItem[]; onClose: () => void }) {

@@ -172,9 +172,9 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
           <button type="button" className="walk-back" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'back' }))} aria-label="Step back">↓</button>
           <button type="button" className="walk-right" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'right' }))} aria-label="Step right">→</button>
         </div>
-        <button type="button" className="walk-console" onClick={onOpenConsole}>OPERATE LOCAL CONSOLE <i>↗</i></button>
+        {inspected.length === selectedHotspots.length && <button type="button" className="walk-console" onClick={onOpenConsole}>OPEN MACHINE CONTROLS <i>↗</i></button>}
         <small>WASD / ARROWS · choose a station to approach</small>
-        <button type="button" className="walk-inspect" onClick={() => onCameraMode('focus')}>◎ INSPECT ASSET <i>{inspected.length}/{selectedHotspots.length}</i></button>
+        <button type="button" className="walk-inspect" onClick={() => onCameraMode('focus')}>◎ {inspected.length ? 'REVIEW INSPECTION' : 'INSPECT ASSET'} <i>{inspected.length}/{selectedHotspots.length}</i></button>
       </div>}
       {cameraMode === 'focus' && <div className="walkaround-panel">
         <header><div><span>PHYSICAL WALKAROUND</span><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspected.length} / {selectedHotspots.length}</em></header>

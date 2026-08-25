@@ -7,11 +7,12 @@ import type { Station } from './sim-data';
 
 const Lab3D = lazy(() => import('./lab-3d').then((module) => ({ default: module.Lab3D })));
 
-export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', inspectionState, onInspectionChange, onSelect }: {
+export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', campaignEnabled = false, inspectionState, onInspectionChange, onSelect }: {
   stations: Station[];
   selectedId: string;
   phase: number;
   scenarioId?: 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
+  campaignEnabled?: boolean;
   inspectionState?: Record<string, string[]>;
   onInspectionChange?: (stationId: string, checks: string[]) => void;
   onSelect: (id: string) => void;
@@ -25,7 +26,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
   const campaignStage = campaign.stage;
   const campaignSelected = campaign.selected;
   const campaignRunNumber = campaign.runNumber;
-  const activeCampaignStage = scenarioId === 'xrd' ? campaignStage : 0;
+  const activeCampaignStage = scenarioId === 'xrd' && campaignEnabled ? campaignStage : 0;
   const ambienceContext = useRef<AudioContext | null>(null);
 
   const toggleAmbience = async () => {
@@ -155,20 +156,20 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', i
       <button type="button" className={cameraMode === 'walk' ? 'active' : ''} onClick={() => setCameraMode('walk')} aria-pressed={cameraMode === 'walk'}>⇧ WALK AISLE</button>
       <button type="button" className={cameraMode === 'focus' ? 'active' : ''} onClick={() => setCameraMode('focus')} aria-pressed={cameraMode === 'focus'}>◎ FOCUS {selectedId}</button>
     </div>
-    <button
+    {immersive && <button
       type="button"
       className={`lighting-switch mode-${lightingMode}`}
       onClick={() => setLightingMode((current) => current === 'inspection' ? 'run' : 'inspection')}
       aria-label={`Facility lighting: ${lightingMode === 'inspection' ? 'inspection light' : 'instrument run light'}. Activate to change lighting.`}
       aria-pressed={lightingMode === 'inspection'}
-    ><span>{lightingMode === 'inspection' ? '☼' : '◐'}</span>{lightingMode === 'inspection' ? 'INSPECTION LIGHT' : 'RUN LIGHT'}</button>
-    <button
+    ><span>{lightingMode === 'inspection' ? '☼' : '◐'}</span>{lightingMode === 'inspection' ? 'INSPECTION LIGHT' : 'RUN LIGHT'}</button>}
+    {immersive && <button
       type="button"
       className={`ambience-switch${ambienceOn ? ' is-on' : ''}`}
       onClick={toggleAmbience}
       aria-label={`Laboratory ambience ${ambienceOn ? 'on' : 'off'}. Activate to ${ambienceOn ? 'mute' : 'play'} the air-handler and electrical room tone.`}
       aria-pressed={ambienceOn}
-    ><span>{ambienceOn ? '◖' : '○'}</span>{ambienceOn ? 'LAB HUM ON' : 'LAB AUDIO'}</button>
+    ><span>{ambienceOn ? '◖' : '○'}</span>{ambienceOn ? 'LAB HUM ON' : 'LAB AUDIO'}</button>}
     {!immersive && cameraMode !== 'focus' && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>WALK THROUGH THE AISLES</small><i>→</i></button>}
     <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={activeCampaignStage} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignResultElapsed={campaign.resultElapsed} campaignResultMeasured={campaign.resultMeasured} campaignConfirmationSource={campaign.confirmationSource} campaignMissionId={campaign.missionId} campaignThermalBayLevel={campaign.thermalBayLevel} campaignStagingBayLevel={campaign.stagingBayLevel} campaignInventory={campaign.inventory} campaignBacklog={campaign.backlog} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} onOpenInventory={openMaterialStaging} onOpenCampaign={openCampaignPlanning} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
   </div>;

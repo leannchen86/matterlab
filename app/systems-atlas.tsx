@@ -1,7 +1,7 @@
 const steps = [
-  { number: '01', title: 'Pick a station', body: 'Select any machine in the 3D lab. Its status and controls will appear on the right.' },
-  { number: '02', title: 'Follow the next step', body: 'The highlighted card tells you what needs attention. You do not need to read every panel.' },
-  { number: '03', title: 'Make a decision', body: 'Inspect, run a check, or hold a result. The simulation explains why your choice matters.' },
+  { number: '01', title: 'Follow the objective', body: 'The highlighted mission step and action button always point to the same next task.' },
+  { number: '02', title: 'Inspect the evidence', body: 'Open the relevant machine, sample, or result and look for the signal that does not fit.' },
+  { number: '03', title: 'Choose and test', body: 'Make a decision, see what constraint it affects, and retry immediately if it fails.' },
 ];
 
 const terms = [
@@ -20,7 +20,7 @@ export function SystemsAtlasModal({ onClose }: { onClose: () => void }) {
         <div><p className="section-kicker">QUICK GUIDE</p><h2>How to play MatterShift</h2></div>
         <button type="button" onClick={onClose} aria-label="Close dialog">×</button>
       </header>
-      <p className="modal-intro">Explore the lab, notice what is wrong, and take the next sensible action. All incidents, IDs, readings, and outcomes are fictional simulation content.</p>
+      <p className="modal-intro">Follow one objective, inspect the evidence, and make the next decision. Free exploration is always available in the 3D lab. All incidents and outcomes are fictional simulation content.</p>
       <div className="quick-guide-steps">
         {steps.map((step) => <article key={step.number}><i>{step.number}</i><div><b>{step.title}</b><p>{step.body}</p></div></article>)}
       </div>
