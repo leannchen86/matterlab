@@ -1,8 +1,8 @@
-# MatterShift
+# MatterLab
 
 **[Launch the public virtual lab](https://leannchen86.github.io/mattershift-lab-sim/)**
 
-MatterShift is a browser simulation of a lab technician's shift inside an AI-enabled,
+MatterLab is a browser simulation of a lab technician's shift inside an AI-enabled,
 high-throughput materials laboratory. The primary experience is an equipment-first operations
 console with five playable work orders. The shifts cover XRD quality control and SEM/EDS follow-up,
 BET service acceptance and pretreatment lineage, robot–furnace recovery after an interrupted
@@ -143,7 +143,7 @@ pnpm lint
 
 ## Simulation boundary
 
-MatterShift is a game-like simulation, not an equipment operating procedure. It deliberately avoids
+MatterLab is a game-like simulation, not an equipment operating procedure. It deliberately avoids
 actionable parameters for hazardous processes. Values and events are plausible enough to teach
 workflow reasoning, but actual instrument operation belongs to site-specific SOPs, training,
 interlocks, and manufacturer documentation.

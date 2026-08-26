@@ -197,7 +197,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
   const inventoryLow = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
   const fault = run.stage === 2 && operations.robotConstraint ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 5 && operations.furnaceConstraint ? 'thermal' : run.stage === 6 && operations.referenceConstraint ? 'qc' : null;
   const robotConditionLabel = operations.robotCondition === 'contamination' ? 'CLEANLINESS' : operations.robotCondition === 'grip-force' ? 'GRIP FORCE' : 'READINESS';
-  const referenceConditionLabel = operations.referenceCondition === 'age-due' ? 'CONTROL DUE' : operations.referenceCondition === 'trend-review' ? 'TREND REVIEW' : 'CONTROL CURRENT';
+  const referenceConditionLabel = operations.referenceCondition === 'age-due' ? 'SILICON QC DUE' : operations.referenceCondition === 'trend-review' ? 'QC TREND REVIEW' : 'SILICON QC CURRENT';
   const conditionSignal = run.stage === 2
     ? operations.robotConstraint ? 'BOTTLENECK DETECTED' : 'ROBOT READINESS'
     : run.stage === 4 ? 'BOTTLENECK DETECTED'
@@ -218,7 +218,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
     ? operations.robotConstraint ? `${operations.robotRecoveryMinutes} min recovery` : `${operations.robotRecoveryMinutes} min setup proof`
     : run.stage === 4 ? `${operations.queueMinutes} min wait`
       : run.stage === 5 ? `${operations.furnaceRecoveryMinutes} min recovery`
-      : run.stage === 6 ? `${operations.referenceAgeHours} h since reference`
+      : run.stage === 6 ? `${operations.referenceAgeHours} h since silicon QC check`
         : run.stage === 8 ? '4 fields + EDS map'
           : run.stage >= 9 ? 'diagnosis linked'
             : run.stage >= 7 ? evaluation.met ? 'mission achieved' : evaluation.constraintText : 'no active delay';
@@ -269,7 +269,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
       setInventoryOpen(true);
       return;
     }
-    updateRun({ stage: 8, resultDecision: 'diagnose', inventory: { ...inventory, carbonTabs: inventory.carbonTabs - 1 }, message: `${identity.thermalSample} routed to SEM-01. Carbon-tab lot CT-88 is bound to the stub; four representative BSE fields and an EDS map are required before assigning a mechanism.` });
+    updateRun({ stage: 8, resultDecision: 'diagnose', inventory: { ...inventory, carbonTabs: inventory.carbonTabs - 1 }, message: `${identity.thermalSample} routed to SEM-01. Carbon-tab lot CT-88 is bound to the stub; four preplanned BSE fields and an EDS map are required before assigning a mechanism.` });
   };
 
   const replenishInventory = () => {
@@ -859,7 +859,7 @@ function getPrimaryAction(stage: number, runId: string, operations: CampaignOper
         ? { label: 'REVIEW XRD-03 TREND', hint: `Confirm the Si trend before measuring ${runId}` }
         : { label: 'OPERATE XRD-03', hint: `Review the current Si control and acquire ${runId}` },
     { label: 'START NEXT CAMPAIGN', hint: 'AI-eligible result · objective missed by 0.2 percentage point' },
-    { label: 'OPERATE SEM-01', hint: 'Acquire representative BSE fields and an EDS map' },
+    { label: 'OPERATE SEM-01', hint: 'Measure four preplanned locations and acquire an EDS map' },
     { label: 'PROPOSE RECOVERY RUN', hint: 'Use the diagnosis to change the next governed experiment' },
   ][stage] ?? { label: 'START NEXT CAMPAIGN', hint: 'Clear the completed lane' };
 }

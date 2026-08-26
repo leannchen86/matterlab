@@ -170,7 +170,7 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', c
       aria-label={`Laboratory ambience ${ambienceOn ? 'on' : 'off'}. Activate to ${ambienceOn ? 'mute' : 'play'} the air-handler and electrical room tone.`}
       aria-pressed={ambienceOn}
     ><span>{ambienceOn ? '◖' : '○'}</span>{ambienceOn ? 'LAB HUM ON' : 'LAB AUDIO'}</button>}
-    {!immersive && cameraMode !== 'focus' && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>WALK THROUGH THE AISLES</small><i>→</i></button>}
+    {!immersive && cameraMode === 'overview' && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>WALK THROUGH THE AISLES</small><i>→</i></button>}
     <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={activeCampaignStage} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignResultElapsed={campaign.resultElapsed} campaignResultMeasured={campaign.resultMeasured} campaignConfirmationSource={campaign.confirmationSource} campaignMissionId={campaign.missionId} campaignThermalBayLevel={campaign.thermalBayLevel} campaignStagingBayLevel={campaign.stagingBayLevel} campaignInventory={campaign.inventory} campaignBacklog={campaign.backlog} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode={lightingMode} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} onOpenInventory={openMaterialStaging} onOpenCampaign={openCampaignPlanning} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
   </div>;
 

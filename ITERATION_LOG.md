@@ -1,4 +1,4 @@
-# MatterShift iteration log
+# MatterLab iteration log
 
 This log captures product critiques that changed the simulator. It is intentionally about the
 technician experience, not the host repository's pre-existing research hypotheses.

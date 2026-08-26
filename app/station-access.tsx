@@ -33,17 +33,17 @@ const profiles: Record<string, {
   'PREP-01': { controller: 'BAL-01 / LEV-01', safe: ['LEV airflow proven', 'balance level valid', 'door sash in range', 'balance draft shield closed'], method: ['Receive lot', 'Verify balance', 'Weigh portion', 'Bind specimen'], sample: ['LOT-91', 'PREP-91-06', 'BC-184'], workOrder: 'PM-104', service: 'Filter ΔP check · 12 d', health: 94, supplies: ['weigh boats 83%', 'antistatic brush', 'P100 filters'] },
   'ROBO-02': { controller: 'RC-02 / SAFE-PLC', safe: ['area scanner clear', 'gate chain closed', 'gripper pressure valid'], method: ['Read carrier', 'Confirm destination', 'Execute transfer', 'Write handshake'], sample: ['BC-184', 'POSE-1192', 'XRD-03'], workOrder: 'WO-775', service: 'Gripper inspection · 4 d', health: 88, supplies: ['jaw inserts 2', 'vacuum cups 8', 'grease kit'] },
   'FURN-04': { controller: 'TC-04 / OT-04', safe: ['door interlock closed', 'overtemp relay armed', 'exhaust flow proven'], method: ['Verify occupancy', 'Load recipe', 'Ramp + dwell', 'Cool / release'], sample: ['BC-207', 'RCP-1000C', 'RUN-882'], workOrder: 'CAL-092', service: 'Thermocouple survey · 18 d', health: 91, supplies: ['type-K TC 3', 'hearth plate', 'door rope'] },
-  'XRD-03': { controller: 'XRD-03 / RAD-PLC', safe: ['enclosure closed', 'shutter feedback closed', 'generator standby'], method: ['Load reference', 'Align holder', 'Acquire scan', 'Review control limit'], sample: ['BC-184-06', 'CA-TI-031', 'PAT-7738'], workOrder: 'QC-2841', service: 'NIST Si reference · due', health: 76, supplies: ['zero-background holders 4', 'Si standard', 'Kapton film'] },
+  'XRD-03': { controller: 'XRD-03 / RAD-PLC', safe: ['enclosure closed', 'shutter feedback closed', 'generator standby'], method: ['Load silicon QC material', 'Align holder', 'Acquire scan', 'Review QC tolerance'], sample: ['BC-184-06', 'CA-TI-031', 'PAT-7738'], workOrder: 'QC-2841', service: 'NIST SRM 640f QC check · due', health: 76, supplies: ['zero-background holders 4', 'Si QC material', 'Kapton film'] },
   'SEM-01': { controller: 'SEM-01 / VAC-1', safe: ['chamber vacuum established', 'stage Z clearance valid', 'HV blanked'], method: ['Mount stub', 'Pump chamber', 'Set field + kV', 'Capture BSE / EDS'], sample: ['CA-TI-031', 'STUB-118', 'MAP-04'], workOrder: 'PM-318', service: 'Aperture clean · 23 d', health: 96, supplies: ['carbon tabs 41', 'Al stubs 18', 'aperture set'] },
   'BET-02': { controller: 'BET-02 / VAC-MFD', safe: ['vacuum trend stable', 'N₂ supply in range', 'tube ports isolated', '77 K bath in analysis position'], method: ['Verify pretreatment', 'Enter dry mass', 'Leak test', 'Acquire isotherm'], sample: ['ADS-77-C', 'DEGAS-771', 'ISO-220'], workOrder: 'MX-233', service: 'Vendor recommission · open', health: 63, supplies: ['sample tubes 12', 'filler rods 8', 'LN₂ dewar'] },
-  'TGA-01': { controller: 'TGA-01 / GAS-3', safe: ['furnace near ambient', 'purge path proven', 'autosampler clear'], method: ['Select pan pair', 'Record sample mass', 'Run baseline / method', 'Review mass + heat flow'], sample: ['LOT-91-T', 'PANSET-14', 'THM-208'], workOrder: 'QC-621', service: 'Baseline + balance check · due', health: 84, supplies: ['Al pans 26', 'Pt pans 4', 'pan crimper'] },
+  'TGA-01': { controller: 'TGA-01 / GAS-3', safe: ['furnace near ambient', 'purge path proven', 'autosampler clear'], method: ['Select pan pair', 'Record sample mass', 'Run empty-pan check', 'Review mass + heat flow'], sample: ['LOT-91-T', 'PANSET-14', 'THM-208'], workOrder: 'QC-621', service: 'Empty-pan + balance check · due', health: 84, supplies: ['Al pans 26', 'Pt pans 4', 'pan crimper'] },
 };
 
 const HMI_OPERATIONS: Record<string, string[]> = {
   'PREP-01': ['Prove enclosure flow', 'Close balance draft shield', 'Zero analytical balance', 'Confirm antistatic state'],
   'ROBO-02': ['Close access gate', 'Reset safeguarded stop', 'Home transfer axes', 'Prove gripper state', 'Execute transfer'],
   'FURN-04': ['Read overtemperature relay', 'Verify door chain', 'Confirm empty-cell state'],
-  'XRD-03': ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Read reference position'],
+  'XRD-03': ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Read silicon QC position'],
   'SEM-01': ['Verify beam blanked', 'Verify stage clearance', 'Establish chamber vacuum', 'Arm BSE / EDS detectors'],
   'BET-02': ['Isolate analysis ports', 'Run manifold leak check', 'Prove N₂ supply state', 'Position 77 K Dewar'],
   'TGA-01': ['Confirm furnace at start temperature', 'Tare balance channel', 'Prove purge path', 'Home autosampler carousel'],
@@ -71,13 +71,13 @@ function getCampaignHmiOperations(stationId: string, stage: number, selected: st
     : ['Read active profile state', 'Verify queue position', `Confirm ${identity.carrier} hold location`];
   if (stationId === 'FURN-04') return getFurnaceStartOperations(runOps, spec.profile);
   if (stationId === 'XRD-03' && stage === 6) return runOps.referenceCondition === 'age-due'
-    ? ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Acquire Si reference', `Acquire ${identity.runId} pattern`]
+    ? ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Measure silicon QC material', `Acquire ${identity.runId} pattern`]
     : runOps.referenceCondition === 'trend-review'
-      ? ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Review Si control trend', 'Acquire confirmatory Si reference', `Acquire ${identity.runId} pattern`]
+      ? ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Review silicon QC trend', 'Confirm silicon QC position', `Acquire ${identity.runId} pattern`]
       : ['Home specimen stage', 'Close radiation enclosure', 'Prove shutter feedback', 'Review current Si control', `Acquire ${identity.runId} pattern`];
-  if (stationId === 'XRD-03' && stage >= 7) return ['Review Si control', 'Review phase fit', `Release ${identity.pattern} evidence`];
-  if (stationId === 'SEM-01' && stage === 8) return ['Verify beam blanked', 'Verify stage clearance', 'Establish chamber vacuum', 'Arm BSE / EDS detectors', 'Acquire four BSE fields', 'Acquire representative EDS map'];
-  if (stationId === 'SEM-01' && stage >= 9) return ['Verify beam blanked', 'Review field coverage', 'Review EDS association', `Release ${identity.runId} diagnosis`];
+  if (stationId === 'XRD-03' && stage >= 7) return ['Review silicon QC check', 'Review phase fit', `Approve ${identity.pattern} evidence`];
+  if (stationId === 'SEM-01' && stage === 8) return ['Verify beam blanked', 'Verify stage clearance', 'Establish chamber vacuum', 'Arm BSE / EDS detectors', 'Acquire four preplanned BSE fields', 'Acquire EDS map across the field grid'];
+  if (stationId === 'SEM-01' && stage >= 9) return ['Verify beam blanked', 'Review field coverage', 'Review EDS association', `Approve ${identity.runId} diagnosis`];
   return HMI_OPERATIONS[stationId] ?? null;
 }
 
@@ -115,10 +115,10 @@ function completeCampaignMachineStage(stage: number) {
         ? `Jaw pads were reseated and the force witness passed after ${runOps.robotRecoveryMinutes} minutes. Robot synthesis resumed with controlled grip force.`
         : `Tool identity and carrier handshake passed in ${runOps.robotRecoveryMinutes} minutes. Robot synthesis entered dosing without a recovery delay.`;
     const referenceEntryMessage = runOps.referenceCondition === 'age-due'
-      ? `${spec.temperature} / ${spec.dwell} thermal trace retained. XRD specimen release is held; the last qualified Si reference is ${runOps.referenceAgeHours} hours old.`
+      ? `${spec.temperature} / ${spec.dwell} thermal trace retained. XRD sample testing is blocked; the last silicon QC check was ${runOps.referenceAgeHours} hours ago.`
       : runOps.referenceCondition === 'trend-review'
-        ? `${spec.temperature} / ${spec.dwell} thermal trace retained. The ${runOps.referenceAgeHours}-hour Si control remains valid, but its position trend needs confirmation before specimen acquisition.`
-        : `${spec.temperature} / ${spec.dwell} thermal trace retained. The ${runOps.referenceAgeHours}-hour Si control is current; XRD-03 is ready for specimen acquisition.`;
+        ? `${spec.temperature} / ${spec.dwell} thermal trace retained. The ${runOps.referenceAgeHours}-hour silicon QC check remains valid, but its position trend needs confirmation before specimen acquisition.`
+        : `${spec.temperature} / ${spec.dwell} thermal trace retained. The ${runOps.referenceAgeHours}-hour silicon QC check is current; XRD-03 is ready for specimen acquisition.`;
     const furnaceEntryMessage = runOps.furnaceCondition === 'thermocouple-drift'
       ? `${runOps.furnaceLane} became available after ${runOps.queueMinutes} minutes, but its independent witness reads ${runOps.furnaceResult}. Qualified offset recovery is required before ${spec.profile}.`
       : runOps.furnaceCondition === 'door-seal'
@@ -136,8 +136,8 @@ function completeCampaignMachineStage(stage: number) {
       3: { stage: 4, elapsed: elapsed + 14, insight, message: thermalBayLevel >= 2 ? `Six crucibles dosed and ${identity.carrier} released. ${runOps.furnaceLane} is qualified; independent readiness proof is required while chamber A runs ${runOps.activeFurnaceRun}.` : `Six crucibles dosed and ${identity.carrier} released. FURN-04A is occupied by ${runOps.activeFurnaceRun}; ${identity.runId} is now queue constrained.` },
       4: { stage: 5, elapsed: elapsed + runOps.queueMinutes, insight, message: furnaceEntryMessage },
       5: { stage: 6, elapsed: elapsed + runOps.furnaceRecoveryMinutes + spec.thermalMinutes, insight, message: `${furnaceExitMessage} ${referenceEntryMessage}` },
-      6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `${runOps.referenceCondition === 'current' ? 'Current control reviewed' : runOps.referenceCondition === 'trend-review' ? 'Confirmatory control passed' : 'Reference passed'} at ${runOps.referenceResult}. ${spec.id}: ${evaluation.resultText}; valid evidence, ${evaluation.met ? 'mission achieved.' : `${evaluation.constraintText}.`}` },
-      8: { stage: 9, elapsed: elapsed + 26, insight: insight + 15, message: `Four BSE fields and a representative EDS map retained. ${spec.id === 'D-08' ? 'Ti-rich cores support incomplete conversion as the follow-up hypothesis.' : 'Ca-rich secondary grains support precursor excess as the follow-up hypothesis.'}` },
+      6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `${runOps.referenceCondition === 'current' ? 'Current silicon QC check reviewed' : runOps.referenceCondition === 'trend-review' ? 'Confirmatory silicon QC check passed' : 'Silicon QC check passed'} at ${runOps.referenceResult}. ${spec.id}: ${evaluation.resultText}; valid evidence, ${evaluation.met ? 'mission achieved.' : `${evaluation.constraintText}.`}` },
+      8: { stage: 9, elapsed: elapsed + 26, insight: insight + 15, message: `Four preplanned BSE fields and an EDS map retained. ${spec.id === 'D-08' ? 'Ti-rich cores support incomplete conversion as the follow-up hypothesis.' : 'Ca-rich secondary grains support precursor excess as the follow-up hypothesis.'}` },
     }[stage];
     if (!transition) return null;
     const nextHistory = stage === 6
@@ -189,15 +189,15 @@ function getContextProfile(stationId: string, scenarioId: ScenarioId, campaignSt
     return { ...profile, controller: thermalBayLevel >= 2 ? `TC-04A/B / MES-Q${identity.suffix}` : `TC-04 / MES-Q${identity.suffix}`, method: [`Accept ${identity.carrier}`, campaignStage === 4 ? thermalBayLevel >= 2 ? 'Prove independent chamber' : 'Respect active queue' : furnaceMethod, `Load ${spec.temperature} profile`, 'Cool + release'], sample: [identity.carrier, spec.profile, identity.thermalSample], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 4 ? `${runOps.furnaceLane} · ${runOps.queueMinutes} min readiness` : furnaceService, health: campaignStage === 5 && runOps.furnaceConstraint ? 81 : 94 };
   }
   if (campaignStage >= 6 && stationId === 'XRD-03') {
-    const referenceMethod = runOps.referenceCondition === 'age-due' ? 'Acquire NIST Si' : runOps.referenceCondition === 'trend-review' ? 'Review trend + confirm Si' : 'Review current Si control';
-    const referenceService = runOps.referenceCondition === 'age-due' ? 'Si reference due' : runOps.referenceCondition === 'trend-review' ? 'Si trend confirmation' : 'Si control current';
+    const referenceMethod = runOps.referenceCondition === 'age-due' ? 'Measure NIST SRM 640f QC material' : runOps.referenceCondition === 'trend-review' ? 'Review trend + confirm silicon position' : 'Review current silicon QC check';
+    const referenceService = runOps.referenceCondition === 'age-due' ? 'Silicon QC check due' : runOps.referenceCondition === 'trend-review' ? 'Silicon QC trend confirmation' : 'Silicon QC check current';
     return { ...profile, controller: 'XRD-03 / CAMPAIGN-QC', method: [referenceMethod, `Prove ${runOps.referenceResult}`, `Acquire ${identity.runId}`, `Review ${evaluation.resultText}`], sample: [identity.thermalSample, identity.xrdDataset, identity.pattern], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 6 ? `${referenceService} · ${runOps.referenceAgeHours} h` : `Valid result · mission ${evaluation.met ? 'met' : 'missed'}`, health: campaignStage === 6 ? runOps.referenceConstraint ? 78 : 94 : 92 };
   }
-  if (campaignStage >= 8 && stationId === 'SEM-01') return { ...profile, controller: 'SEM-01 / DIAG-EDS', method: [`Load ${identity.thermalSample}`, 'Acquire four BSE fields', 'Acquire representative EDS map', 'Route mechanism hypothesis'], sample: [identity.thermalSample, `STUB-${identity.suffix}`, `MAP-${identity.suffix}`], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 8 ? 'Valid-negative diagnosis · active' : 'Representative follow-up · retained', health: 96 };
+  if (campaignStage >= 8 && stationId === 'SEM-01') return { ...profile, controller: 'SEM-01 / DIAG-EDS', method: [`Load ${identity.thermalSample}`, 'Acquire four preplanned BSE fields', 'Acquire EDS map across the field grid', 'Route mechanism hypothesis'], sample: [identity.thermalSample, `STUB-${identity.suffix}`, `MAP-${identity.suffix}`], workOrder: `MAT-${identity.suffix}`, service: campaignStage === 8 ? 'Valid-negative diagnosis · active' : 'Multi-location follow-up · retained', health: 96 };
   if (scenarioId === 'xrd' && stationId === 'FURN-04' && thermalBayLevel >= 2) return { ...profile, controller: 'TC-04A/B / ASSET-PLC', safe: ['chamber A chain independent', 'chamber B chain independent', 'overtemperature relays armed'], method: ['Review chamber assignment', 'Review IQ / OQ survey', 'Verify controller independence', 'Retain asset state'], sample: ['FURN-04A', 'FURN-04B', 'OQ-04B-990'], workOrder: 'OQ-04B', service: 'Chamber B IQ / OQ · retained', health: 95, supplies: ['survey TC set', 'empty hearth', 'door seal kit'] };
   if (scenarioId === 'facility' && stationId === 'PREP-01') return { ...profile, controller: 'MOVE-HMI / MES-A2', method: ['Scan both totes', 'Inspect powered jack', 'Secure load + route', 'Retain move receipt'], sample: ['LOT-3024-A', 'MOV-3024', 'REC-BET-02'], workOrder: 'MOV-3024', service: 'Powered-jack pre-use · current', supplies: ['restraint straps 6', 'spill kit sealed', 'tote covers 12'] };
   if (scenarioId === 'facility' && stationId === 'ROBO-02') return { ...profile, method: ['Reserve cross-aisle', 'Park robot', 'Prove safeguarded boundary', 'Release move priority'], sample: ['MOV-3024', 'A2-RESERVE', 'BET-02'], workOrder: 'MOV-3024', service: 'Cross-aisle coordination · active' };
-  if (scenarioId === 'facility' && stationId === 'BET-02') return { ...profile, controller: 'BET-02 / GAS-MFD', method: ['Isolate service boundary', 'Verify GAS-41 identity', 'Run leak + control', 'Release data window'], sample: ['GAS-41', 'ALU-21', 'POST-GAS-41'], workOrder: 'GAS-41', service: 'N₂ service transition · active', health: 89 };
+  if (scenarioId === 'facility' && stationId === 'BET-02') return { ...profile, controller: 'BET-02 / GAS-MFD', method: ['Isolate service boundary', 'Verify GAS-41 identity', 'Run leak + QC check', 'Approve post-check results'], sample: ['GAS-41', 'MS-ALU-21', 'POST-GAS-41'], workOrder: 'GAS-41', service: 'N₂ service transition · active', health: 89 };
   if (scenarioId === 'furnace' && stationId === 'ROBO-02') return { ...profile, method: ['Observe cell', 'Reconcile occupancy', 'Dry-cycle handshake', 'Park + retain state'], sample: ['BC-207', 'I-204', 'REC-HT44'], workOrder: 'WO-2954', service: 'Recovery inspection · active' };
   if (scenarioId === 'xrd' && stationId === 'FURN-04') return { ...profile, method: ['Verify BC-184 occupancy', 'Load HT-1000', 'Ramp + dwell', 'Cool / release'], sample: ['BC-184', 'HT-1000', 'CA-TI-031'], workOrder: 'WO-2841', service: 'Campaign cycle · controlled' };
   if (scenarioId === 'xrd' && stationId === 'SEM-01') return { ...profile, sample: ['SPEC-184-03', 'BSE-F01', 'MAP-04'], workOrder: 'WO-2841', service: 'Inclusion triage · active' };
@@ -327,7 +327,7 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
   };
 
   return <>
-    <button className="station-access-button" type="button" onClick={openStationAccess}><span>⌁</span><b>{campaignActive && physicalChecks.length < 3 ? 'INSPECT THIS MACHINE' : campaignActive ? 'USE THIS MACHINE' : 'OPTIONAL · EXPLORE CONTROLS'}</b><i>{physicalChecks.length === 3 ? 'Inspection complete' : campaignActive ? `${physicalChecks.length} of 3 inspection points checked` : 'Not required for the current mission'}</i><em>→</em></button>
+    <button className="station-access-button" type="button" onClick={openStationAccess}><span>⌁</span><b>{campaignActive && physicalChecks.length < 3 ? 'INSPECT THIS MACHINE' : campaignActive ? 'USE THIS MACHINE' : 'OPTIONAL CONTROLS'}</b>{campaignActive && <i>{physicalChecks.length === 3 ? 'Inspection complete' : `${physicalChecks.length} of 3 inspection points checked`}</i>}<em>→</em></button>
     {open && <div className="modal-backdrop station-console-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) closeConsole(); }}>
       <section className="modal-card wide station-console" role="dialog" aria-modal="true" aria-label={`${consoleStation.name} local station console`}>
         <header><div><p className="section-kicker">LOCAL STATION ACCESS · {profile.controller}</p><h2>{station.id} / {consoleStation.name}</h2></div><div className="console-header-actions">{enteredFromLab && <button type="button" className="return-asset" onClick={returnToAsset}>← RETURN TO ASSET</button>}<button type="button" onClick={closeConsole} aria-label="Close">×</button></div></header>
@@ -358,8 +358,8 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
     : HMI_OPERATIONS[station.id] ?? HMI_OPERATIONS['XRD-03']);
   const completedOperations = operationSteps.filter((operation) => operations.includes(operation)).length;
   const operationsComplete = operationSteps.every((operation) => operations.includes(operation));
-  const semFieldsReady = operations.includes('Acquire four BSE fields');
-  const semEdsReady = operations.includes('Acquire representative EDS map');
+  const semFieldsReady = operations.includes('Acquire four preplanned BSE fields');
+  const semEdsReady = operations.includes('Acquire EDS map across the field grid');
   const safeState = (item: string) => {
     if (station.id === 'PREP-01') {
       if (item === 'LEV airflow proven' || item === 'door sash in range') return operations.includes('Prove enclosure flow');
@@ -653,31 +653,31 @@ function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed
   const identity = getCampaignIdentity(runNumber);
   const runOps = getCampaignOperations(runNumber);
   const referenceCaptured = stage >= 7 || (runOps.referenceCondition === 'age-due'
-    ? operations.includes('Acquire Si reference')
+    ? operations.includes('Measure silicon QC material')
     : runOps.referenceCondition === 'trend-review'
-      ? operations.includes('Acquire confirmatory Si reference')
+      ? operations.includes('Confirm silicon QC position')
       : operations.includes('Review current Si control'));
   const sampleCaptured = stage >= 7 || operations.includes(`Acquire ${identity.runId} pattern`);
   const samplePeaks = getSamplePeaks(observedSpec);
-  const referenceStatus = runOps.referenceCondition === 'age-due' ? 'CONTROL REQUIRED' : runOps.referenceCondition === 'trend-review' ? 'TREND REVIEW' : 'CURRENT CONTROL';
+  const referenceStatus = runOps.referenceCondition === 'age-due' ? 'SILICON QC REQUIRED' : runOps.referenceCondition === 'trend-review' ? 'QC TREND REVIEW' : 'SILICON QC CURRENT';
   return <section className={`campaign-xrd-console${sampleCaptured ? ' result-ready' : ''}`}>
-    <header><div><span>DIFFRACTION ACQUISITION</span><b>{identity.xrdDataset} · Cu Kα · 10–80° 2θ</b></div><em>{sampleCaptured ? 'PATTERN COMPLETE' : referenceCaptured ? runOps.referenceCondition === 'current' ? 'CONTROL REVIEWED' : 'REFERENCE PASS' : referenceStatus}</em></header>
+    <header><div><span>DIFFRACTION ACQUISITION</span><b>{identity.xrdDataset} · Cu Kα · 10–80° 2θ</b></div><em>{sampleCaptured ? 'PATTERN COMPLETE' : referenceCaptured ? runOps.referenceCondition === 'current' ? 'QC REVIEWED' : 'QC CHECK PASSED' : referenceStatus}</em></header>
     <StationBacklogStrip backlog={backlog} station="xrd" lanes={1} />
     <div className="campaign-xrd-layout">
-      <svg viewBox="0 0 660 210" role="img" aria-label={`${identity.runId} simulated XRD reference and diffraction pattern`}>
+      <svg viewBox="0 0 660 210" role="img" aria-label={`${identity.runId} simulated silicon QC check and diffraction pattern`}>
         <defs><linearGradient id="xrdFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#4dd5ed" stopOpacity=".25" /><stop offset="1" stopColor="#4dd5ed" stopOpacity="0" /></linearGradient></defs>
         {[42, 126, 210, 294, 378, 462, 546, 626].map((x) => <line key={`x-${x}`} x1={x} x2={x} y1="17" y2="186" className="grid" />)}
         {[30, 64, 98, 132, 166].map((y) => <line key={`y-${y}`} x1="42" x2="626" y1={y} y2={y} className="grid" />)}
         <line x1="42" x2="626" y1="76" y2="76" className="baseline" /><line x1="42" x2="626" y1="174" y2="174" className="baseline" />
-        <text x="48" y="24">NIST Si CONTROL</text><text x="48" y="116">{identity.runId} · {spec.id}</text>
+        <text x="48" y="24">NIST SRM 640f CONTROL</text><text x="48" y="116">{identity.runId} · {spec.id}</text>
         {referenceCaptured ? <path d={diffractionPath([[28.44, 1], [47.3, .24], [56.1, .16]], 72, 42)} className="reference-trace" /> : <path d="M42 72 H626" className="awaiting-trace" />}
         {sampleCaptured ? <><path d={`${diffractionPath(samplePeaks, 172, 58)} L626 174 L42 174 Z`} className="sample-fill" /><path d={diffractionPath(samplePeaks, 172, 58)} className="sample-trace" /></> : <path d="M42 172 H626" className="awaiting-trace" />}
         {!sampleCaptured && referenceCaptured && <line x1="118" x2="118" y1="106" y2="176" className="scan-sweep" />}
         <text x="38" y="198">10°</text><text x="324" y="198">2θ</text><text x="609" y="198">80°</text>
       </svg>
       <aside>
-        <div className={referenceCaptured ? 'pass' : runOps.referenceConstraint ? 'hold' : 'review'}><span>REFERENCE</span><b>{referenceCaptured ? runOps.referenceResult : `${runOps.referenceAgeHours} H OLD`}</b><small>{referenceCaptured ? 'within ±0.05°' : runOps.referenceCondition === 'trend-review' ? 'confirm position trend' : runOps.referenceCondition === 'current' ? 'review before sample' : 'specimen inhibited'}</small></div>
-        <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${observedMeasured}%` : '—'}</b><small>{sampleCaptured ? `Rwp ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}%` : 'awaiting pattern'}</small></div>
+        <div className={referenceCaptured ? 'pass' : runOps.referenceConstraint ? 'hold' : 'review'}><span>SILICON QC</span><b>{referenceCaptured ? runOps.referenceResult : `${runOps.referenceAgeHours} H OLD`}</b><small>{referenceCaptured ? 'inside ±0.05° QC tolerance' : runOps.referenceCondition === 'trend-review' ? 'confirm position trend' : runOps.referenceCondition === 'current' ? 'review before sample' : 'sample testing blocked'}</small></div>
+        <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${observedMeasured}%` : '—'}</b><small>{sampleCaptured ? `fit mismatch ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}% Rwp · lower is better` : 'awaiting pattern'}</small></div>
         <div className={sampleCaptured ? evaluation.met ? 'pass' : 'miss' : 'waiting'}><span>MISSION</span><b>{sampleCaptured ? evaluation.gap : missionId === 'low-energy' ? 'ENERGY' : missionId === 'throughput' ? 'RATE' : '≥ 96%'}</b><small>{sampleCaptured ? evaluation.met ? 'mission met' : evaluation.constraintText : 'campaign gate'}</small></div>
       </aside>
     </div>
@@ -700,8 +700,8 @@ function SemCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
   const vacuumReady = stage >= 9 || operations.includes('Establish chamber vacuum');
-  const fieldsReady = stage >= 9 || operations.includes('Acquire four BSE fields');
-  const edsReady = stage >= 9 || operations.includes('Acquire representative EDS map');
+  const fieldsReady = stage >= 9 || operations.includes('Acquire four preplanned BSE fields');
+  const edsReady = stage >= 9 || operations.includes('Acquire EDS map across the field grid');
   const finding = spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains';
   const fields = [[31, 37], [183, 37], [31, 104], [183, 104]];
   const microstructures = [
@@ -716,7 +716,7 @@ function SemCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
     <div className="campaign-sem-layout">
       <svg viewBox="0 0 520 180" role="img" aria-label={`${identity.runId} four-field SEM EDS diagnostic acquisition`}>
         <defs><pattern id="semNoise" width="17" height="17" patternUnits="userSpaceOnUse"><circle cx="3" cy="4" r=".7" fill="#8d9ba0" opacity=".18" /><circle cx="12" cy="10" r=".5" fill="#c4ccce" opacity=".12" /></pattern></defs>
-        <rect width="520" height="180" className="sem-background" /><text x="18" y="19">BSE MOSAIC · 4 REPRESENTATIVE FIELDS</text>
+        <rect width="520" height="180" className="sem-background" /><text x="18" y="19">BSE MOSAIC · 4 PREPLANNED LOCATIONS</text>
         {fields.map(([x, y], fieldIndex) => { const micro = microstructures[fieldIndex]; return <g key={`${x}-${y}`} className={`sem-field${fieldsReady ? ' acquired' : ''}`} transform={`translate(${x} ${y})`}><rect width="140" height="56" rx="2" /><rect width="140" height="56" rx="2" fill="url(#semNoise)" />{fieldsReady && <g className="sem-microstructure">{micro.phases.map((path, phaseIndex) => <path key={path} d={path} className={`sem-phase-${phaseIndex % 3}`} />)}<path d={micro.boundary} className="sem-grain-boundary" />{micro.pores.map(([cx, cy, radius]) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={radius} className="sem-pore" />)}<circle cx={105 - fieldIndex * 7} cy={23 + fieldIndex * 4} r={fieldIndex === 2 ? 7 : 4} className="sem-inclusion" /><circle cx={108 - fieldIndex * 7} cy={21 + fieldIndex * 4} r={fieldIndex === 2 ? 2.4 : 1.5} className="sem-inclusion-core" /></g>}<text x="5" y="10">F0{fieldIndex + 1}</text></g>; })}
         <g className={`sem-eds-map${edsReady ? ' ready' : ''}`}><text x="335" y="19">CORRELATED EDS MAP + SPECTRUM</text><rect x="335" y="27" width="163" height="65" rx="2" />{edsReady ? <><g className="eds-map-dots eds-o">{[[347,38],[366,45],[385,34],[403,57],[421,42],[446,68],[470,38],[486,73],[358,78],[397,80]].map(([cx,cy]) => <circle key={`o-${cx}-${cy}`} cx={cx} cy={cy} r="2.2" />)}</g><g className="eds-map-dots eds-ca">{[[351,62],[374,70],[393,48],[419,75],[440,36],[479,53]].map(([cx,cy]) => <circle key={`ca-${cx}-${cy}`} cx={cx} cy={cy} r="3" />)}</g><g className="eds-map-dots eds-ti">{[[447,51],[452,55],[457,50],[449,59],[461,57],[455,63]].map(([cx,cy]) => <circle key={`ti-${cx}-${cy}`} cx={cx} cy={cy} r={spec.id === 'D-08' ? 4 : 2.3} />)}</g><text x="340" y="88">MAP COMPLETE · {finding.toUpperCase()}</text></> : <text x="379" y="63" className="sem-map-awaiting">MAP QUEUED</text>}</g>
         <g className="sem-spectrum"><text x="335" y="108">EDS SPECTRUM</text><line x1="335" x2="498" y1="148" y2="148" />{[['O', 356, 25], ['Ca', 397, 34], ['Ti', 439, spec.id === 'D-08' ? 42 : 31], ['Zr', 474, spec.id === 'D-08' ? 8 : 18]].map(([label, x, height]) => <g key={String(label)} className={edsReady ? 'peak ready' : 'peak'}><line x1={Number(x)} x2={Number(x)} y1="148" y2={148 - Number(height)} /><text x={Number(x) - 5} y="162">{label}</text></g>)}</g>
@@ -725,7 +725,7 @@ function SemCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
       </svg>
       <aside>
         <div className={vacuumReady ? 'pass' : 'hold'}><span>CHAMBER VACUUM</span><b>{vacuumReady ? '2.1e−5 Pa' : 'VENTED'}</b><small>{vacuumReady ? 'working distance linked' : 'pump required'}</small></div>
-        <div className={fieldsReady ? 'pass' : vacuumReady ? 'review' : 'waiting'}><span>FIELD COVERAGE</span><b>{fieldsReady ? '4 / 4' : '0 / 4'}</b><small>{fieldsReady ? 'representative grid' : 'single-field claim blocked'}</small></div>
+        <div className={fieldsReady ? 'pass' : vacuumReady ? 'review' : 'waiting'}><span>FIELD COVERAGE</span><b>{fieldsReady ? '4 / 4' : '0 / 4'}</b><small>{fieldsReady ? 'preplanned grid complete' : 'single-field claim blocked'}</small></div>
         <div className={edsReady ? 'pass' : 'waiting'}><span>INTERPRETATION</span><b>{edsReady ? finding : '—'}</b><small>{edsReady ? 'hypothesis · not proof' : 'EDS map required'}</small></div>
       </aside>
     </div>
@@ -766,7 +766,7 @@ function BetHmiPanel({ station, operations }: { station: Station; operations: st
       <aside>
         <div className={portsIsolated ? 'pass' : 'hold'}><span>PORT VALVES</span><b>{portsIsolated ? '4 / 4 ISOLATED' : 'LOCKED'}</b><small>{portsIsolated ? 'cross-port path blocked' : 'prove service boundary'}</small></div>
         <div className={leakPassed ? 'pass' : portsIsolated ? 'review' : 'waiting'}><span>BASE PRESSURE</span><b>{leakPassed ? '3.2e−4 mbar' : '—'}</b><small>{leakPassed ? 'leak criterion met' : 'evacuation held'}</small></div>
-        <div className={nitrogenProven ? 'pass' : 'waiting'}><span>ADSORBATE N₂</span><b>{nitrogenProven ? '4.8 bar' : 'UNPROVEN'}</b><small>{reviewState ? 'ALU-21 control under review' : nitrogenProven ? 'identity + supply linked' : 'supply proof required'}</small></div>
+        <div className={nitrogenProven ? 'pass' : 'waiting'}><span>ADSORBATE N₂</span><b>{nitrogenProven ? '4.8 bar' : 'UNPROVEN'}</b><small>{reviewState ? 'MS-ALU-21 control under review' : nitrogenProven ? 'identity + supply linked' : 'supply proof required'}</small></div>
         <div className={dewarPositioned ? 'pass' : nitrogenProven ? 'review' : 'waiting'}><span>CRYOGENIC BATH</span><b>{dewarPositioned ? '77 K · LIFTED' : 'PARKED'}</b><small>{dewarPositioned ? 'cell bulbs immersed' : nitrogenProven ? 'position Dewar under cells' : 'gas proof required first'}</small></div>
       </aside>
     </div>

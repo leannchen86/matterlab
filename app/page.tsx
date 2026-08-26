@@ -7,7 +7,7 @@ import { getCampaignStationId, useCampaignSnapshot, useCampaignStation } from '.
 import { evaluateCampaignMission, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import { SystemsAtlasModal } from './systems-atlas';
 import { LabViewport } from './lab-viewport';
-import { MissionTelemetry } from './mission-ui';
+import { MissionLabHeading, MissionTelemetry, PhysicalEvidenceCue, useModalFocusTrap } from './mission-ui';
 import { baseStations, initialLog, type Station } from './sim-data';
 import { AlternateShift, PlannerPanel, ShiftDeckModal, type ScenarioId } from './scenario-shifts';
 import { StationAccess } from './station-access';
@@ -126,20 +126,22 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     };
     if (station.id === 'XRD-03' && phase >= 1) return {
       ...station,
-      state: phase === 4 ? 'RUN COMPLETE' : 'READY',
-      tone: phase === 4 ? 'run' : 'ready',
-      meta: phase === 4 ? 'Pattern + fit available' : 'Reference check · +0.02° 2θ',
+      state: phase === 4 ? 'RUN COMPLETE' : phase === 3 ? 'ANALYZING' : 'READY',
+      tone: phase === 4 || phase === 3 ? 'run' : 'ready',
+      meta: phase === 4 ? 'Pattern + fit available' : phase === 3 ? 'CA-TI-031 · diffraction scan active' : 'Silicon QC check · +0.02° 2θ',
       technicianView: phase === 4
         ? ['QC state: in control', 'Run: CA-TI-031', 'Target phase: 94.2%', 'Review: anomaly open']
-        : ['Reference: NIST Si', 'Current check: +0.02° 2θ', 'Limit: ±0.05° 2θ', 'Campaign: reacquisition'],
+        : phase === 3
+          ? ['QC state: in control', 'Run: CA-TI-031', 'Scan range: 10–80° 2θ', 'Acquisition: in progress']
+        : ['QC material: silicon reference', 'Fresh QC check: passed', 'Old sample results: recheck'],
     };
     if (station.id === 'ROBO-02' && phase >= 2) return {
       ...station,
-      state: phase === 3 ? 'TRANSFERRING' : 'READY',
-      tone: phase === 3 ? 'run' : 'ready',
-      meta: phase === 3 ? 'Carrier BC-184 in motion' : 'Carrier handshake complete',
+      state: 'READY',
+      tone: 'ready',
+      meta: phase === 3 ? 'Verified samples delivered to XRD' : 'Carrier handshake complete',
       technicianView: phase === 3
-        ? ['Safety zone: clear', 'Gripper: powder carrier', 'Carrier: BC-184', 'Route step: heating transfer']
+        ? ['Safety zone: clear', 'Gripper: parked', 'Verified samples: delivered', 'Destination: XRD']
         : ['Safety zone: clear', 'Gripper: powder carrier', 'Carrier handshake: complete', 'Exceptions today: 1'],
     };
     if (station.id === 'FURN-04' && phase >= 4) return { ...station, state: 'READY', tone: 'ready', meta: 'Cycle complete · trace retained' };
@@ -147,16 +149,17 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
       ...station,
       state: phase >= 6 ? 'FOLLOW-UP COMPLETE' : 'TRIAGE QUEUED',
       tone: phase >= 6 ? 'ready' : 'warn',
-      meta: phase >= 6 ? 'Multi-field map linked · scientist review' : 'SPEC-184-03 · inclusion follow-up',
+      meta: phase >= 6 ? 'Multi-field map linked · scientist review' : 'Inclusion follow-up',
       technicianView: phase >= 6
         ? ['Vacuum: stable', 'Fields acquired: 4', 'EDS map: linked', 'Review: scientist queue']
-        : ['Vacuum: stable', 'Specimen: SPEC-184-03', 'Target: bright inclusion', 'Coverage: 1 field only'],
+        : ['Vacuum: stable', 'Target: bright inclusion', 'Coverage: 1 field only'],
     };
     return station;
   }), [phase, campaign.thermalBayLevel, campaignOperations.activeFurnaceRun]);
 
   const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[0];
-  const selected = useCampaignStation(selectedBase);
+  const campaignSelected = useCampaignStation(selectedBase);
+  const selected = campaignActive ? campaignSelected : selectedBase;
   const selectedInspectionKey = campaignActive && getCampaignStationId(campaign.stage) === selected.id
     ? `${selected.id}:RUN-${campaign.runNumber}:${campaign.selected}`
     : selected.id;
@@ -165,14 +168,25 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const displayedCompletedTasks = campaignActive ? campaignCompletedTasks : completedTasks;
   const taskTotal = campaignActive ? 7 : 5;
   const progress = Math.round((displayedCompletedTasks / taskTotal) * 100);
+  const labObjective = campaignActive
+    ? `Continue ${campaignIdentity.runId}: ${campaignSpec.name}`
+    : [
+      'Measure the silicon QC material on XRD-03',
+      'Find the mislabeled specimen',
+      'Send five checked samples to the robot',
+      'Complete the active test run',
+      'Review the unexpected XRD peak',
+      'Inspect four preplanned microscope locations',
+      'Review the mission summary',
+    ][phase] ?? 'Review the mission summary';
   const campaignTasks = [
     { number: '01', title: 'Prepare formulation', note: campaign.stage >= 2 ? `${campaignIdentity.prepSample} released` : `${campaignSpec.targetMass} · ${campaignSpec.formula}`, start: 1, complete: 2 },
     { number: '02', title: 'Run robot synthesis', note: campaign.stage === 2 ? campaignOperations.robotCondition === 'contamination' ? 'Cleanliness witness due' : campaignOperations.robotCondition === 'grip-force' ? 'Grip-force witness due' : 'Tool ID + handshake check' : campaign.stage >= 4 ? `${campaignIdentity.carrier} dosed` : '6 crucible positions', start: 2, complete: 4 },
     { number: '03', title: 'Clear furnace queue', note: campaign.stage >= 5 ? 'Capacity slot secured' : `Q01 · ${campaignOperations.queueMinutes} min`, start: 4, complete: 5 },
     { number: '04', title: 'Execute thermal profile', note: campaign.stage >= 6 ? `${campaignSpec.profile} retained` : campaign.stage === 5 && campaignOperations.furnaceConstraint ? campaignOperations.furnaceCondition === 'thermocouple-drift' ? 'TC offset recovery due' : 'Door-seal recovery due' : `${campaignSpec.temperature} · ${campaignSpec.dwell}`, start: 5, complete: 6 },
-    { number: '05', title: 'Qualify XRD result', note: campaign.stage >= 7 ? `${campaignIdentity.pattern} qualified` : campaignOperations.referenceCondition === 'age-due' ? 'NIST Si reference due' : campaignOperations.referenceCondition === 'trend-review' ? 'Si control trend review' : 'Current Si control', start: 6, complete: 7 },
+    { number: '05', title: 'Qualify XRD result', note: campaign.stage >= 7 ? `${campaignIdentity.pattern} qualified` : campaignOperations.referenceCondition === 'age-due' ? 'NIST SRM 640f QC check due' : campaignOperations.referenceCondition === 'trend-review' ? 'Silicon QC trend review' : 'Current silicon QC check', start: 6, complete: 7 },
     { number: '06', title: campaign.confirmationSource ? 'Judge reproducibility' : 'Judge mission result', note: campaign.stage >= 7 ? campaign.confirmationSource ? `${confirmationSpread} pp spread · ${campaignEvaluation.met ? 'boundary repeated' : 'not repeated'}` : `${campaignEvaluation.resultText} · ${campaignEvaluation.met ? 'pass' : 'miss'}` : campaignMission.target, start: 7, complete: 8 },
-    { number: '07', title: 'Test mechanism', note: campaign.stage >= 9 ? 'Representative map linked' : 'SEM / EDS diagnostic branch', start: 8, complete: 9 },
+    { number: '07', title: 'Test mechanism', note: campaign.stage >= 9 ? 'Four-location map linked' : 'SEM / EDS diagnostic branch', start: 8, complete: 9 },
   ];
   const campaignLineage = campaign.stage <= 1
     ? { nodes: [campaignSpec.id, campaignIdentity.prepSample, campaignIdentity.carrier], note: `${campaignSpec.precursorLabel} are being weighed and bound to the campaign manifest.` }
@@ -181,8 +195,8 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
       : campaign.stage <= 5
         ? { nodes: [campaignIdentity.carrier, campaignIdentity.thermalSample, campaignSpec.profile], note: campaign.stage === 4 ? campaign.thermalBayLevel >= 2 ? `Carrier custody is retained while ${campaignOperations.furnaceLane} start-readiness is proved.` : 'Carrier custody is retained while the single-capacity furnace clears.' : campaignOperations.furnaceConstraint ? 'The loaded specimen remains held while the furnace condition is recovered and independently proved.' : 'The loaded specimen remains held behind the furnace start-readiness proof.' }
         : campaign.stage <= 7
-          ? { nodes: [campaignIdentity.thermalSample, campaignIdentity.xrdDataset, campaignIdentity.pattern], note: campaign.stage === 6 ? campaignOperations.referenceCondition === 'age-due' ? 'Diffraction release is held behind the due silicon-reference gate.' : campaignOperations.referenceCondition === 'trend-review' ? 'The silicon-control trend is being confirmed before specimen acquisition.' : 'The current silicon control is being reviewed before specimen acquisition.' : `${campaignIdentity.pattern} is qualified and linked to ${campaignObservedSpec.measured}% target phase.` }
-          : { nodes: [campaignIdentity.thermalSample, `SEM-${campaignIdentity.suffix}`, `EDS-${campaignIdentity.suffix}`], note: campaign.stage === 8 ? 'Four representative fields and a correlated elemental map are in acquisition.' : 'Representative microscopy evidence is linked as a mechanism hypothesis.' };
+          ? { nodes: [campaignIdentity.thermalSample, campaignIdentity.xrdDataset, campaignIdentity.pattern], note: campaign.stage === 6 ? campaignOperations.referenceCondition === 'age-due' ? 'Sample testing is blocked until the silicon QC material passes.' : campaignOperations.referenceCondition === 'trend-review' ? 'The silicon QC position trend is being confirmed before the sample is measured.' : 'The current silicon QC check is being reviewed before the sample is measured.' : `${campaignIdentity.pattern} is qualified and linked to ${campaignObservedSpec.measured}% target phase.` }
+          : { nodes: [campaignIdentity.thermalSample, `SEM-${campaignIdentity.suffix}`, `EDS-${campaignIdentity.suffix}`], note: campaign.stage === 8 ? 'Four preplanned, separated fields and one elemental map are in acquisition.' : 'Multi-location microscopy evidence is linked as a mechanism hypothesis.' };
   const appendLog = (type: string, text: string, addMinutes = 0) => {
     const nextMinute = minute + addMinutes;
     setMinute(nextMinute);
@@ -212,15 +226,15 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
 
   const runReference = () => {
     setQcRan(true);
-    setFeedback('Reference scan complete. Peak-position error is now inside the control limit.');
-    appendLog('qc', 'XRD-03 Si reference completed: +0.02° 2θ; control limit ±0.05°.', 8);
+    setFeedback('Fresh silicon QC check passed.');
+    appendLog('qc', 'A fresh silicon QC check passed on the XRD.', 8);
   };
 
   const dispositionQc = (correct: boolean) => {
     if (!correct) {
-      setFeedback('The old results were recorded while the XRD was outside its allowed range. They cannot be released yet.');
+      setFeedback('The old results were recorded before the passing check. They cannot be released yet.');
       penalize('integrity', 18);
-      appendLog('exception', 'Attempted release of results acquired while XRD-03 was outside its control limit.', 2);
+      appendLog('exception', 'Tried to use results acquired before the passing XRD check. The release was blocked.', 2);
       return;
     }
     setPhase(1);
@@ -241,15 +255,16 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     }
     setPhase(2);
     reward({ traceability: scores.traceability + 18, integrity: scores.integrity + 4 });
-    setFeedback('Correct: specimen 06 is quarantined, its preparation record is checked, and the corrected label is linked to both identifiers.');
-    appendLog('lineage', 'SPEC-184-06 quarantined; preparation record reconciled; controlled label correction recorded.', 9);
+    setFeedback('Correct: the mismatched sample is set aside until its preparation record is checked.');
+    appendLog('lineage', 'The mismatched sample was set aside and its preparation record was checked.', 9);
     window.setTimeout(() => setModal(null), 750);
   };
 
   const releaseCarrier = () => {
     setPhase(3);
+    setSelectedId('XRD-03');
     reward({ uptime: scores.uptime + 2 });
-    appendLog('transfer', 'BC-184 released to ROBO-02 with five ready samples; the mismatched sample remains set aside.', 4);
+    appendLog('transfer', 'The robot delivered five verified samples to the XRD; the mismatched sample remains set aside.', 4);
   };
 
   const advanceRun = () => {
@@ -279,12 +294,12 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     if (!correct) {
       setFeedback('A single high-contrast field can localize an inclusion, but it cannot establish that the feature represents the bulk specimen.');
       penalize('integrity', 12);
-      appendLog('exception', 'Single SEM field offered as bulk explanation; report held pending representative coverage.', 4);
+      appendLog('exception', 'Single SEM field offered as a bulk explanation; report blocked until all four preplanned locations are measured.', 4);
       return;
     }
     setPhase(6);
     reward({ integrity: scores.integrity + 9, traceability: scores.traceability + 3, uptime: scores.uptime - 2 });
-    appendLog('result', 'Four SEM fields and an EDS inclusion map linked to SPEC-184-03; interpretation routed to scientist review.', 24);
+    appendLog('result', 'Four microscope fields and one elemental map were linked; interpretation was routed for review.', 24);
     setModal('complete');
     setFeedback('');
   };
@@ -301,18 +316,14 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
           <span className="brand-mark">M<span>²</span></span>
           <div>
             <p className="eyebrow">Explore · experiment · learn</p>
-            <h1>MATTERSHIFT</h1>
+            <h1>MATTERLAB</h1>
           </div>
         </div>
-        <div className="shift-readout">
-          <span className="live-dot" />
-          <div><b>SIMULATION READY</b><small>{formatTime(minute)} · FICTIONAL LAB</small></div>
-        </div>
         <div className="header-actions">
-          <button className="campaign-button" type="button" onClick={() => { setCampaignMode(true); setModal('campaign'); }}>ADVANCED MODE</button>
+          <button className="campaign-button" type="button" aria-label="Open optional expert campaign sandbox" onClick={() => { setCampaignMode(true); setModal('campaign'); }}>EXPERT SANDBOX</button>
           <button className="deck-button" type="button" onClick={() => setModal('deck')}>SCENARIOS <span>5</span></button>
-          <button type="button" onClick={() => setModal('guide')}>FIELD MANUAL</button>
-          <button type="button" onClick={() => setLogOpen(true)}>RUN LOG <span>{log.length}</span></button>
+          <button type="button" onClick={() => setModal('guide')}>HELP</button>
+          <button type="button" onClick={() => setLogOpen(true)}>EVIDENCE LOG</button>
         </div>
       </header>
 
@@ -320,12 +331,11 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         <aside className="left-rail">
           <section className="rail-section shift-card">
             <p className="section-kicker">CURRENT MISSION</p>
-            <div className="wo-title"><span>{campaignActive ? campaignIdentity.runId : 'WO-2841'}</span><em>{campaignActive ? campaign.stage >= 9 ? 'DIAG READY' : 'ACTIVE' : phase >= 6 ? 'CLOSED' : 'PRIORITY 1'}</em></div>
             <h2>{campaignActive ? campaignSpec.name : 'Get the XRD station back on track'}</h2>
             <p>{campaignActive ? `Make ${campaignSpec.formula}, test it, and decide whether the result meets the goal.` : 'Check the instrument, fix one label problem, then review the result.'}</p>
             <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
             <div className="progress-meta"><span>{displayedCompletedTasks} / {taskTotal} tasks</span><span>{progress}%</span></div>
-            {!campaignActive && <MissionTelemetry elapsedMinutes={minute - (8 * 60 + 16)} blockedAttempts={log.filter((event) => event.type === 'exception').length} evidenceCount={Math.max(0, log.length - initialLog.length)} />}
+            {!campaignActive && <MissionTelemetry blockedAttempts={log.filter((event) => event.type === 'exception').length} evidenceCount={Math.max(0, log.length - initialLog.length)} />}
           </section>
 
           <section className="rail-section">
@@ -335,7 +345,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
                 const status = campaign.stage >= task.complete ? 'done' : campaign.stage >= task.start ? 'active' : 'pending';
                 return <Task key={task.number} number={task.number} title={task.title} note={task.note} status={status} onClick={status === 'active' ? () => setModal('campaign') : undefined} />;
               }) : <>
-                <Task number="01" title="Check the XRD" note={phase >= 1 ? 'Machine check passed' : 'Reference reading is off'} status={phase >= 1 ? 'done' : 'active'} onClick={phase < 1 ? openQc : undefined} />
+                <Task number="01" title="Check the XRD" note={phase >= 1 ? 'Machine QC check passed' : 'Silicon QC peak is outside limit'} status={phase >= 1 ? 'done' : 'active'} onClick={phase < 1 ? openQc : undefined} />
                 <Task number="02" title="Fix the sample label" note={phase >= 2 ? 'Mismatch safely resolved' : 'One label may be wrong'} status={phase >= 2 ? 'done' : phase === 1 ? 'active' : 'pending'} onClick={phase === 1 ? openLineage : undefined} />
                 <Task number="03" title="Start the robot" note={phase >= 3 ? 'Five samples accepted' : phase === 2 ? 'Five samples ready' : 'Waiting for sample check'} status={phase >= 3 ? 'done' : phase === 2 ? 'active' : 'pending'} onClick={phase === 2 ? releaseCarrier : undefined} />
                 <Task number="04" title={phase === 3 ? 'See the result' : 'Review the result'} note={phase >= 5 ? 'Unexpected peak flagged' : phase === 3 ? 'Test run is ready' : 'Look for unexplained evidence'} status={phase >= 5 ? 'done' : phase === 3 || phase === 4 ? 'active' : 'pending'} onClick={phase === 3 ? advanceRun : phase === 4 ? () => setModal('evidence') : undefined} />
@@ -346,10 +356,7 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         </aside>
 
         <section className="lab-view">
-          <div className="lab-heading">
-            <div><p className="section-kicker">EXPLORE THE LAB</p><h2>Select a station to see what it does</h2></div>
-            <div className="legend"><span><i className="ready" />ready</span><span><i className="run" />active</span><span><i className="warn" />attention</span></div>
-          </div>
+          <MissionLabHeading objective={labObjective} stationId={selected.id} stationState={selected.state} stationTone={selected.tone} />
 
           <LabViewport stations={stations} selectedId={selectedId} phase={phase} campaignEnabled={campaignMode} inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} />
 
@@ -358,25 +365,16 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         <aside className="right-rail">
           <ActionPanel phase={phase} campaignActive={campaignActive} onCampaign={() => setModal('campaign')} onQc={openQc} onLineage={openLineage} onRelease={releaseCarrier} onAdvance={advanceRun} onEvidence={() => setModal('evidence')} onSem={() => { setSelectedId('SEM-01'); setModal('sem'); }} onComplete={() => setModal('complete')} />
 
+          {!campaignActive && <PhysicalEvidenceCue stationId={selected.id} checks={physicalInspections[selectedInspectionKey] ?? []} />}
+
           <section className="rail-section station-inspector">
-            <div className="section-title-row"><p className="section-kicker">SELECTED EQUIPMENT · SIMULATED</p><span className={selected.tone}>{selected.state}</span></div>
+            <div className="section-title-row"><p className="section-kicker">SELECTED EQUIPMENT</p><span className={selected.tone}>{selected.state}</span></div>
             <div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div>
             <p>{selected.purpose}</p>
-            <div className="readout-list">
-              {selected.technicianView.map((item) => { const [key, value] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b></div>; })}
-            </div>
             <StationAccess station={selected} scenarioId="xrd" campaignEnabled={campaignMode} physicalChecks={physicalInspections[selectedInspectionKey] ?? []} />
           </section>
 
           {campaignActive && <PlannerPanel scenario="xrd" phase={phase} campaignActive />}
-
-          <section className="rail-section score-panel">
-            <div className="section-title-row"><p className="section-kicker">MISSION SCORE</p><span>STARTS AT 100</span></div>
-            <Score label="Safety" value={scores.safety} />
-            <Score label="Traceability" value={scores.traceability} />
-            <Score label="Data integrity" value={scores.integrity} />
-            <Score label="Lab uptime" value={scores.uptime} />
-          </section>
 
           <section className="rail-section lineage-card">
             <div className="section-title-row"><p className="section-kicker">SAMPLE LINEAGE</p><span>SIM</span></div>
@@ -386,14 +384,14 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         </aside>
       </div>
 
-      {modal === 'qc' && <QcModal ran={qcRan} feedback={feedback} onRun={runReference} onDisposition={dispositionQc} onClose={() => setModal(null)} />}
-      {modal === 'lineage' && <LineageModal scanned={labelsScanned} onScan={() => { setLabelsScanned(true); setFeedback('Mismatch found: manifest SPEC-184-06; physical label SPEC-148-06.'); appendLog('lineage', 'Carrier BC-184 scan found one identifier mismatch.', 3); }} feedback={feedback} onResolve={resolveLineage} onClose={() => setModal(null)} />}
+      {modal === 'qc' && <QcModal ran={qcRan} physicalChecks={physicalInspections['XRD-03'] ?? []} feedback={feedback} onRun={runReference} onDisposition={dispositionQc} onClose={() => setModal(null)} />}
+      {modal === 'lineage' && <LineageModal scanned={labelsScanned} onScan={() => { setLabelsScanned(true); setFeedback('Mismatch found: the list says A-06; the physical label says B-06.'); appendLog('lineage', 'The label scan found one identifier mismatch.', 3); }} feedback={feedback} onResolve={resolveLineage} onClose={() => setModal(null)} />}
       {modal === 'evidence' && <EvidenceModal feedback={feedback} onDecide={decideEvidence} onClose={() => setModal(null)} />}
       {modal === 'sem' && <SemEdsModal feedback={feedback} onDecide={decideSem} onClose={() => setModal(null)} />}
       {modal === 'guide' && <SystemsAtlasModal onClose={() => setModal(null)} />}
       {(modal === 'campaign' || modal === 'campaign-inventory' || modal === 'campaign-facility') && <CampaignControlModal autoOpenInventory={modal === 'campaign-inventory'} autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
-      {modal === 'deck' && <ShiftDeckModal active="xrd" onChoose={onSwitch} onClose={() => setModal(null)} />}
-      {modal === 'complete' && <CompleteModal scores={scores} elapsedMinutes={minute - (8 * 60 + 16)} logCount={log.length} exceptionCount={log.filter((event) => event.type === 'exception').length} onReset={resetShift} onDeck={() => setModal('deck')} onClose={() => setModal(null)} />}
+      {modal === 'deck' && <ShiftDeckModal active="xrd" onChoose={onSwitch} onExpert={() => { setCampaignMode(true); setModal('campaign'); }} onClose={() => setModal(null)} />}
+      {modal === 'complete' && <CompleteModal scores={scores} elapsedMinutes={minute - (8 * 60 + 16)} logCount={Math.max(0, log.length - initialLog.length)} exceptionCount={log.filter((event) => event.type === 'exception').length} onReset={resetShift} onDeck={() => setModal('deck')} onClose={() => setModal(null)} />}
       {logOpen && <LedgerDrawer log={log} onClose={() => setLogOpen(false)} />}
     </main>
   );
@@ -402,10 +400,6 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
 function Task({ number, title, note, status, onClick }: { number: string; title: string; note: string; status: 'done' | 'active' | 'pending'; onClick?: () => void }) {
   const content = <><span>{status === 'done' ? '✓' : number}</span><div><b>{title}</b><small>{note}</small></div></>;
   return <li className={status}>{onClick ? <button type="button" onClick={onClick}>{content}</button> : content}</li>;
-}
-
-function Score({ label, value }: { label: string; value: number }) {
-  return <div className="score-row"><div><span>{label}</span><b>{value}</b></div><div className="score-track"><i style={{ width: `${value}%` }} /></div></div>;
 }
 
 function ActionPanel({ phase, campaignActive, onCampaign, onQc, onLineage, onRelease, onAdvance, onEvidence, onSem, onComplete }: { phase: number; campaignActive: boolean; onCampaign: () => void; onQc: () => void; onLineage: () => void; onRelease: () => void; onAdvance: () => void; onEvidence: () => void; onSem: () => void; onComplete: () => void }) {
@@ -432,26 +426,26 @@ function ActionPanel({ phase, campaignActive, onCampaign, onQc, onLineage, onRel
           ? { tag: 'FURNACE CONDITION HOLD', title: 'Door-seal uniformity loss', body: `${operations.furnaceResult} requires gasket inspection, latch adjustment, and a stable door-chain proof before ${spec.profile} can start.`, metric: `${operations.furnaceRecoveryMinutes} min recovery`, tone: 'warn' }
           : { tag: 'THERMAL START READINESS', title: `${spec.profile} loaded`, body: `${identity.thermalSample} is loaded. The safety chain and controller agreement still own the start gate.`, metric: `${operations.furnaceRecoveryMinutes} min setup`, tone: 'run' },
       6: operations.referenceCondition === 'age-due'
-        ? { tag: 'XRD QUALITY GATE', title: `${identity.runId} specimen held`, body: 'A current NIST Si reference must pass before the campaign diffraction pattern can be acquired.', metric: `${operations.referenceAgeHours} h since QC`, tone: 'warn' }
+        ? { tag: 'XRD QUALITY GATE', title: `${identity.runId} sample testing blocked`, body: 'A current NIST SRM 640f silicon QC check must pass before the campaign sample can be measured.', metric: `${operations.referenceAgeHours} h since QC`, tone: 'warn' }
         : operations.referenceCondition === 'trend-review'
-          ? { tag: 'XRD TREND REVIEW', title: `${identity.runId} awaiting confirmation`, body: 'The Si control remains within its age window, but its position trend needs a confirmatory acquisition before the specimen.', metric: `${operations.referenceAgeHours} h control`, tone: 'run' }
-          : { tag: 'XRD ACQUISITION', title: `${identity.runId} ready to measure`, body: 'The Si control is current. Review its governed result, prove the shutter chain, and acquire the specimen pattern.', metric: `${operations.referenceAgeHours} h control`, tone: 'run' },
+          ? { tag: 'XRD TREND REVIEW', title: `${identity.runId} awaiting confirmation`, body: 'The silicon QC check is still current, but its position trend needs confirmation before the sample is measured.', metric: `${operations.referenceAgeHours} h QC check`, tone: 'run' }
+          : { tag: 'XRD ACQUISITION', title: `${identity.runId} ready to measure`, body: 'The silicon QC check is current. Review it, prove the shutter chain, and acquire the sample pattern.', metric: `${operations.referenceAgeHours} h QC check`, tone: 'run' },
       7: campaign.confirmationSource
         ? { tag: evaluation.met ? 'BOUNDARY REPEATED' : 'REPEAT FAILURE', title: `${identity.runId} · ${spec.id} repeat`, body: `The unchanged recipe moved from ${campaign.confirmationSource.measured}% to ${campaign.resultMeasured}%. ${evaluation.met ? 'The mission boundary repeated; inspect the comparability audit before claiming robustness.' : 'The mission boundary did not repeat; return to design or acquire mechanism evidence.'}`, metric: `${Math.abs(Number(campaign.resultMeasured) - Number(campaign.confirmationSource.measured)).toFixed(1)} pp spread`, tone: 'ready' }
-        : { tag: evaluation.met ? 'SCIENTIFIC MISSION MET' : 'VALID MISSION MISS', title: `${identity.runId} · ${mission.label}`, body: `The Si control passed at ${operations.referenceResult}. ${evaluation.resultText}; ${evaluation.constraintText}. The qualified result remains useful evidence.`, metric: evaluation.gap, tone: 'ready' },
-      8: { tag: 'SEM / EDS FOLLOW-UP', title: `${identity.runId} diagnostic branch`, body: 'Four representative BSE fields and a correlated EDS map are required before assigning a mechanism to the valid negative.', metric: '0 / 4 fields', tone: 'run' },
+        : { tag: evaluation.met ? 'SCIENTIFIC MISSION MET' : 'VALID MISSION MISS', title: `${identity.runId} · ${mission.label}`, body: `The silicon QC check passed at ${operations.referenceResult}. ${evaluation.resultText}; ${evaluation.constraintText}. The qualified result remains useful evidence.`, metric: evaluation.gap, tone: 'ready' },
+      8: { tag: 'SEM / EDS FOLLOW-UP', title: `${identity.runId} diagnostic branch`, body: 'Measure four preplanned, separated locations and one matching EDS map before suggesting a mechanism.', metric: '0 / 4 locations', tone: 'run' },
       9: { tag: 'DIAGNOSIS LINKED', title: `${identity.runId} mechanism hypothesis`, body: `${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'} are retained as a follow-up hypothesis, not treated as bulk proof.`, metric: '4 / 4 fields', tone: 'ready' },
     } as const;
     const state = campaignStates[campaign.stage as keyof typeof campaignStates] ?? campaignStates[7];
     return <section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>RUN-{identity.suffix}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={onCampaign}>OPEN CAMPAIGN CONTROL<span>→</span></button></section>;
   }
   const states = [
-    { tag: 'NEXT STEP', title: 'Check the XRD reading', body: 'The last test was off target. Run a reference sample to see whether the machine is accurate.', metric: 'Needs a check', action: 'CHECK THE XRD', fn: onQc, tone: 'warn' },
+    { tag: 'NEXT STEP', title: 'Check the XRD reading', body: 'The last silicon QC check failed. Run a fresh check before using sample results.', metric: 'QC check failed', action: 'CHECK THE XRD', fn: onQc, tone: 'warn' },
     { tag: 'NEXT STEP', title: 'One sample label does not match', body: 'Scan the carrier and find the sample that was labeled incorrectly.', metric: '6 samples', action: 'SCAN THE SAMPLES', fn: onLineage, tone: 'warn' },
-    { tag: 'NEXT STEP', title: 'The samples are ready', body: 'The machine check passed and the mislabeled sample is safely set aside.', metric: '5 ready', action: 'START ROBOT · 4 MIN', fn: onRelease, tone: 'ready' },
-    { tag: 'IN PROGRESS', title: 'The robot is running the test', body: 'Complete the simulated run to reveal the new pattern.', metric: '82 min', action: 'COMPLETE RUN · 82 MIN', fn: onAdvance, tone: 'run' },
+    { tag: 'NEXT STEP', title: 'The samples are ready', body: 'The machine check passed and the mismatched sample is safely set aside.', metric: '5 ready', action: 'START ROBOT', fn: onRelease, tone: 'ready' },
+    { tag: 'IN PROGRESS', title: 'The XRD test is underway', body: 'The robot delivered the carrier. Finish the scan to reveal the pattern.', metric: 'Running', action: 'COMPLETE RUN', fn: onAdvance, tone: 'run' },
     { tag: 'NEXT STEP', title: 'There is an unexpected peak', body: 'The main result looks good, but the chart contains one signal we cannot yet explain.', metric: '1 unknown peak', action: 'REVIEW THE RESULT', fn: onEvidence, tone: 'warn' },
-    { tag: 'NEXT STEP', title: 'Take a closer look', body: 'Use the microscope to check whether the unusual feature appears across the sample.', metric: 'Microscope ready', action: 'MAP FOUR FIELDS · 24 MIN', fn: onSem, tone: 'warn' },
+    { tag: 'NEXT STEP', title: 'Take a closer look', body: 'Use the microscope to check whether the unusual feature appears across the sample.', metric: 'Microscope ready', action: 'CHECK FOUR AREAS', fn: onSem, tone: 'warn' },
     { tag: 'MISSION COMPLETE', title: 'Good work', body: 'You checked the machine, protected the sample record, and investigated the unexpected result.', metric: '5 / 5', action: 'VIEW SUMMARY', fn: onComplete, tone: 'ready' },
   ];
   const state = states[phase] ?? states[6];
@@ -459,32 +453,33 @@ function ActionPanel({ phase, campaignActive, onCampaign, onQc, onLineage, onRel
 }
 
 function ModalShell({ title, kicker, children, onClose, wide = false }: { title: string; kicker: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
+  const dialogRef = useModalFocusTrap();
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [onClose]);
-  return <div className="modal-backdrop" role="presentation"><section className={`modal-card ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}><header><div><p className="section-kicker">{kicker}</p><h2>{title}</h2></div><button type="button" onClick={onClose} aria-label="Close dialog">×</button></header>{children}</section></div>;
+  return <div className="modal-backdrop" role="presentation"><section ref={dialogRef} className={`modal-card ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}><header><div><p className="section-kicker">{kicker}</p><h2>{title}</h2></div><button type="button" onClick={onClose} aria-label="Close dialog">×</button></header>{children}</section></div>;
 }
 
-function QcModal({ ran, feedback, onRun, onDisposition, onClose }: { ran: boolean; feedback: string; onRun: () => void; onDisposition: (correct: boolean) => void; onClose: () => void }) {
+function QcModal({ ran, physicalChecks, feedback, onRun, onDisposition, onClose }: { ran: boolean; physicalChecks: string[]; feedback: string; onRun: () => void; onDisposition: (correct: boolean) => void; onClose: () => void }) {
   const items = [
-    { key: 'holder' as const, title: 'Clean the sample holder', note: 'Dust can distort the reading.' },
-    { key: 'standard' as const, title: 'Check the reference sample', note: 'Make sure it is the correct silicon standard.' },
-    { key: 'interlock' as const, title: 'Close the safety cover', note: 'The instrument will not run while it is open.' },
+    { key: 'holder' as const, hotspot: 'HOLDER', title: 'Sample holder' },
+    { key: 'display' as const, hotspot: 'HMI', title: 'QC status screen' },
+    { key: 'interlock' as const, hotspot: 'SHUTTER', title: 'Safety cover' },
   ];
   return <ModalShell title="Check the XRD" kicker="STEP 1 · MACHINE CHECK" onClose={onClose} wide>
-    <div className="modal-grid qc-grid"><div><p className="modal-intro">The last reading was outside the allowed range. Decide whether the service note is enough, or spend eight minutes on a known reference.</p><div className="evidence-brief">{items.map((item) => <article key={item.key}><i>•</i><div><b>{item.title}</b><small>{item.note}</small></div></article>)}</div><button className="modal-run" type="button" disabled={ran} onClick={onRun}>{ran ? 'CHECK COMPLETE' : 'RUN REFERENCE CHECK · 8 MIN'}</button>{!ran && <button className="blank-release-shortcut" type="button" onClick={() => onDisposition(false)}>Release from the service note · 0 min</button>}</div><div className="control-card"><p className="mini-label">PEAK ERROR · ALLOWED RANGE ±0.05° 2θ</p><div className="control-chart"><i className="limit top" /><i className="center" /><i className="limit bottom" /><span style={{ left: '12%', top: '43%' }} /><span style={{ left: '28%', top: '51%' }} /><span style={{ left: '46%', top: '47%' }} /><span className="bad" style={{ left: '64%', top: '8%' }} />{ran && <span className="new" style={{ left: '84%', top: '40%' }} />}</div><div className="control-legend"><span>−0.05°</span><b>TARGET · 0°</b><span>+0.05°</span></div><div className="result-box"><span>BEFORE</span><b>OUT OF RANGE</b><span>NOW</span><b>{ran ? '+0.02° · PASS' : '—'}</b></div>{ran && <div className="decision-stack"><p className="mini-label">WHAT SHOULD HAPPEN TO THE OLD RESULTS?</p><button type="button" onClick={() => onDisposition(true)}>Hold old results and test them again</button><button type="button" className="secondary" onClick={() => onDisposition(false)}>Keep old results because the machine passes now</button></div>}</div></div>{feedback && <p className={`feedback ${feedback.startsWith('The old results') ? 'bad' : ''}`}>{feedback}</p>}
+    <div className="modal-grid qc-grid"><div><p className="modal-intro">The previous QC check failed. A service note says the repair is complete. Verify that claim with a fresh measurement.</p><div className="evidence-brief">{items.map((item) => { const observed = physicalChecks.includes(item.hotspot); return <article key={item.key} className={observed ? 'observed' : ''} aria-label={`${item.title}; ${observed ? 'observed in the 3D walkaround' : 'not yet observed in the 3D walkaround'}`}><i>{observed ? '✓' : '•'}</i><div><b>{item.title}</b><small>{observed ? 'Observed in 3D' : 'Not inspected'}</small></div></article>; })}</div><button className="modal-run" type="button" disabled={ran} onClick={onRun}>{ran ? 'FRESH QC CHECK PASSED' : 'RUN A FRESH QC CHECK'}</button>{!ran && <button className="blank-release-shortcut" type="button" onClick={() => onDisposition(false)}>Trust the service note without testing</button>}</div><div className="control-card"><p className="mini-label">QC STATUS</p><div className="result-box"><span>PREVIOUS CHECK</span><b>FAILED</b><span>FRESH CHECK</span><b>{ran ? 'PASSED' : 'NOT RUN'}</b></div>{ran && <div className="decision-stack"><p className="mini-label">WHAT HAPPENS TO RESULTS MADE BEFORE THE PASS?</p><button type="button" onClick={() => onDisposition(true)}>Keep them blocked and measure again</button><button type="button" className="secondary" onClick={() => onDisposition(false)}>Use them because the machine passes now</button></div>}</div></div>{feedback && <p className={`feedback ${feedback.startsWith('The old results') ? 'bad' : ''}`}>{feedback}</p>}
   </ModalShell>;
 }
 
 function LineageModal({ scanned, onScan, feedback, onResolve, onClose }: { scanned: boolean; onScan: () => void; feedback: string; onResolve: (correct: boolean) => void; onClose: () => void }) {
-  const samples = ['184-01', '184-02', '184-03', '184-04', '184-05', scanned ? '148-06' : '184-06'];
-  return <ModalShell title="Find the mismatched label" kicker="STEP 2 · SAMPLE CHECK" onClose={onClose} wide><p className="modal-intro">All six labels should match the sample list. Scan the carrier, then decide what to do with any mismatch.</p><div className="manifest-summary"><span>BATCH<b>WO-2841</b></span><span>STARTING MATERIAL<b>LOT-91</b></span><span>EXPECTED<b>6 SAMPLES</b></span><span>PATH<b>PREP → HEAT → XRD</b></span></div><div className="sample-tray">{samples.map((id, index) => <div key={index} className={scanned && index === 5 ? 'mismatch' : ''}><i>{index + 1}</i><b>SPEC-{id}</b><small>{scanned && index === 5 ? 'EXPECTED: 184-06' : 'matches'}</small></div>)}</div>{!scanned ? <button className="modal-run" type="button" onClick={onScan}>SCAN ALL SAMPLES</button> : <div className="decision-stack horizontal"><button type="button" onClick={() => onResolve(true)}>Set aside and investigate</button><button type="button" className="secondary" onClick={() => onResolve(false)}>Print a new label without checking</button></div>}{feedback && <p className={`feedback ${feedback.includes('can be wrong') ? 'bad' : ''}`}>{feedback}</p>}</ModalShell>;
+  const samples = ['A-01', 'A-02', 'A-03', 'A-04', 'A-05', scanned ? 'B-06' : 'A-06'];
+  return <ModalShell title="Find the mismatched label" kicker="STEP 2 · SAMPLE CHECK" onClose={onClose} wide><p className="modal-intro">Compare the six physical labels with the sample list. One may not belong.</p><div className="sample-tray">{samples.map((id, index) => <div key={index} className={scanned && index === 5 ? 'mismatch' : ''}><i>{index + 1}</i><b>{id}</b><small>{scanned && index === 5 ? 'LIST SAYS A-06' : 'matches list'}</small></div>)}</div>{!scanned ? <button className="modal-run" type="button" onClick={onScan}>SCAN LABELS</button> : <div className="decision-stack horizontal"><button type="button" onClick={() => onResolve(true)}>Set it aside and investigate</button><button type="button" className="secondary" onClick={() => onResolve(false)}>Relabel it without checking</button></div>}{feedback && <p className={`feedback ${feedback.includes('can be wrong') ? 'bad' : ''}`}>{feedback}</p>}</ModalShell>;
 }
 
 function EvidenceModal({ feedback, onDecide, onClose }: { feedback: string; onDecide: (correct: boolean) => void; onClose: () => void }) {
-  return <ModalShell title="Review the XRD result" kicker="STEP 4 · RESULT CHECK" onClose={onClose} wide><div className="decision-question"><span>DECISION</span><b>What should drive the next experiment: the summary score or the full pattern?</b></div><div className="evidence-grid"><div className="trace-panel"><div className="panel-heading"><span>XRD PATTERN · INTENSITY (COUNTS)</span><b>XRD-03 · RUN 031</b></div><div className="xrd-chart" aria-label="Simulated XRD intensity from 10 to 80 degrees two theta with one unresolved peak at 36.1 degrees"><i style={{ left: '9%', height: '16%' }} /><i style={{ left: '19%', height: '40%' }} /><i style={{ left: '31%', height: '84%' }} /><i style={{ left: '44%', height: '35%' }} /><i className="unknown" style={{ left: '54%', height: '52%' }} /><i style={{ left: '67%', height: '29%' }} /><i style={{ left: '78%', height: '63%' }} /><i style={{ left: '91%', height: '22%' }} /><span>UNEXPLAINED · 36.1°</span></div><div className="axis"><span>10°</span><b>DIFFRACTION ANGLE · 2θ</b><span>80°</span></div></div><div className="report-panel"><div className="panel-heading"><span>PHASE RESULT</span><b>method v2.4</b></div><div className="report-metric"><span>Target phase</span><b>94.2%</b></div><div className="report-metric"><span>Fit quality</span><b>8.6% Rwp</b></div><div className="report-metric"><span>Goal</span><b>≥ 90%</b></div><div className="report-status">GOAL MET</div><p>One peak at 36.1° is not assigned to the reported phases.</p></div></div><div className="ai-proposal"><div><span>AUTOMATED SUGGESTION · SIMULATED</span><h3>Increase heating time from 4 h to 6 h</h3><p>Generated from the 94.2% summary result.</p></div><b>WAITING</b></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onDecide(true)}>Hold the next run and investigate 36.1°</button><button type="button" className="secondary" onClick={() => onDecide(false)}>Start the 6 h run from the summary score</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+  return <ModalShell title="Review the XRD result" kicker="STEP 4 · RESULT CHECK" onClose={onClose} wide><div className="decision-question"><span>DECISION</span><b>The goal was met, but one peak is unexplained. What should you trust?</b></div><div className="evidence-grid"><div className="trace-panel"><div className="panel-heading"><span>FULL XRD PATTERN</span><b>ONE UNKNOWN PEAK</b></div><div className="xrd-chart" aria-label="Simulated XRD pattern with one unresolved peak"><i style={{ left: '9%', height: '16%' }} /><i style={{ left: '19%', height: '40%' }} /><i style={{ left: '31%', height: '84%' }} /><i style={{ left: '44%', height: '35%' }} /><i className="unknown" style={{ left: '54%', height: '52%' }} /><i style={{ left: '67%', height: '29%' }} /><i style={{ left: '78%', height: '63%' }} /><i style={{ left: '91%', height: '22%' }} /><span>UNEXPLAINED</span></div><div className="axis"><span>LOW ANGLE</span><b>DIFFRACTION ANGLE</b><span>HIGH ANGLE</span></div></div><div className="report-panel"><div className="panel-heading"><span>SUMMARY</span><b>GOAL MET</b></div><div className="report-metric"><span>Target phase</span><b>94%</b></div><div className="report-metric"><span>Goal</span><b>90%</b></div><div className="report-status">PASS</div><p>The summary does not explain the highlighted peak.</p></div></div><div className="ai-proposal"><div><span>NEXT-RUN SUGGESTION</span><h3>Increase heating time</h3><p>Based only on the passing summary.</p></div></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onDecide(true)}>Investigate the unknown peak first</button><button type="button" className="secondary" onClick={() => onDecide(false)}>Follow the summary suggestion</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
 }
 
 function SemEdsModal({ feedback, onDecide, onClose }: { feedback: string; onDecide: (correct: boolean) => void; onClose: () => void }) {
@@ -493,17 +488,17 @@ function SemEdsModal({ feedback, onDecide, onClose }: { feedback: string; onDeci
   return <ModalShell title="Check the unexpected feature" kicker="STEP 5 · MICROSCOPE CHECK" onClose={onClose} wide>
     <div className="decision-question"><span>DECISION</span><b>What evidence would connect this local feature to the bulk pattern?</b></div>
     <p className="modal-intro">Field 01 contains a bright Si-rich inclusion. The other fields have not been measured.</p>
-    <div className="sem-evidence-grid"><div className="micrograph-panel"><div className="panel-heading"><span>MICROSCOPE IMAGE · FIELD 01</span><b>SEM-01 · SPEC-184-03</b></div><div className="micrograph" aria-label="Simulated SEM micrograph with a bright inclusion">{grains.map(([left, top, width, height], index) => <i key={index} style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }} />)}<span className="bright-inclusion" /><b className="feature-tag">TEST AREA 01</b><em className="scale-bar">20 µm</em><i className="scan-line" /></div><div className="field-strip"><span className="active"><i />F01<b>inclusion</b></span><span><i />F02<b>queued</b></span><span><i />F03<b>queued</b></span><span><i />F04<b>queued</b></span></div></div><div className="eds-panel"><div className="panel-heading"><span>LOCAL ELEMENT SIGNAL · COUNTS</span><b>AREA 01</b></div><div className="eds-spectrum" aria-label="Simulated local EDS counts from zero to ten kiloelectronvolts"><span className="spectrum-y">COUNTS</span>{peaks.map(([label, left, height], index) => <i key={`${label}-${index}`} className={label === 'Si' ? 'flagged' : ''} style={{ left: `${left}%`, height: `${height}%` }}><b>{label}</b></i>)}</div><div className="spectrum-axis"><span>0</span><b>ENERGY · keV</b><span>10</span></div><div className="report-metric"><span>Main material</span><b>Ca · Ti · O</b></div><div className="report-metric flagged-metric"><span>Bright feature</span><b>More Si</b></div><div className="report-status warn-status">FIELD 01 ONLY</div><p>Measured area: one small location on SPEC-184-03.</p></div></div>
-    <div className="ai-proposal"><div><span>AUTOMATED SUGGESTION · SIMULATED</span><h3>Assign the 36.1° peak to the Si-rich inclusion</h3><p>Generated from Field 01 only.</p></div><b>WAITING</b></div>
-    <div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onDecide(true)}>Map four representative fields · 24 min</button><button type="button" className="secondary" onClick={() => onDecide(false)}>Assign the peak from Field 01 · 0 min</button></div>
+    <div className="sem-evidence-grid"><div className="micrograph-panel"><div className="panel-heading"><span>MICROSCOPE IMAGE · FIELD 01</span><b>ONE LOCATION</b></div><div className="micrograph" aria-label="Simulated SEM micrograph with a bright inclusion">{grains.map(([left, top, width, height], index) => <i key={index} style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }} />)}<span className="bright-inclusion" /><b className="feature-tag">TEST AREA 01</b><em className="scale-bar">20 µm</em><i className="scan-line" /></div><div className="field-strip"><span className="active"><i />F01<b>measured</b></span><span><i />F02<b>not measured</b></span><span><i />F03<b>not measured</b></span><span><i />F04<b>not measured</b></span></div></div><div className="eds-panel"><div className="panel-heading"><span>LOCAL ELEMENT SIGNAL</span><b>AREA 01</b></div><div className="eds-spectrum" aria-label="Simulated local EDS counts from zero to ten kiloelectronvolts"><span className="spectrum-y">COUNTS</span>{peaks.map(([label, left, height], index) => <i key={`${label}-${index}`} className={label === 'Si' ? 'flagged' : ''} style={{ left: `${left}%`, height: `${height}%` }}><b>{label}</b></i>)}</div><div className="spectrum-axis"><span>0</span><b>ENERGY</b><span>10</span></div><div className="report-metric"><span>Main material</span><b>Ca · Ti · O</b></div><div className="report-metric flagged-metric"><span>Bright feature</span><b>More Si</b></div><div className="report-status warn-status">ONE FIELD ONLY</div></div></div>
+    <div className="ai-proposal"><div><span>POSSIBLE EXPLANATION</span><h3>The unknown XRD peak comes from this inclusion</h3><p>Based on one small location.</p></div></div>
+    <div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onDecide(true)}>Check four separated locations</button><button type="button" className="secondary" onClick={() => onDecide(false)}>Conclude from this one location</button></div>
     {feedback && <p className="feedback bad">{feedback}</p>}
   </ModalShell>;
 }
 
 function CompleteModal({ scores, elapsedMinutes, logCount, exceptionCount, onReset, onDeck, onClose }: { scores: Scores; elapsedMinutes: number; logCount: number; exceptionCount: number; onReset: () => void; onDeck: () => void; onClose: () => void }) {
-  return <ModalShell title="Mission debrief" kicker="WO-2841 · COMPLETE" onClose={onClose}><p className="modal-intro">You checked the instrument, protected the sample record, and investigated evidence that did not fit.</p><DebriefVisual scenario="xrd" scores={scores} elapsedMinutes={elapsedMinutes} logCount={logCount} exceptionCount={exceptionCount} /><div className="lesson-card"><b>What changed in the lab</b><p>Five samples moved forward. One mislabeled sample was held. The unexplained peak remains visible and a representative microscope check is attached.</p></div><div className="debrief-actions"><button type="button" onClick={onDeck}>NEXT SCENARIO</button><button type="button" onClick={onReset}>REPLAY</button></div></ModalShell>;
+  return <ModalShell title="Mission debrief" kicker="MISSION COMPLETE" onClose={onClose}><p className="modal-intro">You checked the instrument, protected the sample record, and investigated evidence that did not fit.</p><DebriefVisual scenario="xrd" scores={scores} elapsedMinutes={elapsedMinutes} logCount={logCount} exceptionCount={exceptionCount} /><div className="lesson-card"><b>What changed in the lab</b><p>Five samples moved forward. One mislabeled sample was blocked from testing. The unexplained peak remains visible, with four-location microscopy evidence attached.</p></div><div className="debrief-actions"><button type="button" onClick={onDeck}>NEXT SCENARIO</button><button type="button" onClick={onReset}>REPLAY</button></div></ModalShell>;
 }
 
 function LedgerDrawer({ log, onClose }: { log: LogItem[]; onClose: () => void }) {
-  return <div className="drawer-backdrop" role="presentation" onClick={onClose}><aside className="ledger-drawer" role="dialog" aria-modal="true" aria-label="Event ledger" onClick={(event) => event.stopPropagation()}><header><div><p className="section-kicker">RUN RECORD</p><h2>Event ledger</h2></div><button type="button" onClick={onClose} aria-label="Close event ledger">×</button></header><p className="drawer-intro">A chronological record of QC checks, sample exceptions, workcell transfers, results, and operator decisions.</p><ol>{[...log].reverse().map((item, index) => <li key={`${item.time}-${index}`}><time>{item.time}</time><i className={item.type}>{item.type}</i><p>{item.text}</p></li>)}</ol></aside></div>;
+  return <div className="drawer-backdrop" role="presentation" onClick={onClose}><aside className="ledger-drawer" role="dialog" aria-modal="true" aria-label="Evidence log" onClick={(event) => event.stopPropagation()}><header><div><p className="section-kicker">EVIDENCE</p><h2>What you observed</h2></div><button type="button" onClick={onClose} aria-label="Close evidence log">×</button></header><p className="drawer-intro">{log.length ? 'Checks, findings, and blocked guesses from this run.' : 'Nothing recorded yet.'}</p><ol>{[...log].reverse().map((item, index) => <li key={`${item.time}-${index}`}><time>{item.time}</time><i className={item.type}>{item.type}</i><p>{item.text}</p></li>)}</ol></aside></div>;
 }
