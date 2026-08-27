@@ -4,17 +4,17 @@ MatterLab is an interactive virtual materials laboratory for practicing experime
 
 **[Launch MatterLab](https://leannchen86.github.io/matterlab-sim/)**
 
-The simulation places the player inside a high-throughput laboratory where restoring equipment is only part of the job. Measurements must also remain linked to physical inspections, sample identity, process history, reference controls, and the decisions that make a result usable—or deliberately exclude it.
+The simulation places the player inside a high-throughput laboratory where restoring equipment is only part of the job. Measurements must also remain linked to physical inspections, sample identity, process history, reference controls, and the decisions that make a result usable or deliberately exclude it.
 
 ## Scenarios
 
 MatterLab includes five playable cases:
 
-- **Unexpected XRD peak** — restore XRD control, reconcile sample identity, and decide whether SEM/EDS follow-up is justified.
-- **BET recommissioning** — accept an analyzer after service, verify pretreatment lineage, and investigate a low control result.
-- **Interrupted furnace run** — preserve the thermal trace, reconcile robot and furnace occupancy, and recover the workcell safely.
-- **Failed TGA empty-pan check** — correct the pan setup, run a governed blank, and separate purge behavior from a material signal.
-- **Gas-service changeover** — move material with traceability, prove the new gas boundary, and quarantine results collected before verification.
+- **Unexpected XRD peak:** restore XRD control, reconcile sample identity, and decide whether SEM/EDS follow-up is justified.
+- **BET recommissioning:** accept an analyzer after service, verify pretreatment lineage, and investigate a low control result.
+- **Interrupted furnace run:** preserve the thermal trace, reconcile robot and furnace occupancy, and recover the workcell safely.
+- **Failed TGA empty-pan check:** correct the pan setup, run a governed blank, and separate purge behavior from a material signal.
+- **Gas-service changeover:** move material with traceability, prove the new gas boundary, and quarantine results collected before verification.
 
 An optional expert sandbox extends the XRD case into a multi-run materials campaign with candidate selection, constrained equipment capacity, retained results, and microscopy-informed follow-up.
 

@@ -513,8 +513,8 @@ should help a technician reconcile commanded state with physical feedback.
 
 ## Critique 30: two major characterization tools still behaved as static props
 
-XRD and TGA/DSC now reconciled local controls with the spatial twin, but SEM/EDS and BET—two of the
-techniques emphasized in the target lab roles—only showed the generic proof channels. Their central
+XRD and TGA/DSC now reconciled local controls with the spatial twin, but SEM/EDS and BET, two of the
+techniques emphasized in the target lab roles, only showed the generic proof channels. Their central
 vacuum, detector, manifold, and gas hardware needed to respond at the same level of specificity.
 
 ### Changes
@@ -548,7 +548,7 @@ cause-and-effect as measurement.
 - Changed sequence completion from a raw action count to exact required-action matching, preventing
   stale or context-changed controls from satisfying the wrong sequence.
 - Exercised all three complete sequences and specifically verified that a 982 °C RUNNING furnace
-  retains its orange hot zone while recording chamber occupancy—not an impossible empty-cell state.
+  retains its orange hot zone while recording chamber occupancy, not an impossible empty-cell state.
 
 ## Critique 32: the lab had equipment but no credible controlled boundary
 
@@ -620,7 +620,7 @@ physical infrastructure to make those decisions spatially believable.
 ## Critique 36: entering the lab was too indirect
 
 Human-scale walking existed, but reaching it required discovering a camera toggle and then expanding
-the view. The primary promise—feel like walking into a real lab—was hidden behind dashboard grammar.
+the view. The primary promise, feeling like walking into a real lab, was hidden behind dashboard grammar.
 
 ### Changes
 
@@ -847,8 +847,8 @@ vendor-recommissioning record, and the XRD furnace inherited BC-207 recovery con
 
 - Added active-work-order console profiles for facility prep, facility robot coordination, GAS-41
   at BET-02, furnace-recovery robot work, the XRD campaign furnace, and SEM/EDS inclusion triage.
-- Gave MOV-3024 a dedicated LES path—scan both totes, inspect the powered jack, secure load and
-  route, retain the move receipt—and a LIMS chain of LOT-3024-A → MOV-3024 → REC-BET-02.
+- Gave MOV-3024 a dedicated LES path: scan both totes, inspect the powered jack, secure load and
+  route, retain the move receipt, and create a LIMS chain of LOT-3024-A → MOV-3024 → REC-BET-02.
 - Made facility LIMS lifecycle labels follow the station state, including move hold, move released,
   move received, service hold, control ready, window hold, and eligible.
 - Replaced generic lineage captions with move/service-specific and interrupted-run-specific evidence
@@ -886,7 +886,7 @@ lab and made the interface feel like a training document instead of a game syste
 - Recast the guide as an in-world operations reference anchored on a five-stage campaign loop:
   design, prepare, synthesize, measure, and learn.
 - Added a compact visual fault vocabulary for QC drift, starved queues, cell faults, utility holds,
-  contamination, and model holds—the conditions future sandbox play will surface as bottlenecks.
+  contamination, and model holds. These are the conditions future sandbox play will surface as bottlenecks.
 - Added a player-control boundary showing how physical assets, MES/SCADA/HMI, LES/LIMS, and the AI
   planner relate, including the rule that AI can propose but cannot override release gates.
 - Changed player-facing deck, ledger, and debrief language from employment/training framing to
@@ -1394,7 +1394,7 @@ run produced the same generic sweep. The player still needed text to understand 
   clean/attention illumination, and a powder stream that moves between the active dose positions.
 - Bound gripper proof from the native HMI back into the 3D witness dock and arm indicator so the physical
   scene visibly clears as technician evidence is completed.
-- Preserved safeguards and focus transparency while making the campaign stage—not decorative animation—
+- Preserved safeguards and focus transparency while making the campaign stage, not decorative animation,
   own the robot pose and material state.
 
 ## Critique 76: repeat campaigns replayed the same faults
@@ -1405,8 +1405,8 @@ the laboratory feel scripted rather than like a shift with changing equipment co
 
 ### Changes
 
-- Added deterministic run conditions across three robot states—nominal readiness, grip-force drift,
-  and contamination—and three XRD-control states—current, trend review, and age due. Adjacent runs now
+- Added deterministic run conditions across three robot states: nominal readiness, grip-force drift,
+  and contamination; and three XRD-control states: current, trend review, and age due. Adjacent runs now
   produce different operating work without relying on random state the player cannot reproduce.
 - Propagated each condition through the 3D station label and beacon, physical walkaround observations,
   local HMI sequence, LES method context, LIMS chain state, campaign route, technician checklist, and
@@ -1417,7 +1417,7 @@ the laboratory feel scripted rather than like a shift with changing equipment co
   acquiring a fully due reference.
 - Varied operational consequences: nominal setup carries no insight penalty, force verification costs
   less than contamination recovery, and elapsed time follows the actual condition. Unsafe bypass
-  feedback now explains the specific consequence—contamination ambiguity or a dropped/misdosed carrier.
+  feedback now explains the specific consequence, such as contamination ambiguity or a dropped/misdosed carrier.
 - Kept RUN-047 on its established contamination and 13-hour reference-due branch, then exercised that
   route through robot dosing, dual-furnace readiness, the thermal profile, the 3D XRD walkaround, and
   the native four-step reference-control console.
@@ -1508,7 +1508,7 @@ become strategic when several experiments are competing for the same equipment.
 
 ### Changes
 
-- Added three persistent unreleased planning slots. Any candidate—including a scientist-authored one—
+- Added three persistent unreleased planning slots. Any candidate, including a scientist-authored one,
   can be queued with its current scientific mission without consuming material or claiming equipment.
 - Added live backlog capacity telemetry for aggregate thermal minutes, XRD minutes, qualified furnace
   lanes, and a visible congestion signal. This turns the optional second furnace chamber into a
@@ -1518,7 +1518,7 @@ become strategic when several experiments are competing for the same equipment.
 - Connected archive to backlog promotion: the next planned candidate and its original mission load
   automatically into the following governed run; remaining plans advance without breaking run IDs.
   Mechanism-recovery runs still take priority and shift the unreleased backlog safely.
-- Exercised a mixed three-run shift in production preview—D-08 energy, C-42 purity, and Z-17 rate—then
+- Exercised a mixed three-run shift in production preview with D-08 energy, C-42 purity, and Z-17 rate, then
   reordered Z-17 ahead of C-42. The board retained the correct missions, recomputed RUN-043 through
   RUN-045, and exposed 1,170 minutes of thermal demand against one qualified lane as furnace congestion.
 
@@ -2413,7 +2413,7 @@ number changed.
 ## Critique 129: the robot moved before its safeguard sequence permitted motion
 
 The articulated arm and six-position fixture were already animated, but their mode was derived directly from
-the campaign stage. Entering a dosing or recovery phase therefore moved the arm—and could show powder flow—
+the campaign stage. Entering a dosing or recovery phase therefore moved the arm and could show powder flow
 while the 3D gate was visibly open and before the player executed the motion command.
 
 ### Changes

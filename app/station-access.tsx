@@ -313,7 +313,7 @@ function HmiView({ station, scenarioId, campaignStage, campaignSelected, campaig
     : station;
   return <div className="console-view hmi-view compact-hmi-view">
     <div className="console-view-head compact-console-head"><div><p className="section-kicker">{liveStation.id} · MACHINE CONTROL</p><h3>{liveStation.state}</h3></div><div className="compact-console-progress"><span>{physicalChecks.length}/3 inspected</span><b>{completedOperations}/{operationSteps.length} steps</b></div></div>
-    <div className="compact-readouts">{liveStation.technicianView.slice(0, 3).map((item) => { const [key, value = '—'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b></div>; })}</div>
+    <div className="compact-readouts">{liveStation.technicianView.slice(0, 3).map((item) => { const [key, value = 'N/A'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b></div>; })}</div>
     {campaignStage === 1 && station.id === 'PREP-01' && <PrepCampaignPanel selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 2 && campaignStage <= 3 && station.id === 'ROBO-02' && <RobotCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} thermalBayLevel={campaignThermalBayLevel} backlog={campaignBacklog} operations={operations} />}
@@ -371,13 +371,13 @@ function PrepCampaignPanel({ selected, runNumber, operations }: { selected: stri
         <rect x="20" y="21" width="207" height="136" rx="3" className={airflowProven ? 'prep-enclosure proven' : 'prep-enclosure'} /><path d="M35 46 H211 M35 61 H211" className={airflowProven ? 'airflow proven' : 'airflow'} /><text x="34" y="35">LEV-01 · {airflowProven ? '0.48 m/s PROVEN' : 'FLOW PROOF REQUIRED'}</text>
         {lots.map((lot, index) => <g key={lot.lot} transform={`translate(34 ${77 + index * 23})`} className="precursor-lot"><rect width="176" height="18" rx="2" /><text x="7" y="12">{lot.lot}</text><text x="62" y="12">{lot.material}</text><text x="132" y="12">{lot.mass}</text></g>)}
         <rect x="247" y="21" width="252" height="136" rx="3" className="balance-deck" /><text x="259" y="36">ANALYTICAL BALANCE · ±0.2 mg</text>
-        <rect x="258" y="48" width="229" height="45" rx="2" className={zeroed ? 'balance-display stable' : 'balance-display'} /><text x="270" y="64">{identity.prepSample}</text><text x="270" y="84" className="mass-value">{zeroed ? actual : '—.——'} g</text><text x="422" y="84" className={zeroed ? 'within' : ''}>{zeroed ? 'STABLE' : 'NOT TARED'}</text>
+        <rect x="258" y="48" width="229" height="45" rx="2" className={zeroed ? 'balance-display stable' : 'balance-display'} /><text x="270" y="64">{identity.prepSample}</text><text x="270" y="84" className="mass-value">{zeroed ? actual : '-.---'} g</text><text x="422" y="84" className={zeroed ? 'within' : ''}>{zeroed ? 'STABLE' : 'NOT TARED'}</text>
         <line x1="258" x2="487" y1="146" y2="146" className="mass-baseline" /><path d={massPath} className={zeroed ? 'mass-trace stable' : 'mass-trace'} /><line x1="258" x2="487" y1="119" y2="119" className="mass-target" /><text x="259" y="111">TARGET {spec.targetMass} · LIMIT ±0.0002 g</text>
         {antistatic && <g className="release-stamp"><rect x="392" y="97" width="94" height="20" rx="2" /><text x="404" y="110">RELEASE → {identity.carrier}</text></g>}
       </svg>
       <aside>
         <div className={airflowProven ? 'pass' : 'hold'}><span>ENCLOSURE FLOW</span><b>{airflowProven ? '0.48 m/s' : 'HOLD'}</b><small>{airflowProven ? 'LEV feedback true' : 'prove local capture'}</small></div>
-        <div className={zeroed ? 'pass' : airflowProven ? 'review' : 'waiting'}><span>NET MASS</span><b>{zeroed ? `${actual} g` : '—'}</b><small>{zeroed ? `${offset >= 0 ? '+' : '−'}${Math.abs(offset * 1000).toFixed(1)} mg` : 'tare required'}</small></div>
+        <div className={zeroed ? 'pass' : airflowProven ? 'review' : 'waiting'}><span>NET MASS</span><b>{zeroed ? `${actual} g` : 'N/A'}</b><small>{zeroed ? `${offset >= 0 ? '+' : '−'}${Math.abs(offset * 1000).toFixed(1)} mg` : 'tare required'}</small></div>
         <div className={antistatic ? 'pass' : 'waiting'}><span>PORTION RECORD</span><b>{identity.prepSample}</b><small>{antistatic ? `${identity.carrier} linked` : 'antistatic gate'}</small></div>
       </aside>
     </div>
@@ -487,7 +487,7 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, bac
       </svg>
       <aside>
         <div className={profileRead ? 'pass' : 'hold'}><span>{queued ? auxiliary ? 'CHAMBER A' : 'OCCUPANCY' : runOps.furnaceCondition === 'thermocouple-drift' ? 'WITNESS TC' : runOps.furnaceCondition === 'door-seal' ? 'DOOR SURVEY' : 'OVERTEMP'}</span><b>{queued ? runOps.activeFurnaceRun : runOps.furnaceConstraint ? runOps.furnaceCondition === 'thermocouple-drift' ? '+11.8 °C' : '12.6 °C' : profileRead ? 'ARMED' : 'READ'}</b><small>{queued ? auxiliary ? 'independent TC active' : 'capacity 1 / 1' : profileRead ? runOps.furnaceResult : 'proof required'}</small></div>
-        <div className={secondGate && thirdGate ? 'pass' : secondGate ? 'review' : 'waiting'}><span>{queued ? auxiliary ? 'CHAMBER B' : 'QUEUE' : runOps.furnaceCondition === 'thermocouple-drift' ? 'TC / OVERTEMP' : runOps.furnaceCondition === 'door-seal' ? 'LATCH / CHAIN' : 'DOOR CHAIN'}</span><b>{queued ? auxiliary ? secondGate ? 'READY' : 'VERIFY' : 'Q01' : thirdGate ? 'PROVEN' : secondGate ? 'VERIFY' : '—'}</b><small>{queued ? auxiliary ? 'independent TC + pre-start survey' : identity.carrier : thirdGate ? 'independent proof retained' : secondGate ? 'secondary proof due' : 'awaiting sequence'}</small></div>
+        <div className={secondGate && thirdGate ? 'pass' : secondGate ? 'review' : 'waiting'}><span>{queued ? auxiliary ? 'CHAMBER B' : 'QUEUE' : runOps.furnaceCondition === 'thermocouple-drift' ? 'TC / OVERTEMP' : runOps.furnaceCondition === 'door-seal' ? 'LATCH / CHAIN' : 'DOOR CHAIN'}</span><b>{queued ? auxiliary ? secondGate ? 'READY' : 'VERIFY' : 'Q01' : thirdGate ? 'PROVEN' : secondGate ? 'VERIFY' : 'N/A'}</b><small>{queued ? auxiliary ? 'independent TC + pre-start survey' : identity.carrier : thirdGate ? 'independent proof retained' : secondGate ? 'secondary proof due' : 'awaiting sequence'}</small></div>
         <div className={finalGate ? 'pass' : 'waiting'}><span>{queued ? 'RELEASE' : 'THERMAL DOSE'}</span><b>{queued ? `${runOps.queueMinutes} min` : spec.temperature}</b><small>{queued ? finalGate ? 'location proven' : 'carrier held' : finalGate ? `${spec.dwell} dwell · recovery retained` : `${runOps.furnaceRecoveryMinutes} min recovery`}</small></div>
       </aside>
     </div>
@@ -565,7 +565,7 @@ function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed
       </svg>
       <aside>
         <div className={referenceCaptured ? 'pass' : runOps.referenceConstraint ? 'hold' : 'review'}><span>SILICON QC</span><b>{referenceCaptured ? runOps.referenceResult : `${runOps.referenceAgeHours} H OLD`}</b><small>{referenceCaptured ? 'inside ±0.05° QC tolerance' : runOps.referenceCondition === 'trend-review' ? 'confirm position trend' : runOps.referenceCondition === 'current' ? 'review before sample' : 'sample testing blocked'}</small></div>
-        <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${observedMeasured}%` : '—'}</b><small>{sampleCaptured ? `fit mismatch ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}% Rwp · lower is better` : 'awaiting pattern'}</small></div>
+        <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${observedMeasured}%` : 'N/A'}</b><small>{sampleCaptured ? `fit mismatch ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}% Rwp · lower is better` : 'awaiting pattern'}</small></div>
         <div className={sampleCaptured ? evaluation.met ? 'pass' : 'miss' : 'waiting'}><span>MISSION</span><b>{sampleCaptured ? evaluation.gap : missionId === 'low-energy' ? 'ENERGY' : missionId === 'throughput' ? 'RATE' : '≥ 96%'}</b><small>{sampleCaptured ? evaluation.met ? 'mission met' : evaluation.constraintText : 'campaign gate'}</small></div>
       </aside>
     </div>
@@ -614,7 +614,7 @@ function SemCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
       <aside>
         <div className={vacuumReady ? 'pass' : 'hold'}><span>CHAMBER VACUUM</span><b>{vacuumReady ? '2.1e−5 Pa' : 'VENTED'}</b><small>{vacuumReady ? 'working distance linked' : 'pump required'}</small></div>
         <div className={fieldsReady ? 'pass' : vacuumReady ? 'review' : 'waiting'}><span>FIELD COVERAGE</span><b>{fieldsReady ? '4 / 4' : '0 / 4'}</b><small>{fieldsReady ? 'preplanned grid complete' : 'single-field claim blocked'}</small></div>
-        <div className={edsReady ? 'pass' : 'waiting'}><span>INTERPRETATION</span><b>{edsReady ? finding : '—'}</b><small>{edsReady ? 'hypothesis · not proof' : 'EDS map required'}</small></div>
+        <div className={edsReady ? 'pass' : 'waiting'}><span>INTERPRETATION</span><b>{edsReady ? finding : 'N/A'}</b><small>{edsReady ? 'hypothesis · not proof' : 'EDS map required'}</small></div>
       </aside>
     </div>
   </section>;
@@ -653,7 +653,7 @@ function BetHmiPanel({ station, operations }: { station: Station; operations: st
       </svg>
       <aside>
         <div className={portsIsolated ? 'pass' : 'hold'}><span>PORT VALVES</span><b>{portsIsolated ? '4 / 4 ISOLATED' : 'LOCKED'}</b><small>{portsIsolated ? 'cross-port path blocked' : 'prove service boundary'}</small></div>
-        <div className={leakPassed ? 'pass' : portsIsolated ? 'review' : 'waiting'}><span>BASE PRESSURE</span><b>{leakPassed ? '3.2e−4 mbar' : '—'}</b><small>{leakPassed ? 'leak criterion met' : 'evacuation held'}</small></div>
+        <div className={leakPassed ? 'pass' : portsIsolated ? 'review' : 'waiting'}><span>BASE PRESSURE</span><b>{leakPassed ? '3.2e−4 mbar' : 'N/A'}</b><small>{leakPassed ? 'leak criterion met' : 'evacuation held'}</small></div>
         <div className={nitrogenProven ? 'pass' : 'waiting'}><span>ADSORBATE N₂</span><b>{nitrogenProven ? '4.8 bar' : 'UNPROVEN'}</b><small>{reviewState ? 'MS-ALU-21 control under review' : nitrogenProven ? 'identity + supply linked' : 'supply proof required'}</small></div>
         <div className={dewarPositioned ? 'pass' : nitrogenProven ? 'review' : 'waiting'}><span>CRYOGENIC BATH</span><b>{dewarPositioned ? '77 K · LIFTED' : 'PARKED'}</b><small>{dewarPositioned ? 'cell bulbs immersed' : nitrogenProven ? 'position Dewar under cells' : 'gas proof required first'}</small></div>
       </aside>
