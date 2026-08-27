@@ -2,7 +2,7 @@
 
 MatterLab is an interactive virtual materials laboratory for practicing experimental judgment, equipment checks, and evidence-aware decision making.
 
-**[Launch MatterLab](https://leannchen86.github.io/matterlab-sim/)**
+**[Launch MatterLab](https://leannchen86.github.io/matterlab/)**
 
 The simulation places the player inside a high-throughput laboratory where restoring equipment is only part of the job. Measurements must also remain linked to physical inspections, sample identity, process history, reference controls, and the decisions that make a result usable or deliberately exclude it.
 

@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   root: 'github-pages',
-  base: '/matterlab-sim/',
+  base: '/matterlab/',
   publicDir: '../public',
   plugins: [react()],
   build: {
