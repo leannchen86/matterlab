@@ -12,6 +12,7 @@ export type CampaignSnapshot = {
   elapsed: number;
   resultElapsed: number;
   resultMeasured: string;
+  priorReplicateCount: number;
   confirmationSource: { runNumber: number; measured: string } | null;
   missionId: CampaignMissionId;
   thermalBayLevel: number;
@@ -20,44 +21,102 @@ export type CampaignSnapshot = {
   backlog: Array<{ runNumber: number; candidate: string; missionId: CampaignMissionId }>;
 };
 
-const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, elapsed: 0, resultElapsed: 0, resultMeasured: '', confirmationSource: null, missionId: 'purity', thermalBayLevel: 1, stagingBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 }, backlog: [] };
-const fallbackSerialized = JSON.stringify(fallbackCampaign);
+const fallbackCampaign: CampaignSnapshot = { stage: 0, selected: 'C-42', runNumber: 42, elapsed: 0, resultElapsed: 0, resultMeasured: '', priorReplicateCount: 0, confirmationSource: null, missionId: 'purity', thermalBayLevel: 1, stagingBayLevel: 1, inventory: { crucibles: 7, liners: 2, carbonTabs: 1 }, backlog: [] };
+const campaignStorageKey = 'mattershift-campaign-v2';
 
-function readCampaign(): CampaignSnapshot {
-  if (typeof window === 'undefined') return fallbackCampaign;
+type StoredCampaignResult = {
+  runNumber?: unknown;
+  candidate?: unknown;
+  measured?: unknown;
+  elapsed?: unknown;
+};
+
+type StoredCampaignBacklogItem = {
+  runNumber?: unknown;
+  candidate?: unknown;
+  missionId?: unknown;
+};
+
+type StoredCampaign = {
+  stage?: unknown;
+  selected?: unknown;
+  runNumber?: unknown;
+  elapsed?: unknown;
+  missionId?: unknown;
+  thermalBayLevel?: unknown;
+  stagingBayLevel?: unknown;
+  inventory?: { crucibles?: unknown; liners?: unknown; carbonTabs?: unknown };
+  history?: unknown;
+  backlog?: unknown;
+};
+
+const asNumber = (value: unknown, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const asMissionId = (value: unknown): CampaignMissionId => value === 'low-energy' || value === 'throughput' ? value : 'purity';
+
+function parseCampaign(source: string | null): CampaignSnapshot {
+  if (!source) return fallbackCampaign;
   try {
-    const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}');
-    const runNumber = Number(stored.runNumber ?? fallbackCampaign.runNumber);
-    const history = Array.isArray(stored.history) ? stored.history : [];
+    const stored = JSON.parse(source) as StoredCampaign;
+    const runNumber = asNumber(stored.runNumber, fallbackCampaign.runNumber);
+    const history = Array.isArray(stored.history) ? stored.history as StoredCampaignResult[] : [];
     const selected = String(stored.selected ?? fallbackCampaign.selected);
-    const retainedResult = history.find((item: { runNumber?: number }) => Number(item?.runNumber) === runNumber);
-    const precedingResult = [...history].reverse().find((item: { runNumber?: number }) => Number(item?.runNumber) < runNumber);
+    const retainedResult = history.find((item) => asNumber(item.runNumber, -1) === runNumber);
+    const precedingResult = history.findLast((item) => asNumber(item.runNumber, runNumber) < runNumber);
     const confirmationSource = precedingResult && String(precedingResult.candidate) === selected ? precedingResult : null;
     return {
-      stage: Number(stored.stage ?? fallbackCampaign.stage),
+      stage: asNumber(stored.stage, fallbackCampaign.stage),
       selected,
       runNumber,
-      elapsed: Number(stored.elapsed ?? fallbackCampaign.elapsed),
-      resultElapsed: Number(retainedResult?.elapsed ?? 0),
+      elapsed: asNumber(stored.elapsed, fallbackCampaign.elapsed),
+      resultElapsed: asNumber(retainedResult?.elapsed, 0),
       resultMeasured: String(retainedResult?.measured ?? ''),
-      confirmationSource: confirmationSource ? { runNumber: Number(confirmationSource.runNumber), measured: String(confirmationSource.measured ?? '') } : null,
-      missionId: stored.missionId === 'low-energy' || stored.missionId === 'throughput' ? stored.missionId : 'purity',
-      thermalBayLevel: Number(stored.thermalBayLevel ?? fallbackCampaign.thermalBayLevel),
-      stagingBayLevel: Number(stored.stagingBayLevel ?? fallbackCampaign.stagingBayLevel),
+      priorReplicateCount: history.filter((item) => String(item.candidate) === selected && asNumber(item.runNumber, runNumber) < runNumber).length,
+      confirmationSource: confirmationSource ? { runNumber: asNumber(confirmationSource.runNumber, 0), measured: String(confirmationSource.measured ?? '') } : null,
+      missionId: asMissionId(stored.missionId),
+      thermalBayLevel: asNumber(stored.thermalBayLevel, fallbackCampaign.thermalBayLevel),
+      stagingBayLevel: asNumber(stored.stagingBayLevel, fallbackCampaign.stagingBayLevel),
       inventory: {
-        crucibles: Number(stored.inventory?.crucibles ?? fallbackCampaign.inventory.crucibles),
-        liners: Number(stored.inventory?.liners ?? fallbackCampaign.inventory.liners),
-        carbonTabs: Number(stored.inventory?.carbonTabs ?? fallbackCampaign.inventory.carbonTabs),
+        crucibles: asNumber(stored.inventory?.crucibles, fallbackCampaign.inventory.crucibles),
+        liners: asNumber(stored.inventory?.liners, fallbackCampaign.inventory.liners),
+        carbonTabs: asNumber(stored.inventory?.carbonTabs, fallbackCampaign.inventory.carbonTabs),
       },
-      backlog: Array.isArray(stored.backlog) ? stored.backlog.slice(0, 3).map((item: { runNumber?: number; candidate?: string; missionId?: string }, index: number) => ({
-        runNumber: Number(item.runNumber ?? Number(stored.runNumber ?? fallbackCampaign.runNumber) + index + 1),
+      backlog: Array.isArray(stored.backlog) ? (stored.backlog as StoredCampaignBacklogItem[]).slice(0, 3).map((item, index) => ({
+        runNumber: asNumber(item.runNumber, runNumber + index + 1),
         candidate: String(item.candidate ?? 'C-42'),
-        missionId: item.missionId === 'low-energy' || item.missionId === 'throughput' ? item.missionId : 'purity',
+        missionId: asMissionId(item.missionId),
       })) : [],
     };
   } catch {
     return fallbackCampaign;
   }
+}
+
+let cachedSource: string | null | undefined;
+let cachedCampaign = fallbackCampaign;
+
+function getClientCampaign() {
+  const source = window.localStorage.getItem(campaignStorageKey);
+  if (source === cachedSource) return cachedCampaign;
+  cachedSource = source;
+  cachedCampaign = parseCampaign(source);
+  return cachedCampaign;
+}
+
+function subscribeToCampaign(onStoreChange: () => void) {
+  const invalidate = () => {
+    cachedSource = undefined;
+    onStoreChange();
+  };
+  window.addEventListener('mattershift:campaign-state', invalidate);
+  window.addEventListener('storage', invalidate);
+  return () => {
+    window.removeEventListener('mattershift:campaign-state', invalidate);
+    window.removeEventListener('storage', invalidate);
+  };
 }
 
 export function getCampaignStationId(stage: number) {
@@ -93,15 +152,7 @@ export function getCampaignStationView(station: Station, stage: number, selected
 }
 
 export function useCampaignSnapshot() {
-  const serialized = useSyncExternalStore((onStoreChange) => {
-    window.addEventListener('mattershift:campaign-state', onStoreChange);
-    window.addEventListener('storage', onStoreChange);
-    return () => {
-      window.removeEventListener('mattershift:campaign-state', onStoreChange);
-      window.removeEventListener('storage', onStoreChange);
-    };
-  }, () => JSON.stringify(readCampaign()), () => fallbackSerialized);
-  return JSON.parse(serialized) as CampaignSnapshot;
+  return useSyncExternalStore(subscribeToCampaign, getClientCampaign, () => fallbackCampaign);
 }
 
 export function useCampaignStation(station: Station): Station {

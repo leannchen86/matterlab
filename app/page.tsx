@@ -5,7 +5,6 @@ import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
 import { getCampaignStationId, useCampaignSnapshot, useCampaignStation } from './campaign-context';
 import { evaluateCampaignMission, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
-import { SystemsAtlasModal } from './systems-atlas';
 import { LabViewport } from './lab-viewport';
 import { MissionLabHeading, MissionTelemetry, PhysicalEvidenceCue, useModalFocusTrap } from './mission-ui';
 import { baseStations, initialLog, type Station } from './sim-data';
@@ -15,7 +14,7 @@ import { StationAccess } from './station-access';
 const TgaShift = lazy(() => import('./tga-shift').then((module) => ({ default: module.TgaShift })));
 const FacilityShift = lazy(() => import('./facility-shift').then((module) => ({ default: module.FacilityShift })));
 
-type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'guide' | 'campaign' | 'campaign-inventory' | 'campaign-facility' | 'deck' | 'complete' | null;
+type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'campaign' | 'campaign-inventory' | 'campaign-facility' | 'deck' | 'complete' | null;
 type LogItem = { time: string; type: string; text: string };
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 
@@ -383,7 +382,6 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
       {modal === 'lineage' && <LineageModal scanned={labelsScanned} onScan={() => { setLabelsScanned(true); setFeedback('Mismatch found: the list says A-06; the physical label says B-06.'); appendLog('lineage', 'The label scan found one identifier mismatch.', 3); }} feedback={feedback} onResolve={resolveLineage} onClose={() => setModal(null)} />}
       {modal === 'evidence' && <EvidenceModal feedback={feedback} onDecide={decideEvidence} onClose={() => setModal(null)} />}
       {modal === 'sem' && <SemEdsModal feedback={feedback} onDecide={decideSem} onClose={() => setModal(null)} />}
-      {modal === 'guide' && <SystemsAtlasModal onClose={() => setModal(null)} />}
       {(modal === 'campaign' || modal === 'campaign-inventory' || modal === 'campaign-facility') && <CampaignControlModal autoOpenInventory={modal === 'campaign-inventory'} autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
       {modal === 'deck' && <ShiftDeckModal active="xrd" onChoose={onSwitch} onExpert={() => { setCampaignMode(true); setModal('campaign'); }} onClose={() => setModal(null)} />}
       {modal === 'complete' && <CompleteModal scores={scores} elapsedMinutes={minute - (8 * 60 + 16)} logCount={Math.max(0, log.length - initialLog.length)} exceptionCount={log.filter((event) => event.type === 'exception').length} onReset={resetShift} onDeck={() => setModal('deck')} onClose={() => setModal(null)} />}

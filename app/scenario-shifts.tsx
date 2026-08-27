@@ -5,7 +5,6 @@ import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
 import { useCampaignSnapshot } from './campaign-context';
 import { campaignSpecs, evaluateCampaignMission, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
-import { SystemsAtlasModal } from './systems-atlas';
 import { LabViewport } from './lab-viewport';
 import { MissionLabHeading, MissionTelemetry, PhysicalEvidenceCue, useModalFocusTrap } from './mission-ui';
 import { baseStations, type Station } from './sim-data';
@@ -14,7 +13,7 @@ import { StationAccess } from './station-access';
 export type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 type LogItem = { time: string; type: string; text: string };
-type Modal = 'deck' | 'guide' | 'campaign' | 'campaign-facility' | 'bench' | 'sample' | 'verify' | 'evidence' | 'complete' | null;
+type Modal = 'deck' | 'campaign' | 'campaign-facility' | 'bench' | 'sample' | 'verify' | 'evidence' | 'complete' | null;
 type Scenario = {
   id: 'bet' | 'furnace';
   label: string;
@@ -272,7 +271,6 @@ export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | '
       <section className="lab-view"><MissionLabHeading objective={state.title} stationId={selected.id} stationState={selected.state} stationTone={selected.tone} /><LabViewport stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} /></section>
       <aside className="right-rail"><section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>{phase >= 5 ? 'CLOSED' : phase === 4 ? 'REVIEW' : 'ACTIVE'}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={state.fn}>{state.action}<span>→</span></button></section><PhysicalEvidenceCue stationId={selected.id} checks={physicalInspections[selected.id] ?? []} /><section className="rail-section station-inspector"><div className="section-title-row"><p className="section-kicker">SELECTED EQUIPMENT</p><span className={selected.tone}>{selected.state}</span></div><div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div><p>{selected.purpose}</p><StationAccess station={selected} scenarioId={scenarioId} physicalChecks={physicalInspections[selected.id] ?? []} /></section><section className="rail-section lineage-card"><div className="section-title-row"><p className="section-kicker">EVIDENCE CHAIN</p><span>SIM</span></div><div className="lineage-flow"><span>{scenarioId === 'bet' ? 'LOT-77' : 'LOT-112'}</span><i>→</i><span>{scenarioId === 'bet' ? 'ADS-77-C' : 'BC-207'}</span><i>→</i><span>{scenarioId === 'bet' ? (phase >= 2 ? 'READY' : 'HOLD') : (phase >= 5 ? 'EXCLUDE' : 'HOLD')}</span></div><p>{scenarioId === 'bet' ? (phase >= 2 ? 'Tube identity and preparation record agree.' : 'The tube record needs review.') : (phase >= 5 ? 'The interrupted result is saved but excluded from predictions.' : phase >= 2 ? 'The interrupted load is set aside with its record saved.' : 'The furnace contents still need to be checked.')}</p></section></aside></div>
     {modal === 'deck' && <ShiftDeckModal active={scenarioId} onChoose={onSwitch} onExpert={() => setModal('campaign')} onClose={() => setModal(null)} />}
-    {modal === 'guide' && <SystemsAtlasModal onClose={() => setModal(null)} />}
     {(modal === 'campaign' || modal === 'campaign-facility') && <CampaignControlModal autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
     {modal === 'bench' && <BenchModal scenarioId={scenarioId} physicalChecks={physicalInspections[scenario.stationId] ?? []} ran={ran} setRan={setRan} clearFeedback={() => setFeedback('')} feedback={feedback} appendLog={appendLog} onFinish={finishBench} onClose={() => setModal(null)} />}
     {modal === 'sample' && <SampleModal scenarioId={scenarioId} scanned={scanned} setScanned={setScanned} feedback={feedback} appendLog={appendLog} onFinish={finishSample} onClose={() => setModal(null)} />}

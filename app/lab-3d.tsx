@@ -98,7 +98,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
   return (
     <div className={`lab-3d camera-${cameraMode}`} aria-label="Interactive 3D simulation of seven materials laboratory stations">
       <Canvas
-        shadows
+        shadows="percentage"
         dpr={[1, 1.55]}
         camera={{ position: [10.5, 11.8, 19.5], fov: 55, near: 0.1, far: 90 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}

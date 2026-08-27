@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
-import { SystemsAtlasModal } from './systems-atlas';
 import { LabViewport } from './lab-viewport';
 import { MissionLabHeading, MissionTelemetry, PhysicalEvidenceCue, useModalFocusTrap } from './mission-ui';
 import { ShiftDeckModal, type ScenarioId } from './scenario-shifts';
@@ -12,7 +11,7 @@ import { StationAccess } from './station-access';
 
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 type LogItem = { time: string; type: string; text: string };
-type Modal = 'deck' | 'guide' | 'campaign' | 'campaign-facility' | 'baseline' | 'pan' | 'blank' | 'evidence' | 'complete' | null;
+type Modal = 'deck' | 'campaign' | 'campaign-facility' | 'baseline' | 'pan' | 'blank' | 'evidence' | 'complete' | null;
 
 const tasks = [
   { title: 'Review the failed check', pending: 'Empty-pan check failed', done: 'Failed check saved' },
@@ -108,7 +107,6 @@ export function TgaShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void }) {
       <section className="lab-view"><MissionLabHeading objective={action.title} stationId={selected.id} stationState={selected.state} stationTone={selected.tone} /><LabViewport stations={stations} selectedId={selectedId} phase={phase} scenarioId="tga" inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} /></section>
       <aside className="right-rail"><section className={`rail-section alert-card tone-${action.tone}`}><div className="alert-head"><span>{action.tag}</span><b>{phase >= 5 ? 'CLOSED' : phase === 4 ? 'REVIEW' : 'ACTIVE'}</b></div><h2>{action.title}</h2><div className="metric-row"><span>Current state</span><strong>{action.metric}</strong></div><p>{action.body}</p><button className="primary-action" type="button" onClick={action.fn}>{action.label}<span>→</span></button></section><PhysicalEvidenceCue stationId={selected.id} checks={physicalInspections[selected.id] ?? []} /><section className="rail-section station-inspector"><div className="section-title-row"><p className="section-kicker">SELECTED EQUIPMENT</p><span className={selected.tone}>{selected.state}</span></div><div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div><p>{selected.purpose}</p><StationAccess station={selected} scenarioId="tga" physicalChecks={physicalInspections[selected.id] ?? []} /></section><section className="rail-section lineage-card"><div className="section-title-row"><p className="section-kicker">EVIDENCE CHAIN</p><span>SIM</span></div><div className="lineage-flow"><span>LOT-91-T</span><i>→</i><span>PANSET-14</span><i>→</i><span>{phase >= 5 ? 'REPEAT' : phase >= 2 ? 'MATCH' : 'PAUSED'}</span></div><p>{phase >= 5 ? 'The original result is saved and a repeat is queued.' : phase >= 2 ? 'The sample, matching pans, and method agree.' : 'The physical pan pair still needs to be checked.'}</p></section></aside></div>
     {modal === 'deck' && <ShiftDeckModal active="tga" onChoose={onSwitch} onExpert={() => setModal('campaign')} onClose={() => setModal(null)} />}
-    {modal === 'guide' && <SystemsAtlasModal onClose={() => setModal(null)} />}
     {(modal === 'campaign' || modal === 'campaign-facility') && <CampaignControlModal autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
     {modal === 'baseline' && <BaselineModal checks={checks} setChecks={setChecks} physicalChecks={physicalInspections['TGA-01'] ?? []} ran={ran} setRan={setRan} clearFeedback={() => setFeedback('')} feedback={feedback} appendLog={appendLog} onFinish={finishBaseline} onClose={() => setModal(null)} />}
     {modal === 'pan' && <PanModal scanned={scanned} setScanned={setScanned} feedback={feedback} appendLog={appendLog} onFinish={finishPan} onClose={() => setModal(null)} />}

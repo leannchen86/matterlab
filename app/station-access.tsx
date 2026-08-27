@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { evaluateCampaignMission, getCampaignIdentity, getCampaignObservedPhase, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import type { CampaignMissionId, CampaignSpec } from './campaign-spec';
-import { getCampaignStationId, getCampaignStationView } from './campaign-context';
+import { getCampaignStationId, getCampaignStationView, useCampaignSnapshot } from './campaign-context';
 import type { Station } from './sim-data';
 
 type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
@@ -196,14 +196,16 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
   const [enteredFromLab, setEnteredFromLab] = useState(false);
   const [enteredChecks, setEnteredChecks] = useState<string[]>([]);
   const [sessions, setSessions] = useState<Record<string, ConsoleSession>>({});
-  const [campaignStage, setCampaignStage] = useState(0);
-  const [campaignSelected, setCampaignSelected] = useState('C-42');
-  const [campaignRunNumber, setCampaignRunNumber] = useState(42);
-  const [campaignResultElapsed, setCampaignResultElapsed] = useState(0);
-  const [campaignResultMeasured, setCampaignResultMeasured] = useState('');
-  const [campaignMissionId, setCampaignMissionId] = useState<CampaignMissionId>('purity');
-  const [campaignThermalBayLevel, setCampaignThermalBayLevel] = useState(1);
-  const [campaignBacklog, setCampaignBacklog] = useState<CampaignBacklogItem[]>([]);
+  const campaign = useCampaignSnapshot();
+  const campaignStage = campaign.stage;
+  const campaignSelected = campaign.selected;
+  const campaignRunNumber = campaign.runNumber;
+  const campaignResultElapsed = campaign.resultElapsed;
+  const campaignResultMeasured = campaign.resultMeasured;
+  const campaignPriorReplicateCount = campaign.priorReplicateCount;
+  const campaignMissionId = campaign.missionId;
+  const campaignThermalBayLevel = campaign.thermalBayLevel;
+  const campaignBacklog = campaign.backlog;
   const campaignActive = campaignEnabled && scenarioId === 'xrd' && getCampaignStationId(campaignStage) === station.id;
   const facilityConfigured = campaignEnabled && scenarioId === 'xrd' && station.id === 'FURN-04' && campaignThermalBayLevel >= 2;
   const contextKey = campaignActive ? `${station.id}:RUN-${campaignRunNumber}:${campaignSelected}:${campaignMissionId}:S${campaignStage}` : facilityConfigured ? `${station.id}:CONFIG-L2` : station.id;
@@ -239,43 +241,6 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
     });
     recordStationEvent('control', `${station.id} local control: ${operation}; equipment feedback retained.`, operation);
   };
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      try {
-        const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; selected?: string; runNumber?: number; missionId?: CampaignMissionId; thermalBayLevel?: number; backlog?: CampaignBacklogItem[]; history?: Array<{ runNumber?: number; elapsed?: number; measured?: string }> };
-        const storedRunNumber = Number(stored.runNumber ?? 42);
-        const retainedResult = stored.history?.find((item) => Number(item.runNumber) === storedRunNumber);
-        setCampaignStage(Number(stored.stage ?? 0));
-        setCampaignSelected(String(stored.selected ?? 'C-42'));
-        setCampaignRunNumber(storedRunNumber);
-        setCampaignResultElapsed(Number(retainedResult?.elapsed ?? 0));
-        setCampaignResultMeasured(String(retainedResult?.measured ?? ''));
-        setCampaignMissionId(stored.missionId ?? 'purity');
-        setCampaignThermalBayLevel(Number(stored.thermalBayLevel ?? 1));
-        setCampaignBacklog(Array.isArray(stored.backlog) ? stored.backlog.slice(0, 3) : []);
-      } catch { /* preserve the deterministic server defaults */ }
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  useEffect(() => {
-    const followCampaign = (event: Event) => {
-      const detail = (event as CustomEvent<{ stage?: number; selected?: string; runNumber?: number; missionId?: CampaignMissionId; thermalBayLevel?: number; backlog?: CampaignBacklogItem[]; history?: Array<{ runNumber?: number; elapsed?: number; measured?: string }> }>).detail;
-      const nextRunNumber = Number(detail?.runNumber ?? campaignRunNumber);
-      const retainedResult = detail?.history?.find((item) => Number(item.runNumber) === nextRunNumber);
-      setCampaignStage(Number(detail?.stage ?? 0));
-      if (detail?.selected) setCampaignSelected(String(detail.selected));
-      if (detail?.runNumber) setCampaignRunNumber(nextRunNumber);
-      setCampaignResultElapsed(Number(retainedResult?.elapsed ?? 0));
-      setCampaignResultMeasured(String(retainedResult?.measured ?? ''));
-      if (detail?.missionId) setCampaignMissionId(detail.missionId);
-      if (detail?.thermalBayLevel) setCampaignThermalBayLevel(Number(detail.thermalBayLevel));
-      setCampaignBacklog(Array.isArray(detail?.backlog) ? detail.backlog.slice(0, 3) : []);
-    };
-    window.addEventListener('mattershift:campaign-state', followCampaign);
-    return () => window.removeEventListener('mattershift:campaign-state', followCampaign);
-  }, [campaignRunNumber]);
 
   useEffect(() => {
     const openFromLab = (event: Event) => {
@@ -318,14 +283,14 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
       <section className="modal-card wide station-console" role="dialog" aria-modal="true" aria-label={`${consoleStation.name} local station console`}>
         <header><div><p className="section-kicker">INSTRUMENT CONTROL · {profile.controller}</p><h2>{consoleStation.name}</h2></div><div className="console-header-actions">{enteredFromLab && <button type="button" className="return-asset" onClick={returnToAsset}>← BACK TO MACHINE</button>}<button type="button" onClick={closeConsole} aria-label="Close">×</button></div></header>
         <div className="console-main compact-console-main">
-          <HmiView station={consoleStation} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} campaignResultElapsed={campaignResultElapsed} campaignThermalBayLevel={campaignThermalBayLevel} campaignBacklog={campaignBacklog} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed} onComplete={finish} />
+          <HmiView station={consoleStation} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} campaignResultElapsed={campaignResultElapsed} campaignResultMeasured={campaignResultMeasured} campaignPriorReplicateCount={campaignPriorReplicateCount} campaignThermalBayLevel={campaignThermalBayLevel} campaignBacklog={campaignBacklog} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed} onComplete={finish} />
         </div>
       </section>
     </div>}
   </>;
 }
 
-function HmiView({ station, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignResultElapsed, campaignThermalBayLevel, campaignBacklog, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignMissionId: CampaignMissionId; campaignResultElapsed: number; campaignThermalBayLevel: number; campaignBacklog: CampaignBacklogItem[]; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
+function HmiView({ station, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignResultElapsed, campaignResultMeasured, campaignPriorReplicateCount, campaignThermalBayLevel, campaignBacklog, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignMissionId: CampaignMissionId; campaignResultElapsed: number; campaignResultMeasured: string; campaignPriorReplicateCount: number; campaignThermalBayLevel: number; campaignBacklog: CampaignBacklogItem[]; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
   const releaseBlocked = station.tone === 'warn' || station.tone === 'off' || station.tone === 'hold';
   const walkaroundComplete = physicalChecks.length === 3;
   const operationSteps = getCampaignHmiOperations(station.id, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel) ?? (station.id === 'FURN-04' && station.state !== 'READY'
@@ -352,7 +317,7 @@ function HmiView({ station, scenarioId, campaignStage, campaignSelected, campaig
     {campaignStage === 1 && station.id === 'PREP-01' && <PrepCampaignPanel selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 2 && campaignStage <= 3 && station.id === 'ROBO-02' && <RobotCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} thermalBayLevel={campaignThermalBayLevel} backlog={campaignBacklog} operations={operations} />}
-    {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} backlog={campaignBacklog} operations={operations} />}
+    {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} resultMeasured={campaignResultMeasured} priorReplicateCount={campaignPriorReplicateCount} backlog={campaignBacklog} operations={operations} />}
     {campaignStage >= 8 && station.id === 'SEM-01' && <SemCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {!campaignStage && scenarioId === 'bet' && station.id === 'BET-02' && <BetHmiPanel station={station} operations={operations} />}
     {!campaignStage && scenarioId === 'tga' && station.id === 'TGA-01' && <TgaHmiPanel station={station} operations={operations} />}
@@ -568,19 +533,9 @@ function diffractionPath(peaks: Array<[number, number]>, baseline: number, ampli
   }).join(' ');
 }
 
-function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed, backlog, operations }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId; resultElapsed: number; backlog: CampaignBacklogItem[]; operations: string[] }) {
+function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed, resultMeasured, priorReplicateCount, backlog, operations }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId; resultElapsed: number; resultMeasured: string; priorReplicateCount: number; backlog: CampaignBacklogItem[]; operations: string[] }) {
   const spec = getCampaignSpec(selected);
-  const observedMeasured = (() => {
-    if (typeof window === 'undefined') return spec.measured;
-    try {
-      const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { history?: Array<{ runNumber?: number; candidate?: string; measured?: string }> };
-      const history = Array.isArray(stored.history) ? stored.history : [];
-      const retained = history.find((result) => Number(result.runNumber) === runNumber);
-      if (retained?.measured) return retained.measured;
-      const priorReplicateCount = history.filter((result) => result.candidate === spec.id && Number(result.runNumber) < runNumber).length;
-      return getCampaignObservedPhase(spec, priorReplicateCount);
-    } catch { return spec.measured; }
-  })();
+  const observedMeasured = resultMeasured || getCampaignObservedPhase(spec, priorReplicateCount);
   const observedSpec = { ...spec, measured: observedMeasured };
   const evaluation = evaluateCampaignMission(observedSpec, missionId, stage >= 7 && resultElapsed > 0 ? resultElapsed : undefined);
   const identity = getCampaignIdentity(runNumber);
