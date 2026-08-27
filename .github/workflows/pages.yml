@@ -1,4 +1,4 @@
-name: Deploy MatterShift to GitHub Pages
+name: Deploy MatterLab to GitHub Pages
 
 on:
   push:

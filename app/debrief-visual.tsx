@@ -3,66 +3,56 @@ type Scores = { safety: number; traceability: number; integrity: number; uptime:
 
 const trails: Record<Scenario, { label: string; detail: string }[]> = {
   xrd: [
-    { label: 'QC RESTORED', detail: 'reference' },
-    { label: 'ID CONTROLLED', detail: 'quarantine' },
-    { label: 'CELL RELEASED', detail: '5 eligible' },
-    { label: 'AI HELD', detail: 'anomaly' },
-    { label: 'EVIDENCE BUILT', detail: 'SEM / EDS' },
+    { label: 'MACHINE CHECK PASSED', detail: 'silicon QC material' },
+    { label: 'LABEL CORRECTED', detail: 'sample 06 set aside' },
+    { label: 'FIVE RESULTS ACCEPTED', detail: 'identity confirmed' },
+    { label: 'UNKNOWN PEAK PRESERVED', detail: 'not explained away' },
+    { label: 'FOUR FIELDS CHECKED', detail: 'element map' },
   ],
   bet: [
-    { label: 'SERVICE ACCEPTED', detail: 'blank + leak' },
-    { label: 'PREP LINKED', detail: 'degas record' },
-    { label: 'RUN RELEASED', detail: '4 samples' },
-    { label: 'CONTROL FLAGGED', detail: '168 m²/g' },
-    { label: 'RECHECK QUEUED', detail: 'AI held' },
+    { label: 'ANALYZER CHECKED', detail: 'empty run + leak test' },
+    { label: 'TUBE MATCHED', detail: 'preparation record' },
+    { label: 'TEST COMPLETED', detail: '4 samples' },
+    { label: 'LOW QC RESULT FLAGGED', detail: '168 m²/g' },
+    { label: 'REPEAT QUEUED', detail: 'recipe unchanged' },
   ],
   furnace: [
-    { label: 'TRACE RETAINED', detail: '742 °C' },
-    { label: 'LOAD HELD', detail: 'BC-207' },
-    { label: 'CELL VERIFIED', detail: 'empty cycle' },
-    { label: 'RUN CENSORED', detail: 'excluded' },
-    { label: 'REPLAN READY', detail: 'replacement' },
+    { label: 'OLD TRACE SAVED', detail: '742 °C' },
+    { label: 'SAMPLE IDENTIFIED', detail: 'BC-207' },
+    { label: 'EMPTY TEST PASSED', detail: 'furnace + robot' },
+    { label: 'OLD RUN EXCLUDED', detail: 'not comparable' },
+    { label: 'NEW RUN READY', detail: 'safe restart' },
   ],
   tga: [
-    { label: 'BASELINE HELD', detail: 'offset retained' },
-    { label: 'PANSET BOUND', detail: 'PANSET-14' },
-    { label: 'BLANK PASSED', detail: 'paired pans' },
-    { label: 'ARTIFACT FLAGGED', detail: 'purge step' },
-    { label: 'REPEAT QUEUED', detail: 'AI held' },
+    { label: 'FAILED EMPTY CHECK SAVED', detail: '+0.28 mg' },
+    { label: 'PANS MATCHED', detail: 'PANSET-14' },
+    { label: 'EMPTY TEST PASSED', detail: 'paired pans' },
+    { label: 'GAS OVERLAP FLAGGED', detail: '412 °C' },
+    { label: 'REPEAT QUEUED', detail: 'recipe unchanged' },
   ],
   facility: [
-    { label: 'LOAD SECURED', detail: 'route proven' },
-    { label: 'TOTE BOUND', detail: 'LOT-3024' },
-    { label: 'BOUNDARY PROVEN', detail: 'gas service' },
-    { label: 'CONTROL LINKED', detail: 'post-change' },
-    { label: 'AI GATED', detail: 'transition held' },
+    { label: 'LOAD SECURED', detail: 'route clear' },
+    { label: 'TOTE MATCHED', detail: 'LOT-3024-A' },
+    { label: 'GAS CHECK PASSED', detail: 'leak test' },
+    { label: 'ANALYZER CHECKED', detail: 'MS-ALU-21' },
+    { label: 'EARLY RUNS EXCLUDED', detail: 'before passing check' },
   ],
 };
 
-export function DebriefVisual({ scenario, scores, exceptionCount = 0 }: { scenario: Scenario; scores: Scores; exceptionCount?: number }) {
-  const values = [scores.safety, scores.traceability, scores.integrity, scores.uptime];
-  const point = (value: number, index: number) => {
-    const angle = -Math.PI / 2 + index * Math.PI / 2;
-    const radius = 41 * value / 100;
-    return `${55 + Math.cos(angle) * radius},${55 + Math.sin(angle) * radius}`;
-  };
-  const grid = (value: number) => values.map((_, index) => point(value, index)).join(' ');
+export function DebriefVisual({ scenario, exceptionCount = 0, elapsedMinutes = 0, logCount = 0 }: { scenario: Scenario; scores: Scores; exceptionCount?: number; elapsedMinutes?: number; logCount?: number }) {
   return <div className="debrief-visual">
-    <div className="debrief-radar" aria-label={`Shift profile: safety ${scores.safety}, traceability ${scores.traceability}, data integrity ${scores.integrity}, uptime ${scores.uptime}`}>
-      <span>SHIFT PROFILE</span>
-      <svg viewBox="0 0 110 110" role="img" aria-hidden="true">
-        {[25, 50, 75, 100].map((level) => <polygon key={level} className="radar-grid" points={grid(level)} />)}
-        <path className="radar-axis" d="M55 9V101M9 55H101" />
-        <polygon className="radar-value" points={values.map(point).join(' ')} />
-        {values.map((value, index) => { const [x, y] = point(value, index).split(','); return <circle key={index} cx={x} cy={y} r="2.5" />; })}
-        <text x="55" y="7" textAnchor="middle">SAFETY</text><text x="104" y="57">TRACE</text><text x="55" y="108" textAnchor="middle">INTEGRITY</text><text x="6" y="57" textAnchor="end">UPTIME</text>
-      </svg>
+    <div className="debrief-outcomes" aria-label={`Mission outcome: ${logCount} recorded events, ${exceptionCount} unsupported actions blocked, ${elapsedMinutes} elapsed lab minutes`}>
+      <span>MISSION OUTCOME</span>
+      <div><b>{logCount}</b><small>EVIDENCE EVENTS</small></div>
+      <div className={exceptionCount ? 'attention' : ''}><b>{exceptionCount}</b><small>UNSUPPORTED</small></div>
+      <div><b>+{elapsedMinutes}</b><small>LAB MINUTES</small></div>
+      <p>{exceptionCount ? 'Recovered: unsupported attempts were blocked, and the evidence stayed intact.' : 'Defensible run: every decision was backed by saved evidence.'}</p>
     </div>
     <div className={`debrief-trail${exceptionCount ? ' recovered' : ''}`}>
-      <header><span>RETAINED EVIDENCE TRAIL</span><b>5 / 5 LINKED</b></header>
-      {exceptionCount > 0 && <div className="recovery-band" role="status"><i>!</i><b>{exceptionCount} BLOCKED {exceptionCount === 1 ? 'ATTEMPT' : 'ATTEMPTS'}</b><span>recovered · retained in ledger</span></div>}
+      <header><span>WHAT YOU PROVED</span><b>{trails[scenario].length} CHECKS SAVED</b></header>
+      {exceptionCount > 0 && <div className="recovery-band" role="status"><i>!</i><b>{exceptionCount} UNSUPPORTED {exceptionCount === 1 ? 'ATTEMPT' : 'ATTEMPTS'}</b><span>blocked · recorded</span></div>}
       <div>{trails[scenario].map((item, index) => <article key={item.label}><i>{index + 1}</i><b>{item.label}</b><small>{item.detail}</small></article>)}</div>
-      <footer><span>PHYSICAL</span><i>→</i><span>DIGITAL</span><i>→</i><span>SCIENTIFIC</span><i>→</i><span>AI-ELIGIBLE</span></footer>
+      <footer><span>CHECKED</span><i>→</i><span>RECORDED</span><i>→</i><span>REVIEWED</span></footer>
     </div>
   </div>;
 }

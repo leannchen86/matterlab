@@ -6,7 +6,7 @@ import './pages.css';
 
 const root = document.getElementById('root');
 
-if (!root) throw new Error('MatterShift root element was not found.');
+if (!root) throw new Error('MatterLab root element was not found.');
 
 createRoot(root).render(
   <StrictMode>

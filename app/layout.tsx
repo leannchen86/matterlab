@@ -13,8 +13,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'MatterShift — Materials Lab Operations Simulator',
-  description: 'A scientifically grounded materials-lab simulation for designing, synthesizing, characterizing, and learning from experiments.',
+  metadataBase: new URL('https://leannchen86.github.io/matterlab-sim/'),
+  title: 'MatterLab — Virtual Materials Laboratory',
+  description: 'A virtual materials lab for exploring equipment, experiments, and scientific decisions.',
+  openGraph: {
+    title: 'MatterLab — Virtual Materials Laboratory',
+    description: 'A virtual lab for experimental thinking.',
+    images: [{ url: 'https://leannchen86.github.io/matterlab-sim/og.png', width: 1672, height: 941, alt: 'MatterLab virtual materials laboratory' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'MatterLab — Virtual Materials Laboratory',
+    description: 'A virtual lab for experimental thinking.',
+    images: ['https://leannchen86.github.io/matterlab-sim/og.png'],
+  },
 };
 
 export default function RootLayout({
@@ -23,9 +35,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" style={{ backgroundColor: '#e7ded1' }}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        style={{ backgroundColor: '#e7ded1' }}
       >
         {children}
       </body>

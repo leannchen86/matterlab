@@ -18,17 +18,17 @@ export const baseStations: Station[] = [
     state: 'READY',
     tone: 'ready',
     meta: 'Balance verified · 07:42',
-    purpose: 'Receives precursor lots, creates weighed specimens, and binds physical labels to the campaign manifest.',
-    technicianView: ['Balance check: ±0.2 mg', 'Dust extraction: normal', 'Consumables: 83%', 'Open lots: 3'],
+    purpose: 'Weighs powders, prepares XRD holders, and gives every specimen a matching label.',
+    technicianView: ['Balance check: ±0.2 mg', 'Dust extraction: normal', 'XRD prep tools: ready', 'Open lots: 3'],
     dataProducts: ['weighing trace', 'lot-to-specimen transform', 'operator attestation'],
   },
   {
     id: 'ROBO-02',
     name: 'Robot cell',
-    state: 'HOLD',
+    state: 'WAITING',
     tone: 'hold',
     meta: 'Awaiting carrier BC-184',
-    purpose: 'Transfers registered carriers between preparation, heating, and characterization stations.',
+    purpose: 'Moves registered sample carriers between lab machines.',
     technicianView: ['Safety zone: clear', 'Gripper: powder carrier', 'Carrier handshake: waiting', 'Exceptions today: 1'],
     dataProducts: ['transfer events', 'pose/force telemetry', 'exception images'],
   },
@@ -38,7 +38,7 @@ export const baseStations: Station[] = [
     state: 'RUNNING',
     tone: 'run',
     meta: '982 °C · 01:18 remaining',
-    purpose: 'Executes the approved thermal recipe while retaining controller traces, alarms, and specimen occupancy.',
+    purpose: 'Heats samples with a saved temperature program.',
     technicianView: ['Setpoint: 1,000 °C', 'Measured: 982 °C', 'Door interlock: closed', 'Exhaust: normal'],
     dataProducts: ['temperature history', 'program revision', 'alarm history'],
   },
@@ -47,9 +47,9 @@ export const baseStations: Station[] = [
     name: 'Powder XRD',
     state: 'QC DUE',
     tone: 'warn',
-    meta: 'Peak position check overdue',
-    purpose: 'Measures diffraction patterns used for phase identification and quantitative phase estimates.',
-    technicianView: ['Reference: NIST Si', 'Last check: +0.17° 2θ', 'Limit: ±0.05° 2θ', 'Campaign: held'],
+    meta: 'Silicon QC position check overdue',
+    purpose: 'Uses X-rays to show which crystal structures are present.',
+    technicianView: ['QC material: NIST SRM 640f', 'Last QC error: +0.17° 2θ', 'QC tolerance: ±0.05° 2θ', 'Sample testing: paused'],
     dataProducts: ['diffraction pattern', 'phase analysis', 'QC result'],
   },
   {
@@ -58,8 +58,8 @@ export const baseStations: Station[] = [
     state: 'READY',
     tone: 'ready',
     meta: 'Vacuum 2.1e−5 Pa',
-    purpose: 'Combines surface imaging with local elemental information for morphology and inclusion follow-up.',
-    technicianView: ['Vacuum: 2.1e−5 Pa', 'EDS dead time: 27%', 'Stage: home', 'Coater: available'],
+    purpose: 'Magnifies the surface and maps elements in small areas.',
+    technicianView: ['Vacuum: 2.1e−5 Pa', 'EDS dead time: 27%', 'Stage: home', 'SEM prep + coater: ready'],
     dataProducts: ['electron micrograph', 'EDS spectrum/map', 'acquisition context'],
   },
   {
@@ -68,18 +68,18 @@ export const baseStations: Station[] = [
     state: 'OFFLINE',
     tone: 'off',
     meta: 'Service ticket MX-233',
-    purpose: 'Measures adsorption isotherms used to estimate specific surface area and pore properties.',
-    technicianView: ['Analysis ports: locked', 'Vacuum pump: service', 'N₂ supply: normal', 'Ticket: MX-233'],
+    purpose: 'Uses gas adsorption to estimate surface area and pore structure.',
+    technicianView: ['Analysis ports: locked', 'Vacuum pump: service', 'Degas station: ready', 'Ticket: MX-233'],
     dataProducts: ['adsorption isotherm', 'BET fit window', 'degassing record'],
   },
   {
     id: 'TGA-01',
-    name: 'TGA / DSC',
-    state: 'BASELINE DUE',
+    name: 'Thermal analyzer',
+    state: 'NO-SAMPLE CHECK DUE',
     tone: 'warn',
-    meta: 'Empty-pan baseline · 13:30',
-    purpose: 'Tracks mass change and heat-flow response while retaining sample mass, pan, purge, and programmed thermal history.',
-    technicianView: ['Furnace: 28 °C', 'Purge N₂: stable', 'Pan pair: empty', 'Baseline: due'],
+    meta: 'Empty-pan check due · 13:30',
+    purpose: 'Measures mass and heat-flow changes while a sample is heated.',
+    technicianView: ['Furnace: 28 °C', 'Purge N₂: stable', 'Pan pair: empty', 'No-sample check: due'],
     dataProducts: ['mass-change trace', 'heat-flow trace', 'thermal event context'],
   },
 ];
@@ -98,7 +98,7 @@ export const systemsAtlas = [
   {
     term: 'XRD',
     role: 'Crystal-phase evidence from intensity versus diffraction angle.',
-    atBench: 'PREP · SI REFERENCE · DRIFT · RESIDUALS · NATIVE PATTERN',
+    atBench: 'PREP · SILICON QC · PEAK ERROR · FIT MISMATCH · RAW PATTERN',
   },
   {
     term: 'SEM / EDS',
@@ -108,7 +108,7 @@ export const systemsAtlas = [
   {
     term: 'TGA / DSC',
     role: 'Mass change and heat-flow response across time or temperature.',
-    atBench: 'PAN · PURGE · BASELINE · MASS · THERMAL HISTORY',
+    atBench: 'PAN · GAS FLOW · NO-SAMPLE CHECK · MASS · HEATING HISTORY',
   },
   {
     term: 'BET',
@@ -117,8 +117,4 @@ export const systemsAtlas = [
   },
 ];
 
-export const initialLog = [
-  { time: '07:05', type: 'handoff', text: 'Night shift placed Ca–Ti campaign on hold after XRD reference excursion.' },
-  { time: '07:42', type: 'qc', text: 'PREP-01 balance check passed; reference mass within ±0.2 mg.' },
-  { time: '08:03', type: 'system', text: 'WO-2841 assigned to TECH-07.' },
-];
+export const initialLog: { time: string; type: string; text: string }[] = [];

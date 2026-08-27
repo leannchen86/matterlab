@@ -1,8 +1,8 @@
-# MatterShift
+# MatterLab
 
-**[Launch the public virtual lab](https://leannchen86.github.io/mattershift-lab-sim/)**
+**[Launch the public virtual lab](https://leannchen86.github.io/matterlab-sim/)**
 
-MatterShift is a browser simulation of a lab technician's shift inside an AI-enabled,
+MatterLab is a browser simulation of a lab technician's shift inside an AI-enabled,
 high-throughput materials laboratory. The primary experience is an equipment-first operations
 console with five playable work orders. The shifts cover XRD quality control and SEM/EDS follow-up,
 BET service acceptance and pretreatment lineage, robot–furnace recovery after an interrupted
@@ -93,12 +93,8 @@ most legible in the full equipment-first overview and remain physically present 
 Characterization systems sit on subdued installation or anti-vibration slabs with leveling points
 and thin digital-twin perimeters; the selection treatment is intentionally an overlay, not a glowing
 physical platform.
-The 3D bay defaults to a neutral inspection-light state with visible overhead fixtures, readable
-service hardware, and brighter epoxy-floor and wall materials. A technician can switch to an
-instrument-run state that lowers ambient and fixture light while preserving HMI, alarm, furnace,
-and station-state cues; both states are available in dashboard and immersive aisle views.
-An optional, user-initiated room tone combines a subdued 60 Hz electrical hum with filtered
-air-handler noise. It is generated in the browser, starts muted, and can be silenced immediately.
+The 3D bay uses a neutral inspection-light state with visible overhead fixtures, readable service
+hardware, and brighter wall materials while retaining a dark, practical equipment floor.
 Scenario routes move distinct physical carriers rather than a generic token: a six-position XRD
 tray, a four-tube gas-sorption rack, a refractory setter with crucibles, or a paired-pan carrier for
 thermal analysis. The facility shift instead moves the governed tote and powered jack together
@@ -143,7 +139,7 @@ pnpm lint
 
 ## Simulation boundary
 
-MatterShift is a game-like simulation, not an equipment operating procedure. It deliberately avoids
+MatterLab is a game-like simulation, not an equipment operating procedure. It deliberately avoids
 actionable parameters for hazardous processes. Values and events are plausible enough to teach
 workflow reasoning, but actual instrument operation belongs to site-specific SOPs, training,
 interlocks, and manufacturer documentation.

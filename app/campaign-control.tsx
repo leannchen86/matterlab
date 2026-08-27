@@ -75,9 +75,20 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
       return initialRun;
     }
   });
+  const [view, setView] = useState<'plan' | 'run' | 'review'>(() => run.stage === 0 ? 'plan' : run.stage >= 7 ? 'review' : 'run');
+
+  const switchView = (next: 'plan' | 'run' | 'review') => {
+    setView(next);
+    window.requestAnimationFrame(() => document.querySelector<HTMLElement>('.campaign-control')?.scrollTo({ top: 0, behavior: 'smooth' }));
+  };
 
   const updateRun = (patch: Partial<CampaignRun>) => {
     const decisionMessage = patch.message && patch.message !== run.message ? patch.message : '';
+    if (patch.stage !== undefined || patch.runNumber !== undefined) {
+      const nextStage = Number(patch.stage ?? run.stage);
+      setView(nextStage === 0 ? 'plan' : nextStage >= 7 ? 'review' : 'run');
+      window.requestAnimationFrame(() => document.querySelector<HTMLElement>('.campaign-control')?.scrollTo({ top: 0 }));
+    }
     setRun((current) => {
       const next = { ...current, ...patch };
       try { window.localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* no-op */ }
@@ -186,7 +197,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
   const inventoryLow = inventory.crucibles < 6 || inventory.liners < 1 || inventory.carbonTabs < 1;
   const fault = run.stage === 2 && operations.robotConstraint ? 'cell' : run.stage === 4 ? 'queue' : run.stage === 5 && operations.furnaceConstraint ? 'thermal' : run.stage === 6 && operations.referenceConstraint ? 'qc' : null;
   const robotConditionLabel = operations.robotCondition === 'contamination' ? 'CLEANLINESS' : operations.robotCondition === 'grip-force' ? 'GRIP FORCE' : 'READINESS';
-  const referenceConditionLabel = operations.referenceCondition === 'age-due' ? 'CONTROL DUE' : operations.referenceCondition === 'trend-review' ? 'TREND REVIEW' : 'CONTROL CURRENT';
+  const referenceConditionLabel = operations.referenceCondition === 'age-due' ? 'SILICON QC DUE' : operations.referenceCondition === 'trend-review' ? 'QC TREND REVIEW' : 'SILICON QC CURRENT';
   const conditionSignal = run.stage === 2
     ? operations.robotConstraint ? 'BOTTLENECK DETECTED' : 'ROBOT READINESS'
     : run.stage === 4 ? 'BOTTLENECK DETECTED'
@@ -207,7 +218,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
     ? operations.robotConstraint ? `${operations.robotRecoveryMinutes} min recovery` : `${operations.robotRecoveryMinutes} min setup proof`
     : run.stage === 4 ? `${operations.queueMinutes} min wait`
       : run.stage === 5 ? `${operations.furnaceRecoveryMinutes} min recovery`
-      : run.stage === 6 ? `${operations.referenceAgeHours} h since reference`
+      : run.stage === 6 ? `${operations.referenceAgeHours} h since silicon QC check`
         : run.stage === 8 ? '4 fields + EDS map'
           : run.stage >= 9 ? 'diagnosis linked'
             : run.stage >= 7 ? evaluation.met ? 'mission achieved' : evaluation.constraintText : 'no active delay';
@@ -258,7 +269,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
       setInventoryOpen(true);
       return;
     }
-    updateRun({ stage: 8, resultDecision: 'diagnose', inventory: { ...inventory, carbonTabs: inventory.carbonTabs - 1 }, message: `${identity.thermalSample} routed to SEM-01. Carbon-tab lot CT-88 is bound to the stub; four representative BSE fields and an EDS map are required before assigning a mechanism.` });
+    updateRun({ stage: 8, resultDecision: 'diagnose', inventory: { ...inventory, carbonTabs: inventory.carbonTabs - 1 }, message: `${identity.thermalSample} routed to SEM-01. Carbon-tab lot CT-88 is bound to the stub; four preplanned BSE fields and an EDS map are required before assigning a mechanism.` });
   };
 
   const replenishInventory = () => {
@@ -371,10 +382,10 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
   };
 
   return <div className="modal-backdrop campaign-backdrop" role="presentation">
-    <section className="modal-card campaign-control" role="dialog" aria-modal="true" aria-label="Materials campaign control">
+    <section className={`modal-card campaign-control campaign-view-${view}`} role="dialog" aria-modal="true" aria-label="Materials campaign control">
       <header>
         <div><p className="section-kicker">SANDBOX CAMPAIGN · MAT-{identity.suffix}</p><h2>Materials campaign control</h2></div>
-        <div className="campaign-header-actions"><button type="button" className={inventoryLow ? 'inventory-low' : ''} onClick={() => setInventoryOpen(true)}><i />MATERIAL STAGING<b>{inventory.crucibles} CRUC · {inventory.liners} LIN · {inventory.carbonTabs} TAB</b></button><button type="button" className="facility-layout-button" onClick={() => setFacilityOpen(true)}><i />LAB BUILD<b>{run.thermalBayLevel} / 2 THERMAL LANES</b></button><button type="button" onClick={onClose} aria-label="Close dialog">×</button></div>
+        <div className="campaign-header-actions"><button type="button" className={inventoryLow ? 'inventory-low' : ''} onClick={() => setInventoryOpen(true)}><i />MATERIAL STAGING<b>{inventory.crucibles} CRUC · {inventory.liners} LIN · {inventory.carbonTabs} TAB</b></button><button type="button" className="facility-layout-button" onClick={() => setFacilityOpen(true)}><i />FACILITIES<b>{run.thermalBayLevel} / 2 THERMAL LANES</b></button><button type="button" onClick={onClose} aria-label="Close dialog">×</button></div>
       </header>
 
       <div className="campaign-hud">
@@ -390,8 +401,14 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
         {campaignMissions.map((candidateMission) => <button key={candidateMission.id} type="button" className={run.missionId === candidateMission.id ? 'active' : ''} disabled={run.stage > 0} onClick={() => updateRun({ missionId: candidateMission.id, message: `${candidateMission.label} mission selected. Candidate outcomes will be judged against ${candidateMission.target}.` })}><i>{candidateMission.shortLabel}</i><b>{candidateMission.label}</b><small>{candidateMission.target}</small></button>)}
       </div>
 
+      <nav className="campaign-view-tabs" aria-label="Campaign workspace">
+        <button type="button" className={view === 'plan' ? 'active' : ''} onClick={() => switchView('plan')}><span>01</span><b>PLAN</b><small>goal + candidate</small></button>
+        <button type="button" className={view === 'run' ? 'active' : ''} disabled={run.stage === 0} onClick={() => switchView('run')}><span>02</span><b>RUN</b><small>route + constraint</small></button>
+        <button type="button" className={view === 'review' ? 'active' : ''} disabled={run.stage < 7} onClick={() => switchView('review')}><span>03</span><b>REVIEW</b><small>result + next choice</small></button>
+      </nav>
+
       <div className="campaign-workspace">
-        <aside className="campaign-designer">
+        {view === 'plan' && <aside className="campaign-designer">
           <div className="campaign-panel-head"><div><span>EXPERIMENT DESIGN</span><b>{diagnosisUnlocked ? 'MECHANISM CANDIDATES' : adaptiveUnlocked ? 'ADAPTIVE CANDIDATES' : 'AI CANDIDATES'}</b></div><div className="campaign-panel-tools"><button type="button" disabled={run.stage > 0} onClick={() => setComposerOpen(true)}>＋ COMPOSE</button><button type="button" disabled={run.stage > 0 || backlog.length >= 3} onClick={addToBacklog}>＋ QUEUE</button><em>{String(availableRecipes.length).padStart(2, '0')}</em></div></div>
           <div className="campaign-design-space" aria-label="Composition and temperature design space">
             <svg viewBox="0 0 320 180" role="img" aria-label={`${recipe.id} selected in the materials design space`}>
@@ -419,9 +436,8 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
           <div className="candidate-list">
             {availableRecipes.map((candidate) => {
               const measured = [...history].reverse().find((result) => result.candidate === candidate.id);
-              const forecast = forecastCampaignMission(candidate, run.missionId);
               return <button key={candidate.id} type="button" className={`${candidate.id === run.selected ? 'active ' : ''}${candidate.id === 'A-29' ? 'learned' : candidate.id === 'R-31' ? 'mechanism' : candidate.id.startsWith('U-') ? 'scientist' : ''}`} disabled={run.stage > 0} onClick={() => updateRun({ selected: candidate.id, message: `${candidate.id} selected. Review its synthesis envelope before release.` })}>
-                <span>{candidate.id}</span><div><b>{candidate.name}</b><small>{candidate.formula}</small></div><div className="candidate-outcome"><em>{measured ? `${measured.measured}%` : candidate.prediction}</em><u className={measured ? measured.objectiveMet ? 'fit' : 'risk' : forecast.tone}>{measured ? measured.objectiveMet ? 'PASS' : 'MISS' : forecast.status}</u></div>
+                <span>{candidate.id}</span><div><b>{candidate.name}</b><small>{candidate.formula}</small></div><div className="candidate-outcome"><em>{measured ? `${measured.measured}%` : candidate.temperatureShort}</em><u className={measured ? measured.objectiveMet ? 'fit' : 'risk' : ''}>{measured ? measured.objectiveMet ? 'PASS' : 'MISS' : `${candidate.thermalMinutes} MIN`}</u></div>
               </button>;
             })}
             {!adaptiveUnlocked && <div className="candidate-lock"><span>◇</span><div><b>ADAPTIVE SLOT LOCKED</b><small>retain 2 qualified results</small></div><em>{history.length} / 2</em></div>}
@@ -429,10 +445,10 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
           <div className="recipe-envelope"><span>SYNTHESIS ENVELOPE</span><div><b>{recipe.temperature}</b><small>calcination</small></div><div><b>{recipe.dwell}</b><small>dwell</small></div><div><b>{recipe.prediction}</b><small>predicted phase</small></div></div>
           <div className={`mission-forecast ${selectedForecast.tone}`}><span>MISSION FORECAST · {mission.shortLabel}</span><b>{selectedForecast.status}</b><small>{selectedForecast.detail}</small><i /></div>
           {history.length > 0 && <div className="campaign-history"><span>MODEL MEMORY</span>{history.slice(-3).map((result) => <div key={result.runNumber}><b>RUN-{String(result.runNumber).padStart(3, '0')}</b><i>{result.candidate}{result.diagnosis ? ' · DIAG' : ''}</i><em className={result.objectiveMet ? 'hit' : 'miss'}>{result.measured}%</em></div>)}</div>}
-        </aside>
+        </aside>}
 
-        <section className="campaign-routing">
-          <div className="campaign-panel-head"><div><span>LIVE MATERIAL ROUTE</span><b>{identity.runId} · {recipe.id}</b></div><em>{run.stage >= 8 ? '09 / 09' : `${String(Math.min(run.stage + 1, 8)).padStart(2, '0')} / 08`}</em></div>
+        {view !== 'plan' && <section className="campaign-routing">
+          <div className="campaign-panel-head"><div><span>CURRENT SIM ROUTE</span><b>{identity.runId} · {recipe.id}</b></div><em>{run.stage >= 8 ? '09 / 09' : `${String(Math.min(run.stage + 1, 8)).padStart(2, '0')} / 08`}</em></div>
           {experimentFactors && changedFactors.length > 0 && <div className={`experiment-contract ${run.stage >= 7 ? phaseResponse >= 0 ? 'response-up' : 'response-down' : ''}`}>
             <div className="contract-source"><span>CONTROLLED EXPERIMENT</span><b>{sourceSpec?.id ?? 'SOURCE'} → {recipe.id}</b><small>{sourceResult?.diagnosis ? 'SEM / EDS EVIDENCE' : 'MODEL RESIDUAL'}</small></div>
             <div className="contract-change"><span>CHANGE ONE LEVER</span>{changedFactors.map((factor) => <b key={factor.label}>{factor.label}<i>{factor.before}</i><u>→</u><em>{factor.after}</em></b>)}</div>
@@ -547,7 +563,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
             <div className="thermal-capacity-metrics"><span>QUALIFICATION<b>{run.thermalBayLevel >= 2 ? 'IQ / OQ RETAINED' : run.plannedThermalUpgrade ? 'POST-RUN · SCHEDULED' : '120 RP · 48 MIN'}</b></span><span>CAMPAIGN WAIT<b>{operations.queueMinutes} MIN</b></span><span>RATE<b>{run.thermalBayLevel >= 2 ? '0.31 RUNS / H' : recipe.throughput.toUpperCase()}</b></span></div>
             <button type="button" disabled={Boolean(run.plannedThermalUpgrade) || (run.thermalBayLevel < 2 && (run.stage > 3 || run.insight < 120))} onClick={() => setCommissionOpen(true)}>{run.thermalBayLevel >= 2 ? 'VIEW IQ / OQ RECORD' : run.plannedThermalUpgrade ? 'QUALIFICATION SCHEDULED' : run.stage > 3 ? 'COMMISSIONING WINDOW CLOSED' : run.insight < 120 ? '120 RP REQUIRED' : 'OPEN COMMISSIONING'}<span>{run.plannedThermalUpgrade ? '✓' : '→'}</span></button>
           </div>
-        </section>
+        </section>}
       </div>
 
       <footer className="campaign-actions">
@@ -635,12 +651,12 @@ function FacilityBuildModal({ thermalBayLevel, stagingBayLevel, scheduled, insig
   const activeBranch = activeStationId === 'PREP-01' ? 'M130 137v78' : activeStationId === 'ROBO-02' ? 'M340 137v78' : activeStationId === 'FURN-04' ? 'M550 147v68' : activeStationId === 'XRD-03' ? 'M130 215v63' : activeStationId === 'SEM-01' ? 'M340 215v63' : activeStationId === 'BET-02' ? 'M550 215v63' : 'M686 233v45';
   return <div className="facility-build-backdrop" role="presentation">
     <section className="facility-build" role="dialog" aria-modal="true" aria-label="Facility configuration">
-      <header><div><p className="section-kicker">FACILITY CONFIGURATION · LAB 04</p><h2>Build the experiment line</h2></div><button type="button" onClick={onClose} aria-label="Close facility configuration">×</button></header>
-      <div className="facility-build-status"><span>INSTALLED ASSETS<b>{storageQualified ? '08' : '07'} ONLINE</b></span><span>THERMAL LANES<b>{thermalBayLevel} / 2</b></span><span>CAMPAIGN WAIT<b>{queueMinutes} MIN</b></span><span>BUILD CURRENCY<b>{insight} RP</b></span></div>
+      <header><div><p className="section-kicker">FACILITY CONFIGURATION · LAB 04</p><h2>Commission equipment</h2></div><button type="button" onClick={onClose} aria-label="Close facility configuration">×</button></header>
+      <div className="facility-build-status"><span>INSTALLED ASSETS<b>{storageQualified ? '08' : '07'} ONLINE</b></span><span>THERMAL LANES<b>{thermalBayLevel} / 2</b></span><span>CAMPAIGN WAIT<b>{queueMinutes} MIN</b></span><span>PROJECT BUDGET<b>{insight} RP</b></span></div>
       <div className="facility-build-workspace">
         <div className={`facility-blueprint ${blueprintLayer}`}>
-          <div className={`facility-route-chip ${constraintKind ? 'hold' : ''}`}><span>LIVE EXPERIMENT ROUTE</span><b>{activeRunId} → {activeStationId}</b><em>{activeStatus}</em></div>
-          <div className="facility-layer-switch" role="group" aria-label="Blueprint data layer"><button type="button" className={blueprintLayer === 'route' ? 'active' : ''} onClick={() => setBlueprintLayer('route')}>MATERIAL</button><button type="button" className={blueprintLayer === 'utilities' ? 'active' : ''} onClick={() => setBlueprintLayer('utilities')}>UTILITIES</button></div>
+          <div className={`facility-route-chip ${constraintKind ? 'hold' : ''}`}><span>CURRENT SIM ROUTE</span><b>{activeRunId} → {activeStationId}</b><em>{activeStatus}</em></div>
+          <div className="facility-layer-switch" role="group" aria-label="Facility diagram layer"><button type="button" className={blueprintLayer === 'route' ? 'active' : ''} onClick={() => setBlueprintLayer('route')}>MATERIAL</button><button type="button" className={blueprintLayer === 'utilities' ? 'active' : ''} onClick={() => setBlueprintLayer('utilities')}>UTILITIES</button></div>
           <svg viewBox="0 0 760 430" role="group" aria-label={`Interactive top-down materials laboratory ${blueprintLayer === 'utilities' ? 'utility service overlay' : 'process flow layout'}`}>
             <defs><pattern id="facilityBuildGrid" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M14 0H0V14" /></pattern><linearGradient id="facilityFlow" x1="0" x2="1"><stop stopColor="#43c5df" stopOpacity=".2" /><stop offset=".5" stopColor="#85e4d4" /><stop offset="1" stopColor="#43c5df" stopOpacity=".2" /></linearGradient></defs>
             <rect className="blueprint-floor" x="20" y="20" width="720" height="390" rx="4" />
@@ -670,7 +686,7 @@ function FacilityBuildModal({ thermalBayLevel, stagingBayLevel, scheduled, insig
             </g>}
             <circle className={`flow-token ${constraintKind ? 'hold' : ''}`} cx={activeFlowX} cy="215" r="5" /><text className="aisle-label" x="57" y="390">MAIN PERSONNEL AISLE</text><path className="aisle" d="M56 377h665" /><text className="north" x="718" y="38">N ↑</text>
           </svg>
-          <footer>{blueprintLayer === 'route' ? <><span><i className="online" />ONLINE</span><span><i className="flow" />MATERIAL FLOW</span><span><i className="socket" />EXPANSION SOCKET</span></> : <><span><i className="gas" />N₂ / GAS</span><span><i className="vacuum" />VACUUM</span><span><i className="exhaust" />EXHAUST</span><span><i className="power" />ELECTRICAL</span></>}<strong>{blueprintLayer === 'route' ? 'SELECT ASSET · WALK OR INSPECT' : 'SERVICE BOUNDARY · DEMAND + READINESS'}</strong><b>LAYOUT REV 04.8</b></footer>
+          <footer>{blueprintLayer === 'route' ? <><span><i className="online" />ONLINE</span><span><i className="flow" />MATERIAL FLOW</span><span><i className="socket" />EXPANSION SOCKET</span></> : <><span><i className="gas" />N₂ / GAS</span><span><i className="vacuum" />VACUUM</span><span><i className="exhaust" />EXHAUST</span><span><i className="power" />ELECTRICAL</span></>}<strong>{blueprintLayer === 'route' ? 'SELECT ASSET · VIEW OR COMMISSION' : 'SERVICE BOUNDARY · DEMAND + READINESS'}</strong><b>CONFIG REV 04.8</b></footer>
         </div>
         <aside className="facility-build-controls">
           <article className={`facility-bottleneck ${constraintKind ? 'constrained' : ''}`}><span>ACTIVE BOTTLENECK</span><b>{constraintKind ? constraintLabel : queueMinutes > 30 ? 'THERMAL QUEUE' : 'NO CRITICAL CONSTRAINT'}</b><div><i style={{ width: `${constraintKind ? 78 : Math.min(100, Math.max(18, queueMinutes * 1.25))}%` }} /></div><small>{constraintKind ? constraintMetric : `${queueMinutes} MIN CAMPAIGN WAIT · ${thermalBayLevel} PARALLEL LANE${thermalBayLevel === 1 ? '' : 'S'}`}</small></article>
@@ -843,7 +859,7 @@ function getPrimaryAction(stage: number, runId: string, operations: CampaignOper
         ? { label: 'REVIEW XRD-03 TREND', hint: `Confirm the Si trend before measuring ${runId}` }
         : { label: 'OPERATE XRD-03', hint: `Review the current Si control and acquire ${runId}` },
     { label: 'START NEXT CAMPAIGN', hint: 'AI-eligible result · objective missed by 0.2 percentage point' },
-    { label: 'OPERATE SEM-01', hint: 'Acquire representative BSE fields and an EDS map' },
+    { label: 'OPERATE SEM-01', hint: 'Measure four preplanned locations and acquire an EDS map' },
     { label: 'PROPOSE RECOVERY RUN', hint: 'Use the diagnosis to change the next governed experiment' },
   ][stage] ?? { label: 'START NEXT CAMPAIGN', hint: 'Clear the completed lane' };
 }

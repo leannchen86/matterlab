@@ -1,6 +1,6 @@
 'use client';
 
-import { ContactShadows, Environment, Grid, Html, Lightformer, Line, OrbitControls, RoundedBox } from '@react-three/drei';
+import { Environment, Grid, Html, Lightformer, Line, OrbitControls, RoundedBox } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -96,13 +96,14 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
     onInspectionChange?.(inspectionKey, checks);
   };
   return (
-    <div className={`lab-3d camera-${cameraMode}`} aria-label="Orbitable 3D digital twin of seven materials laboratory stations">
+    <div className={`lab-3d camera-${cameraMode}`} aria-label="Interactive 3D simulation of seven materials laboratory stations">
       <Canvas
         shadows
         dpr={[1, 1.55]}
         camera={{ position: [10.5, 11.8, 19.5], fov: 55, near: 0.1, far: 90 }}
-        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
+          gl.setClearColor(new THREE.Color('#c8c2b8'), 1);
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
         }}
@@ -110,10 +111,10 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
         <FacilityLighting mode={lightingMode} />
 
         <LabArchitecture lightingMode={lightingMode} />
-        <OperationsProps scenarioId={scenarioId} phase={phase} inventory={campaignInventory} stagingBayLevel={campaignStagingBayLevel} stagingSelected={selectedId === 'PREP-01'} onOpenInventory={onOpenInventory} />
+        <OperationsProps scenarioId={scenarioId} phase={phase} inventory={campaignInventory} stagingBayLevel={campaignStagingBayLevel} stagingSelected={selectedId === 'PREP-01'} focused={cameraMode === 'focus'} onOpenInventory={onOpenInventory} />
         <CampaignBacklogRack backlog={campaignBacklog} thermalBayLevel={campaignThermalBayLevel} onOpenCampaign={onOpenCampaign} />
-        <MaterialRoute scenarioId={scenarioId} phase={phase} />
-        <CampaignMaterialRoute stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} resultMeasured={campaignResultMeasured} confirmationSource={campaignConfirmationSource} />
+        {cameraMode !== 'focus' && <MaterialRoute scenarioId={scenarioId} phase={phase} />}
+        {cameraMode !== 'focus' && <CampaignMaterialRoute stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} resultMeasured={campaignResultMeasured} confirmationSource={campaignConfirmationSource} />}
         {stations.map((station, index) => (cameraMode !== 'focus' || selectedId === station.id) ? (
           <StationCell
             key={station.id}
@@ -138,7 +139,6 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
             onSelect={onSelect}
           />
         ) : null)}
-        <ContactShadows position={[0, 0.025, 0]} opacity={0.58} scale={22} blur={2.6} far={8} resolution={512} color="#000713" />
         <CameraDirector mode={cameraMode} selectedIndex={selectedIndex} controls={controlsRef} />
         <AisleNavigator active={cameraMode === 'walk'} controls={controlsRef} command={walkCommand} scenarioId={scenarioId} phase={phase} />
         <OrbitControls
@@ -157,13 +157,11 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
         />
       </Canvas>
       <nav className="scene-station-picker" aria-label="Select a lab station">
-        {stations.map((station, index) => <button key={station.id} type="button" className={`${selectedId === station.id ? 'active ' : ''}${campaignIndex === index ? 'campaign-active' : ''}`} style={{ '--station-tone': campaignIndex === index ? campaignState.color : TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => onSelect(station.id)} onDoubleClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
+        {stations.map((station, index) => <button key={station.id} type="button" className={`${selectedId === station.id ? 'active ' : ''}${campaignIndex === index ? 'campaign-active' : ''}`} style={{ '--station-tone': campaignIndex === index ? campaignState.color : TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
       </nav>
-      <div className="scene-corner scene-corner-top"><span>LIVE SPATIAL TWIN</span><b>LAB 04 · BAY A/B</b></div>
-      <div className="scene-corner scene-corner-bottom">{cameraMode === 'walk' ? <><span>WASD</span> MOVE <i>·</i> <span>DRAG</span> LOOK <i>·</i> <span>SELECT</span> APPROACH</> : <><span>DRAG</span> ORBIT <i>·</i> <span>SCROLL</span> ZOOM <i>·</i> <span>CLICK</span> INSPECT</>}</div>
-      {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN TWIN · {getCampaignIdentity(campaignRunNumber).runId} · {campaignSelected}</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? campaignState.result : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
+      {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN SIM · {getCampaignIdentity(campaignRunNumber).runId} · {campaignSelected}</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? campaignState.result : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
       {campaignBacklog.length > 0 && <button type="button" className={`campaign-backlog-hud${campaignStage > 0 ? ' with-campaign' : ''}`} onClick={onOpenCampaign}><span>OPERATE SHIFT BACKLOG</span><b>{campaignBacklog.length} PLANS · {campaignBacklog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0)} FURNACE MIN</b><i>OPEN →</i></button>}
-      {selectedId === 'PREP-01' && <button type="button" className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}${campaignBacklog.length ? ' with-backlog' : ''}`} onClick={onOpenInventory}><span>{campaignStagingBayLevel >= 2 ? 'OPERATE STG-02 CAROUSEL' : 'OPERATE POINT-OF-USE RACK'}</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>{campaignStagingBayLevel >= 2 ? 'RETRIEVE →' : 'OPEN →'}</i></button>}
+      {campaignStage > 0 && selectedId === 'PREP-01' && <button type="button" className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}${campaignBacklog.length ? ' with-backlog' : ''}`} onClick={onOpenInventory}><span>{campaignStagingBayLevel >= 2 ? 'OPERATE STG-02 CAROUSEL' : 'OPERATE POINT-OF-USE RACK'}</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>{campaignStagingBayLevel >= 2 ? 'RETRIEVE →' : 'OPEN →'}</i></button>}
       {cameraMode === 'walk' && <div className="walk-hud">
         <header><span>HUMAN-SCALE AISLE</span><b>{selectedStation.id} · {selectedStation.name}</b></header>
         <div className="walk-pad" role="group" aria-label="Aisle movement controls">
@@ -172,14 +170,15 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
           <button type="button" className="walk-back" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'back' }))} aria-label="Step back">↓</button>
           <button type="button" className="walk-right" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'right' }))} aria-label="Step right">→</button>
         </div>
-        <button type="button" className="walk-console" onClick={onOpenConsole}>OPERATE LOCAL CONSOLE <i>↗</i></button>
+        {inspected.length === selectedHotspots.length && <button type="button" className="walk-console" onClick={onOpenConsole}>OPEN MACHINE CONTROLS <i>↗</i></button>}
         <small>WASD / ARROWS · choose a station to approach</small>
-        <button type="button" className="walk-inspect" onClick={() => onCameraMode('focus')}>◎ INSPECT ASSET <i>{inspected.length}/{selectedHotspots.length}</i></button>
+        <button type="button" className="walk-inspect" onClick={() => onCameraMode('focus')}>◎ {inspected.length ? 'REVIEW INSPECTION' : 'INSPECT ASSET'} <i>{inspected.length}/{selectedHotspots.length}</i></button>
       </div>}
       {cameraMode === 'focus' && <div className="walkaround-panel">
         <header><div><span>PHYSICAL WALKAROUND</span><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspected.length} / {selectedHotspots.length}</em></header>
-        <div>{selectedHotspots.map((hotspot) => <button key={hotspot.label} type="button" className={inspected.includes(hotspot.label) ? 'visited' : ''} onClick={() => inspect(hotspot.label)}><i>{inspected.includes(hotspot.label) ? '✓' : '○'}</i>{hotspot.label}</button>)}</div>
-        {activeObservation && <div className={`walkaround-observation ${activeObservation.state}`}><span>{activeObservation.label} OBSERVATION</span><b>{activeObservation.observation}</b><em>{activeObservation.state === 'attention' ? 'ATTENTION' : 'CAPTURED'}</em></div>}
+        <p className="walkaround-marker-key"><i /> DIGITAL INSPECTION PINS · NOT PHYSICAL PARTS</p>
+        <div>{selectedHotspots.map((hotspot) => <button key={hotspot.label} type="button" className={inspected.includes(hotspot.label) ? 'visited' : ''} onClick={() => inspect(hotspot.label)}><i>{inspected.includes(hotspot.label) ? '✓' : '○'}</i>{hotspot.displayLabel ?? hotspot.label}</button>)}</div>
+        {activeObservation && <div className={`walkaround-observation ${activeObservation.state}`}><span>{activeObservation.displayLabel ?? activeObservation.label} OBSERVATION</span><b>{activeObservation.observation}</b><em>{activeObservation.state === 'attention' ? 'ATTENTION' : 'CAPTURED'}</em></div>}
         {inspected.length === selectedHotspots.length && <button type="button" className="walkaround-next" onClick={onOpenConsole}>OPEN LOCAL CONSOLE <i>→</i></button>}
         <small>{inspected.length === selectedHotspots.length ? 'Walkaround captured. Compare physical state with the local console.' : 'Select each marker on the asset or checklist.'}</small>
       </div>}
@@ -216,8 +215,8 @@ function CampaignBacklogRack({ backlog, thermalBayLevel, onOpenCampaign }: { bac
 function FacilityLighting({ mode }: { mode: LightingMode }) {
   const inspection = mode === 'inspection';
   return <>
-    <color attach="background" args={[inspection ? '#171d21' : '#070b12']} />
-    <fog attach="fog" args={[inspection ? '#171d21' : '#070b12', inspection ? 22 : 17, inspection ? 43 : 34]} />
+    <color attach="background" args={[inspection ? '#c8c2b8' : '#070b12']} />
+    <fog attach="fog" args={[inspection ? '#c8c2b8' : '#070b12', inspection ? 23 : 17, inspection ? 45 : 34]} />
     <ambientLight intensity={inspection ? 1.08 : 0.68} color={inspection ? '#e3e9e8' : '#9fb6d5'} />
     <hemisphereLight args={[inspection ? '#f4f8f5' : '#d5e8ff', inspection ? '#3c4546' : '#111722', inspection ? 1.6 : 1.08]} />
     <directionalLight
@@ -234,11 +233,13 @@ function FacilityLighting({ mode }: { mode: LightingMode }) {
       shadow-bias={-0.00035}
     />
     <pointLight position={[-4, 4.5, 1]} intensity={inspection ? 8 : 24} distance={10} color="#4dd5ed" decay={2} />
-    <pointLight position={[3.5, 3.4, -2]} intensity={inspection ? 5 : 18} distance={8} color="#f4b95f" decay={2} />
+    <pointLight position={[3.5, 3.4, -2]} intensity={inspection ? 5.8 : 19} distance={9} color={inspection ? '#ffb56f' : '#ff8f67'} decay={2} />
+    <pointLight position={[-5.8, 2.7, 5.6]} intensity={inspection ? 3.4 : 10} distance={8.5} color={inspection ? '#ff9eae' : '#ff748f'} decay={2} />
+    <pointLight position={[0.5, 5.6, 4.4]} intensity={inspection ? 3.2 : 7} distance={10} color={inspection ? '#ffd98f' : '#ffc36f'} decay={2} />
     <Environment key={mode} resolution={128} frames={1}>
       <Lightformer form="rect" intensity={inspection ? 5.4 : 3.2} color={inspection ? '#f5f5ed' : '#d9edff'} position={[0, 7, 1]} rotation={[Math.PI / 2, 0, 0]} scale={[11, 8, 1]} />
       <Lightformer form="rect" intensity={inspection ? 2.6 : 2.1} color={inspection ? '#dce9e7' : '#75d9ee'} position={[-8, 3, 3]} rotation={[0, Math.PI / 2, 0]} scale={[5, 3, 1]} />
-      <Lightformer form="rect" intensity={inspection ? 2.2 : 1.8} color={inspection ? '#f0e4d3' : '#ffb469'} position={[6, 2, -2]} rotation={[0, -Math.PI / 2, 0]} scale={[4, 2, 1]} />
+      <Lightformer form="rect" intensity={inspection ? 2.55 : 2.05} color={inspection ? '#ffd8bd' : '#ff9d74'} position={[6, 2, -2]} rotation={[0, -Math.PI / 2, 0]} scale={[4, 2, 1]} />
     </Environment>
   </>;
 }
@@ -250,8 +251,8 @@ function CameraDirector({ mode, selectedIndex, controls }: { mode: CameraMode; s
   const overviewTarget = useMemo(() => new THREE.Vector3(-1.55, 0.72, -0.18), []);
   const focusPosition = useMemo(() => {
     const [x, , z] = STATION_POSITIONS[selectedIndex];
-    const horizontalOffset = selectedIndex % 3 === 2 ? -2.6 : 3.2;
-    return new THREE.Vector3(x + horizontalOffset, 3.35, z + 5.6);
+    const horizontalOffset = selectedIndex % 3 === 2 ? -2.15 : selectedIndex === 6 ? 2.25 : 2.4;
+    return new THREE.Vector3(x + horizontalOffset, 2.75, z + 4.35);
   }, [selectedIndex]);
   const focusTarget = useMemo(() => {
     const [x, , z] = STATION_POSITIONS[selectedIndex];
@@ -287,7 +288,7 @@ function CameraDirector({ mode, selectedIndex, controls }: { mode: CameraMode; s
 }
 
 function getPalletJackPosition(scenarioId: ScenarioId, phase: number): [number, number, number] {
-  if (scenarioId !== 'facility') return [-0.32, 0.07, 6.15];
+  if (scenarioId !== 'facility') return [-6.75, 0.07, 7.35];
   return phase < 2 ? [-6.2, 0.07, -0.95] : [3.58, 0.07, 3.52];
 }
 
@@ -369,17 +370,17 @@ function LabArchitecture({ lightingMode }: { lightingMode: LightingMode }) {
   const inspection = lightingMode === 'inspection';
   return <group>
     <mesh receiveShadow position={[-1.75, -0.07, 2.05]}>
-      <boxGeometry args={[14.4, 0.14, 13.1]} />
-      <meshPhysicalMaterial color={inspection ? '#30383b' : '#111924'} roughness={0.76} metalness={0.12} clearcoat={0.3} clearcoatRoughness={0.8} />
+      <boxGeometry args={[15, 0.14, 13.5]} />
+      <meshPhysicalMaterial color={inspection ? '#09111a' : '#111924'} roughness={0.8} metalness={0.06} clearcoat={0.14} clearcoatRoughness={0.88} />
     </mesh>
-    <Grid position={[-1.75, 0.012, 2.05]} args={[14.2, 13]} cellSize={0.5} cellThickness={0.38} cellColor={inspection ? '#465156' : '#26384d'} sectionSize={2} sectionThickness={0.75} sectionColor={inspection ? '#5b686e' : '#34506c'} fadeDistance={19} fadeStrength={1.6} infiniteGrid={false} />
+    <Grid position={[-1.75, 0.012, 2.05]} args={[14.2, 13]} cellSize={0.5} cellThickness={0.38} cellColor={inspection ? '#737b77' : '#26384d'} sectionSize={2} sectionThickness={0.75} sectionColor={inspection ? '#96968d' : '#34506c'} fadeDistance={19} fadeStrength={1.6} infiniteGrid={false} />
     <mesh receiveShadow position={[-1.75, 2.45, -4.42]}>
       <boxGeometry args={[14.4, 5, 0.18]} />
-      <meshStandardMaterial color={inspection ? '#566064' : '#101923'} roughness={0.68} metalness={0.18} />
+      <meshStandardMaterial color={inspection ? '#aaa79f' : '#101923'} roughness={0.68} metalness={0.18} />
     </mesh>
     <mesh receiveShadow position={[-8.86, 2.45, -0.15]}>
       <boxGeometry args={[0.18, 5, 8.7]} />
-      <meshStandardMaterial color={inspection ? '#4d575b' : '#0d151f'} roughness={0.72} metalness={0.14} />
+      <meshStandardMaterial color={inspection ? '#999b95' : '#0d151f'} roughness={0.72} metalness={0.14} />
     </mesh>
     {[-5.8, -1.75, 2.3].map((x) => <group key={x} position={[x, 4.65, -4.25]}>
       <mesh castShadow><boxGeometry args={[2.7, 0.07, 0.12]} /><meshStandardMaterial color="#d7f2ff" emissive="#bdeaff" emissiveIntensity={inspection ? 2.8 : 0.7} /></mesh>
@@ -390,14 +391,6 @@ function LabArchitecture({ lightingMode }: { lightingMode: LightingMode }) {
       <mesh position={[0, -0.07, 0]}><boxGeometry args={[2.02, 0.035, 0.56]} /><meshStandardMaterial color={inspection ? '#f4f4e9' : '#a9c2ca'} emissive={inspection ? '#fffbea' : '#a8d9e5'} emissiveIntensity={inspection ? 2.8 : 0.7} roughness={0.48} /></mesh>
       <pointLight position={[0, -0.25, 0]} intensity={inspection ? 8.5 : 1.8} distance={6.8} color={inspection ? '#fff7df' : '#c5e6ed'} decay={2} />
     </group>)}
-    <mesh position={[-1.75, 0.025, 2.05]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[0.08, 12.7]} />
-      <meshBasicMaterial color="#f4b95f" transparent opacity={0.42} />
-    </mesh>
-    {[-7.7, 4.15].map((x) => <mesh key={x} position={[x, 0.028, 2.05]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[0.05, 12.5]} /><meshBasicMaterial color="#5a708a" transparent opacity={0.42} />
-    </mesh>)}
-    {[-5.7, -4.9, -4.1].map((x) => <mesh key={x} position={[x, 0.03, 5.6]} rotation={[-Math.PI / 2, 0, -0.7]}><planeGeometry args={[0.09, 1.3]} /><meshBasicMaterial color="#f4b95f" transparent opacity={0.3} /></mesh>)}
     <UtilityServices />
     <FacilitySafetyInfrastructure inspection={inspection} />
   </group>;
@@ -444,6 +437,20 @@ function FacilitySafetyInfrastructure({ inspection }: { inspection: boolean }) {
       </group>
       <mesh position={[-8.05, 0.025, 0.85]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.46, 0.52, 32]} /><meshBasicMaterial color="#51e19a" transparent opacity={0.5} /></mesh>
     </group>
+    <OxygenMonitor inspection={inspection} />
+  </group>;
+}
+
+function OxygenMonitor({ inspection }: { inspection: boolean }) {
+  return <group position={[4.42, 1.72, -4.26]}>
+    <RoundedBox args={[0.48, 0.68, 0.12]} radius={0.04} castShadow><meshStandardMaterial color={inspection ? '#5a6668' : '#26383c'} metalness={0.56} roughness={0.34} /></RoundedBox>
+    <mesh position={[0, 0.1, 0.065]}><planeGeometry args={[0.34, 0.23]} /><meshBasicMaterial color="#06181a" /></mesh>
+    <mesh position={[0, 0.13, 0.069]}><planeGeometry args={[0.22, 0.035]} /><meshBasicMaterial color="#75e7ae" /></mesh>
+    <mesh position={[-0.13, -0.2, 0.07]}><circleGeometry args={[0.035, 16]} /><meshStandardMaterial color="#51e19a" emissive="#1e6848" emissiveIntensity={0.9} /></mesh>
+    <mesh position={[0.08, -0.2, 0.07]}><circleGeometry args={[0.035, 16]} /><meshStandardMaterial color="#56676a" /></mesh>
+    <Html center position={[0, 0.48, 0.08]} distanceFactor={8.5} zIndexRange={[16, 0]} style={{ pointerEvents: 'none' }}>
+      <span className="facility-safety-label"><b>O₂ MONITOR</b><small>20.9% · NORMAL</small></span>
+    </Html>
   </group>;
 }
 
@@ -478,16 +485,21 @@ function UtilityServices() {
   </group>;
 }
 
-function OperationsProps({ scenarioId, phase, inventory, stagingBayLevel, stagingSelected, onOpenInventory }: { scenarioId: ScenarioId; phase: number; inventory: { crucibles: number; liners: number; carbonTabs: number }; stagingBayLevel: number; stagingSelected: boolean; onOpenInventory: () => void }) {
+function OperationsProps({ scenarioId, phase, inventory, stagingBayLevel, stagingSelected, focused, onOpenInventory }: { scenarioId: ScenarioId; phase: number; inventory: { crucibles: number; liners: number; carbonTabs: number }; stagingBayLevel: number; stagingSelected: boolean; focused: boolean; onOpenInventory: () => void }) {
   return <group>
     <group position={[-3.95, 0.08, 5.65]} rotation={[0, -0.12, 0]}>
       {[0.32, 1.02].map((y) => <RoundedBox key={y} args={[1.5, 0.12, 0.82]} radius={0.04} position={[0, y, 0]} castShadow><meshPhysicalMaterial color="#647481" metalness={0.8} roughness={0.25} clearcoat={0.28} /></RoundedBox>)}
       {[-0.65, 0.65].flatMap((x) => [-0.3, 0.3].map((z) => <mesh key={`${x}-${z}`} position={[x, 0.65, z]}><boxGeometry args={[0.055, 0.7, 0.055]} /><meshStandardMaterial color="#465661" metalness={0.78} /></mesh>))}
-      {[-0.62, 0.62].flatMap((x) => [-0.28, 0.28].map((z) => <mesh key={`w-${x}-${z}`} position={[x, 0.12, z]} rotation={[Math.PI / 2, 0, 0]} castShadow><torusGeometry args={[0.09, 0.035, 10, 18]} /><meshStandardMaterial color="#111921" roughness={0.75} /></mesh>))}
+      {[-0.62, 0.62].flatMap((x) => [-0.28, 0.28].map((z) => <group key={`w-${x}-${z}`} position={[x, 0, z]}>
+        <mesh position={[0, 0.24, 0]} castShadow><cylinderGeometry args={[0.026, 0.026, 0.13, 14]} /><meshStandardMaterial color="#52616a" metalness={0.82} roughness={0.22} /></mesh>
+        <mesh position={[0, 0.14, 0]} castShadow><boxGeometry args={[0.055, 0.12, 0.12]} /><meshStandardMaterial color="#46555e" metalness={0.78} roughness={0.25} /></mesh>
+        <mesh position={[0, 0.03, 0]} castShadow><torusGeometry args={[0.075, 0.027, 10, 20]} /><meshStandardMaterial color="#111921" roughness={0.78} /></mesh>
+        <mesh position={[0, 0.03, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.038, 0.038, 0.085, 18]} /><meshStandardMaterial color="#75838a" metalness={0.86} roughness={0.18} /></mesh>
+      </group>))}
       {[-0.42, 0, 0.42].map((x, i) => <mesh key={x} position={[x, 1.17, 0]} castShadow><cylinderGeometry args={[0.1, 0.09, 0.26, 18]} /><meshStandardMaterial color={['#d7b66e', '#90b9c3', '#c97860'][i]} roughness={0.4} /></mesh>)}
     </group>
     <PoweredPalletJack scenarioId={scenarioId} phase={phase} />
-    <GasServiceBay active={scenarioId === 'facility'} accepted={scenarioId === 'facility' && phase >= 3} />
+    {(!focused || scenarioId === 'facility') && <GasServiceBay active={scenarioId === 'facility'} accepted={scenarioId === 'facility' && phase >= 3} />}
     <FurnaceQuarantineStand active={scenarioId === 'furnace'} occupied={scenarioId === 'furnace' && phase >= 2} />
     {stagingBayLevel >= 2 ? <AutomatedStagingCarousel inventory={inventory} highlighted={stagingSelected} onOpenInventory={onOpenInventory} /> : <SampleStagingRack inventory={inventory} onOpenInventory={onOpenInventory} />}
   </group>;
@@ -497,13 +509,20 @@ function FurnaceQuarantineStand({ active, occupied }: { active: boolean; occupie
   if (!active) return null;
   const color = occupied ? '#f39a62' : '#80664e';
   return <group position={[3.72, 0.045, -0.55]}>
-    <RoundedBox args={[1.18, 0.055, 1.02]} radius={0.03} receiveShadow><meshStandardMaterial color="#2a2422" roughness={0.9} /></RoundedBox>
-    <Line points={[[ -0.53, 0.035, -0.45 ], [ 0.53, 0.035, -0.45 ], [ 0.53, 0.035, 0.45 ], [ -0.53, 0.035, 0.45 ], [ -0.53, 0.035, -0.45 ]]} color={color} lineWidth={0.9} transparent opacity={0.8} />
-    <mesh position={[0, 0.052, -0.34]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[0.72, 0.12]} /><meshBasicMaterial color={color} transparent opacity={0.42} /></mesh>
-    <group position={[0.48, 0.52, -0.42]}>
-      <mesh position={[0, -0.21, 0]} castShadow><boxGeometry args={[0.045, 0.48, 0.045]} /><meshStandardMaterial color="#56636a" metalness={0.75} roughness={0.26} /></mesh>
-      <RoundedBox args={[0.72, 0.28, 0.055]} radius={0.025} castShadow><meshStandardMaterial color="#3b302b" metalness={0.32} roughness={0.56} /></RoundedBox>
-      <mesh position={[0, 0.03, 0.031]}><planeGeometry args={[0.5, 0.035]} /><meshBasicMaterial color={color} /></mesh>
+    {[-0.47, 0.47].flatMap((x) => [-0.38, 0.38].map((z) => <mesh key={`${x}-${z}`} position={[x, 0.31, z]} castShadow><boxGeometry args={[0.055, 0.58, 0.055]} /><meshStandardMaterial color="#46545a" metalness={0.7} roughness={0.32} /></mesh>))}
+    <RoundedBox args={[1.18, 0.08, 1.02]} radius={0.025} position={[0, 0.61, 0]} castShadow><meshStandardMaterial color="#5c6565" metalness={0.58} roughness={0.38} /></RoundedBox>
+    <RoundedBox args={[1.02, 0.055, 0.86]} radius={0.018} position={[0, 0.68, 0]} castShadow><meshStandardMaterial color="#b7a98e" roughness={0.82} /></RoundedBox>
+    <Line points={[[ -0.46, 0.715, -0.38 ], [ 0.46, 0.715, -0.38 ], [ 0.46, 0.715, 0.38 ], [ -0.46, 0.715, 0.38 ], [ -0.46, 0.715, -0.38 ]]} color={color} lineWidth={1.1} transparent opacity={0.95} />
+    <mesh position={[0, 0.718, -0.3]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[0.62, 0.1]} /><meshBasicMaterial color={color} transparent opacity={0.55} /></mesh>
+    <group position={[-0.13, 0.77, 0.05]} rotation={[0, -0.42, 0.04]}>
+      {[-0.035, 0.035].map((z) => <mesh key={z} position={[-0.08, 0, z]} rotation={[0, 0, Math.PI / 2]} castShadow><cylinderGeometry args={[0.014, 0.018, 0.76, 12]} /><meshStandardMaterial color="#a7afb0" metalness={0.88} roughness={0.18} /></mesh>)}
+      {[-0.035, 0.035].map((z) => <mesh key={`handle-${z}`} position={[-0.45, 0, z]} rotation={[0, 0, Math.PI / 2]} castShadow><cylinderGeometry args={[0.025, 0.025, 0.26, 12]} /><meshStandardMaterial color="#30383a" roughness={0.6} /></mesh>)}
+      {[-0.035, 0.035].map((z) => <mesh key={`jaw-${z}`} position={[0.32, 0, z]} rotation={[0, 0, Math.PI / 2.5]} castShadow><boxGeometry args={[0.16, 0.025, 0.028]} /><meshStandardMaterial color="#7e898b" metalness={0.84} roughness={0.22} /></mesh>)}
+    </group>
+    <group position={[0.5, 1.0, -0.42]}>
+      <mesh position={[0, -0.23, 0]} castShadow><boxGeometry args={[0.045, 0.52, 0.045]} /><meshStandardMaterial color="#56636a" metalness={0.75} roughness={0.26} /></mesh>
+      <RoundedBox args={[0.78, 0.32, 0.055]} radius={0.025} castShadow><meshStandardMaterial color="#332d29" metalness={0.32} roughness={0.56} /></RoundedBox>
+      <mesh position={[0, 0.035, 0.031]}><planeGeometry args={[0.56, 0.04]} /><meshBasicMaterial color={color} /></mesh>
     </group>
   </group>;
 }
@@ -630,7 +649,12 @@ function SampleStagingRack({ inventory, onOpenInventory }: { inventory: { crucib
   return <group position={[-8.05, 0.04, -2.15]} rotation={[0, Math.PI / 2, 0]} onClick={(event) => { event.stopPropagation(); onOpenInventory(); }} onPointerOver={(event) => { event.stopPropagation(); document.body.style.cursor = 'pointer'; }} onPointerOut={() => { document.body.style.cursor = 'default'; }}>
     {[-1.08, 1.08].flatMap((x) => [-0.24, 0.24].map((z) => <mesh key={`${x}-${z}`} position={[x, 1.18, z]} castShadow><boxGeometry args={[0.055, 2.32, 0.055]} /><meshStandardMaterial color="#69787d" metalness={0.86} roughness={0.22} /></mesh>))}
     {[0.22, 0.82, 1.42, 2.02].map((y) => <RoundedBox key={y} args={[2.28, 0.075, 0.58]} radius={0.02} position={[0, y, 0]} castShadow><meshPhysicalMaterial color="#697b80" metalness={0.83} roughness={0.24} clearcoat={0.18} /></RoundedBox>)}
-    {Array.from({ length: crucibleCount }, (_, index) => { const x = -0.88 + (index % 6) * 0.35; const z = index < 6 ? -0.11 : 0.13; return <group key={`cruc-${index}`} position={[x, 0.47, z]}><mesh castShadow><cylinderGeometry args={[0.12, 0.1, 0.27, 20]} /><meshPhysicalMaterial color="#b9b19a" roughness={0.45} clearcoat={0.12} /></mesh><mesh position={[0, 0.14, 0]}><torusGeometry args={[0.095, 0.018, 10, 20]} /><meshStandardMaterial color="#d6cfbb" roughness={0.38} /></mesh></group>; })}
+    {Array.from({ length: crucibleCount }, (_, index) => { const x = -0.88 + (index % 6) * 0.35; const z = index < 6 ? -0.11 : 0.13; return <group key={`cruc-${index}`} position={[x, 0.47, z]}>
+      <mesh castShadow><cylinderGeometry args={[0.12, 0.1, 0.27, 20, 1, true]} /><meshPhysicalMaterial color="#c8c0aa" roughness={0.48} clearcoat={0.08} side={THREE.DoubleSide} /></mesh>
+      <mesh position={[0, -0.134, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[0.098, 20]} /><meshStandardMaterial color="#afa68f" roughness={0.5} /></mesh>
+      <mesh position={[0, 0.137, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[0.105, 0.009, 8, 24]} /><meshStandardMaterial color="#e0d8c4" roughness={0.36} /></mesh>
+      <mesh position={[0, 0.132, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[0.088, 22]} /><meshStandardMaterial color="#3d3a34" roughness={0.72} /></mesh>
+    </group>; })}
     {Array.from({ length: linerCount }, (_, index) => { const x = -0.78 + (index % 3) * 0.78; const z = index < 3 ? -0.11 : 0.13; return <RoundedBox key={`liner-${index}`} args={[0.58, 0.12, 0.34]} radius={0.025} position={[x, 1.08, z]} castShadow><meshPhysicalMaterial color="#9fb7b2" roughness={0.36} clearcoat={0.22} /></RoundedBox>; })}
     {Array.from({ length: tabCount }, (_, index) => <group key={`tab-${index}`} position={[-0.88 + index * 0.35, 1.7, 0]} rotation={[Math.PI / 2, 0, 0]}><mesh castShadow><cylinderGeometry args={[0.1, 0.1, 0.055, 22]} /><meshStandardMaterial color="#20282d" metalness={0.5} roughness={0.42} /></mesh><mesh position={[0, 0.03, 0]}><circleGeometry args={[0.055, 20]} /><meshBasicMaterial color="#0b0e10" /></mesh></group>)}
     {low && <group position={[0, 0.43, -0.83]}><RoundedBox args={[1.46, 0.72, 0.76]} radius={0.06} castShadow><meshStandardMaterial color="#72512b" roughness={0.62} /></RoundedBox><mesh position={[0, 0.05, 0.386]}><planeGeometry args={[0.92, 0.22]} /><meshBasicMaterial color="#d4b66e" /></mesh><mesh position={[0, 0.05, 0.39]}><planeGeometry args={[0.62, 0.03]} /><meshBasicMaterial color="#5d4725" /></mesh></group>}
@@ -667,21 +691,20 @@ function StationCell({ station, index, position, selected, active, toneOverride,
   return (
     <group
       position={position}
-      onClick={(event) => { event.stopPropagation(); onSelect(station.id); }}
-      onDoubleClick={(event) => { event.stopPropagation(); onSelect(station.id); onFocus(); }}
+      onClick={(event) => { event.stopPropagation(); onSelect(station.id); onFocus(); }}
       onPointerOver={(event) => { event.stopPropagation(); setHovered(true); setCursor('pointer'); }}
       onPointerOut={() => { setHovered(false); setCursor('default'); }}
     >
       <RoundedBox args={[3.08, index === 3 || index === 4 ? 0.09 : 0.055, 2.72]} radius={0.045} smoothness={3} position={[0, index === 3 || index === 4 ? 0.045 : 0.028, 0]} receiveShadow>
-        <meshPhysicalMaterial color={index === 3 || index === 4 ? '#27323b' : '#18212a'} emissive={selected ? '#16404b' : '#000000'} emissiveIntensity={selected ? 0.08 : 0} roughness={0.72} metalness={0.14} clearcoat={0.12} />
+        <meshPhysicalMaterial color="#18212a" emissive={selected ? '#16404b' : '#000000'} emissiveIntensity={selected ? 0.08 : 0} roughness={0.72} metalness={0.14} clearcoat={0.12} />
       </RoundedBox>
       <Line points={[[-1.54, 0.082, -1.36], [1.54, 0.082, -1.36], [1.54, 0.082, 1.36], [-1.54, 0.082, 1.36], [-1.54, 0.082, -1.36]]} color={selected ? '#4dd5ed' : tone} lineWidth={selected ? 1.05 : 0.55} transparent opacity={selected ? 0.48 : 0.12} />
       {[-1.36, 1.36].flatMap((x) => [-1.18, 1.18].map((z) => <mesh key={`${x}-${z}`} position={[x, 0.09, z]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.035, 0.055, 16]} /><meshStandardMaterial color="#687681" metalness={0.78} roughness={0.26} /></mesh>))}
       <Equipment index={index} active={active} tone={tone} focused={showHotspots} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} campaignStage={campaignStage} campaignRunNumber={campaignRunNumber} />
       {showHotspots && <InspectionHotspots points={inspectionPoints} tone={tone} inspected={inspected} onInspect={onInspect} />}
-      <StatusBeacon position={[1.32, 0.34, 1.08]} color={tone} active={active || selected} />
+      {!showHotspots && <StatusBeacon position={[1.32, 0.08, 1.08]} color={tone} active={active || selected} />}
       <ControlProofLights count={controls.length} />
-      {(selected || hovered) && <Html center position={[index === 3 ? 0.5 : index === 2 ? -0.38 : 0, index < 3 ? 2.98 : 2.72, index < 3 ? -0.2 : 0.2]} distanceFactor={10.5} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
+      {(selected || hovered) && !showHotspots && <Html center position={[index === 3 ? 0.5 : index === 2 ? -0.38 : 0, index < 3 ? 2.98 : 2.72, index < 3 ? -0.2 : 0.2]} distanceFactor={10.5} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
         <div className={`station-3d-label ${selected ? 'selected' : ''}`} style={{ '--station-tone': tone } as React.CSSProperties}>
           <span>{station.id}</span><b>{station.name}</b><i>{stateOverride ?? station.state}</i>
         </div>
@@ -693,23 +716,23 @@ function StationCell({ station, index, position, selected, active, toneOverride,
 function Equipment({ index, active, tone, focused, controls, scenarioId, phase, thermalBayLevel, campaignStage, campaignRunNumber }: { index: number; active: boolean; tone: string; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number; campaignStage: number; campaignRunNumber: number }) {
   if (index === 0) return <PowderPrep controls={controls} />;
   if (index === 1) return <RobotCell active={active} focused={focused} controls={controls} campaignStage={scenarioId === 'xrd' ? campaignStage : 0} campaignRunNumber={campaignRunNumber} />;
-  if (index === 2) return <Furnace active={active} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} campaignStage={campaignStage} campaignRunNumber={campaignRunNumber} />;
-  if (index === 3) return <Xrd active={active} controls={controls} />;
+  if (index === 2) return <Furnace active={active} focused={focused} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} campaignStage={campaignStage} campaignRunNumber={campaignRunNumber} />;
+  if (index === 3) return <Xrd active={active} focused={focused} controls={controls} scenarioId={scenarioId} phase={phase} />;
   if (index === 4) return <SemEds active={active} controls={controls} />;
-  if (index === 5) return <Bet active={active} tone={tone} controls={controls} />;
-  return <TgaDsc active={active} controls={controls} />;
+  if (index === 5) return <Bet active={active} focused={focused} tone={tone} controls={controls} />;
+  return <TgaDsc active={active} focused={focused} controls={controls} />;
 }
 
-type InspectionPoint = { position: [number, number, number]; label: string; observation: string; state: 'pass' | 'attention' };
+type InspectionPoint = { position: [number, number, number]; label: string; displayLabel?: string; observation: string; state: 'pass' | 'attention' };
 
 const HOTSPOTS: InspectionPoint[][] = [
-  [{ position: [-0.65, 1.25, 0.68], label: 'SASH', observation: '420 mm opening · airflow normal', state: 'pass' }, { position: [0.86, 0.97, 0.55], label: 'BALANCE', observation: 'level centered · zero 0.000 g', state: 'pass' }, { position: [-0.15, 0.68, 0.58], label: 'LOT', observation: 'LOT-91 · physical ID legible', state: 'pass' }],
-  [{ position: [-1.32, 1.45, 1.06], label: 'GATE', observation: 'CH1 interlock closed · no bypass', state: 'pass' }, { position: [1.08, 1.48, 0.18], label: 'GRIPPER', observation: 'carrier jaws clear · tool seated', state: 'pass' }, { position: [1.05, 0.92, -0.32], label: 'HMI', observation: 'AUTO hold · route inhibited', state: 'attention' }],
-  [{ position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: 'door input closed · latch engaged', state: 'pass' }, { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'PV 982 °C · SP 1,000 °C', state: 'pass' }, { position: [0, 1.38, 0.94], label: 'CHAMBER', observation: 'load present · hot-zone active', state: 'attention' }],
-  [{ position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: 'surface clean · specimen flat', state: 'pass' }, { position: [0.9, 0.7, 0.92], label: 'HMI', observation: 'reference drift +0.17° 2θ', state: 'attention' }, { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', observation: 'closed feedback TRUE', state: 'pass' }],
-  [{ position: [-0.25, 1.2, 0.82], label: 'CHAMBER', observation: 'vacuum 2.1e−5 Pa · stable', state: 'pass' }, { position: [-0.25, 2.08, 0.42], label: 'COLUMN', observation: 'HV standby · aperture seated', state: 'pass' }, { position: [0.95, 1.32, 0.3], label: 'BSE / EDS', observation: 'EDS dead time 27% · detector ready', state: 'pass' }],
-  [{ position: [-0.3, 1.45, 0.88], label: 'PORTS', observation: 'analysis ports mechanically locked', state: 'attention' }, { position: [0.98, 1.42, 0.34], label: 'N₂', observation: 'supply normal · regulator stable', state: 'pass' }, { position: [-0.6, 0.62, 0.84], label: 'VACUUM', observation: 'service isolation active · pump off', state: 'attention' }],
-  [{ position: [-0.58, 1.12, 0.76], label: 'PAN', observation: 'matched empty-pan pair · clean', state: 'pass' }, { position: [0.82, 0.78, 0.7], label: 'PURGE', observation: 'N₂ flow stable · outlet clear', state: 'pass' }, { position: [0.08, 1.28, 0.82], label: 'FURNACE', observation: '28 °C · baseline check due', state: 'attention' }],
+  [{ position: [-0.65, 1.25, 0.68], label: 'SASH', observation: '420 mm opening · airflow normal', state: 'pass' }, { position: [0.86, 0.97, 0.55], label: 'BALANCE', observation: 'level centered · zero 0.000 g', state: 'pass' }, { position: [-0.15, 0.68, 0.58], label: 'LOT', observation: 'three capped powder vials retained in secondary tray', state: 'pass' }],
+  [{ position: [1.17, 1.28, 1.1], label: 'GATE', displayLabel: 'GATE INTERLOCK', observation: 'CH1 interlock closed · no bypass', state: 'pass' }, { position: [0.98, 0.84, 0.18], label: 'GRIPPER', displayLabel: 'GRIPPER TOOL', observation: 'carrier jaws clear · tool seated', state: 'pass' }, { position: [1.55, 0.86, 0.81], label: 'HMI', displayLabel: 'ROBOT HMI', observation: 'AUTO hold · route inhibited', state: 'attention' }],
+  [{ position: [0.59, 1.38, 0.93], label: 'INTERLOCK', displayLabel: 'DOOR INTERLOCK', observation: 'door input closed · latch engaged', state: 'pass' }, { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'PV 982 °C · SP 1,000 °C', state: 'pass' }, { position: [0, 1.38, 0.94], label: 'CHAMBER', displayLabel: 'HOT CHAMBER', observation: 'load present · hot-zone active', state: 'attention' }],
+  [{ position: [-0.12, 1.23, 0.98], label: 'HOLDER', displayLabel: 'SAMPLE HOLDER', observation: 'surface clean · specimen flat', state: 'pass' }, { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: 'silicon QC error +0.17° 2θ', state: 'attention' }, { position: [-0.48, 1.52, 0.92], label: 'SHUTTER', displayLabel: 'SOURCE SHUTTER', observation: 'closed feedback TRUE', state: 'pass' }],
+  [{ position: [-0.25, 0.92, 0.82], label: 'CHAMBER', displayLabel: 'VACUUM CHAMBER', observation: 'specimen stage inside sealed chamber · vacuum 2.1e−5 Pa', state: 'pass' }, { position: [-0.25, 2.08, 0.42], label: 'COLUMN', displayLabel: 'ELECTRON COLUMN', observation: 'electron-optics stack above specimen · HV standby', state: 'pass' }, { position: [0.48, 1.22, 0.55], label: 'BSE / EDS', displayLabel: 'DETECTOR ARRAY', observation: 'annular BSE below the lens · EDS and SE on side ports', state: 'pass' }],
+  [{ position: [-0.3, 1.62, 0.38], label: 'PORTS', displayLabel: 'ANALYSIS PORTS', observation: 'sealed manifold feeds four sample tubes independently', state: 'attention' }, { position: [0.98, 1.42, 0.34], label: 'N₂', displayLabel: 'N₂ GAS SUPPLY', observation: 'analysis and backfill gas · regulator stable', state: 'pass' }, { position: [0.68, 0.5, 0.1], label: 'VACUUM', displayLabel: 'VACUUM SYSTEM', observation: 'evacuates sample tubes before adsorption measurement', state: 'attention' }],
+  [{ position: [-0.42, 1.04, 0.44], label: 'PAN', displayLabel: 'PAN SET', observation: 'matched sample/reference pans suspend from microbalance', state: 'pass' }, { position: [1, 0.95, 0.42], label: 'PURGE', displayLabel: 'PURGE GAS', observation: 'N₂ controls the furnace atmosphere and clears evolved gas', state: 'pass' }, { position: [-0.42, 1.42, 0.42], label: 'FURNACE', displayLabel: 'MOVABLE FURNACE', observation: 'furnace rises around suspended pans · 28 °C', state: 'attention' }],
 ];
 
 function getCampaignInspectionPoints(index: number, stage: number, selected: string, runNumber: number, thermalBayLevel = 1, resultMeasured = ''): InspectionPoint[] | null {
@@ -722,9 +745,9 @@ function getCampaignInspectionPoints(index: number, stage: number, selected: str
     { position: [-0.15, 0.68, 0.58], label: 'LOT', observation: `${spec.precursorLabel} match ${identity.prepSample}`, state: 'pass' },
   ];
   if (stage >= 2 && stage <= 3 && index === 1) return [
-    { position: [-1.32, 1.45, 1.06], label: 'GATE', observation: 'CH1 safeguard closed · scanner field clear', state: 'pass' },
-    { position: [1.08, 1.48, 0.18], label: 'GRIPPER', observation: stage === 2 ? operations.robotCondition === 'contamination' ? 'residue witness visible · cleaning proof required' : operations.robotCondition === 'grip-force' ? 'jaw-force trend low · pad seating inspection due' : 'tool face clean · ID legible · nominal state' : `witness passed · jaws seated on ${identity.carrier}`, state: stage === 2 && operations.robotConstraint ? 'attention' : 'pass' },
-    { position: [1.05, 0.92, -0.32], label: 'HMI', observation: stage === 2 ? operations.robotCondition === 'contamination' ? `${identity.runId} held before dosing · motion inhibited` : operations.robotCondition === 'grip-force' ? `${identity.runId} held for force witness · setup mode` : `${identity.runId} setup mode · handshake proof pending` : `${identity.runId} dosing 6 crucibles · route active`, state: stage === 2 && operations.robotConstraint ? 'attention' : 'pass' },
+    { position: [1.17, 1.28, 1.1], label: 'GATE', displayLabel: 'GATE INTERLOCK', observation: 'CH1 safeguard closed · scanner field clear', state: 'pass' },
+    { position: [0.98, 0.84, 0.18], label: 'GRIPPER', displayLabel: 'GRIPPER TOOL', observation: stage === 2 ? operations.robotCondition === 'contamination' ? 'residue witness visible · cleaning proof required' : operations.robotCondition === 'grip-force' ? 'jaw-force trend low · pad seating inspection due' : 'tool face clean · ID legible · nominal state' : `witness passed · jaws seated on ${identity.carrier}`, state: stage === 2 && operations.robotConstraint ? 'attention' : 'pass' },
+    { position: [1.55, 0.86, 0.81], label: 'HMI', displayLabel: 'ROBOT HMI', observation: stage === 2 ? operations.robotCondition === 'contamination' ? `${identity.runId} held before dosing · motion inhibited` : operations.robotCondition === 'grip-force' ? `${identity.runId} held for force witness · setup mode` : `${identity.runId} setup mode · handshake proof pending` : `${identity.runId} dosing 6 crucibles · route active`, state: stage === 2 && operations.robotConstraint ? 'attention' : 'pass' },
   ];
   if (stage === 5 && index === 2 && operations.furnaceCondition === 'door-seal') return [
     { position: [0, 1.78, 0.94], label: 'GASKET', observation: `upper-edge witness ${operations.furnaceResult} · hot-zone uniformity not proven`, state: 'attention' },
@@ -737,19 +760,19 @@ function getCampaignInspectionPoints(index: number, stage: number, selected: str
     { position: [0.82, 1.55, 0.93], label: 'OVERTEMP', observation: 'independent trip proof required before thermal start', state: 'attention' },
   ];
   if (stage >= 4 && stage <= 5 && index === 2) return [
-    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: stage === 4 ? `door closed · ${operations.activeFurnaceRun} cycle owns chamber` : operations.furnaceCondition === 'door-seal' ? 'door chain closed · latch compression witness inconsistent' : `door chain closed · ${spec.profile} start held`, state: stage === 5 && operations.furnaceCondition === 'door-seal' ? 'attention' : 'pass' },
+    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', displayLabel: 'DOOR INTERLOCK', observation: stage === 4 ? `door closed · ${operations.activeFurnaceRun} cycle owns chamber` : operations.furnaceCondition === 'door-seal' ? 'door chain closed · latch compression witness inconsistent' : `door chain closed · ${spec.profile} start held`, state: stage === 5 && operations.furnaceCondition === 'door-seal' ? 'attention' : 'pass' },
     { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: stage === 4 ? `${operations.activeFurnaceRun} in chamber A · ${operations.furnaceLane} ${operations.queueMinutes} min` : operations.furnaceCondition === 'thermocouple-drift' ? `${operations.furnaceResult} · qualified offset proof required` : operations.furnaceCondition === 'door-seal' ? `${operations.furnaceResult} · edge loss above start limit` : `${operations.furnaceResult} · controller agreement nominal`, state: stage === 4 || stage === 5 && operations.furnaceConstraint ? 'attention' : 'pass' },
     { position: stage === 4 ? [0, 0.42, 1.04] : [0, 1.38, 0.94], label: 'CARRIER', observation: stage === 4 ? thermalBayLevel >= 2 ? `${identity.carrier} assigned chamber B · readiness proof pending` : `${identity.carrier} parked at marked queue stand · seal intact` : `${identity.carrier} loaded · ${spec.profile} not started`, state: stage === 4 || stage === 5 && operations.furnaceConstraint ? 'attention' : 'pass' },
   ];
   if (stage >= 6 && stage <= 7 && index === 3) return [
-    { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: stage === 6 ? operations.referenceCondition === 'age-due' ? `NIST Si reference seated · ${identity.thermalSample} held` : operations.referenceCondition === 'trend-review' ? `NIST Si staged · ${identity.thermalSample} queued behind trend check` : `${identity.thermalSample} flat · current control linked` : `${identity.thermalSample} flat · reference accepted`, state: 'pass' },
-    { position: [0.9, 0.7, 0.92], label: 'HMI', observation: stage === 6 ? operations.referenceCondition === 'age-due' ? `${operations.referenceAgeHours} h since reference · specimen release inhibited` : operations.referenceCondition === 'trend-review' ? `${operations.referenceAgeHours} h control · position trend confirmation due` : `${operations.referenceAgeHours} h control · within governed window` : `${operations.referenceResult} · ${resultMeasured || spec.measured}% target phase`, state: stage === 6 && operations.referenceCondition !== 'current' ? 'attention' : 'pass' },
-    { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', observation: 'closed feedback TRUE · radiation chain healthy', state: 'pass' },
+    { position: [-0.12, 1.23, 0.98], label: 'HOLDER', displayLabel: 'SAMPLE HOLDER', observation: stage === 6 ? operations.referenceCondition === 'age-due' ? `NIST SRM 640f QC material seated · ${identity.thermalSample} blocked` : operations.referenceCondition === 'trend-review' ? `NIST SRM 640f staged · ${identity.thermalSample} waits for trend check` : `${identity.thermalSample} flat · current QC linked` : `${identity.thermalSample} flat · silicon QC accepted`, state: 'pass' },
+    { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: stage === 6 ? operations.referenceCondition === 'age-due' ? `${operations.referenceAgeHours} h since QC check · sample testing blocked` : operations.referenceCondition === 'trend-review' ? `${operations.referenceAgeHours} h QC check · peak-position confirmation due` : `${operations.referenceAgeHours} h QC check · current` : `${operations.referenceResult} · ${resultMeasured || spec.measured}% target phase`, state: stage === 6 && operations.referenceCondition !== 'current' ? 'attention' : 'pass' },
+    { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', displayLabel: 'SOURCE SHUTTER', observation: 'closed feedback TRUE · radiation chain healthy', state: 'pass' },
   ];
   if (stage >= 8 && index === 4) return [
-    { position: [-0.25, 1.2, 0.82], label: 'CHAMBER', observation: `${identity.thermalSample} on STUB-${identity.suffix} · clearance proven`, state: 'pass' },
-    { position: [-0.25, 2.08, 0.42], label: 'COLUMN', observation: 'BSE 15 kV · working distance 9.8 mm · aperture seated', state: 'pass' },
-    { position: [0.95, 1.32, 0.3], label: 'BSE / EDS', observation: stage === 8 ? 'coverage 0 / 4 · representative map required' : `4 fields + map · ${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'}`, state: stage === 8 ? 'attention' : 'pass' },
+    { position: [-0.25, 0.92, 0.82], label: 'CHAMBER', displayLabel: 'VACUUM CHAMBER', observation: `${identity.thermalSample} on STUB-${identity.suffix} · clearance proven`, state: 'pass' },
+    { position: [-0.25, 2.08, 0.42], label: 'COLUMN', displayLabel: 'ELECTRON COLUMN', observation: 'BSE 15 kV · working distance 9.8 mm · aperture seated', state: 'pass' },
+    { position: [0.48, 1.22, 0.55], label: 'BSE / EDS', displayLabel: 'DETECTOR ARRAY', observation: stage === 8 ? 'coverage 0 / 4 · preplanned field grid required' : `4 fields + map · ${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'}`, state: stage === 8 ? 'attention' : 'pass' },
   ];
   return null;
 }
@@ -758,19 +781,19 @@ function getInspectionPoints(index: number, scenarioId: ScenarioId, phase: numbe
   const campaignPoints = getCampaignInspectionPoints(index, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, campaignResultMeasured);
   if (campaignPoints) return campaignPoints;
   if (scenarioId === 'xrd' && index === 3 && phase >= 1) return [
-    { position: [-0.12, 1.23, 0.98], label: 'HOLDER', observation: phase >= 4 ? 'run holder clear · specimen record retained' : 'NIST Si seated · surface clean', state: 'pass' },
-    { position: [0.9, 0.7, 0.92], label: 'HMI', observation: phase >= 4 ? 'CA-TI-031 complete · anomaly review open' : 'current reference +0.02° 2θ · in control', state: phase >= 4 ? 'attention' : 'pass' },
-    { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', observation: 'closed feedback TRUE · interlock chain healthy', state: 'pass' },
+    { position: [-0.12, 1.23, 0.98], label: 'HOLDER', displayLabel: 'SAMPLE HOLDER', observation: phase >= 4 ? 'run holder clear · specimen record retained' : 'NIST SRM 640f seated · surface clean', state: 'pass' },
+    { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: phase >= 4 ? 'CA-TI-031 complete · anomaly review open' : 'silicon QC +0.02° 2θ · inside limit', state: phase >= 4 ? 'attention' : 'pass' },
+    { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', displayLabel: 'SOURCE SHUTTER', observation: 'closed feedback TRUE · interlock chain healthy', state: 'pass' },
   ];
   if (scenarioId === 'xrd' && index === 1 && phase >= 2) return [
-    { position: [-1.32, 1.45, 1.06], label: 'GATE', observation: 'CH1 interlock closed · route authorized', state: 'pass' },
-    { position: [1.08, 1.48, 0.18], label: 'GRIPPER', observation: phase === 3 ? 'BC-184 seated · transfer in progress' : 'jaws clear · BC-184 handoff retained', state: 'pass' },
-    { position: [1.05, 0.92, -0.32], label: 'HMI', observation: phase === 3 ? 'AUTO route active · 5 eligible specimens' : 'route complete · quarantined specimen excluded', state: 'pass' },
+    { position: [1.17, 1.28, 1.1], label: 'GATE', displayLabel: 'GATE INTERLOCK', observation: 'CH1 interlock closed · route authorized', state: 'pass' },
+    { position: [0.98, 0.84, 0.18], label: 'GRIPPER', displayLabel: 'GRIPPER TOOL', observation: phase === 3 ? 'BC-184 seated · transfer in progress' : 'jaws clear · BC-184 handoff retained', state: 'pass' },
+    { position: [1.55, 0.86, 0.81], label: 'HMI', displayLabel: 'ROBOT HMI', observation: phase === 3 ? 'AUTO route active · 5 eligible specimens' : 'route complete · quarantined specimen excluded', state: 'pass' },
   ];
   if (scenarioId === 'xrd' && index === 4 && phase >= 5) return [
-    { position: [-0.25, 1.2, 0.82], label: 'CHAMBER', observation: 'SPEC-184-03 loaded · vacuum stable', state: 'pass' },
-    { position: [-0.25, 2.08, 0.42], label: 'COLUMN', observation: 'BSE conditions retained · working distance linked', state: 'pass' },
-    { position: [0.95, 1.32, 0.3], label: 'BSE / EDS', observation: phase >= 6 ? '4 fields + EDS map retained' : 'field 01 inclusion · coverage incomplete', state: phase >= 6 ? 'pass' : 'attention' },
+    { position: [-0.25, 0.92, 0.82], label: 'CHAMBER', displayLabel: 'VACUUM CHAMBER', observation: 'SPEC-184-03 loaded · vacuum stable', state: 'pass' },
+    { position: [-0.25, 2.08, 0.42], label: 'COLUMN', displayLabel: 'ELECTRON COLUMN', observation: 'BSE conditions retained · working distance linked', state: 'pass' },
+    { position: [0.48, 1.22, 0.55], label: 'BSE / EDS', displayLabel: 'DETECTOR ARRAY', observation: phase >= 6 ? '4 fields + EDS map retained' : 'field 01 inclusion · coverage incomplete', state: phase >= 6 ? 'pass' : 'attention' },
   ];
   if ((scenarioId === 'bet' || scenarioId === 'facility') && index === 5) {
     if (scenarioId === 'bet' && phase === 0) return HOTSPOTS[index];
@@ -780,17 +803,17 @@ function getInspectionPoints(index: number, scenarioId: ScenarioId, phase: numbe
     const facilityReceivingHold = scenarioId === 'facility' && phase < 2;
     const facilityUtilityHold = scenarioId === 'facility' && phase === 2;
     return [
-      { position: [-0.3, 1.45, 0.88], label: 'PORTS', observation: analyzing ? 'analysis ports engaged · ADS-77 batch active' : resultReview ? 'ALU-21 run complete · ports isolated' : serviceAccepted ? 'analysis boundary released · reference staged' : facilityReceivingHold ? 'sample ports isolated · receiving release pending' : facilityUtilityHold ? 'ports isolated · GAS-41 proof pending' : 'ports available · tube eligibility gate active', state: facilityReceivingHold || facilityUtilityHold ? 'attention' : 'pass' },
-      { position: [0.98, 1.42, 0.34], label: 'N₂', observation: serviceAccepted ? 'GAS-41 N₂ 5.0 · certificate + tag linked' : facilityUtilityHold ? 'GAS-41 connected · identity + boundary unproven' : facilityReceivingHold ? 'service changeover staged · analyzer isolated' : 'N₂ supply verified · regulator stable', state: facilityReceivingHold || facilityUtilityHold ? 'attention' : 'pass' },
-      { position: [-0.6, 0.62, 0.84], label: 'VACUUM', observation: resultReview ? 'native isotherm retained · low control under review' : serviceAccepted ? 'leak 0.7 µbar·L/s · accepted' : facilityReceivingHold ? 'receiving bay clear · analyzer isolation active' : facilityUtilityHold ? 'automated leak check due · release held' : 'blank/leak acceptance retained · pump ready', state: resultReview || facilityReceivingHold || facilityUtilityHold ? 'attention' : 'pass' },
+      { position: [-0.3, 1.62, 0.38], label: 'PORTS', displayLabel: 'ANALYSIS PORTS', observation: analyzing ? 'four valved sample cells connected · ADS-77 active' : resultReview ? 'sample cells isolated from manifold · run complete' : serviceAccepted ? 'valves, sample cells, and manifold boundary accepted' : facilityReceivingHold ? 'sample ports isolated · receiving check pending' : facilityUtilityHold ? 'ports isolated · GAS-41 proof pending' : 'connector nuts seated · tube identity check active', state: facilityReceivingHold || facilityUtilityHold ? 'attention' : 'pass' },
+      { position: [0.98, 1.42, 0.34], label: 'N₂', displayLabel: 'N₂ GAS SUPPLY', observation: serviceAccepted ? 'secured cylinder → regulator → manifold · certificate linked' : facilityUtilityHold ? 'cylinder connected · identity + boundary unproven' : facilityReceivingHold ? 'service changeover staged · analyzer isolated' : 'secured cylinder → regulator → manifold · pressure stable', state: facilityReceivingHold || facilityUtilityHold ? 'attention' : 'pass' },
+      { position: [0.68, 0.5, 0.1], label: 'VACUUM', displayLabel: 'VACUUM SYSTEM', observation: resultReview ? 'native isotherm retained · low QC result under review' : serviceAccepted ? 'leak 0.7 µbar·L/s · accepted' : facilityReceivingHold ? 'receiving bay clear · analyzer isolation active' : facilityUtilityHold ? 'automated leak check due · sample testing paused' : 'no-sample + leak checks retained · pump ready', state: resultReview || facilityReceivingHold || facilityUtilityHold ? 'attention' : 'pass' },
     ];
   }
   if (scenarioId === 'tga' && index === 6) {
     if (phase === 0) return HOTSPOTS[index];
     return [
-      { position: [-0.58, 1.12, 0.76], label: 'PAN', observation: phase === 1 ? 'mixed Pt/Al pair · association held' : phase === 2 ? 'PANSET-14 Pt/Pt · blank pending' : 'PANSET-14 linked · specimen position retained', state: phase === 1 ? 'attention' : 'pass' },
-      { position: [0.82, 0.78, 0.7], label: 'PURGE', observation: phase >= 4 ? 'transient at 412.5 °C · review required' : 'N₂ 60 mL/min · stable trend retained', state: phase >= 4 ? 'attention' : 'pass' },
-      { position: [0.08, 1.28, 0.82], label: 'FURNACE', observation: phase === 2 ? '28 °C · paired-pan blank ready' : phase === 3 ? 'THM-208 active · LOT-91-T at 64%' : phase >= 4 ? 'run complete · coupled channels retained' : 'method hold · baseline failure retained', state: phase >= 4 ? 'attention' : 'pass' },
+      { position: [-0.42, 1.04, 0.44], label: 'PAN', displayLabel: 'PAN SET', observation: phase === 1 ? 'mixed Pt/Al pair · result comparison paused' : phase === 2 ? 'PANSET-14 Pt/Pt · empty-pan test pending' : 'PANSET-14 linked · specimen position retained', state: phase === 1 ? 'attention' : 'pass' },
+      { position: [1, 0.95, 0.42], label: 'PURGE', observation: phase >= 4 ? 'transient at 412.5 °C · review required' : 'N₂ 60 mL/min · stable trend retained', state: phase >= 4 ? 'attention' : 'pass' },
+      { position: [-0.42, 1.42, 0.42], label: 'FURNACE', displayLabel: 'MOVABLE FURNACE', observation: phase === 2 ? '28 °C · empty-pan test ready' : phase === 3 ? 'THM-208 active · LOT-91-T at 64%' : phase >= 4 ? 'run complete · overlapping channels retained' : 'sample testing paused · failed no-sample reading saved', state: phase >= 4 ? 'attention' : 'pass' },
     ];
   }
   if (scenarioId === 'facility' && index === 0) return [
@@ -799,25 +822,25 @@ function getInspectionPoints(index: number, scenarioId: ScenarioId, phase: numbe
     { position: [-0.15, 0.68, 0.58], label: 'LOT', observation: phase === 0 ? 'two totes present · target identity unresolved' : 'LOT-3024-A physical ID + departure scan linked', state: phase === 0 ? 'attention' : 'pass' },
   ];
   if (scenarioId === 'furnace' && index === 1) return [
-    { position: [-1.32, 1.45, 1.06], label: 'GATE', observation: phase >= 2 ? 'recovery boundary clear · safeguard ready' : 'cell held · motion inhibited', state: phase >= 2 ? 'pass' : 'attention' },
-    { position: [1.08, 1.48, 0.18], label: 'GRIPPER', observation: 'gripper empty · BC-207 disposition retained', state: 'pass' },
-    { position: [1.05, 0.92, -0.32], label: 'HMI', observation: phase >= 3 ? 'recovery handshake complete · robot parked' : phase >= 2 ? 'recovery mode armed · dry cycle pending' : 'digital transfer state conflicts with furnace occupancy', state: phase >= 2 ? 'pass' : 'attention' },
+    { position: [1.17, 1.28, 1.1], label: 'GATE', displayLabel: 'GATE INTERLOCK', observation: phase >= 2 ? 'recovery boundary clear · safeguard ready' : 'cell held · motion inhibited', state: phase >= 2 ? 'pass' : 'attention' },
+    { position: [0.98, 0.84, 0.18], label: 'GRIPPER', displayLabel: 'GRIPPER TOOL', observation: 'gripper empty · BC-207 disposition retained', state: 'pass' },
+    { position: [1.55, 0.86, 0.81], label: 'HMI', displayLabel: 'ROBOT HMI', observation: phase >= 3 ? 'recovery handshake complete · robot parked' : phase >= 2 ? 'recovery mode armed · dry cycle pending' : 'digital transfer state conflicts with furnace occupancy', state: phase >= 2 ? 'pass' : 'attention' },
   ];
   if (index !== 2 || scenarioId !== 'furnace') return HOTSPOTS[index];
   if (phase >= 3) return [
-    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: 'access loop closed · dry-cycle proof linked', state: 'pass' },
+    { position: [0.59, 1.38, 0.93], label: 'INTERLOCK', displayLabel: 'DOOR INTERLOCK', observation: 'access loop closed · dry-cycle proof linked', state: 'pass' },
     { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'recovery sequence complete · I-204 retained', state: 'pass' },
-    { position: [0, 1.38, 0.94], label: 'CHAMBER', observation: 'empty · BC-207 at quarantine stand', state: 'pass' },
+    { position: [0, 1.38, 0.94], label: 'CHAMBER', displayLabel: 'HOT CHAMBER', observation: 'empty · BC-207 at quarantine stand', state: 'pass' },
   ];
   if (phase >= 2) return [
-    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: 'access loop ready · coordinated proof pending', state: 'attention' },
+    { position: [0.59, 1.38, 0.93], label: 'INTERLOCK', displayLabel: 'DOOR INTERLOCK', observation: 'access loop ready · coordinated proof pending', state: 'attention' },
     { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'recovery mode armed · I-204 retained', state: 'pass' },
-    { position: [0, 1.38, 0.94], label: 'CHAMBER', observation: 'empty · BC-207 physically quarantined', state: 'pass' },
+    { position: [0, 1.38, 0.94], label: 'CHAMBER', displayLabel: 'HOT CHAMBER', observation: 'empty · BC-207 physically quarantined', state: 'pass' },
   ];
   return [
-    { position: [0.82, 1.55, 0.93], label: 'INTERLOCK', observation: 'I-204 active · reset inhibited', state: 'attention' },
+    { position: [0.59, 1.38, 0.93], label: 'INTERLOCK', displayLabel: 'DOOR INTERLOCK', observation: 'I-204 active · reset inhibited', state: 'attention' },
     { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'cycle interrupted at 742 °C · trace held', state: 'attention' },
-    { position: [0, 1.38, 0.94], label: 'CHAMBER', observation: 'BC-207 present · thermal history interrupted', state: 'attention' },
+    { position: [0, 1.38, 0.94], label: 'CHAMBER', displayLabel: 'HOT CHAMBER', observation: 'BC-207 present · thermal history interrupted', state: 'attention' },
   ];
 }
 
@@ -825,7 +848,7 @@ function InspectionHotspots({ points, tone, inspected, onInspect }: { points: In
   return <group>{points.map((hotspot, hotspotIndex) => <Hotspot key={hotspot.label} {...hotspot} tone={tone} visited={inspected.includes(hotspot.label)} delay={hotspotIndex * 0.8} onInspect={onInspect} />)}</group>;
 }
 
-function Hotspot({ position, label, tone, visited, delay, onInspect }: { position: [number, number, number]; label: string; tone: string; visited: boolean; delay: number; onInspect: (label: string) => void }) {
+function Hotspot({ position, label, displayLabel, tone, visited, delay, onInspect }: InspectionPoint & { tone: string; visited: boolean; delay: number; onInspect: (label: string) => void }) {
   const ref = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (!ref.current) return;
@@ -833,11 +856,13 @@ function Hotspot({ position, label, tone, visited, delay, onInspect }: { positio
     ref.current.scale.setScalar(pulse);
   });
   const color = visited ? '#51e19a' : tone;
-  return <group ref={ref} position={position} onClick={(event) => { event.stopPropagation(); onInspect(label); }}>
-    <mesh><sphereGeometry args={[0.045, 14, 10]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.7} /></mesh>
-    <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.11, 0.012, 8, 28]} /><meshBasicMaterial color={color} transparent opacity={0.72} /></mesh>
-    <pointLight intensity={0.65} distance={0.75} color={color} />
-    <Html center position={[0, 0.22, 0]} distanceFactor={8} zIndexRange={[18, 0]} style={{ pointerEvents: 'none' }}><span className="hotspot-label" style={{ '--hotspot': color } as React.CSSProperties}>{visited ? '✓ ' : ''}{label}</span></Html>
+  return <group position={position} onClick={(event) => { event.stopPropagation(); onInspect(label); }}>
+    <group ref={ref}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.055, 0.085, 24]} /><meshBasicMaterial color={color} transparent opacity={visited ? 0.48 : 0.9} depthTest={false} /></mesh>
+    </group>
+    <Html center position={[0, 0.055, 0]} distanceFactor={8} zIndexRange={[18, 0]} style={{ pointerEvents: 'none' }}>
+      <span className="hotspot-label" data-hotspot={label} style={{ '--hotspot': color } as React.CSSProperties}><i>{visited ? '✓' : 'INSPECT'}</i>{displayLabel ?? label}</span>
+    </Html>
   </group>;
 }
 
@@ -852,18 +877,18 @@ function PowderPrep({ controls }: { controls: string[] }) {
   });
   return <group position={[0, 0.18, 0]}>
     <LabBench position={[0, 0, 0.26]} width={2.62} />
-    <mesh position={[-0.32, 2.22, -0.23]} castShadow><cylinderGeometry args={[0.18, 0.18, 0.62, 24]} /><meshStandardMaterial color="#73818a" metalness={0.85} roughness={0.27} /></mesh>
-    <mesh position={[-0.32, 1.88, -0.23]}><torusGeometry args={[0.18, 0.045, 10, 28, Math.PI]} /><meshStandardMaterial color="#5d6c76" metalness={0.84} roughness={0.28} /></mesh>
-    <RoundedBox args={[1.75, 1.72, 0.82]} radius={0.06} smoothness={3} position={[-0.32, 1.18, -0.22]} castShadow>
-      <meshPhysicalMaterial color="#5c6975" roughness={0.25} metalness={0.8} clearcoat={0.45} />
+    <mesh position={[0, 2.22, -0.23]} castShadow><cylinderGeometry args={[0.18, 0.18, 0.62, 24]} /><meshStandardMaterial color="#73818a" metalness={0.72} roughness={0.3} /></mesh>
+    <mesh position={[0, 1.88, -0.23]}><torusGeometry args={[0.18, 0.045, 10, 28, Math.PI]} /><meshStandardMaterial color="#5d6c76" metalness={0.72} roughness={0.3} /></mesh>
+    <RoundedBox args={[2.45, 1.72, 0.82]} radius={0.06} smoothness={3} position={[0, 1.18, -0.22]} castShadow>
+      <meshPhysicalMaterial color="#5c6975" roughness={0.42} metalness={0.06} clearcoat={0.16} />
     </RoundedBox>
-    <mesh position={[-0.32, 1.18, 0.205]}>
-      <planeGeometry args={[1.42, 1.25]} />
+    <mesh position={[0, 1.18, 0.205]}>
+      <planeGeometry args={[2.12, 1.25]} />
       <meshPhysicalMaterial color="#8fc6d1" transparent opacity={0.18} roughness={0.08} metalness={0.1} transmission={0.18} />
     </mesh>
-    <mesh position={[-0.32, 0.56, 0.24]} castShadow><boxGeometry args={[1.5, 0.08, 0.72]} /><meshStandardMaterial color="#263542" metalness={0.55} roughness={0.32} /></mesh>
-    <mesh position={[-0.32, 1.68, 0.225]}><boxGeometry args={[1.32, 0.045, 0.04]} /><meshStandardMaterial color={flowProven ? '#83e7b8' : '#d7f4ff'} emissive={flowProven ? '#2d9c68' : '#a7e9ff'} emissiveIntensity={2.2} /></mesh>
-    <pointLight position={[-0.32, 1.45, 0.45]} intensity={3.2} distance={2.1} color={flowProven ? '#7ee3b4' : '#c7efff'} decay={2} />
+    <mesh position={[0, 0.56, 0.24]} castShadow><boxGeometry args={[2.22, 0.08, 0.72]} /><meshStandardMaterial color="#263542" metalness={0.3} roughness={0.38} /></mesh>
+    <mesh position={[0, 1.68, 0.225]}><boxGeometry args={[2.0, 0.045, 0.04]} /><meshStandardMaterial color={flowProven ? '#83e7b8' : '#d7f4ff'} emissive={flowProven ? '#2d9c68' : '#a7e9ff'} emissiveIntensity={1.4} /></mesh>
+    <pointLight position={[0, 1.45, 0.45]} intensity={2.2} distance={2.1} color={flowProven ? '#7ee3b4' : '#c7efff'} decay={2} />
     <RoundedBox args={[0.58, 0.42, 0.58]} radius={0.045} position={[0.86, 0.7, 0.18]} castShadow>
       <meshStandardMaterial color="#293b4c" metalness={0.45} roughness={0.4} />
     </RoundedBox>
@@ -883,15 +908,46 @@ function PowderPrep({ controls }: { controls: string[] }) {
       <mesh position={[0.86, 1.54, -0.17]}><boxGeometry args={[0.34, 0.08, 0.09]} /><meshStandardMaterial color="#344a53" metalness={0.68} roughness={0.3} /></mesh>
       <mesh position={[0.86, 1.54, -0.12]}><planeGeometry args={[0.22, 0.025]} /><meshBasicMaterial color={draftShieldClosed ? '#51e19a' : '#f4b95f'} /></mesh>
     </group>
-    <group position={[-0.28, 0.66, 0.5]}>
-      <RoundedBox args={[0.46, 0.035, 0.2]} radius={0.02} castShadow><meshStandardMaterial color="#d6dde0" metalness={0.7} roughness={0.22} /></RoundedBox>
-      <mesh position={[0, 0.026, 0]}><boxGeometry args={[0.35, 0.018, 0.11]} /><meshStandardMaterial color="#d7ae63" roughness={0.72} /></mesh>
-      <mesh position={[0.42, 0.04, -0.02]} rotation={[0, 0, Math.PI / 2.7]} castShadow><cylinderGeometry args={[0.018, 0.018, 0.62, 12]} /><meshStandardMaterial color={antistaticProven ? '#6bcf9f' : '#b7c2c8'} emissive={antistaticProven ? '#1f6044' : '#000000'} emissiveIntensity={antistaticProven ? 0.65 : 0} metalness={0.85} roughness={0.18} /></mesh>
-      {antistaticProven && <pointLight position={[0.46, 0.1, 0]} intensity={1.1} distance={0.8} color="#51e19a" decay={2} />}
+    <PowderLotKit antistaticProven={antistaticProven} />
+    <XrdPreparationTools />
+  </group>;
+}
+
+function PowderLotKit({ antistaticProven }: { antistaticProven: boolean }) {
+  return <group position={[-0.3, 0.62, 0.38]}>
+    <RoundedBox args={[1.02, 0.055, 0.42]} radius={0.025} position={[0, 0.02, 0]} castShadow><meshStandardMaterial color="#65757b" metalness={0.72} roughness={0.28} /></RoundedBox>
+    <RoundedBox args={[0.9, 0.018, 0.31]} radius={0.012} position={[-0.06, 0.055, 0]}><meshStandardMaterial color="#d5d9d6" roughness={0.62} /></RoundedBox>
+    {[-0.27, 0, 0.27].map((x, index) => <group key={x} position={[x - 0.08, 0.2, 0]}>
+      <mesh castShadow><cylinderGeometry args={[0.095, 0.085, 0.28, 20]} /><meshPhysicalMaterial color={['#bd825f', '#8caab0', '#c3aa70'][index]} roughness={0.38} clearcoat={0.28} /></mesh>
+      <mesh position={[0, 0.155, 0]}><cylinderGeometry args={[0.082, 0.082, 0.045, 20]} /><meshStandardMaterial color="#d9dfe0" metalness={0.58} roughness={0.22} /></mesh>
+      <mesh position={[0, 0.015, 0.096]}><planeGeometry args={[0.13, 0.075]} /><meshBasicMaterial color="#eee9d8" /></mesh>
+      <mesh position={[0, 0.015, 0.099]}><planeGeometry args={[0.09, 0.012]} /><meshBasicMaterial color={index === 1 ? '#4dd5ed' : '#7a6751'} /></mesh>
+    </group>)}
+    <group position={[0.43, 0.19, -0.02]} rotation={[0, -0.2, 0]}>
+      <RoundedBox args={[0.25, 0.27, 0.2]} radius={0.035} castShadow><meshStandardMaterial color="#33464d" metalness={0.34} roughness={0.38} /></RoundedBox>
+      <mesh position={[0, 0, 0.104]}><planeGeometry args={[0.18, 0.16]} /><meshBasicMaterial color="#122229" /></mesh>
+      {[-0.055, 0, 0.055].map((x) => <mesh key={x} position={[x, 0.025, 0.108]}><circleGeometry args={[0.018, 14]} /><meshStandardMaterial color="#82999e" metalness={0.42} roughness={0.3} /></mesh>)}
+      <mesh position={[0, -0.075, 0.109]}><planeGeometry args={[0.12, 0.018]} /><meshBasicMaterial color={antistaticProven ? '#51e19a' : '#61777e'} /></mesh>
+      {[-0.07, 0.07].map((x) => <mesh key={x} position={[x, -0.155, 0]}><boxGeometry args={[0.035, 0.04, 0.16]} /><meshStandardMaterial color="#27353a" roughness={0.55} /></mesh>)}
+      <Line points={[[0.12, -0.03, -0.08], [0.28, 0.02, -0.12], [0.38, 0.24, -0.2]]} color="#263238" lineWidth={1.25} />
+      {antistaticProven && <pointLight position={[0, 0, 0.16]} intensity={0.45} distance={0.58} color="#51e19a" decay={2} />}
     </group>
-    {[-0.68, -0.32, 0.05].map((x, i) => <group key={x} position={[x, 0.67, 0.38]}>
-      <mesh castShadow><cylinderGeometry args={[0.09, 0.08, 0.28, 18]} /><meshPhysicalMaterial color={['#d5b66e', '#c7795f', '#8bbaca'][i]} roughness={0.36} clearcoat={0.4} /></mesh>
-      <mesh position={[0, 0.16, 0]}><cylinderGeometry args={[0.072, 0.072, 0.04, 18]} /><meshStandardMaterial color="#d6e0e5" metalness={0.62} roughness={0.2} /></mesh>
+  </group>;
+}
+
+function XrdPreparationTools() {
+  return <group position={[-0.53, 0.74, -0.02]}>
+    <RoundedBox args={[0.48, 0.34, 0.42]} radius={0.055} position={[-0.38, 0.12, 0]} castShadow><meshStandardMaterial color="#344750" metalness={0.5} roughness={0.34} /></RoundedBox>
+    <mesh position={[-0.38, 0.31, 0]} castShadow><cylinderGeometry args={[0.15, 0.18, 0.08, 28]} /><meshStandardMaterial color="#aab4b6" metalness={0.8} roughness={0.2} /></mesh>
+    <mesh position={[-0.38, 0.36, 0]}><torusGeometry args={[0.12, 0.018, 10, 26]} /><meshStandardMaterial color="#5d7178" metalness={0.76} roughness={0.22} /></mesh>
+    {[0, 0.08, 0.16].map((y, index) => <group key={y} position={[0.12, y, 0]}>
+      <mesh castShadow><cylinderGeometry args={[0.13 - index * 0.006, 0.13 - index * 0.006, 0.065, 28]} /><meshStandardMaterial color="#9aa8aa" metalness={0.72} roughness={0.23} /></mesh>
+      <mesh position={[0, 0.037, 0]}><torusGeometry args={[0.105 - index * 0.005, 0.01, 8, 24]} /><meshStandardMaterial color="#40565d" metalness={0.68} roughness={0.28} /></mesh>
+    </group>)}
+    <RoundedBox args={[0.42, 0.035, 0.26]} radius={0.02} position={[0.49, -0.1, 0.05]} castShadow><meshStandardMaterial color="#5a6c72" metalness={0.68} roughness={0.25} /></RoundedBox>
+    {[-0.12, 0.12].map((x) => <group key={x} position={[0.49 + x, -0.062, 0.05]}>
+      <mesh><cylinderGeometry args={[0.07, 0.07, 0.018, 24]} /><meshStandardMaterial color="#222f35" metalness={0.58} roughness={0.3} /></mesh>
+      <mesh position={[0, 0.012, 0]}><cylinderGeometry args={[0.052, 0.052, 0.008, 24]} /><meshStandardMaterial color="#c8b273" roughness={0.62} /></mesh>
     </group>)}
   </group>;
 }
@@ -916,12 +972,12 @@ function RobotCell({ active, focused, controls, campaignStage, campaignRunNumber
     <SafetyCage focused={focused} gateClosed={gateClosed} reset={safeguardReset} />
     <RobotArm mode={robotMode} homed={axesHomed && motionPermitted} gripperProven={gripperProven} />
     <RobotProcessFixture mode={robotMode} gripperProven={gripperProven} />
-    <RoundedBox args={[0.72, 1.1, 0.5]} radius={0.05} position={[1.05, 0.72, -0.62]} castShadow>
+    <RoundedBox args={[0.72, 1.1, 0.5]} radius={0.05} position={[1.55, 0.72, 0.55]} castShadow>
       <meshStandardMaterial color="#263745" metalness={0.72} roughness={0.28} />
     </RoundedBox>
-    <mesh position={[1.05, 0.86, -0.365]}><planeGeometry args={[0.48, 0.3]} /><meshBasicMaterial color="#06151a" /></mesh>
-    <mesh position={[1.05, 0.89, -0.37]}><planeGeometry args={[0.34, 0.025]} /><meshBasicMaterial color={motionPermitted ? '#51e19a' : motionHeld ? '#f4b95f' : '#6c7b8a'} /></mesh>
-    <group position={[1.05, 1.43, -0.62]}>
+    <mesh position={[1.55, 0.86, 0.805]}><planeGeometry args={[0.48, 0.3]} /><meshBasicMaterial color="#06151a" /></mesh>
+    <mesh position={[1.55, 0.89, 0.81]}><planeGeometry args={[0.34, 0.025]} /><meshBasicMaterial color={motionPermitted ? '#51e19a' : motionHeld ? '#f4b95f' : '#6c7b8a'} /></mesh>
+    <group position={[1.55, 1.43, 0.55]}>
       <mesh position={[0, -0.12, 0]} castShadow><cylinderGeometry args={[0.026, 0.026, 0.24, 12]} /><meshStandardMaterial color="#66747a" metalness={0.8} roughness={0.22} /></mesh>
       {[
         { y: 0.12, color: '#df5d63', on: motionHeld && !gateClosed },
@@ -929,6 +985,13 @@ function RobotCell({ active, focused, controls, campaignStage, campaignRunNumber
         { y: -0.12, color: '#51e19a', on: motionPermitted },
       ].map((light) => <mesh key={light.y} position={[0, light.y, 0]} castShadow><cylinderGeometry args={[0.072, 0.072, 0.09, 18]} /><meshStandardMaterial color={light.on ? light.color : '#29343a'} emissive={light.on ? light.color : '#000000'} emissiveIntensity={light.on ? 1.4 : 0} roughness={0.28} /></mesh>)}
       <mesh position={[0, 0.19, 0]}><cylinderGeometry args={[0.075, 0.075, 0.025, 18]} /><meshStandardMaterial color="#4c575b" metalness={0.72} roughness={0.25} /></mesh>
+    </group>
+    <group position={[1.28, 1.05, 1.18]} rotation={[0, -0.18, 0]}>
+      <RoundedBox args={[0.22, 0.36, 0.08]} radius={0.035} castShadow><meshStandardMaterial color="#25343b" metalness={0.12} roughness={0.42} /></RoundedBox>
+      <mesh position={[0, 0.055, 0.045]}><planeGeometry args={[0.13, 0.12]} /><meshBasicMaterial color="#07161a" /></mesh>
+      <mesh position={[0, 0.06, 0.05]}><planeGeometry args={[0.085, 0.014]} /><meshBasicMaterial color="#51e19a" /></mesh>
+      <mesh position={[0, -0.105, 0.05]}><circleGeometry args={[0.038, 18]} /><meshStandardMaterial color="#d54f45" emissive="#681c18" emissiveIntensity={0.65} /></mesh>
+      <Line points={[[0.08, -0.18, -0.02], [0.22, -0.36, -0.08], [0.22, -0.7, -0.34]]} color="#202c31" lineWidth={1.6} />
     </group>
   </group>;
 }
@@ -999,7 +1062,7 @@ function RobotArm({ mode, homed, gripperProven }: { mode: 'idle' | 'recovery' | 
     if (elbow.current) elbow.current.rotation.z = THREE.MathUtils.damp(elbow.current.rotation.z, targetElbow, 3.8, delta);
     if (wrist.current) wrist.current.rotation.y = THREE.MathUtils.damp(wrist.current.rotation.y, targetWrist, 4.5, delta);
   });
-  return <group position={[-0.15, 0.08, 0.08]} ref={base}>
+  return <group position={[-0.15, 0.12, 0.08]} scale={0.46} ref={base}>
     <mesh castShadow><cylinderGeometry args={[0.46, 0.55, 0.25, 32]} /><meshPhysicalMaterial color="#53626c" metalness={0.82} roughness={0.25} clearcoat={0.32} /></mesh>
     <mesh position={[0, 0.16, 0]} castShadow><cylinderGeometry args={[0.35, 0.4, 0.14, 32]} /><meshStandardMaterial color="#202e37" metalness={0.78} roughness={0.28} /></mesh>
     <mesh position={[0, 0.245, 0]}><torusGeometry args={[0.29, 0.025, 10, 32]} /><meshStandardMaterial color="#4c8795" metalness={0.68} roughness={0.26} /></mesh>
@@ -1049,7 +1112,13 @@ function RobotProcessFixture({ mode, gripperProven }: { mode: 'idle' | 'recovery
   return <group>
     <group position={[-0.86, 0.3, 0.58]}>
       <RoundedBox args={[1.18, 0.1, 0.82]} radius={0.04} castShadow><meshStandardMaterial color="#4c5960" metalness={0.72} roughness={0.3} /></RoundedBox>
-      {slots.map(([x, , z], index) => <group key={`${x}-${z}`} position={[x, 0.12, z]}><mesh castShadow><cylinderGeometry args={[0.105, 0.09, 0.18, 20]} /><meshPhysicalMaterial color="#c8c1ad" roughness={0.46} clearcoat={0.1} /></mesh><mesh position={[0, 0.1, 0]}><torusGeometry args={[0.083, 0.014, 8, 20]} /><meshStandardMaterial color="#e0dac6" roughness={0.38} /></mesh>{mode === 'dose' && <mesh position={[0, 0.105, 0]}><circleGeometry args={[0.065, 18]} /><meshStandardMaterial ref={(material) => { powderMaterials.current[index] = material; }} color="#403930" roughness={0.72} /></mesh>}</group>)}
+      {slots.map(([x, , z], index) => <group key={`${x}-${z}`} position={[x, 0.12, z]}>
+        <mesh position={[0, -0.03, 0]}><cylinderGeometry args={[0.118, 0.118, 0.025, 24]} /><meshStandardMaterial color="#27343a" metalness={0.74} roughness={0.28} /></mesh>
+        <mesh castShadow><cylinderGeometry args={[0.095, 0.08, 0.16, 28, 1, true]} /><meshPhysicalMaterial color="#d7d0bc" roughness={0.48} clearcoat={0.08} side={THREE.DoubleSide} /></mesh>
+        <mesh position={[0, -0.078, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[0.078, 24]} /><meshStandardMaterial color="#c8c0ab" roughness={0.5} /></mesh>
+        <mesh position={[0, 0.083, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[0.088, 0.006, 8, 28]} /><meshStandardMaterial color="#eee8d8" roughness={0.36} /></mesh>
+        <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[0.074, 24]} /><meshStandardMaterial ref={(material) => { powderMaterials.current[index] = material; }} color={mode === 'dose' ? '#403930' : '#3a3832'} roughness={0.72} /></mesh>
+      </group>)}
       {mode === 'dose' && <group ref={doseMarker} position={[slots[0][0], 0.5, slots[0][2]]}><mesh><cylinderGeometry args={[0.018, 0.035, 0.48, 12]} /><meshBasicMaterial color="#dfb56b" transparent opacity={0.72} /></mesh><pointLight intensity={0.45} distance={0.75} color="#f4b95f" /></group>}
     </group>
     <group position={[0.84, 0.31, 0.62]}>
@@ -1061,7 +1130,7 @@ function RobotProcessFixture({ mode, gripperProven }: { mode: 'idle' | 'recovery
   </group>;
 }
 
-function Furnace({ active, controls, scenarioId, phase, thermalBayLevel, campaignStage, campaignRunNumber }: { active: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number; campaignStage: number; campaignRunNumber: number }) {
+function Furnace({ active, focused, controls, scenarioId, phase, thermalBayLevel, campaignStage, campaignRunNumber }: { active: boolean; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number; thermalBayLevel: number; campaignStage: number; campaignRunNumber: number }) {
   const campaignOperations = getCampaignOperations(campaignRunNumber, thermalBayLevel);
   const relayRead = controls.includes('Read overtemperature relay');
   const doorVerified = controls.includes('Verify door chain');
@@ -1083,9 +1152,9 @@ function Furnace({ active, controls, scenarioId, phase, thermalBayLevel, campaig
   const statusGreen = relayRead || recovered || tcHeld && offsetApplied;
   const doorGreen = doorVerified || recovered || sealHeld && latchAdjusted;
   const dualChamber = scenarioId === 'xrd' && thermalBayLevel >= 2;
-  return <group position={[0, 0.18, 0]}>
+  return <group position={[0, 0.18, 0]} scale={0.78}>
     <RoundedBox args={[dualChamber ? 2.62 : 2.05, 2.22, 1.5]} radius={0.09} smoothness={4} position={[0, 1.15, 0]} castShadow>
-      <meshPhysicalMaterial color="#59636a" metalness={0.9} roughness={0.2} clearcoat={0.34} />
+      <meshPhysicalMaterial color="#59636a" metalness={0.05} roughness={0.43} clearcoat={0.12} />
     </RoundedBox>
     {(dualChamber ? [-0.62, 0.62] : [0]).map((chamberX, index) => {
       const doorWidth = dualChamber ? 1.08 : 1.52;
@@ -1098,10 +1167,10 @@ function Furnace({ active, controls, scenarioId, phase, thermalBayLevel, campaig
         <meshStandardMaterial color="#15191c" metalness={0.6} roughness={0.38} />
       </RoundedBox>
       <RoundedBox args={[doorWidth - 0.18, 0.93, 0.075]} radius={0.035} position={[chamberX, 1.38, 0.87]} castShadow><meshPhysicalMaterial color="#252d30" metalness={0.84} roughness={0.27} clearcoat={0.22} /></RoundedBox>
-      <mesh position={[chamberX, 1.43, 0.912]}><planeGeometry args={[dualChamber ? 0.46 : 0.66, 0.3]} /><meshStandardMaterial color={index === 1 ? '#101d18' : chamberColor} emissive={index === 1 ? '#1f6b4a' : chamberEmissive} emissiveIntensity={index === 1 ? 0.34 : chamberIntensity * 0.42} roughness={0.78} /></mesh>
+      <mesh position={[chamberX, 1.43, 0.912]}><planeGeometry args={[dualChamber ? 0.46 : 0.66, 0.3]} /><meshStandardMaterial color={focused ? index === 1 ? '#101d18' : chamberColor : '#161c1f'} emissive={focused ? index === 1 ? '#1f6b4a' : chamberEmissive : '#000000'} emissiveIntensity={focused ? index === 1 ? 0.34 : chamberIntensity * 0.42 : 0} roughness={0.78} /></mesh>
       <mesh position={[chamberX, 1.43, 0.918]}><planeGeometry args={[dualChamber ? 0.5 : 0.7, 0.34]} /><meshStandardMaterial color="#222a2c" transparent opacity={0.22} metalness={0.34} roughness={0.18} /></mesh>
       <mesh position={[chamberX, 1.87, 0.914]}><planeGeometry args={[dualChamber ? 0.54 : 0.76, 0.055]} /><meshBasicMaterial color={chamberStatusColor} /></mesh>
-      <pointLight position={[chamberX, 1.43, 1.02]} intensity={index === 1 ? 0.55 : recovered ? 0.8 : conditionHeld ? 0.3 : emptyConfirmed && !active ? 0.55 : active ? 3.8 : recoveryScenario ? 1.7 : 0.75} color={chamberStatusColor} distance={1.45} decay={2} />
+      {focused && <pointLight position={[chamberX, 1.43, 1.02]} intensity={index === 1 ? 0.55 : recovered ? 0.8 : conditionHeld ? 0.3 : emptyConfirmed && !active ? 0.55 : active ? 2.2 : recoveryScenario ? 1.2 : 0.55} color={chamberStatusColor} distance={1.45} decay={2} />}
       {[1.08, 1.68].map((hingeY) => <mesh key={hingeY} position={[hingeX, hingeY, 0.91]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.035, 0.035, 0.16, 14]} /><meshStandardMaterial color="#a7b0b4" metalness={0.9} roughness={0.14} /></mesh>)}
       <mesh position={[handleX, 1.38, 0.925]} rotation={[0, 0, sealHeld && !latchAdjusted && index === 1 ? -0.09 : 0]} castShadow><boxGeometry args={[0.065, 0.58, 0.075]} /><meshStandardMaterial color={doorGreen && index === 1 ? '#64d49f' : conditionHeld && index === 1 ? '#c88b58' : '#9aa3a8'} emissive={doorGreen && index === 1 ? '#1c6545' : conditionHeld && index === 1 ? '#5f321c' : '#000000'} emissiveIntensity={doorGreen && index === 1 || conditionHeld && index === 1 ? 0.45 : 0} metalness={0.9} roughness={0.16} /></mesh>
       <mesh position={[handleX - hardwareSide * 0.075, 1.38, 0.965]} rotation={[0, 0, Math.PI / 2]} castShadow><cylinderGeometry args={[0.035, 0.035, 0.18, 14]} /><meshStandardMaterial color="#b2b9bc" metalness={0.92} roughness={0.13} /></mesh>
@@ -1125,26 +1194,38 @@ function Furnace({ active, controls, scenarioId, phase, thermalBayLevel, campaig
       <mesh castShadow><cylinderGeometry args={[0.18, 0.23, 0.54, 24]} /><meshStandardMaterial color="#68747a" metalness={0.88} roughness={0.2} /></mesh>
       <mesh position={[0, 0.3, 0]}><cylinderGeometry args={[0.25, 0.18, 0.08, 24]} /><meshStandardMaterial color="#47545b" metalness={0.82} roughness={0.25} /></mesh>
     </group>
+    <mesh position={[0.62, 2.79, -0.1]} castShadow><cylinderGeometry args={[0.065, 0.065, 0.26, 20]} /><meshStandardMaterial color="#68767b" metalness={0.72} roughness={0.28} /></mesh>
+    <mesh position={[0.62, 2.92, -0.14]} castShadow><sphereGeometry args={[0.075, 20, 14]} /><meshStandardMaterial color="#68767b" metalness={0.72} roughness={0.28} /></mesh>
+    <mesh position={[0.62, 2.92, -0.41]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.065, 0.065, 0.54, 20]} /><meshStandardMaterial color="#68767b" metalness={0.72} roughness={0.28} /></mesh>
+    <mesh position={[0.62, 2.92, -0.69]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.075, 0.018, 10, 24]} /><meshStandardMaterial color="#89969a" metalness={0.78} roughness={0.24} /></mesh>
+    <group position={[-0.86, 0.62, -0.62]}>
+      <RoundedBox args={[0.38, 0.64, 0.18]} radius={0.035} castShadow><meshStandardMaterial color="#34454b" metalness={0.12} roughness={0.44} /></RoundedBox>
+      <mesh position={[0, 0.16, 0.095]}><planeGeometry args={[0.22, 0.09]} /><meshBasicMaterial color="#09171c" /></mesh>
+      <mesh position={[0, 0.17, 0.1]}><planeGeometry args={[0.14, 0.014]} /><meshBasicMaterial color={active ? '#f4b95f' : '#607984'} /></mesh>
+      <mesh position={[0, -0.13, 0.1]}><circleGeometry args={[0.04, 18]} /><meshStandardMaterial color="#d44e43" emissive="#621914" emissiveIntensity={0.45} /></mesh>
+      <Line points={[[0.18, -0.16, -0.04], [0.42, -0.3, -0.02], [0.55, -0.32, 0.2]]} color="#26343a" lineWidth={1.45} />
+    </group>
   </group>;
 }
 
-function Xrd({ active, controls }: { active: boolean; controls: string[] }) {
+function Xrd({ active, focused, controls, scenarioId, phase }: { active: boolean; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number }) {
   const stage = useRef<THREE.Group>(null);
   const enclosureDoor = useRef<THREE.Group>(null);
   const homed = controls.includes('Home specimen stage');
   const enclosureClosed = controls.includes('Close radiation enclosure');
+  const acquisitionInterlock = scenarioId === 'xrd' && phase === 3;
   const shutterProven = controls.includes('Prove shutter feedback');
-  const referenceRead = controls.includes('Read reference position');
+  const referenceRead = controls.includes('Read silicon QC position');
   useFrame((_, delta) => {
     if (stage.current) stage.current.rotation.y = THREE.MathUtils.damp(stage.current.rotation.y, homed ? 0 : 0.55, 3.2, delta);
-    if (enclosureDoor.current) enclosureDoor.current.position.x = THREE.MathUtils.damp(enclosureDoor.current.position.x, enclosureClosed ? -0.12 : 1.96, 3.4, delta);
+    if (enclosureDoor.current) enclosureDoor.current.position.x = THREE.MathUtils.damp(enclosureDoor.current.position.x, enclosureClosed || acquisitionInterlock || !focused ? -0.12 : 1.96, 3.4, delta);
   });
-  return <group position={[0, 0.18, 0]}>
+  return <group position={[0, 0.1, 0]} scale={[0.64, 0.82, 0.75]}>
     <RoundedBox args={[2.5, 2.25, 1.55]} radius={0.18} smoothness={5} position={[0, 1.15, 0]} castShadow>
-      <meshPhysicalMaterial color="#d3d8da" metalness={0.72} roughness={0.2} clearcoat={0.55} />
+      <meshPhysicalMaterial color="#d3d8da" metalness={0.03} roughness={0.36} clearcoat={0.12} />
     </RoundedBox>
     <RoundedBox args={[1.92, 1.43, 0.08]} radius={0.12} position={[-0.12, 1.37, 0.795]}>
-      <meshPhysicalMaterial color="#10212b" transparent opacity={0.72} roughness={0.06} metalness={0.1} transmission={0.18} />
+      <meshPhysicalMaterial color="#10212b" transparent={focused} opacity={focused ? 0.7 : 1} roughness={focused ? 0.08 : 0.38} metalness={0.05} transmission={focused ? 0.12 : 0} />
     </RoundedBox>
     <group position={[-0.12, 1.25, 0.86]}>
       <mesh><torusGeometry args={[0.55, 0.07, 16, 64, Math.PI * 1.55]} /><meshStandardMaterial color="#8499a8" metalness={0.88} roughness={0.18} emissive={active ? '#174d59' : '#000000'} /></mesh>
@@ -1155,7 +1236,10 @@ function Xrd({ active, controls }: { active: boolean; controls: string[] }) {
         <mesh position={[0.11, -0.066, 0]}><boxGeometry args={[0.055, 0.02, 0.018]} /><meshStandardMaterial color="#e7d8a5" emissive={homed ? '#51e19a' : '#000000'} emissiveIntensity={homed ? 0.6 : 0} /></mesh>
       </group>
       <mesh position={[-0.46, 0.28, 0]} rotation={[0, 0, -0.72]} castShadow><boxGeometry args={[0.2, 0.42, 0.18]} /><meshStandardMaterial color="#bec8cc" metalness={0.76} roughness={0.22} /></mesh>
+      <mesh position={[-0.35, 0.15, 0.01]} rotation={[0, 0, -0.72]} castShadow><cylinderGeometry args={[0.045, 0.065, 0.2, 18]} /><meshStandardMaterial color="#4f626b" metalness={0.8} roughness={0.2} /></mesh>
+      <mesh position={[-0.5, 0.34, 0.095]} rotation={[0, 0, -0.72]}><planeGeometry args={[0.11, 0.035]} /><meshBasicMaterial color={shutterProven ? '#51e19a' : '#f4b95f'} /></mesh>
       <mesh position={[0.46, 0.29, 0]} rotation={[0, 0, 0.7]} castShadow><boxGeometry args={[0.22, 0.48, 0.2]} /><meshStandardMaterial color="#617380" metalness={0.8} roughness={0.2} /></mesh>
+      <mesh position={[0.34, 0.15, 0.01]} rotation={[0, 0, 0.7]} castShadow><cylinderGeometry args={[0.05, 0.075, 0.21, 18]} /><meshStandardMaterial color="#364b57" metalness={0.82} roughness={0.2} /></mesh>
       {[-0.47, 0.47].map((x) => <group key={x} position={[x, 0.08, 0.005]}>
         <mesh><cylinderGeometry args={[0.13, 0.13, 0.08, 24]} /><meshStandardMaterial color="#455b68" metalness={0.86} roughness={0.18} /></mesh>
         <mesh position={[0, 0.047, 0]}><torusGeometry args={[0.085, 0.014, 8, 24]} /><meshStandardMaterial color="#aab7bc" metalness={0.9} roughness={0.14} /></mesh>
@@ -1176,7 +1260,7 @@ function Xrd({ active, controls }: { active: boolean; controls: string[] }) {
       <mesh position={[0, 0.67, 0]} castShadow><boxGeometry args={[2.02, 0.085, 0.09]} /><meshPhysicalMaterial color="#6d7d84" metalness={0.88} roughness={0.2} clearcoat={0.28} /></mesh>
       <mesh position={[0, -0.67, 0]} castShadow><boxGeometry args={[2.02, 0.085, 0.09]} /><meshPhysicalMaterial color="#6d7d84" metalness={0.88} roughness={0.2} clearcoat={0.28} /></mesh>
       {[-0.97, 0.97].map((x) => <mesh key={x} position={[x, 0, 0]} castShadow><boxGeometry args={[0.085, 1.42, 0.09]} /><meshPhysicalMaterial color="#687980" metalness={0.88} roughness={0.2} clearcoat={0.28} /></mesh>)}
-      <mesh position={[0, 0, 0.01]}><planeGeometry args={[1.84, 1.25]} /><meshPhysicalMaterial color="#7699a0" transparent opacity={enclosureClosed ? 0.28 : 0.18} transmission={0.24} roughness={0.08} metalness={0.12} /></mesh>
+      <mesh position={[0, 0, 0.01]}><planeGeometry args={[1.84, 1.25]} /><meshPhysicalMaterial color={focused ? '#7699a0' : '#26343a'} transparent={focused} opacity={focused ? enclosureClosed ? 0.28 : 0.18 : 1} transmission={focused ? 0.18 : 0} roughness={focused ? 0.08 : 0.42} metalness={0.06} /></mesh>
       <mesh position={[-0.78, 0.47, 0.07]}><planeGeometry args={[0.23, 0.2]} /><meshBasicMaterial color="#d9b94f" /></mesh>
       <mesh position={[-0.78, 0.47, 0.076]} rotation={[0, 0, 0.78]}><boxGeometry args={[0.14, 0.02, 0.008]} /><meshBasicMaterial color="#252a28" /></mesh>
       <group position={[0.82, -0.48, 0.08]}>
@@ -1186,6 +1270,14 @@ function Xrd({ active, controls }: { active: boolean; controls: string[] }) {
     </group>
     <mesh position={[-0.12, 2.13, 0.9]} castShadow><boxGeometry args={[2.12, 0.07, 0.12]} /><meshStandardMaterial color="#52636a" metalness={0.86} roughness={0.22} /></mesh>
     <mesh position={[-0.12, 0.64, 0.9]} castShadow><boxGeometry args={[2.12, 0.07, 0.12]} /><meshStandardMaterial color="#52636a" metalness={0.86} roughness={0.22} /></mesh>
+    <group position={[-1.22, 0.47, -0.58]}>
+      <RoundedBox args={[0.72, 0.86, 0.62]} radius={0.055} castShadow><meshPhysicalMaterial color="#9ca8aa" metalness={0.05} roughness={0.42} clearcoat={0.08} /></RoundedBox>
+      {[-0.2, -0.1, 0, 0.1, 0.2].map((y) => <mesh key={y} position={[0, y, 0.32]}><planeGeometry args={[0.42, 0.025]} /><meshBasicMaterial color="#3f5157" /></mesh>)}
+      <mesh position={[0, 0.3, 0.325]}><planeGeometry args={[0.34, 0.08]} /><meshBasicMaterial color="#102129" /></mesh>
+      <mesh position={[-0.1, 0.3, 0.33]}><planeGeometry args={[0.1, 0.014]} /><meshBasicMaterial color="#51e19a" /></mesh>
+      <Line points={[[0.28, 0.2, -0.04], [0.58, 0.48, -0.02], [0.72, 0.76, 0.18]]} color="#4d7482" lineWidth={1.5} />
+      <Line points={[[0.3, 0.06, -0.08], [0.66, 0.26, -0.08], [0.76, 0.58, 0.12]]} color="#53636b" lineWidth={1.35} />
+    </group>
   </group>;
 }
 
@@ -1195,13 +1287,25 @@ function SemEds({ active, controls }: { active: boolean; controls: string[] }) {
   const clearanceVerified = controls.includes('Verify stage clearance');
   const detectorsArmed = controls.includes('Arm BSE / EDS detectors');
   return <group position={[0, 0.18, 0]}>
+    <RoundedBox args={[1.64, 0.46, 1.18]} radius={0.1} smoothness={4} position={[-0.22, 0.15, 0.04]} castShadow>
+      <meshPhysicalMaterial color="#66757c" metalness={0.1} roughness={0.4} clearcoat={0.1} />
+    </RoundedBox>
+    <RoundedBox args={[1.26, 0.19, 0.055]} radius={0.025} position={[-0.22, 0.16, 0.635]}><meshStandardMaterial color="#26363e" metalness={0.52} roughness={0.34} /></RoundedBox>
+    {[-0.66, 0.22].flatMap((x) => [-0.38, 0.38].map((z) => <group key={`${x}-${z}`} position={[x, -0.055, z]}>
+      <mesh castShadow><cylinderGeometry args={[0.09, 0.11, 0.09, 18]} /><meshStandardMaterial color="#26343a" metalness={0.72} roughness={0.3} /></mesh>
+      <mesh position={[0, 0.047, 0]}><cylinderGeometry args={[0.065, 0.075, 0.018, 18]} /><meshStandardMaterial color="#8b999d" metalness={0.84} roughness={0.18} /></mesh>
+    </group>))}
     <RoundedBox args={[1.58, 0.78, 1.34]} radius={0.22} smoothness={5} position={[-0.25, 0.62, 0.06]} castShadow>
-      <meshPhysicalMaterial color="#8c999f" metalness={0.9} roughness={0.18} clearcoat={0.42} />
+      <meshPhysicalMaterial color="#8c999f" metalness={0.08} roughness={0.38} clearcoat={0.12} />
     </RoundedBox>
     <mesh position={[-0.25, 1.12, 0.04]} castShadow><cylinderGeometry args={[0.38, 0.52, 0.45, 32]} /><meshStandardMaterial color="#657783" metalness={0.86} roughness={0.2} /></mesh>
-    <mesh position={[-0.25, 1.72, 0.04]} castShadow><cylinderGeometry args={[0.17, 0.3, 0.83, 32]} /><meshPhysicalMaterial color="#d0d5d4" metalness={0.82} roughness={0.2} clearcoat={0.4} /></mesh>
+    <mesh position={[-0.25, 1.72, 0.04]} castShadow><cylinderGeometry args={[0.17, 0.3, 0.83, 32]} /><meshPhysicalMaterial color="#d0d5d4" metalness={0.06} roughness={0.36} clearcoat={0.12} /></mesh>
     <mesh position={[-0.25, 2.24, 0.04]} castShadow><cylinderGeometry args={[0.24, 0.17, 0.28, 32]} /><meshStandardMaterial color="#6d7b82" metalness={0.85} roughness={0.2} /></mesh>
     {[1.36, 1.6, 1.94, 2.18].map((y, index) => <mesh key={y} position={[-0.25, y, 0.04]} castShadow><cylinderGeometry args={[0.22 - index * 0.018, 0.22 - index * 0.018, 0.055, 28]} /><meshStandardMaterial color={index === 3 && beamBlanked ? '#548675' : index % 2 ? '#89969b' : '#3f505a'} emissive={index === 3 && beamBlanked ? '#245e45' : '#000000'} emissiveIntensity={index === 3 && beamBlanked ? 0.75 : 0} metalness={0.86} roughness={0.18} /></mesh>)}
+    <group position={[-0.25, 1.28, 0.04]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[0.17, 0.024, 10, 32]} /><meshStandardMaterial color={detectorsArmed ? '#77a896' : '#6f7e82'} emissive={detectorsArmed ? '#1e6047' : '#000000'} emissiveIntensity={detectorsArmed ? 0.55 : 0} metalness={0.76} roughness={0.22} /></mesh>
+      <mesh position={[0, -0.025, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.07, 0.145, 32]} /><meshStandardMaterial color="#26373d" metalness={0.54} roughness={0.28} side={THREE.DoubleSide} /></mesh>
+    </group>
     <Line points={[[-0.25, 2.04, 0.76], [-0.25, 0.65, 0.76]]} color={vacuumEstablished ? '#51e19a' : '#4dd5ed'} lineWidth={vacuumEstablished || active ? 1.3 : 0.5} transparent opacity={vacuumEstablished || active ? 0.9 : 0.25} />
     <mesh position={[-0.25, 0.62, 0.76]}><circleGeometry args={[0.22, 32]} /><meshPhysicalMaterial color="#14242d" metalness={0.55} roughness={0.16} /></mesh>
     <mesh position={[-0.25, 0.62, 0.775]}><torusGeometry args={[0.29, 0.045, 12, 40]} /><meshStandardMaterial color={vacuumEstablished ? '#51e19a' : '#71828b'} emissive={vacuumEstablished ? '#1d6645' : '#000000'} emissiveIntensity={vacuumEstablished ? 0.7 : 0} metalness={0.9} roughness={0.15} /></mesh>
@@ -1210,12 +1314,12 @@ function SemEds({ active, controls }: { active: boolean; controls: string[] }) {
     <group position={[-0.82, 0.58, 0.62]} rotation={[0, 0, Math.PI / 2]}>
       <mesh castShadow><cylinderGeometry args={[0.1, 0.1, 0.34, 22]} /><meshStandardMaterial color="#52636d" metalness={0.82} roughness={0.24} /></mesh>
       <mesh position={[0, 0.21, 0]}><cylinderGeometry args={[0.15, 0.15, 0.08, 24]} /><meshStandardMaterial color="#87949a" metalness={0.9} roughness={0.16} /></mesh>
-      <mesh position={[0, -0.2, 0]}><torusGeometry args={[0.11, 0.022, 10, 24]} /><meshStandardMaterial color="#aab3b6" metalness={0.9} roughness={0.14} /></mesh>
+      <mesh position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[0.11, 0.022, 10, 24]} /><meshStandardMaterial color="#aab3b6" metalness={0.9} roughness={0.14} /></mesh>
     </group>
     <group position={[0.36, 1.18, 0.48]} rotation={[0, 0, 0.96]}>
       <mesh castShadow><cylinderGeometry args={[0.1, 0.14, 0.5, 24]} /><meshPhysicalMaterial color={detectorsArmed ? '#8aa99e' : '#768894'} emissive={detectorsArmed ? '#1d5c45' : '#000000'} emissiveIntensity={detectorsArmed ? 0.55 : 0} metalness={0.86} roughness={0.2} clearcoat={0.35} /></mesh>
       <mesh position={[0, -0.3, 0]}><cylinderGeometry args={[0.06, 0.09, 0.14, 20]} /><meshStandardMaterial color="#303f49" metalness={0.8} roughness={0.22} /></mesh>
-      <mesh position={[0, 0.29, 0]}><torusGeometry args={[0.12, 0.025, 10, 24]} /><meshStandardMaterial color="#a2adb1" metalness={0.9} roughness={0.16} /></mesh>
+      <mesh position={[0, 0.29, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[0.12, 0.025, 10, 24]} /><meshStandardMaterial color="#a2adb1" metalness={0.9} roughness={0.16} /></mesh>
     </group>
     <group position={[-0.76, 1.28, 0.28]} rotation={[0, 0, -0.88]}>
       <mesh castShadow><cylinderGeometry args={[0.075, 0.11, 0.42, 22]} /><meshPhysicalMaterial color="#596d78" metalness={0.86} roughness={0.2} clearcoat={0.24} /></mesh>
@@ -1237,79 +1341,109 @@ function SemEds({ active, controls }: { active: boolean; controls: string[] }) {
       <mesh position={[0, 0.1, 0]}><cylinderGeometry args={[0.045, 0.06, 0.45, 16]} /><meshStandardMaterial color="#667987" metalness={0.72} /></mesh>
       <mesh position={[0, -0.1, 0]}><boxGeometry args={[0.74, 0.06, 0.42]} /><meshStandardMaterial color="#394b58" metalness={0.65} /></mesh>
     </group>
+    <SemPreparationModule active={active} />
   </group>;
 }
 
-function Bet({ active, tone, controls }: { active: boolean; tone: string; controls: string[] }) {
+function SemPreparationModule({ active }: { active: boolean }) {
+  return <group position={[1.15, 0.44, -0.62]}>
+    <RoundedBox args={[0.72, 0.5, 0.6]} radius={0.075} castShadow><meshStandardMaterial color="#34474f" metalness={0.58} roughness={0.32} /></RoundedBox>
+    <mesh position={[0, 0.34, 0]} castShadow><cylinderGeometry args={[0.24, 0.3, 0.23, 32]} /><meshPhysicalMaterial color="#8da6aa" transparent opacity={0.38} transmission={0.16} roughness={0.12} metalness={0.08} /></mesh>
+    <mesh position={[0, 0.21, 0]}><cylinderGeometry args={[0.3, 0.3, 0.06, 32]} /><meshStandardMaterial color="#707f83" metalness={0.84} roughness={0.18} /></mesh>
+    {[-0.12, 0, 0.12].map((x) => <mesh key={x} position={[x, 0.25, 0]}><cylinderGeometry args={[0.035, 0.04, 0.03, 16]} /><meshStandardMaterial color="#c7cfd0" metalness={0.82} roughness={0.18} /></mesh>)}
+    <mesh position={[0, 0.02, 0.306]}><planeGeometry args={[0.48, 0.16]} /><meshBasicMaterial color="#07161a" /></mesh>
+    <mesh position={[0, 0.04, 0.31]}><planeGeometry args={[0.28, 0.02]} /><meshBasicMaterial color={active ? '#51e19a' : '#4dd5ed'} /></mesh>
+    <Line points={[[0.3, 0.12, -0.12], [0.48, 0.42, -0.16], [0.42, 0.66, -0.06]]} color="#435b62" lineWidth={1.1} />
+  </group>;
+}
+
+function Bet({ active, focused, tone, controls }: { active: boolean; focused: boolean; tone: string; controls: string[] }) {
   const dewarLift = useRef<THREE.Group>(null);
   const portsIsolated = controls.includes('Isolate analysis ports');
   const leakCheckPassed = controls.includes('Run manifold leak check');
   const gasProven = controls.includes('Prove N₂ supply state');
   const dewarPositioned = controls.includes('Position 77 K Dewar');
   useFrame((_, delta) => {
-    if (dewarLift.current) dewarLift.current.position.y = THREE.MathUtils.damp(dewarLift.current.position.y, dewarPositioned ? 0.99 : 0.51, 3.4, delta);
+    if (dewarLift.current) dewarLift.current.position.y = THREE.MathUtils.damp(dewarLift.current.position.y, dewarPositioned ? 0.92 : 0.43, 3.4, delta);
   });
   return <group position={[0, 0.18, 0]}>
-    <RoundedBox args={[2.0, 2.2, 1.42]} radius={0.1} smoothness={4} position={[-0.28, 1.14, 0]} castShadow>
-      <meshPhysicalMaterial color="#4b5b67" metalness={0.78} roughness={0.25} clearcoat={0.4} />
-    </RoundedBox>
-    <RoundedBox args={[1.48, 1.2, 0.08]} radius={0.05} position={[-0.28, 1.4, 0.735]}>
-      <meshPhysicalMaterial color="#0b1920" transparent opacity={0.82} roughness={0.08} transmission={0.12} />
-    </RoundedBox>
-    {[-0.72, -0.42, -0.13, 0.16].map((x, i) => <group key={x} position={[x, 1.4, 0.8]}>
-      <mesh><cylinderGeometry args={[0.045, 0.055, 0.72, 18]} /><meshPhysicalMaterial color="#c4d9de" transparent opacity={0.58} roughness={0.08} /></mesh>
-      <mesh position={[0, -0.39, 0]}><sphereGeometry args={[0.095, 18, 12]} /><meshStandardMaterial color={leakCheckPassed ? '#51e19a' : active && i !== 2 ? '#b48cff' : '#6f8390'} emissive={leakCheckPassed ? '#24744f' : active && i !== 2 ? '#5f36a0' : '#000000'} emissiveIntensity={leakCheckPassed || active ? 1.3 : 0} /></mesh>
-      <mesh position={[0, 0.39, 0]}><cylinderGeometry args={[0.07, 0.07, 0.06, 18]} /><meshStandardMaterial color="#b7c4c8" metalness={0.82} roughness={0.18} /></mesh>
-      <mesh position={[0, 0.47, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.085, 0.016, 8, 20]} /><meshStandardMaterial color={i === 2 ? '#b7853d' : '#688796'} metalness={0.72} roughness={0.25} /></mesh>
-      <mesh position={[0, -0.48, 0]}><cylinderGeometry args={[0.125, 0.145, 0.18, 22]} /><meshPhysicalMaterial color="#8a9aa2" metalness={0.7} roughness={0.22} clearcoat={0.25} /></mesh>
+    {[-0.54, 0.16].map((x, moduleIndex) => <group key={x} position={[x, 0, 0]}>
+      <RoundedBox args={[0.62, 1.02, 0.72]} radius={0.06} position={[0, 0.66, 0]} castShadow>
+        <meshPhysicalMaterial color={moduleIndex === 0 ? '#d0d4d3' : '#c5cbca'} metalness={0.03} roughness={0.38} clearcoat={0.1} />
+      </RoundedBox>
+      <RoundedBox args={[0.46, 0.2, 0.025]} radius={0.025} position={[0, 0.78, 0.374]}>
+        <meshBasicMaterial color="#0b171c" />
+      </RoundedBox>
+      <mesh position={[-0.08, 0.81, 0.39]}><planeGeometry args={[0.2, 0.022]} /><meshBasicMaterial color={active ? '#b48cff' : '#64818d'} /></mesh>
+      {[0.1, -0.02, -0.14].map((y, index) => <mesh key={y} position={[0.19, 0.78 + y, 0.39]}><circleGeometry args={[0.018, 14]} /><meshStandardMaterial color={index === 0 && leakCheckPassed ? '#51e19a' : '#66777c'} emissive={index === 0 && leakCheckPassed ? '#205e43' : '#000000'} emissiveIntensity={0.65} /></mesh>)}
+      <mesh position={[0, 0.17, 0.35]}><boxGeometry args={[0.42, 0.12, 0.05]} /><meshStandardMaterial color="#24343a" roughness={0.42} /></mesh>
     </group>)}
-    <group ref={dewarLift} position={[-0.28, 0.51, 0.86]}>
-      <RoundedBox args={[1.42, 0.54, 0.58]} radius={0.1} smoothness={4} castShadow>
-        <meshPhysicalMaterial color="#b8c4c7" metalness={0.9} roughness={0.16} clearcoat={0.5} />
-      </RoundedBox>
-      <RoundedBox args={[1.22, 0.43, 0.48]} radius={0.075} smoothness={4} position={[0, 0.075, 0.012]}>
-        <meshPhysicalMaterial color="#182b34" metalness={0.42} roughness={0.18} clearcoat={0.3} />
-      </RoundedBox>
-      <mesh position={[0, 0.295, 0.03]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[1.08, 0.36]} />
-        <meshPhysicalMaterial color="#83d9ef" emissive="#327d99" emissiveIntensity={dewarPositioned ? 0.65 : 0.2} transparent opacity={0.62} roughness={0.08} transmission={0.22} />
-      </mesh>
-      {[-0.44, -0.14, 0.15, 0.44].map((x) => <mesh key={x} position={[x, 0.3, 0.03]}><torusGeometry args={[0.092, 0.015, 8, 22]} /><meshStandardMaterial color="#778d96" metalness={0.86} roughness={0.17} /></mesh>)}
-      <mesh position={[0, -0.32, -0.08]} castShadow><boxGeometry args={[0.5, 0.12, 0.42]} /><meshStandardMaterial color="#465a65" metalness={0.78} roughness={0.27} /></mesh>
-      <mesh position={[0, -0.43, -0.08]} castShadow><cylinderGeometry args={[0.08, 0.1, 0.2, 18]} /><meshStandardMaterial color="#5d7079" metalness={0.8} roughness={0.23} /></mesh>
-      <RoundedBox args={[0.62, 0.19, 0.025]} radius={0.018} position={[0.25, -0.06, 0.3]}>
-        <meshPhysicalMaterial color="#172a32" metalness={0.48} roughness={0.24} clearcoat={0.26} />
-      </RoundedBox>
-      <mesh position={[0.13, -0.025, 0.316]}><planeGeometry args={[0.25, 0.026]} /><meshBasicMaterial color={dewarPositioned ? '#73def0' : '#af8d4b'} /></mesh>
-      {[-0.08, 0, 0.08].map((x, index) => <mesh key={x} position={[0.44 + x, -0.08, 0.317]}><circleGeometry args={[0.018, 14]} /><meshStandardMaterial color={index < (dewarPositioned ? 3 : 1) ? '#73def0' : '#40515a'} emissive={index < (dewarPositioned ? 3 : 1) ? '#2f8295' : '#111b20'} emissiveIntensity={0.8} /></mesh>)}
-      <mesh position={[-0.54, -0.06, 0.307]} rotation={[0, 0, Math.PI / 4]}><planeGeometry args={[0.14, 0.14]} /><meshBasicMaterial color="#d5eef1" /></mesh>
-      <mesh position={[-0.54, -0.06, 0.312]} rotation={[0, 0, Math.PI / 4]}><planeGeometry args={[0.1, 0.1]} /><meshBasicMaterial color="#2d7587" /></mesh>
-      {dewarPositioned && [[-0.34, 0], [0.02, 0.045], [0.34, 0.01]].map(([x, offset], index) => <Line key={x} points={[[x, 0.32, 0.04], [x - 0.025, 0.4 + offset, 0.035], [x + 0.035, 0.48 + offset, 0.03], [x - 0.01, 0.58 + offset, 0.02], [x + 0.025, 0.66 + offset, 0.01]]} color="#dff9ff" lineWidth={0.34 + index * 0.04} transparent opacity={0.32} />)}
+    <mesh position={[-0.19, 1.64, 0.3]}><boxGeometry args={[1.22, 0.1, 0.15]} /><meshStandardMaterial color="#53656a" metalness={0.72} roughness={0.24} /></mesh>
+    {[-0.72, -0.44, 0.02, 0.3].map((x, i) => <group key={x} position={[x, 1.4, 0.45]}>
+      <Line points={[[0, 0.255, 0], [0, 0.255, -0.15]]} color="#aab7ba" lineWidth={2.2} />
+      <mesh position={[0, -0.015, 0]}><cylinderGeometry args={[0.022, 0.025, 0.47, 18]} /><meshPhysicalMaterial color="#d9e5e4" transparent opacity={focused ? 0.78 : 0.62} transmission={0.12} roughness={0.06} /></mesh>
+      <mesh position={[0, -0.04, 0]}><cylinderGeometry args={[0.035, 0.035, 0.34, 18, 1, true]} /><meshPhysicalMaterial color="#9fb9bd" transparent opacity={0.22} roughness={0.06} side={THREE.DoubleSide} /></mesh>
+      <mesh position={[0, -0.255, 0]}><sphereGeometry args={[0.052, 20, 14]} /><meshStandardMaterial color={leakCheckPassed ? '#77968d' : active && i !== 2 ? '#8f73b5' : '#829197'} roughness={0.35} /></mesh>
+      <mesh position={[0, 0.24, 0]}><cylinderGeometry args={[0.062, 0.062, 0.105, 20]} /><meshStandardMaterial color="#9ea9aa" metalness={0.7} roughness={0.22} /></mesh>
+      <mesh position={[0, 0.302, 0]}><cylinderGeometry args={[0.032, 0.032, 0.055, 16]} /><meshStandardMaterial color="#64777d" metalness={0.72} roughness={0.24} /></mesh>
+      <mesh position={[0, 0.332, 0]}><boxGeometry args={[0.13, 0.018, 0.025]} /><meshStandardMaterial color={portsIsolated ? '#51e19a' : '#718790'} emissive={portsIsolated ? '#1b5b3d' : '#000000'} emissiveIntensity={0.45} metalness={0.65} roughness={0.25} /></mesh>
+    </group>)}
+    {[-0.72, -0.44, 0.02, 0.3].map((x) => <mesh key={`union-${x}`} position={[x, 1.655, 0.3]} castShadow><cylinderGeometry args={[0.045, 0.045, 0.09, 18]} /><meshStandardMaterial color="#798b8f" metalness={0.82} roughness={0.2} /></mesh>)}
+    <group ref={dewarLift} position={[-0.21, 0.43, 0.48]}>
+      {[-0.51, -0.23, 0.23, 0.51].map((x) => <group key={x} position={[x, 0, 0]}>
+        <mesh castShadow><cylinderGeometry args={[0.13, 0.15, 0.4, 28, 1, true]} /><meshPhysicalMaterial color="#b8c1c0" metalness={0.76} roughness={0.2} clearcoat={0.2} side={THREE.DoubleSide} /></mesh>
+        <mesh position={[0, -0.195, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[0.145, 28]} /><meshStandardMaterial color="#8e9b9a" metalness={0.68} roughness={0.25} /></mesh>
+        <mesh position={[0, 0.205, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[0.132, 0.012, 10, 28]} /><meshStandardMaterial color="#697b80" metalness={0.78} roughness={0.22} /></mesh>
+        <mesh position={[0, 0.198, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[0.112, 28]} /><meshStandardMaterial color={dewarPositioned ? '#bce6ee' : '#17272c'} emissive={dewarPositioned ? '#3c7b85' : '#000000'} emissiveIntensity={dewarPositioned ? 0.35 : 0} roughness={0.28} /></mesh>
+      </group>)}
+      <mesh position={[0, -0.24, -0.05]}><boxGeometry args={[1.28, 0.08, 0.36]} /><meshStandardMaterial color="#47595e" metalness={0.68} roughness={0.3} /></mesh>
     </group>
-    <mesh position={[-0.28, 1.98, 0.81]}><boxGeometry args={[1.25, 0.05, 0.06]} /><meshStandardMaterial color="#7e939e" metalness={0.8} /></mesh>
-    {[-0.72, -0.42, -0.13, 0.16].map((x) => <group key={`valve-${x}`} position={[x, 2.04, 0.82]} rotation={[0, portsIsolated ? Math.PI / 2 : 0, 0]}>
-      <mesh><cylinderGeometry args={[0.035, 0.035, 0.12, 14]} /><meshStandardMaterial color="#9eaaae" metalness={0.9} roughness={0.14} /></mesh>
-      <mesh position={[0, 0.08, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.075, 0.012, 8, 20]} /><meshStandardMaterial color={portsIsolated ? '#51e19a' : '#6b8490'} emissive={portsIsolated ? '#1c5d3f' : '#000000'} emissiveIntensity={portsIsolated ? 0.55 : 0} metalness={0.75} roughness={0.24} /></mesh>
-    </group>)}
-    <mesh position={[0.46, 1.55, 0.784]}><circleGeometry args={[0.18, 30]} /><meshStandardMaterial color="#101d24" metalness={0.4} roughness={0.24} /></mesh>
-    <mesh position={[0.46, 1.55, 0.798]}><torusGeometry args={[0.18, 0.025, 10, 30]} /><meshStandardMaterial color="#94a3a9" metalness={0.88} roughness={0.16} /></mesh>
-    <Line points={[[0.46, 1.55, 0.81], [leakCheckPassed ? 0.42 : 0.51, leakCheckPassed ? 1.64 : 1.62, 0.82]]} color={leakCheckPassed ? '#51e19a' : '#f4b95f'} lineWidth={1.2} />
-    <group position={[-0.74, 0.48, 0.78]}>{[-0.12, -0.04, 0.04, 0.12].map((y) => <mesh key={y} position={[0, y, 0]}><planeGeometry args={[0.52, 0.025]} /><meshBasicMaterial color="#334753" /></mesh>)}</group>
-    <mesh position={[0.98, 0.7, 0.08]} castShadow><cylinderGeometry args={[0.32, 0.36, 1.2, 28]} /><meshPhysicalMaterial color={gasProven ? '#668a7d' : '#607788'} emissive={gasProven ? '#183e31' : '#000000'} emissiveIntensity={gasProven ? 0.34 : 0} metalness={0.72} roughness={0.25} clearcoat={0.4} /></mesh>
-    <mesh position={[0.98, 1.35, 0.08]}><cylinderGeometry args={[0.1, 0.1, 0.12, 18]} /><meshStandardMaterial color="#aab7bc" metalness={0.86} /></mesh>
-    <group position={[0.98, 1.5, 0.08]}>
+    <group position={[0.68, 0.43, -0.2]}>
+      <RoundedBox args={[0.48, 0.56, 0.58]} radius={0.055} castShadow><meshStandardMaterial color="#26343a" roughness={0.42} metalness={0.16} /></RoundedBox>
+      {[-0.15, -0.05, 0.05, 0.15].map((y) => <mesh key={y} position={[0, y, 0.3]}><planeGeometry args={[0.28, 0.025]} /><meshBasicMaterial color="#52656b" /></mesh>)}
+      <Line points={[[0.18, 0.18, 0.05], [0.34, 0.6, 0.08], [0.08, 0.83, 0.18], [-0.19, 0.85, 0.24]]} color={leakCheckPassed ? '#51e19a' : '#607985'} lineWidth={1.25} />
+    </group>
+    <group position={[1.08, 0.61, 0.04]}>
+      <mesh castShadow><cylinderGeometry args={[0.18, 0.2, 1.02, 28]} /><meshPhysicalMaterial color={gasProven ? '#668a7d' : '#607788'} emissive={gasProven ? '#183e31' : '#000000'} emissiveIntensity={gasProven ? 0.18 : 0} metalness={0.18} roughness={0.34} clearcoat={0.16} /></mesh>
+      <mesh position={[0, 0.55, 0]}><cylinderGeometry args={[0.07, 0.07, 0.1, 18]} /><meshStandardMaterial color="#aab7bc" metalness={0.78} /></mesh>
+      <mesh position={[0, 0.02, 0.2]}><planeGeometry args={[0.24, 0.28]} /><meshBasicMaterial color="#e5e2d5" /></mesh>
+      <Html transform center position={[0, 0.02, 0.206]} scale={0.18} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}><span className="gas-cylinder-physical-label"><b>N₂</b><small>ANALYSIS GAS</small></span></Html>
+      <Line points={[[-0.25, 0.18, 0.22], [0.25, 0.18, 0.22]]} color="#c7a34f" lineWidth={1.8} />
+    </group>
+    <group position={[1.08, 0.73, 0.02]}>
+      {[-0.27, 0.27].map((x) => <mesh key={x} position={[x, 0, -0.18]}><boxGeometry args={[0.035, 1.25, 0.035]} /><meshStandardMaterial color="#526268" metalness={0.68} roughness={0.27} /></mesh>)}
+      <Line points={[[ -0.27, 0.24, 0.2 ], [ 0.27, 0.24, 0.2 ]]} color="#c7a34f" lineWidth={1.7} />
+      <Line points={[[ -0.27, -0.24, 0.2 ], [ 0.27, -0.24, 0.2 ]]} color="#c7a34f" lineWidth={1.7} />
+    </group>
+    <group position={[1.08, 1.31, 0.04]}>
       {[-0.13, 0.13].map((x) => <group key={x} position={[x, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <mesh><cylinderGeometry args={[0.105, 0.105, 0.035, 22]} /><meshStandardMaterial color="#c2cbce" metalness={0.84} roughness={0.17} /></mesh>
         <mesh position={[0, -0.02, 0]}><circleGeometry args={[0.075, 20]} /><meshBasicMaterial color={gasProven ? '#17402f' : '#101d23'} /></mesh>
       </group>)}
       <mesh position={[0, -0.13, 0]}><boxGeometry args={[0.38, 0.12, 0.14]} /><meshStandardMaterial color="#415460" metalness={0.72} roughness={0.28} /></mesh>
     </group>
-    <Line points={[[0.98, 1.39, 0.1], [0.8, 1.92, 0.1], [0.3, 1.98, 0.1]]} color={gasProven ? '#51e19a' : tone} lineWidth={gasProven ? 1.35 : 0.8} transparent opacity={gasProven ? 0.84 : 0.55} />
-    <Line points={[[0.82, 1.48, 0.12], [0.55, 1.94, 0.12], [-0.28, 2.02, 0.12]]} color="#738b98" lineWidth={1.4} transparent opacity={0.72} />
+    <Line points={[[1.08, 1.22, 0.05], [0.83, 1.54, 0.02], [-0.18, 1.55, 0.18]]} color={gasProven ? '#51e19a' : tone} lineWidth={gasProven ? 1.35 : 0.8} transparent opacity={gasProven ? 0.84 : 0.55} />
+    <Line points={[[0.68, 0.68, -0.2], [0.74, 1.36, 0.02], [0.36, 1.64, 0.3]]} color={leakCheckPassed ? '#51e19a' : '#607985'} lineWidth={leakCheckPassed ? 1.35 : 1.0} />
+    <BetDegasStation active={active} controls={controls} />
   </group>;
 }
 
-function TgaDsc({ active, controls }: { active: boolean; controls: string[] }) {
+function BetDegasStation({ active, controls }: { active: boolean; controls: string[] }) {
+  const prepared = controls.includes('Run manifold leak check') || controls.includes('Prove N₂ supply state');
+  return <group position={[-1.12, 0.45, -0.48]}>
+    <RoundedBox args={[0.78, 0.58, 0.62]} radius={0.075} castShadow><meshStandardMaterial color="#33454b" metalness={0.52} roughness={0.34} /></RoundedBox>
+    <mesh position={[0, 0.04, 0.316]}><planeGeometry args={[0.58, 0.21]} /><meshBasicMaterial color="#07171b" /></mesh>
+    <mesh position={[-0.12, 0.07, 0.32]}><planeGeometry args={[0.22, 0.025]} /><meshBasicMaterial color={prepared ? '#51e19a' : active ? '#f4b95f' : '#5f7e87'} /></mesh>
+    {[ -0.22, 0, 0.22 ].map((x) => <group key={x} position={[x, 0.5, 0]}>
+      <mesh><cylinderGeometry args={[0.045, 0.055, 0.48, 18]} /><meshPhysicalMaterial color="#dbe5e3" transparent opacity={0.62} roughness={0.08} /></mesh>
+      <mesh position={[0, -0.26, 0]}><cylinderGeometry args={[0.1, 0.1, 0.18, 22]} /><meshStandardMaterial color={prepared ? '#6c8b80' : '#6e7880'} emissive={prepared ? '#1d503d' : '#000000'} emissiveIntensity={prepared ? 0.45 : 0} metalness={0.42} roughness={0.32} /></mesh>
+      <mesh position={[0, 0.27, 0]}><torusGeometry args={[0.052, 0.01, 8, 20]} /><meshStandardMaterial color="#aab5b6" metalness={0.8} roughness={0.19} /></mesh>
+    </group>)}
+    <Line points={[[ -0.22, 0.79, 0], [0.22, 0.79, 0], [0.48, 0.61, 0.04]]} color={prepared ? '#51e19a' : '#617b82'} lineWidth={1.15} />
+  </group>;
+}
+
+function TgaDsc({ active, focused, controls }: { active: boolean; focused: boolean; controls: string[] }) {
   const carousel = useRef<THREE.Group>(null);
   const startTemperatureProven = controls.includes('Confirm furnace at start temperature');
   const tareProven = controls.includes('Tare balance channel');
@@ -1320,50 +1454,66 @@ function TgaDsc({ active, controls }: { active: boolean; controls: string[] }) {
   });
   return <group position={[0, 0.18, 0]}>
     <LabBench position={[0, 0, 0.28]} width={2.66} />
-    <RoundedBox args={[1.7, 0.76, 1.05]} radius={0.12} smoothness={4} position={[-0.15, 0.82, 0.06]} castShadow>
-      <meshPhysicalMaterial color="#d0d5d6" metalness={0.76} roughness={0.21} clearcoat={0.48} />
+    <RoundedBox args={[1.54, 0.72, 0.92]} radius={0.1} smoothness={4} position={[-0.12, 0.8, 0.06]} castShadow>
+      <meshPhysicalMaterial color="#d0d5d6" metalness={0.03} roughness={0.38} clearcoat={0.12} />
     </RoundedBox>
-    <RoundedBox args={[0.96, 0.38, 0.08]} radius={0.04} position={[0.2, 0.82, 0.59]}><meshBasicMaterial color="#07161d" /></RoundedBox>
-    <mesh position={[0.2, 0.87, 0.635]}><planeGeometry args={[0.68, 0.035]} /><meshBasicMaterial color={tareProven ? '#51e19a' : active ? '#4dd5ed' : '#f4b95f'} /></mesh>
+    <RoundedBox args={[0.78, 0.3, 0.065]} radius={0.035} position={[0.12, 0.82, 0.535]}><meshBasicMaterial color="#07161d" /></RoundedBox>
+    <mesh position={[0.12, 0.86, 0.569]}><planeGeometry args={[0.52, 0.03]} /><meshBasicMaterial color={tareProven ? '#51e19a' : active ? '#4dd5ed' : '#f4b95f'} /></mesh>
     <Line points={[[ -0.92, 0.56, 0.595], [0.62, 0.56, 0.595]]} color="#8b979b" lineWidth={0.55} transparent opacity={0.55} />
     <group position={[0.2, 0.69, 0.637]}>{[-0.18, -0.06, 0.06, 0.18].map((x, index) => <mesh key={x} position={[x, 0, 0]}><circleGeometry args={[0.022, 14]} /><meshStandardMaterial color={index === 0 ? '#51e19a' : '#6f8088'} emissive={index === 0 ? '#1d6645' : '#1a252b'} emissiveIntensity={0.5} /></mesh>)}</group>
-    <group position={[-0.46, 1.83, -0.03]}>
-      <RoundedBox args={[0.56, 0.72, 0.52]} radius={0.14} castShadow><meshPhysicalMaterial color="#576a75" metalness={0.82} roughness={0.2} clearcoat={0.35} /></RoundedBox>
-      <mesh position={[0, 0.37, 0]}><cylinderGeometry args={[0.16, 0.19, 0.12, 26]} /><meshStandardMaterial color="#aab5b9" metalness={0.86} roughness={0.17} /></mesh>
-      <mesh position={[0, 0.45, 0]}><torusGeometry args={[0.12, 0.02, 9, 26]} /><meshStandardMaterial color="#42545e" metalness={0.8} roughness={0.2} /></mesh>
+    <group position={[-0.72, 1.3, -0.25]}>
+      <RoundedBox args={[0.18, 1.52, 0.28]} radius={0.045} castShadow><meshStandardMaterial color="#465963" metalness={0.42} roughness={0.34} /></RoundedBox>
+      <RoundedBox args={[0.62, 0.18, 0.3]} radius={0.045} position={[0.3, 0.68, 0]} castShadow><meshStandardMaterial color="#4f626c" metalness={0.46} roughness={0.32} /></RoundedBox>
+      <Line points={[[0.02, -0.64, -0.15], [0.02, 0.62, -0.15], [0.5, 0.62, -0.15]]} color="#26373f" lineWidth={1.4} />
     </group>
-    <group position={[-0.46, 1.26, 0.14]}>
-      <mesh castShadow><cylinderGeometry args={[0.3, 0.38, 0.42, 32]} /><meshPhysicalMaterial color="#71828d" metalness={0.86} roughness={0.18} clearcoat={0.35} /></mesh>
-      <mesh position={[0, 0.25, 0]}><cylinderGeometry args={[0.18, 0.25, 0.12, 28]} /><meshStandardMaterial color="#b8c1c4" metalness={0.86} roughness={0.16} /></mesh>
-      <mesh position={[0, 0.34, 0]}><torusGeometry args={[0.14, 0.025, 10, 28]} /><meshStandardMaterial color={startTemperatureProven ? '#4f8875' : '#293943'} emissive={startTemperatureProven ? '#2b9a68' : '#c45b2e'} emissiveIntensity={startTemperatureProven ? 0.9 : active ? 1.7 : 0.24} /></mesh>
-      <mesh position={[0.29, 0.08, 0.04]} rotation={[0, 0, -0.38]} castShadow><boxGeometry args={[0.08, 0.32, 0.1]} /><meshStandardMaterial color="#475b65" metalness={0.78} roughness={0.24} /></mesh>
-      <mesh position={[0.34, -0.09, 0.04]}><cylinderGeometry args={[0.055, 0.055, 0.08, 16]} /><meshStandardMaterial color="#b2bdc1" metalness={0.88} roughness={0.15} /></mesh>
-      <pointLight position={[0, 0.38, 0]} intensity={startTemperatureProven ? 0.9 : active ? 4 : 0.6} distance={1.5} color={startTemperatureProven ? '#69d7ad' : '#ff8b4d'} />
+    <group position={[-0.42, 1.74, -0.05]}>
+      <RoundedBox args={[0.66, 0.38, 0.5]} radius={0.07} castShadow><meshPhysicalMaterial color="#576a75" metalness={0.14} roughness={0.4} clearcoat={0.12} /></RoundedBox>
+      <mesh position={[0, 0.03, 0.255]}><planeGeometry args={[0.42, 0.1]} /><meshBasicMaterial color="#18272e" /></mesh>
+      <mesh position={[-0.12, 0.035, 0.26]}><planeGeometry args={[0.12, 0.018]} /><meshBasicMaterial color={tareProven ? '#51e19a' : '#6e828a'} /></mesh>
+      <mesh position={[0, 0.23, 0]}><cylinderGeometry args={[0.12, 0.15, 0.08, 26]} /><meshStandardMaterial color="#aab5b9" metalness={0.72} roughness={0.22} /></mesh>
+      <mesh position={[0, 0.275, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[0.1, 0.018, 9, 26]} /><meshStandardMaterial color="#42545e" metalness={0.72} roughness={0.25} /></mesh>
+      <mesh position={[0, -0.26, 0.15]}><cylinderGeometry args={[0.014, 0.014, 0.26, 12]} /><meshStandardMaterial color="#d6dcdb" metalness={0.76} roughness={0.18} /></mesh>
     </group>
-    <group ref={carousel} position={[0.78, 1.12, 0.1]} rotation={[0, 0.48, 0]}>
-      <mesh castShadow><cylinderGeometry args={[0.42, 0.42, 0.1, 36]} /><meshPhysicalMaterial color="#647681" metalness={0.82} roughness={0.2} clearcoat={0.34} /></mesh>
-      {Array.from({ length: 6 }, (_, index) => { const angle = index * Math.PI / 3; return <group key={index} position={[Math.cos(angle) * 0.26, 0.09, Math.sin(angle) * 0.26]}><mesh><cylinderGeometry args={[0.055, 0.07, 0.035, 18]} /><meshStandardMaterial color="#d7dfe0" metalness={0.88} roughness={0.14} /></mesh>{index < 2 && <mesh position={[0, 0.028, 0]}><cylinderGeometry args={[0.038, 0.045, 0.012, 18]} /><meshStandardMaterial color="#cfa65d" roughness={0.45} /></mesh>}</group>; })}
-      <mesh position={[0, 0.2, 0]} castShadow><cylinderGeometry args={[0.07, 0.09, 0.34, 18]} /><meshStandardMaterial color="#51646f" metalness={0.78} roughness={0.22} /></mesh>
-      <mesh position={[0, 0.21, 0]}><cylinderGeometry args={[0.47, 0.47, 0.38, 40, 1, true]} /><meshPhysicalMaterial color="#a8c4cf" transparent opacity={0.14} roughness={0.06} transmission={0.18} side={THREE.DoubleSide} /></mesh>
-      <mesh position={[0, 0.42, 0]}><torusGeometry args={[0.45, 0.024, 10, 36]} /><meshStandardMaterial color="#778b94" metalness={0.84} roughness={0.18} /></mesh>
+    <group position={[-0.42, 1.2, 0.12]}>
+      <mesh castShadow><cylinderGeometry args={[0.21, 0.27, 0.32, 32]} /><meshPhysicalMaterial color="#71828d" metalness={0.22} roughness={0.38} clearcoat={0.12} /></mesh>
+      <mesh position={[0, 0.19, 0]}><cylinderGeometry args={[0.13, 0.18, 0.09, 28]} /><meshStandardMaterial color="#b8c1c4" metalness={0.7} roughness={0.22} /></mesh>
+      <mesh position={[0, 0.25, 0]}><torusGeometry args={[0.1, 0.018, 10, 28]} /><meshStandardMaterial color={startTemperatureProven ? '#4f8875' : '#293943'} emissive={focused ? startTemperatureProven ? '#2b9a68' : '#7c351e' : '#000000'} emissiveIntensity={focused ? startTemperatureProven ? 0.65 : active ? 0.8 : 0.12 : 0} /></mesh>
+      <mesh position={[0.22, 0.05, 0.03]} rotation={[0, 0, -0.38]} castShadow><boxGeometry args={[0.055, 0.24, 0.08]} /><meshStandardMaterial color="#475b65" metalness={0.68} roughness={0.28} /></mesh>
+      <mesh position={[0.26, -0.08, 0.03]}><cylinderGeometry args={[0.04, 0.04, 0.06, 16]} /><meshStandardMaterial color="#b2bdc1" metalness={0.78} roughness={0.18} /></mesh>
+      {focused && <pointLight position={[0, 0.27, 0]} intensity={startTemperatureProven ? 0.55 : active ? 1.5 : 0.25} distance={1.1} color={startTemperatureProven ? '#69d7ad' : '#ff8b4d'} />}
+      <mesh position={[0, -0.21, 0]}><cylinderGeometry args={[0.025, 0.025, 0.18, 14]} /><meshStandardMaterial color="#c4cdcc" metalness={0.7} roughness={0.2} /></mesh>
+      <mesh position={[-0.055, -0.31, 0]}><cylinderGeometry args={[0.025, 0.035, 0.018, 18]} /><meshStandardMaterial color="#d6c7a4" roughness={0.5} /></mesh>
+      <mesh position={[0.055, -0.31, 0]}><cylinderGeometry args={[0.025, 0.035, 0.018, 18]} /><meshStandardMaterial color="#d6c7a4" roughness={0.5} /></mesh>
     </group>
-    <Line points={[[0.82, 0.7, 0.55], [1.12, 1.02, 0.48], [1.12, 1.52, 0.12], [0.92, 1.66, 0.08]]} color={purgeProven ? '#51e19a' : '#6c8795'} lineWidth={purgeProven ? 1.5 : 1.1} />
-    <mesh position={[1.14, 0.76, 0.22]} castShadow><cylinderGeometry args={[0.13, 0.15, 0.78, 24]} /><meshStandardMaterial color="#57717f" metalness={0.72} roughness={0.28} /></mesh>
-    <mesh position={[1.14, 1.18, 0.22]}><cylinderGeometry args={[0.05, 0.05, 0.09, 18]} /><meshStandardMaterial color="#b0bec3" metalness={0.84} /></mesh>
-    <group position={[1.02, 1.34, 0.22]}>
+    <group ref={carousel} position={[0.55, 1.04, 0.08]} rotation={[0, 0.48, 0]}>
+      <mesh castShadow><cylinderGeometry args={[0.29, 0.29, 0.075, 36]} /><meshPhysicalMaterial color="#647681" metalness={0.2} roughness={0.36} clearcoat={0.12} /></mesh>
+      {Array.from({ length: 12 }, (_, index) => { const angle = index * Math.PI / 6; return <group key={index} position={[Math.cos(angle) * 0.2, 0.065, Math.sin(angle) * 0.2]}><mesh><cylinderGeometry args={[0.025, 0.03, 0.024, 14]} /><meshStandardMaterial color="#d7dfe0" metalness={0.72} roughness={0.2} /></mesh>{index < 2 && <mesh position={[0, 0.018, 0]}><cylinderGeometry args={[0.018, 0.022, 0.008, 14]} /><meshStandardMaterial color="#cfa65d" roughness={0.45} /></mesh>}</group>; })}
+      <mesh position={[0, 0.15, 0]} castShadow><cylinderGeometry args={[0.05, 0.065, 0.24, 18]} /><meshStandardMaterial color="#51646f" metalness={0.7} roughness={0.25} /></mesh>
+      <mesh position={[0, 0.16, 0]}><cylinderGeometry args={[0.32, 0.32, 0.28, 40, 1, true]} /><meshPhysicalMaterial color="#71858d" transparent opacity={focused ? 0.16 : 0.52} roughness={focused ? 0.08 : 0.34} transmission={focused ? 0.12 : 0} side={THREE.DoubleSide} /></mesh>
+      <mesh position={[0, 0.31, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[0.31, 0.018, 10, 36]} /><meshStandardMaterial color="#778b94" metalness={0.72} roughness={0.22} /></mesh>
+    </group>
+    <Line points={[[0.62, 0.68, 0.5], [0.92, 0.92, 0.44], [0.92, 1.36, 0.12], [0.72, 1.47, 0.08]]} color={purgeProven ? '#51e19a' : '#6c8795'} lineWidth={purgeProven ? 1.5 : 1.1} />
+    <mesh position={[1.0, 0.68, 0.2]} castShadow><cylinderGeometry args={[0.11, 0.13, 0.68, 24]} /><meshStandardMaterial color="#57717f" metalness={0.2} roughness={0.36} /></mesh>
+    <mesh position={[1.0, 1.04, 0.2]}><cylinderGeometry args={[0.045, 0.045, 0.08, 18]} /><meshStandardMaterial color="#b0bec3" metalness={0.74} /></mesh>
+    <Line points={[[0.79, 0.38, 0.42], [1.21, 0.38, 0.42]]} color="#c7a34f" lineWidth={1.6} />
+    <group position={[1.0, 0.67, 0.18]}>
+      {[-0.2, 0.2].map((x) => <mesh key={x} position={[x, 0, -0.15]}><boxGeometry args={[0.03, 0.92, 0.03]} /><meshStandardMaterial color="#526268" metalness={0.68} roughness={0.27} /></mesh>)}
+      <Line points={[[ -0.2, 0.13, 0.16 ], [ 0.2, 0.13, 0.16 ]]} color="#c7a34f" lineWidth={1.6} />
+      <RoundedBox args={[0.5, 0.05, 0.42]} radius={0.02} position={[0, -0.38, 0]}><meshStandardMaterial color="#344449" roughness={0.46} /></RoundedBox>
+    </group>
+    <group position={[0.9, 1.18, 0.2]}>
       {[-0.11, 0.11].map((x) => <group key={x} position={[x, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <mesh><cylinderGeometry args={[0.085, 0.085, 0.03, 20]} /><meshStandardMaterial color="#aeb9bd" metalness={0.84} roughness={0.17} /></mesh>
         <mesh position={[0, -0.018, 0]}><circleGeometry args={[0.058, 18]} /><meshBasicMaterial color={purgeProven ? '#153a2b' : '#0b1a20'} /></mesh>
       </group>)}
       <mesh position={[0, -0.12, 0]}><boxGeometry args={[0.34, 0.12, 0.12]} /><meshStandardMaterial color="#405560" metalness={0.7} roughness={0.27} /></mesh>
     </group>
-    <group position={[-1.0, 0.68, 0.62]}>{[-0.09, 0, 0.09].map((x) => <mesh key={x} position={[x, 0, 0]}><planeGeometry args={[0.055, 0.24]} /><meshBasicMaterial color="#41545d" /></mesh>)}</group>
   </group>;
 }
 
 function LabBench({ position, width }: { position: [number, number, number]; width: number }) {
   return <group position={position}>
-    <mesh position={[0, 0.42, 0]} castShadow receiveShadow><boxGeometry args={[width, 0.12, 1.15]} /><meshPhysicalMaterial color="#9aa5aa" metalness={0.84} roughness={0.23} clearcoat={0.3} /></mesh>
+    <mesh position={[0, 0.42, 0]} castShadow receiveShadow><boxGeometry args={[width, 0.12, 1.15]} /><meshPhysicalMaterial color="#9aa5aa" metalness={0.08} roughness={0.42} clearcoat={0.08} /></mesh>
     {[-width * 0.4, width * 0.4].map((x) => <group key={x}>
       <mesh position={[x, 0.1, -0.4]}><boxGeometry args={[0.08, 0.72, 0.08]} /><meshStandardMaterial color="#42525e" metalness={0.75} /></mesh>
       <mesh position={[x, 0.1, 0.4]}><boxGeometry args={[0.08, 0.72, 0.08]} /><meshStandardMaterial color="#42525e" metalness={0.75} /></mesh>
@@ -1428,11 +1578,11 @@ function getCampaignRoomState(stage: number, selected = 'C-42', runNumber = 42, 
   if (stage === 5 && operations.furnaceCondition === 'thermocouple-drift') return { station: 'FURN-04', label: 'TC OFFSET HOLD', color: '#f4b95f', tone: 'held', result: '' };
   if (stage === 5 && operations.furnaceCondition === 'door-seal') return { station: 'FURN-04', label: 'DOOR SEAL HOLD', color: '#f4b95f', tone: 'held', result: '' };
   if (stage === 5) return { station: 'FURN-04', label: 'START READINESS', color: '#ff955c', tone: 'running', result: '' };
-  if (stage === 6 && operations.referenceCondition === 'age-due') return { station: 'XRD-03', label: 'REFERENCE DUE', color: '#f4b95f', tone: 'held', result: '' };
-  if (stage === 6 && operations.referenceCondition === 'trend-review') return { station: 'XRD-03', label: 'CONTROL TREND REVIEW', color: '#4dd5ed', tone: 'running', result: '' };
+  if (stage === 6 && operations.referenceCondition === 'age-due') return { station: 'XRD-03', label: 'QC CHECK DUE', color: '#f4b95f', tone: 'held', result: '' };
+  if (stage === 6 && operations.referenceCondition === 'trend-review') return { station: 'XRD-03', label: 'SILICON QC TREND', color: '#4dd5ed', tone: 'running', result: '' };
   if (stage === 6) return { station: 'XRD-03', label: 'ACQUISITION READY', color: '#4dd5ed', tone: 'running', result: '' };
   if (stage === 7) return { station: 'XRD-03', label: confirmationSource ? `${resultMeasured}% · ${evaluation.met ? 'REPEAT PASS' : 'REPEAT FAILED'}` : `${evaluation.resultText} · ${evaluation.met ? 'MISSION MET' : 'MISSION MISS'}`, color: evaluation.met ? '#51e19a' : confirmationSource ? '#f4b95f' : '#8fcf8f', tone: 'complete', result: confirmationSource ? evaluation.met ? 'BOUNDARY REPEATED' : 'NOT REPEATED' : evaluation.met ? 'MISSION MET' : 'VALID MISS' };
-  if (stage === 8) return { station: 'SEM-01', label: 'REPRESENTATIVE FOLLOW-UP', color: '#b7d4d8', tone: 'running', result: 'DIAGNOSTIC RUN' };
+  if (stage === 8) return { station: 'SEM-01', label: 'FOUR-LOCATION FOLLOW-UP', color: '#b7d4d8', tone: 'running', result: 'DIAGNOSTIC RUN' };
   if (stage >= 9) return { station: 'SEM-01', label: spec.id === 'D-08' ? 'TI-RICH CORES' : 'CA-RICH SECONDARY GRAINS', color: '#51e19a', tone: 'complete', result: 'DIAGNOSIS LINKED' };
   return { station: 'PREP-01', label: 'CAMPAIGN READY', color: '#4dd5ed', tone: 'running', result: '' };
 }
@@ -1513,12 +1663,14 @@ function SampleCarrier({ scenarioId, routeColor }: { scenarioId: ScenarioId; rou
   </group>;
 
   if (scenarioId === 'tga') return <group rotation={[0, Math.PI / 4, 0]}>
-    <RoundedBox args={[0.5, 0.07, 0.34]} radius={0.025} position={[0, 0.035, 0]} castShadow><meshStandardMaterial color="#4f5f67" metalness={0.78} roughness={0.26} /></RoundedBox>
+    <RoundedBox args={[0.54, 0.08, 0.38]} radius={0.025} position={[0, 0.04, 0]} castShadow><meshStandardMaterial color="#4f5f67" metalness={0.78} roughness={0.26} /></RoundedBox>
     {[-0.13, 0.13].map((x, index) => <group key={x} position={[x, 0.09, 0]}>
-      <mesh castShadow><cylinderGeometry args={[0.08, 0.085, 0.045, 24]} /><meshStandardMaterial color={index === 0 ? '#d2d6d5' : '#b7a27b'} metalness={index === 0 ? 0.74 : 0.28} roughness={0.3} /></mesh>
-      <mesh position={[0, 0.028, 0]}><torusGeometry args={[0.067, 0.009, 8, 22]} /><meshStandardMaterial color="#e6e5df" metalness={0.6} roughness={0.24} /></mesh>
+      <mesh castShadow><cylinderGeometry args={[0.072, 0.078, 0.036, 28]} /><meshStandardMaterial color={index === 0 ? '#d2d6d5' : '#b7a27b'} metalness={index === 0 ? 0.74 : 0.28} roughness={0.3} /></mesh>
+      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[0.064, 0.005, 8, 28]} /><meshStandardMaterial color="#e6e5df" metalness={0.6} roughness={0.24} /></mesh>
+      <mesh position={[0, 0.018, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[0.056, 24]} /><meshStandardMaterial color={index === 0 ? '#929b9c' : '#8a7659'} metalness={index === 0 ? 0.55 : 0.18} roughness={0.38} /></mesh>
     </group>)}
-    <mesh position={[0, 0.11, -0.11]} castShadow><cylinderGeometry args={[0.04, 0.045, 0.14, 16]} /><meshPhysicalMaterial color="#d4c7a0" roughness={0.42} clearcoat={0.2} /></mesh>
+    <mesh position={[0, 0.105, -0.11]} castShadow><cylinderGeometry args={[0.035, 0.04, 0.11, 18]} /><meshPhysicalMaterial color="#d4c7a0" roughness={0.42} clearcoat={0.2} /></mesh>
+    <RoundedBox args={[0.47, 0.13, 0.31]} radius={0.035} position={[0, 0.17, 0]} castShadow><meshPhysicalMaterial color="#8fa3aa" transparent opacity={0.2} transmission={0.18} roughness={0.08} metalness={0.1} /></RoundedBox>
     <CarrierTag color={routeColor} />
   </group>;
 
@@ -1543,12 +1695,16 @@ function SampleCarrier({ scenarioId, routeColor }: { scenarioId: ScenarioId; rou
   </group>;
 
   return <group rotation={[0, Math.PI / 4, 0]}>
-    <RoundedBox args={[0.58, 0.08, 0.42]} radius={0.025} position={[0, 0.04, 0]} castShadow><meshPhysicalMaterial color="#6f7d84" metalness={0.84} roughness={0.22} clearcoat={0.28} /></RoundedBox>
-    {[-0.17, 0, 0.17].flatMap((x) => [-0.105, 0.105].map((z, index) => <group key={`${x}-${z}`} position={[x, 0.105, z]}>
-      <mesh castShadow><cylinderGeometry args={[0.055, 0.06, 0.09, 18]} /><meshStandardMaterial color="#c8d0d2" metalness={0.72} roughness={0.22} /></mesh>
-      <mesh position={[0, 0.05, 0]}><circleGeometry args={[0.045, 18]} /><meshStandardMaterial color={x === 0 && index === 1 ? '#b76756' : '#d1ad69'} roughness={0.68} /></mesh>
+    <RoundedBox args={[0.76, 0.14, 0.58]} radius={0.06} position={[0, 0.02, 0]} castShadow><meshStandardMaterial color="#26343a" metalness={0.58} roughness={0.34} /></RoundedBox>
+    {[-0.27, 0.27].flatMap((x) => [-0.2, 0.2].map((z) => <mesh key={`${x}-${z}`} position={[x, -0.07, z]} rotation={[Math.PI / 2, 0, 0]} castShadow><cylinderGeometry args={[0.055, 0.055, 0.045, 16]} /><meshStandardMaterial color="#11191d" roughness={0.78} /></mesh>))}
+    <RoundedBox args={[0.62, 0.07, 0.44]} radius={0.025} position={[0, 0.14, 0]} castShadow><meshPhysicalMaterial color="#76858b" metalness={0.8} roughness={0.22} clearcoat={0.24} /></RoundedBox>
+    {[-0.17, 0, 0.17].flatMap((x) => [-0.105, 0.105].map((z, index) => <group key={`${x}-${z}`} position={[x, 0.215, z]}>
+      <mesh castShadow><cylinderGeometry args={[0.055, 0.06, 0.07, 18]} /><meshStandardMaterial color="#c8d0d2" metalness={0.72} roughness={0.22} /></mesh>
+      <mesh position={[0, 0.037, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[0.045, 18]} /><meshStandardMaterial color={x === 0 && index === 1 ? '#b76756' : '#d1ad69'} roughness={0.68} /></mesh>
     </group>))}
-    <CarrierTag color={routeColor} />
+    <RoundedBox args={[0.58, 0.14, 0.39]} radius={0.035} position={[0, 0.31, 0]} castShadow><meshPhysicalMaterial color="#9eb5b9" transparent opacity={0.2} transmission={0.16} roughness={0.08} /></RoundedBox>
+    <mesh position={[0, 0.035, 0.294]}><planeGeometry args={[0.45, 0.08]} /><meshBasicMaterial color="#0a151a" /></mesh>
+    <mesh position={[0, 0.035, 0.297]}><planeGeometry args={[0.32, 0.015]} /><meshBasicMaterial color={routeColor} /></mesh>
   </group>;
 }
 

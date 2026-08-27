@@ -1,6 +1,6 @@
 # Scientific and operational research
 
-Research reviewed on 2026-08-23. MatterShift is designed as a fictional, game-like laboratory—not
+Research reviewed on 2026-08-23. MatterLab is designed as a fictional, game-like laboratory—not
 as a depiction of any company or role. Its operating logic is grounded in characterization science,
 industrial-control boundaries, published autonomous-lab systems, and public spatial-computing work.
 
@@ -38,7 +38,7 @@ The published [A-Lab autonomous inorganic-synthesis platform](https://www.nature
 integrated powder preparation, furnaces, XRD, robot transfers, software job submission, automated
 analysis, and follow-up experiment planning. Its description also makes an important operational
 point: automated stations still need manual consumable loading, holder cleaning, exception handling,
-and replenishment. MatterShift places the technician in that gap between a compelling autonomous
+and replenishment. MatterLab places the technician in that gap between a compelling autonomous
 demo and dependable daily operation.
 
 ## Design decisions
@@ -58,7 +58,7 @@ The visual iteration studied [Dilum Sanjaya's public work](https://github.com/di
 [hexapod robot simulator](https://github.com/dilums/hexapod-robot-simulator) and his
 [AI SDK + Three.js starter](https://github.com/dilums/aisdk-threejs-starter). The transferable design
 principle was scene-first composition: the spatial machine remains dominant, live controls stay
-compact, and motion explains state. MatterShift applies that principle to a laboratory layout while
+compact, and motion explains state. MatterLab applies that principle to a laboratory layout while
 using original equipment geometry, interaction design, and visual styling.
 
 The digital twin uses React Three Fiber, Drei, and Three.js. The scene graph makes each instrument a
