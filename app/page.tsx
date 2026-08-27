@@ -313,11 +313,8 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     <main className="shell">
       <header className="topbar">
         <div className="brand-block">
-          <span className="brand-mark">M<span>²</span></span>
-          <div>
-            <p className="eyebrow">Explore · experiment · learn</p>
-            <h1>MATTERLAB</h1>
-          </div>
+          <span className="brand-mark" aria-hidden="true"><b>M</b><i>L</i></span>
+          <h1 className="brand-name">MatterLab</h1>
         </div>
         <div className="header-actions">
           <button className="campaign-button" type="button" aria-label="Open optional expert campaign sandbox" onClick={() => { setCampaignMode(true); setModal('campaign'); }}>EXPERT SANDBOX</button>
