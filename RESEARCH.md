@@ -1,7 +1,5 @@
 # MatterLab research basis
 
-Last reviewed: 2026-08-26
-
 MatterLab is a fictional educational simulation. It is not a representation of a particular company, laboratory, instrument, or technician role. This document records the public sources that informed the simulation and distinguishes sourced facts from product-design interpretation.
 
 ## Operational-system boundaries
