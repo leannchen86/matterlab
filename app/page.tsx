@@ -5,8 +5,8 @@ import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
 import { getCampaignStationId, useCampaignSnapshot, useCampaignStation } from './campaign-context';
 import { evaluateCampaignMission, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
-import { SystemsAtlasModal } from './systems-atlas';
 import { LabViewport } from './lab-viewport';
+import { subscribeLabEvent } from './lab-events';
 import { MissionLabHeading, MissionTelemetry, PhysicalEvidenceCue, useModalFocusTrap } from './mission-ui';
 import { baseStations, initialLog, type Station } from './sim-data';
 import { AlternateShift, PlannerPanel, ShiftDeckModal, type ScenarioId } from './scenario-shifts';
@@ -15,7 +15,7 @@ import { StationAccess } from './station-access';
 const TgaShift = lazy(() => import('./tga-shift').then((module) => ({ default: module.TgaShift })));
 const FacilityShift = lazy(() => import('./facility-shift').then((module) => ({ default: module.FacilityShift })));
 
-type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'guide' | 'campaign' | 'campaign-inventory' | 'campaign-facility' | 'deck' | 'complete' | null;
+type Modal = 'qc' | 'lineage' | 'evidence' | 'sem' | 'campaign' | 'campaign-inventory' | 'campaign-facility' | 'deck' | 'complete' | null;
 type LogItem = { time: string; type: string; text: string };
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 
@@ -69,45 +69,35 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
-    const followCampaignStation = (event: Event) => {
-      const stage = Number((event as CustomEvent<{ stage?: number }>).detail?.stage ?? 0);
+    return subscribeLabEvent('campaign-state', ({ stage }) => {
       const campaignStation = getCampaignStationId(stage);
       if (campaignStation) setSelectedId(campaignStation);
-    };
-    window.addEventListener('mattershift:campaign-state', followCampaignStation);
-    return () => window.removeEventListener('mattershift:campaign-state', followCampaignStation);
+    });
   }, []);
 
   useEffect(() => {
-    const openCampaign = (event: Event) => {
+    return subscribeLabEvent('open-campaign', ({ view }) => {
       setCampaignMode(true);
-      setModal((event as CustomEvent<{ view?: string }>).detail?.view === 'facility' ? 'campaign-facility' : 'campaign');
-    };
-    window.addEventListener('mattershift:open-campaign', openCampaign);
-    return () => window.removeEventListener('mattershift:open-campaign', openCampaign);
+      setModal(view === 'facility' ? 'campaign-facility' : 'campaign');
+    });
   }, []);
 
   useEffect(() => {
-    const openMaterialStaging = () => {
+    return subscribeLabEvent('open-material-staging', () => {
       setSelectedId('PREP-01');
       setModal('campaign-inventory');
-    };
-    window.addEventListener('mattershift:open-material-staging', openMaterialStaging);
-    return () => window.removeEventListener('mattershift:open-material-staging', openMaterialStaging);
+    });
   }, []);
 
   useEffect(() => {
-    const retainStationEvent = (event: Event) => {
-      const detail = (event as CustomEvent<{ type?: string; text?: string }>).detail;
-      const text = detail?.text;
-      if (!text) return;
-      const nextMinute = minute + 1;
-      setMinute(nextMinute);
-      setLog((items) => [...items, { time: formatTime(nextMinute), type: detail.type ?? 'control', text }]);
-    };
-    window.addEventListener('mattershift:station-event', retainStationEvent);
-    return () => window.removeEventListener('mattershift:station-event', retainStationEvent);
-  }, [minute]);
+    return subscribeLabEvent('station-event', ({ type, text }) => {
+      setMinute((currentMinute) => {
+        const nextMinute = currentMinute + 1;
+        setLog((items) => [...items, { time: formatTime(nextMinute), type, text }]);
+        return nextMinute;
+      });
+    });
+  }, []);
 
   const stations = useMemo(() => baseStations.map((station): Station => {
     if (station.id === 'FURN-04' && campaign.thermalBayLevel >= 2) return {
@@ -313,13 +303,11 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     <main className="shell">
       <header className="topbar">
         <div className="brand-block">
-          <span className="brand-mark" aria-hidden="true"><b>M</b><i>L</i></span>
           <h1 className="brand-name">MatterLab</h1>
         </div>
         <div className="header-actions">
           <button className="campaign-button" type="button" aria-label="Open optional expert campaign sandbox" onClick={() => { setCampaignMode(true); setModal('campaign'); }}>EXPERT SANDBOX</button>
           <button className="deck-button" type="button" onClick={() => setModal('deck')}>SCENARIOS <span>5</span></button>
-          <button type="button" onClick={() => setModal('guide')}>HELP</button>
           <button type="button" onClick={() => setLogOpen(true)}>EVIDENCE LOG</button>
         </div>
       </header>
@@ -385,7 +373,6 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
       {modal === 'lineage' && <LineageModal scanned={labelsScanned} onScan={() => { setLabelsScanned(true); setFeedback('Mismatch found: the list says A-06; the physical label says B-06.'); appendLog('lineage', 'The label scan found one identifier mismatch.', 3); }} feedback={feedback} onResolve={resolveLineage} onClose={() => setModal(null)} />}
       {modal === 'evidence' && <EvidenceModal feedback={feedback} onDecide={decideEvidence} onClose={() => setModal(null)} />}
       {modal === 'sem' && <SemEdsModal feedback={feedback} onDecide={decideSem} onClose={() => setModal(null)} />}
-      {modal === 'guide' && <SystemsAtlasModal onClose={() => setModal(null)} />}
       {(modal === 'campaign' || modal === 'campaign-inventory' || modal === 'campaign-facility') && <CampaignControlModal autoOpenInventory={modal === 'campaign-inventory'} autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
       {modal === 'deck' && <ShiftDeckModal active="xrd" onChoose={onSwitch} onExpert={() => { setCampaignMode(true); setModal('campaign'); }} onClose={() => setModal(null)} />}
       {modal === 'complete' && <CompleteModal scores={scores} elapsedMinutes={minute - (8 * 60 + 16)} logCount={Math.max(0, log.length - initialLog.length)} exceptionCount={log.filter((event) => event.type === 'exception').length} onReset={resetShift} onDeck={() => setModal('deck')} onClose={() => setModal(null)} />}

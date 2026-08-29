@@ -5,7 +5,7 @@ import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
 import { useCampaignSnapshot } from './campaign-context';
 import { campaignSpecs, evaluateCampaignMission, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
-import { SystemsAtlasModal } from './systems-atlas';
+import { subscribeLabEvent } from './lab-events';
 import { LabViewport } from './lab-viewport';
 import { MissionLabHeading, MissionTelemetry, PhysicalEvidenceCue, useModalFocusTrap } from './mission-ui';
 import { baseStations, type Station } from './sim-data';
@@ -14,7 +14,7 @@ import { StationAccess } from './station-access';
 export type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
 type Scores = { safety: number; traceability: number; integrity: number; uptime: number };
 type LogItem = { time: string; type: string; text: string };
-type Modal = 'deck' | 'guide' | 'campaign' | 'campaign-facility' | 'bench' | 'sample' | 'verify' | 'evidence' | 'complete' | null;
+type Modal = 'deck' | 'campaign' | 'campaign-facility' | 'bench' | 'sample' | 'verify' | 'evidence' | 'complete' | null;
 type Scenario = {
   id: 'bet' | 'furnace';
   label: string;
@@ -167,23 +167,18 @@ export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | '
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
-    const openCampaign = (event: Event) => setModal((event as CustomEvent<{ view?: string }>).detail?.view === 'facility' ? 'campaign-facility' : 'campaign');
-    window.addEventListener('mattershift:open-campaign', openCampaign);
-    return () => window.removeEventListener('mattershift:open-campaign', openCampaign);
+    return subscribeLabEvent('open-campaign', ({ view }) => setModal(view === 'facility' ? 'campaign-facility' : 'campaign'));
   }, []);
 
   useEffect(() => {
-    const retainStationEvent = (event: Event) => {
-      const detail = (event as CustomEvent<{ type?: string; text?: string }>).detail;
-      const text = detail?.text;
-      if (!text) return;
-      const next = minute + 1;
-      setMinute(next);
-      setLog((items) => [...items, { time: formatTime(next), type: detail.type ?? 'control', text }]);
-    };
-    window.addEventListener('mattershift:station-event', retainStationEvent);
-    return () => window.removeEventListener('mattershift:station-event', retainStationEvent);
-  }, [minute]);
+    return subscribeLabEvent('station-event', ({ type, text }) => {
+      setMinute((currentMinute) => {
+        const nextMinute = currentMinute + 1;
+        setLog((items) => [...items, { time: formatTime(nextMinute), type, text }]);
+        return nextMinute;
+      });
+    });
+  }, []);
 
   const stations = useMemo(() => baseStations.map((station): Station => {
     if (scenarioId === 'bet' && station.id === 'BET-02') {
@@ -267,12 +262,11 @@ export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | '
   const state = getActionState(scenarioId, phase, () => open('bench'), () => open('sample', scenarioId === 'furnace' ? 'ROBO-02' : 'BET-02'), releaseAction, advance, () => setModal('evidence'), () => setModal('complete'));
 
   return <main className={`shell scenario-shell scenario-${scenarioId}`} style={{ '--scenario-accent': scenario.accent } as React.CSSProperties}>
-    <header className="topbar"><div className="brand-block"><span className="brand-mark" aria-hidden="true"><b>M</b><i>L</i></span><h1 className="brand-name">MatterLab</h1></div><div className="header-actions"><button className="campaign-button" type="button" aria-label="Open optional expert campaign sandbox" onClick={() => setModal('campaign')}>EXPERT SANDBOX</button><button className="deck-button" type="button" onClick={() => setModal('deck')}>SCENARIOS <span>5</span></button><button type="button" onClick={() => setModal('guide')}>HELP</button><button type="button" onClick={() => setLogOpen(true)}>EVIDENCE LOG</button></div></header>
+    <header className="topbar"><div className="brand-block"><h1 className="brand-name">MatterLab</h1></div><div className="header-actions"><button className="campaign-button" type="button" aria-label="Open optional expert campaign sandbox" onClick={() => setModal('campaign')}>EXPERT SANDBOX</button><button className="deck-button" type="button" onClick={() => setModal('deck')}>SCENARIOS <span>5</span></button><button type="button" onClick={() => setLogOpen(true)}>EVIDENCE LOG</button></div></header>
     <div className="workspace"><aside className="left-rail"><section className="rail-section shift-card"><p className="section-kicker">CURRENT MISSION</p><h2>{scenario.title}</h2><p>{scenario.summary}</p><div className="progress-track"><span style={{ width: `${progress}%` }} /></div><div className="progress-meta"><span>{completed} / 4 tasks</span><span>{progress}%</span></div><MissionTelemetry blockedAttempts={log.filter((event) => event.type === 'exception').length} evidenceCount={log.length} /></section><section className="rail-section"><p className="section-kicker">MISSION STEPS</p><ol className="task-list">{scenario.tasks.map((task, index) => { const done = index === 3 ? phase >= 5 : phase > index; const active = !done && (index === phase || (index === 3 && (phase === 3 || phase === 4))); const actions = [() => open('bench'), () => open('sample', scenarioId === 'furnace' ? 'ROBO-02' : 'BET-02'), releaseAction, () => phase === 3 ? advance() : setModal('evidence')]; return <Task key={task.title} number={`0${index + 1}`} title={task.title} note={done ? task.done : task.pending} status={done ? 'done' : active ? 'active' : 'pending'} onClick={active ? actions[index] : undefined} />; })}</ol></section></aside>
       <section className="lab-view"><MissionLabHeading objective={state.title} stationId={selected.id} stationState={selected.state} stationTone={selected.tone} /><LabViewport stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} /></section>
       <aside className="right-rail"><section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>{phase >= 5 ? 'CLOSED' : phase === 4 ? 'REVIEW' : 'ACTIVE'}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={state.fn}>{state.action}<span>→</span></button></section><PhysicalEvidenceCue stationId={selected.id} checks={physicalInspections[selected.id] ?? []} /><section className="rail-section station-inspector"><div className="section-title-row"><p className="section-kicker">SELECTED EQUIPMENT</p><span className={selected.tone}>{selected.state}</span></div><div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div><p>{selected.purpose}</p><StationAccess station={selected} scenarioId={scenarioId} physicalChecks={physicalInspections[selected.id] ?? []} /></section><section className="rail-section lineage-card"><div className="section-title-row"><p className="section-kicker">EVIDENCE CHAIN</p><span>SIM</span></div><div className="lineage-flow"><span>{scenarioId === 'bet' ? 'LOT-77' : 'LOT-112'}</span><i>→</i><span>{scenarioId === 'bet' ? 'ADS-77-C' : 'BC-207'}</span><i>→</i><span>{scenarioId === 'bet' ? (phase >= 2 ? 'READY' : 'HOLD') : (phase >= 5 ? 'EXCLUDE' : 'HOLD')}</span></div><p>{scenarioId === 'bet' ? (phase >= 2 ? 'Tube identity and preparation record agree.' : 'The tube record needs review.') : (phase >= 5 ? 'The interrupted result is saved but excluded from predictions.' : phase >= 2 ? 'The interrupted load is set aside with its record saved.' : 'The furnace contents still need to be checked.')}</p></section></aside></div>
     {modal === 'deck' && <ShiftDeckModal active={scenarioId} onChoose={onSwitch} onExpert={() => setModal('campaign')} onClose={() => setModal(null)} />}
-    {modal === 'guide' && <SystemsAtlasModal onClose={() => setModal(null)} />}
     {(modal === 'campaign' || modal === 'campaign-facility') && <CampaignControlModal autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
     {modal === 'bench' && <BenchModal scenarioId={scenarioId} physicalChecks={physicalInspections[scenario.stationId] ?? []} ran={ran} setRan={setRan} clearFeedback={() => setFeedback('')} feedback={feedback} appendLog={appendLog} onFinish={finishBench} onClose={() => setModal(null)} />}
     {modal === 'sample' && <SampleModal scenarioId={scenarioId} scanned={scanned} setScanned={setScanned} feedback={feedback} appendLog={appendLog} onFinish={finishSample} onClose={() => setModal(null)} />}
@@ -344,7 +338,7 @@ function RecoveryVerificationModal({ setChecks, ran, onRun, feedback, onFinish, 
     ['records', 'Save the recovery record', 'The alarm, temperature trace, and restart command stay linked.'],
   ];
   const run = () => { setChecks({ boundary: true, safety: true, records: true }); onRun(); };
-  return <ModalShell title="Run an empty safety test" kicker="STEP 3 · RECOVERY TEST" onClose={onClose}><div className="modal-grid scenario-bench-grid"><div><p className="modal-intro">Before loading another sample, test the furnace and robot together while the cell is empty.</p><div className="evidence-brief">{items.map(([key, title, note]) => <article key={key}><i>•</i><div><b>{title}</b><small>{note}</small></div></article>)}</div><button className="modal-run" type="button" disabled={ran} onClick={run}>{ran ? 'EMPTY-CELL TEST PASSED' : 'RUN EMPTY SAFETY TEST'}</button>{!ran && <button className="blank-release-shortcut" type="button" onClick={() => onFinish(false)}>Skip because the alarm is cleared</button>}</div><div className="instrument-console recovery-console"><div className="panel-heading"><span>FURNACE + ROBOT TEST</span><b>EMPTY CELL</b></div><RecoverySequence ran={ran} /><div className="recovery-state-grid"><span>OCCUPANCY<b>{ran ? 'EMPTY' : 'HOLD'}</b></span><span>ACCESS LOOP<b>{ran ? 'CLOSED' : '—'}</b></span><span>FURNACE<b>{ran ? 'READY' : 'HOLD'}</b></span><span>ROBOT<b>{ran ? 'HANDSHAKE' : 'PARKED'}</b></span></div>{ran && <div className="blank-verdict"><span>TEST RESULT</span><b>EMPTY CELL + STATE CHANGES PASS</b><i>READY</i></div>}{ran && <div className="decision-stack"><button type="button" onClick={() => onFinish(true)}>Return equipment to ready</button></div>}</div></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+  return <ModalShell title="Run an empty safety test" kicker="STEP 3 · RECOVERY TEST" onClose={onClose}><div className="modal-grid scenario-bench-grid"><div><p className="modal-intro">Before loading another sample, test the furnace and robot together while the cell is empty.</p><div className="evidence-brief">{items.map(([key, title, note]) => <article key={key}><i>•</i><div><b>{title}</b><small>{note}</small></div></article>)}</div><button className="modal-run" type="button" disabled={ran} onClick={run}>{ran ? 'EMPTY-CELL TEST PASSED' : 'RUN EMPTY SAFETY TEST'}</button>{!ran && <button className="blank-release-shortcut" type="button" onClick={() => onFinish(false)}>Skip because the alarm is cleared</button>}</div><div className="instrument-console recovery-console"><div className="panel-heading"><span>FURNACE + ROBOT TEST</span><b>EMPTY CELL</b></div><RecoverySequence ran={ran} /><div className="recovery-state-grid"><span>OCCUPANCY<b>{ran ? 'EMPTY' : 'HOLD'}</b></span><span>ACCESS LOOP<b>{ran ? 'CLOSED' : 'N/A'}</b></span><span>FURNACE<b>{ran ? 'READY' : 'HOLD'}</b></span><span>ROBOT<b>{ran ? 'HANDSHAKE' : 'PARKED'}</b></span></div>{ran && <div className="blank-verdict"><span>TEST RESULT</span><b>EMPTY CELL + STATE CHANGES PASS</b><i>READY</i></div>}{ran && <div className="decision-stack"><button type="button" onClick={() => onFinish(true)}>Return equipment to ready</button></div>}</div></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
 }
 
 function RecoverySequence({ ran }: { ran: boolean }) {

@@ -3,6 +3,7 @@
 import { useEffect, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { buildCustomCampaignSpec, campaignMissions, campaignSpecs as recipes, customCompositionOptions, evaluateCampaignMission, forecastCampaignMission, getAuthoredCampaignFollowUp, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import type { CampaignMissionId, CampaignOperations, CampaignSpec, CustomComposition } from './campaign-spec';
+import { emitLabEvent } from './lab-events';
 
 type CampaignCycle = { handling: number; queue: number; recovery: number; thermal: number; measure: number; decisions: number };
 type CampaignResult = { runNumber: number; candidate: string; measured: string; gap: string; objectiveMet: boolean; elapsed: number; missionId?: CampaignMissionId; diagnosis?: string; thermalBayLevel?: number; cycle?: CampaignCycle };
@@ -94,11 +95,11 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
       try { window.localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* no-op */ }
       return next;
     });
-    if (decisionMessage) window.queueMicrotask(() => window.dispatchEvent(new CustomEvent('mattershift:station-event', { detail: { type: 'campaign', text: decisionMessage } })));
+    if (decisionMessage) emitLabEvent('station-event', { type: 'campaign', text: decisionMessage });
   };
 
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('mattershift:campaign-state', { detail: run }));
+    emitLabEvent('campaign-state', { stage: run.stage });
   }, [run]);
 
   const recipe = getCampaignSpec(run.selected);
@@ -373,12 +374,12 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
   const viewInLab = () => {
     const stationId = activeLabStationId;
     onClose();
-    window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:return-to-lab', { detail: { stationId } })));
+    emitLabEvent('return-to-lab', { stationId });
   };
   const viewAssetInLab = (stationId: string) => {
     setFacilityOpen(false);
     onClose();
-    window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:return-to-lab', { detail: { stationId } })));
+    emitLabEvent('return-to-lab', { stationId });
   };
 
   return <div className="modal-backdrop campaign-backdrop" role="presentation">
@@ -709,7 +710,7 @@ function StorageCommissioningModal({ alreadyQualified, onComplete, onClose }: { 
       <header><div><p className="section-kicker">ASSET COMMISSIONING · STG-02</p><h2>Vertical carousel site acceptance</h2></div><button type="button" onClick={onClose} aria-label="Close storage commissioning">×</button></header>
       <div className="storage-commissioning-status"><span>MECHANICAL STATE<b>{step >= 1 ? 'ANCHORED · E-STOP PROVEN' : 'INSTALL COMPLETE'}</b></span><span>LOCATION MAP<b>{step >= 2 ? '18 / 18 VERIFIED' : 'UNRELEASED'}</b></span><span>RETRIEVAL SAT<b>{step >= 3 ? '12 / 12 PASS' : 'PENDING'}</b></span></div>
       <div className="storage-commissioning-workspace">
-        <div className={`storage-sat-visual ${complete ? 'qualified' : ''}`}><div className="carousel-frame"><header><span>STG-02</span><b>{complete ? 'SAT ACCEPTED' : 'COMMISSIONING'}</b></header><div className="carousel-chain">{Array.from({ length: 18 }, (_, index) => <i key={index} className={index < step * 6 ? 'mapped' : ''}><em>{String(index + 1).padStart(2, '0')}</em></i>)}</div><div className="carousel-port"><i /><b>{step >= 3 ? 'TOTE RETRIEVAL PASS' : 'OUTPUT PORT HELD'}</b></div></div><footer><span>LIGHT CURTAIN<b>PROVEN</b></span><span>INDEX ERROR<b>{step >= 3 ? '0.0 mm' : '—'}</b></span><span>READ RATE<b>{step >= 2 ? '100%' : '—'}</b></span></footer></div>
+        <div className={`storage-sat-visual ${complete ? 'qualified' : ''}`}><div className="carousel-frame"><header><span>STG-02</span><b>{complete ? 'SAT ACCEPTED' : 'COMMISSIONING'}</b></header><div className="carousel-chain">{Array.from({ length: 18 }, (_, index) => <i key={index} className={index < step * 6 ? 'mapped' : ''}><em>{String(index + 1).padStart(2, '0')}</em></i>)}</div><div className="carousel-port"><i /><b>{step >= 3 ? 'TOTE RETRIEVAL PASS' : 'OUTPUT PORT HELD'}</b></div></div><footer><span>LIGHT CURTAIN<b>PROVEN</b></span><span>INDEX ERROR<b>{step >= 3 ? '0.0 mm' : 'N/A'}</b></span><span>READ RATE<b>{step >= 2 ? '100%' : 'N/A'}</b></span></footer></div>
         <div className="storage-commissioning-controls"><p>Release the carousel only after its physical installation, digital location map, and empty-tote retrieval agree. Inventory capacity changes only after the SAT record is retained.</p><ol><InventoryStep number="01" title="Prove anchorage + safety chain" note="base torque · E-stop · light curtain" done={step >= 1} active={step === 0} onClick={() => execute(1)} /><InventoryStep number="02" title="Verify barcode location map" note="18 bins · zero duplicate locations" done={step >= 2} active={step === 1} onClick={() => execute(2)} /><InventoryStep number="03" title="Run empty-tote retrieval SAT" note="12 calls · position + readback" done={step >= 3} active={step === 2} onClick={() => execute(3)} /></ol>{!complete && <button type="button" className="storage-shortcut" onClick={() => setFeedback('Blocked: an unmapped bin can retrieve the correct-looking consumable under the wrong lot or release state.')}>RUN WITH UNMAPPED BINS</button>}{feedback && <p className="storage-feedback">{feedback}</p>}<button type="button" className="storage-release" disabled={!complete} onClick={alreadyQualified ? onClose : onComplete}>{alreadyQualified ? 'CLOSE SAT RECORD' : complete ? 'RETAIN SAT · RELEASE STG-02' : 'COMPLETE SITE ACCEPTANCE'}</button></div>
       </div>
     </section>
@@ -797,10 +798,10 @@ function ThermalCommissioningModal({ alreadyQualified, activeRun, queueMinutes, 
             <rect width="620" height="310" fill="url(#commissionGrid)" />
             <rect x="28" y="38" width="238" height="160" rx="7" className="commission-cabinet" /><rect x="49" y="63" width="196" height="104" rx="4" className="commission-chamber active" /><ellipse cx="147" cy="114" rx="78" ry="40" fill="url(#commissionHeat)" /><text x="92" y="119">CHAMBER A</text><text x="93" y="139">{activeRun}</text>
             <rect x="354" y="38" width="238" height="160" rx="7" className={isolationReady ? 'commission-cabinet proven' : 'commission-cabinet'} /><rect x="375" y="63" width="196" height="104" rx="4" className={cycleReady ? 'commission-chamber qualified' : 'commission-chamber'} />
-            <text x="434" y="91">CHAMBER B</text>{temperatures.map((temperature, index) => { const x = 409 + (index % 3) * 64; const y = 113 + Math.floor(index / 3) * 22; return <g key={temperature} className={cycleReady ? 'survey-point ready' : 'survey-point'}><circle cx={x} cy={y} r="7" /><text x={x + 10} y={y + 3}>{cycleReady ? temperature.toFixed(1) : '—'}</text></g>; })}
+            <text x="434" y="91">CHAMBER B</text>{temperatures.map((temperature, index) => { const x = 409 + (index % 3) * 64; const y = 113 + Math.floor(index / 3) * 22; return <g key={temperature} className={cycleReady ? 'survey-point ready' : 'survey-point'}><circle cx={x} cy={y} r="7" /><text x={x + 10} y={y + 3}>{cycleReady ? temperature.toFixed(1) : 'N/A'}</text></g>; })}
             <line x1="28" x2="592" y1="237" y2="237" className="commission-axis" /><path d={cycleReady ? 'M32 278 C92 277 112 254 146 246 S205 238 244 238 L432 238 C470 239 498 247 520 262 S560 278 588 279' : 'M32 279 H588'} className={cycleReady ? 'commission-trace ready' : 'commission-trace'} /><text x="30" y="300">23 °C</text><text x="272" y="300">990 °C EMPTY CYCLE</text><text x="546" y="300">COOL</text>
           </svg>
-          <div className="commissioning-result-strip"><span>SETPOINT<b>990.0 °C</b></span><span>MEAN<b>{cycleReady ? '989.5 °C' : '—'}</b></span><span>SPAN<b>{cycleReady ? '7.4 °C' : '—'}</b></span><span>LIMIT<b>≤ 8.0 °C</b></span></div>
+          <div className="commissioning-result-strip"><span>SETPOINT<b>990.0 °C</b></span><span>MEAN<b>{cycleReady ? '989.5 °C' : 'N/A'}</b></span><span>SPAN<b>{cycleReady ? '7.4 °C' : 'N/A'}</b></span><span>LIMIT<b>≤ 8.0 °C</b></span></div>
         </div>
         <div className="commissioning-controls">
           <p className="modal-intro">Qualify chamber B without disturbing the governed run in chamber A. Each proof is independent; copied calibration values are not current equipment evidence.</p>

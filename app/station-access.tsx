@@ -3,22 +3,15 @@
 import { useEffect, useState } from 'react';
 import { evaluateCampaignMission, getCampaignIdentity, getCampaignObservedPhase, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import type { CampaignMissionId, CampaignSpec } from './campaign-spec';
-import { getCampaignStationId, getCampaignStationView } from './campaign-context';
+import { getCampaignStationId, getCampaignStationView, useCampaignSnapshot } from './campaign-context';
+import { emitLabEvent, subscribeLabEvent } from './lab-events';
 import type { Station } from './sim-data';
 
-type Tab = 'hmi' | 'les' | 'lims' | 'cmms';
 type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
 type CampaignBacklogItem = { runNumber: number; candidate: string; missionId: CampaignMissionId };
-type ConsoleSession = { completed: Record<Tab, boolean>; hmiOperations: string[] };
+type ConsoleSession = { completed: boolean; hmiOperations: string[] };
 
-const emptyConsoleSession = (): ConsoleSession => ({ completed: { hmi: false, les: false, lims: false, cmms: false }, hmiOperations: [] });
-
-const TAB_META: Record<Tab, { icon: string; label: string; sub: string }> = {
-  hmi: { icon: '⌁', label: 'HMI', sub: 'live control' },
-  les: { icon: '✓', label: 'LES', sub: 'method steps' },
-  lims: { icon: '⌗', label: 'LIMS', sub: 'sample record' },
-  cmms: { icon: '◇', label: 'CMMS', sub: 'asset health' },
-};
+const emptyConsoleSession = (): ConsoleSession => ({ completed: false, hmiOperations: [] });
 
 const profiles: Record<string, {
   controller: string;
@@ -81,11 +74,6 @@ function getCampaignHmiOperations(stationId: string, stage: number, selected: st
   return HMI_OPERATIONS[stationId] ?? null;
 }
 
-function getCampaignMethodStep(stage: number) {
-  if (stage === 1 || stage === 2 || stage === 4 || stage === 6) return 1;
-  if (stage === 3 || stage === 5) return 2;
-  return 3;
-}
 
 function completeCampaignMachineStage(stage: number) {
   if (stage < 1 || (stage > 6 && stage !== 8)) return null;
@@ -164,7 +152,7 @@ function completeCampaignMachineStage(stage: number) {
         : history;
     const next = { ...current, ...transition, history: nextHistory };
     window.localStorage.setItem('mattershift-campaign-v2', JSON.stringify(next));
-    window.dispatchEvent(new CustomEvent('mattershift:campaign-state', { detail: next }));
+    emitLabEvent('campaign-state', { stage: next.stage });
     return transition.stage;
   } catch {
     return null;
@@ -208,16 +196,17 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
   const [open, setOpen] = useState(false);
   const [enteredFromLab, setEnteredFromLab] = useState(false);
   const [enteredChecks, setEnteredChecks] = useState<string[]>([]);
-  const [tab, setTab] = useState<Tab>('hmi');
   const [sessions, setSessions] = useState<Record<string, ConsoleSession>>({});
-  const [campaignStage, setCampaignStage] = useState(0);
-  const [campaignSelected, setCampaignSelected] = useState('C-42');
-  const [campaignRunNumber, setCampaignRunNumber] = useState(42);
-  const [campaignResultElapsed, setCampaignResultElapsed] = useState(0);
-  const [campaignResultMeasured, setCampaignResultMeasured] = useState('');
-  const [campaignMissionId, setCampaignMissionId] = useState<CampaignMissionId>('purity');
-  const [campaignThermalBayLevel, setCampaignThermalBayLevel] = useState(1);
-  const [campaignBacklog, setCampaignBacklog] = useState<CampaignBacklogItem[]>([]);
+  const campaign = useCampaignSnapshot();
+  const campaignStage = campaign.stage;
+  const campaignSelected = campaign.selected;
+  const campaignRunNumber = campaign.runNumber;
+  const campaignResultElapsed = campaign.resultElapsed;
+  const campaignResultMeasured = campaign.resultMeasured;
+  const campaignPriorReplicateCount = campaign.priorReplicateCount;
+  const campaignMissionId = campaign.missionId;
+  const campaignThermalBayLevel = campaign.thermalBayLevel;
+  const campaignBacklog = campaign.backlog;
   const campaignActive = campaignEnabled && scenarioId === 'xrd' && getCampaignStationId(campaignStage) === station.id;
   const facilityConfigured = campaignEnabled && scenarioId === 'xrd' && station.id === 'FURN-04' && campaignThermalBayLevel >= 2;
   const contextKey = campaignActive ? `${station.id}:RUN-${campaignRunNumber}:${campaignSelected}:${campaignMissionId}:S${campaignStage}` : facilityConfigured ? `${station.id}:CONFIG-L2` : station.id;
@@ -227,21 +216,20 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
   const hmiOperations = session.hmiOperations;
   const profile = getContextProfile(station.id, scenarioId, campaignActive ? campaignStage : 0, campaignSelected, campaignRunNumber, campaignThermalBayLevel, campaignMissionId, campaignResultElapsed);
   const activePhysicalChecks = campaignActive ? (enteredFromLab ? enteredChecks : []) : physicalChecks;
-  const recordStationEvent = (type: string, text: string, action?: string) => window.dispatchEvent(new CustomEvent('mattershift:station-event', { detail: { stationId: station.id, type, text, action } }));
   const finish = () => {
     setSessions((current) => {
       const active = current[contextKey] ?? emptyConsoleSession();
-      return { ...current, [contextKey]: { ...active, completed: { ...active.completed, [tab]: true } } };
+      return { ...current, [contextKey]: { ...active, completed: true } };
     });
-    recordStationEvent('attestation', `${station.id} ${TAB_META[tab].label} ${tab === 'hmi' ? 'safe-state attestation' : 'operator action'} retained with TECH-07 and the active record revision.`);
-    if (tab === 'hmi' && campaignActive) {
+    emitLabEvent('station-event', { type: 'attestation', stationId: station.id, text: `${station.id} machine check completed by TECH-07.` });
+    if (campaignActive) {
       const nextStage = completeCampaignMachineStage(campaignStage);
       if (nextStage) window.setTimeout(() => {
         setOpen(false);
         setEnteredFromLab(false);
         setEnteredChecks([]);
         const stationId = getCampaignStationId(nextStage);
-        window.dispatchEvent(new CustomEvent('mattershift:return-to-lab', { detail: { stationId } }));
+        emitLabEvent('return-to-lab', { stationId });
       }, 420);
     }
   };
@@ -251,57 +239,17 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
       const active = current[contextKey] ?? emptyConsoleSession();
       return { ...current, [contextKey]: { ...active, hmiOperations: [...active.hmiOperations, operation] } };
     });
-    recordStationEvent('control', `${station.id} local control: ${operation}; equipment feedback retained.`, operation);
+    emitLabEvent('station-event', { type: 'control', stationId: station.id, text: `${station.id} local control: ${operation}; equipment feedback retained.`, action: operation });
   };
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      try {
-        const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { stage?: number; selected?: string; runNumber?: number; missionId?: CampaignMissionId; thermalBayLevel?: number; backlog?: CampaignBacklogItem[]; history?: Array<{ runNumber?: number; elapsed?: number; measured?: string }> };
-        const storedRunNumber = Number(stored.runNumber ?? 42);
-        const retainedResult = stored.history?.find((item) => Number(item.runNumber) === storedRunNumber);
-        setCampaignStage(Number(stored.stage ?? 0));
-        setCampaignSelected(String(stored.selected ?? 'C-42'));
-        setCampaignRunNumber(storedRunNumber);
-        setCampaignResultElapsed(Number(retainedResult?.elapsed ?? 0));
-        setCampaignResultMeasured(String(retainedResult?.measured ?? ''));
-        setCampaignMissionId(stored.missionId ?? 'purity');
-        setCampaignThermalBayLevel(Number(stored.thermalBayLevel ?? 1));
-        setCampaignBacklog(Array.isArray(stored.backlog) ? stored.backlog.slice(0, 3) : []);
-      } catch { /* preserve the deterministic server defaults */ }
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  useEffect(() => {
-    const followCampaign = (event: Event) => {
-      const detail = (event as CustomEvent<{ stage?: number; selected?: string; runNumber?: number; missionId?: CampaignMissionId; thermalBayLevel?: number; backlog?: CampaignBacklogItem[]; history?: Array<{ runNumber?: number; elapsed?: number; measured?: string }> }>).detail;
-      const nextRunNumber = Number(detail?.runNumber ?? campaignRunNumber);
-      const retainedResult = detail?.history?.find((item) => Number(item.runNumber) === nextRunNumber);
-      setCampaignStage(Number(detail?.stage ?? 0));
-      if (detail?.selected) setCampaignSelected(String(detail.selected));
-      if (detail?.runNumber) setCampaignRunNumber(nextRunNumber);
-      setCampaignResultElapsed(Number(retainedResult?.elapsed ?? 0));
-      setCampaignResultMeasured(String(retainedResult?.measured ?? ''));
-      if (detail?.missionId) setCampaignMissionId(detail.missionId);
-      if (detail?.thermalBayLevel) setCampaignThermalBayLevel(Number(detail.thermalBayLevel));
-      setCampaignBacklog(Array.isArray(detail?.backlog) ? detail.backlog.slice(0, 3) : []);
-    };
-    window.addEventListener('mattershift:campaign-state', followCampaign);
-    return () => window.removeEventListener('mattershift:campaign-state', followCampaign);
-  }, [campaignRunNumber]);
-
-  useEffect(() => {
-    const openFromLab = (event: Event) => {
-      const request = event as CustomEvent<{ stationId?: string; physicalChecks?: string[] }>;
-      if (request.detail?.stationId === station.id) {
+    return subscribeLabEvent('open-console', ({ stationId, physicalChecks }) => {
+      if (stationId === station.id) {
         setEnteredFromLab(true);
-        setEnteredChecks(request.detail.physicalChecks ?? []);
+        setEnteredChecks(physicalChecks);
         setOpen(true);
       }
-    };
-    window.addEventListener('mattershift:open-console', openFromLab);
-    return () => window.removeEventListener('mattershift:open-console', openFromLab);
+    });
   }, [station.id]);
 
   const closeConsole = () => {
@@ -313,11 +261,11 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
     setOpen(false);
     setEnteredFromLab(false);
     setEnteredChecks([]);
-    window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mattershift:return-to-lab', { detail: { stationId: station.id } })));
+    emitLabEvent('return-to-lab', { stationId: station.id });
   };
   const openStationAccess = () => {
     if (campaignActive && physicalChecks.length < 3) {
-      window.dispatchEvent(new CustomEvent('mattershift:return-to-lab', { detail: { stationId: station.id } }));
+      emitLabEvent('return-to-lab', { stationId: station.id });
       return;
     }
     const retainWalkaround = campaignActive && physicalChecks.length === 3;
@@ -327,30 +275,19 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
   };
 
   return <>
-    <button className="station-access-button" type="button" onClick={openStationAccess}><span>⌁</span><b>{campaignActive && physicalChecks.length < 3 ? 'INSPECT THIS MACHINE' : campaignActive ? 'USE THIS MACHINE' : 'OPTIONAL CONTROLS'}</b>{campaignActive && <i>{physicalChecks.length === 3 ? 'Inspection complete' : `${physicalChecks.length} of 3 inspection points checked`}</i>}<em>→</em></button>
+    <button className="station-access-button" type="button" onClick={openStationAccess}><span>⌁</span><b>{campaignActive && physicalChecks.length < 3 ? 'INSPECT THIS MACHINE' : campaignActive ? 'USE THIS MACHINE' : 'OPERATE MACHINE'}</b>{campaignActive && <i>{physicalChecks.length === 3 ? 'Inspection complete' : `${physicalChecks.length} of 3 inspection points checked`}</i>}<em>→</em></button>
     {open && <div className="modal-backdrop station-console-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) closeConsole(); }}>
       <section className="modal-card wide station-console" role="dialog" aria-modal="true" aria-label={`${consoleStation.name} local station console`}>
-        <header><div><p className="section-kicker">LOCAL STATION ACCESS · {profile.controller}</p><h2>{station.id} / {consoleStation.name}</h2></div><div className="console-header-actions">{enteredFromLab && <button type="button" className="return-asset" onClick={returnToAsset}>← RETURN TO ASSET</button>}<button type="button" onClick={closeConsole} aria-label="Close">×</button></div></header>
-        <div className="console-shell">
-          <nav className="console-nav" aria-label="Station systems">
-            {Object.entries(TAB_META).map(([id, meta]) => <button key={id} type="button" className={tab === id ? 'active' : ''} onClick={() => setTab(id as Tab)}>
-              <span>{meta.icon}</span><b>{meta.label}</b><small>{meta.sub}</small>{completed[id as Tab] && <i>✓</i>}
-            </button>)}
-          </nav>
-          <div className="console-main">
-            <div className="console-statusbar"><span><i className="online" />PLC ONLINE</span><span>ROLE <b>TECH-07</b></span><span>WALK <b>{activePhysicalChecks.length}/3</b></span>{campaignActive && <span>BACKLOG <b>{campaignBacklog.length}</b></span>}<span><i className={consoleStation.tone === 'warn' ? 'alarm' : consoleStation.tone === 'off' ? '' : 'online'} />{consoleStation.state}</span></div>
-            {tab === 'hmi' && <HmiView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} campaignResultElapsed={campaignResultElapsed} campaignThermalBayLevel={campaignThermalBayLevel} campaignBacklog={campaignBacklog} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed.hmi} onComplete={finish} />}
-            {tab === 'les' && <LesView station={consoleStation} profile={profile} campaignStage={campaignActive ? campaignStage : 0} complete={completed.les} onComplete={finish} />}
-            {tab === 'lims' && <LimsView station={consoleStation} profile={profile} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} campaignResultElapsed={campaignResultElapsed} complete={completed.lims} onComplete={finish} />}
-            {tab === 'cmms' && <CmmsView profile={profile} complete={completed.cmms} onComplete={finish} />}
-          </div>
+        <header><div><p className="section-kicker">INSTRUMENT CONTROL · {profile.controller}</p><h2>{consoleStation.name}</h2></div><div className="console-header-actions">{enteredFromLab && <button type="button" className="return-asset" onClick={returnToAsset}>← BACK TO MACHINE</button>}<button type="button" onClick={closeConsole} aria-label="Close">×</button></div></header>
+        <div className="console-main compact-console-main">
+          <HmiView station={consoleStation} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} campaignResultElapsed={campaignResultElapsed} campaignResultMeasured={campaignResultMeasured} campaignPriorReplicateCount={campaignPriorReplicateCount} campaignThermalBayLevel={campaignThermalBayLevel} campaignBacklog={campaignBacklog} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed} onComplete={finish} />
         </div>
       </section>
     </div>}
   </>;
 }
 
-function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignResultElapsed, campaignThermalBayLevel, campaignBacklog, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignMissionId: CampaignMissionId; campaignResultElapsed: number; campaignThermalBayLevel: number; campaignBacklog: CampaignBacklogItem[]; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
+function HmiView({ station, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignResultElapsed, campaignResultMeasured, campaignPriorReplicateCount, campaignThermalBayLevel, campaignBacklog, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignMissionId: CampaignMissionId; campaignResultElapsed: number; campaignResultMeasured: string; campaignPriorReplicateCount: number; campaignThermalBayLevel: number; campaignBacklog: CampaignBacklogItem[]; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
   const releaseBlocked = station.tone === 'warn' || station.tone === 'off' || station.tone === 'hold';
   const walkaroundComplete = physicalChecks.length === 3;
   const operationSteps = getCampaignHmiOperations(station.id, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel) ?? (station.id === 'FURN-04' && station.state !== 'READY'
@@ -360,44 +297,6 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
   const operationsComplete = operationSteps.every((operation) => operations.includes(operation));
   const semFieldsReady = operations.includes('Acquire four preplanned BSE fields');
   const semEdsReady = operations.includes('Acquire EDS map across the field grid');
-  const safeState = (item: string) => {
-    if (station.id === 'PREP-01') {
-      if (item === 'LEV airflow proven' || item === 'door sash in range') return operations.includes('Prove enclosure flow');
-      if (item === 'balance draft shield closed') return operations.includes('Close balance draft shield');
-      if (item === 'balance level valid') return operations.includes('Zero analytical balance');
-    }
-    if (station.id === 'ROBO-02') {
-      if (item === 'gate chain closed') return operations.includes('Close access gate');
-      if (item === 'area scanner clear') return operations.includes('Reset safeguarded stop') || operations.includes('Verify safeguarded stop');
-      if (item === 'gripper pressure valid') return operations.some((operation) => ['Prove gripper state', 'Acquire witness coupon', 'Acquire force witness', 'Prove carrier handshake', 'Execute crucible dosing'].includes(operation));
-    }
-    if (station.id === 'XRD-03') {
-      // Stage 7 reviews an already-retained pattern. The acquisition interlocks remain part of
-      // that record even when this operator's review/walkaround session is new.
-      if (item === 'enclosure closed') return campaignStage >= 7 || operations.includes('Close radiation enclosure');
-      if (item === 'shutter feedback closed') return campaignStage >= 7 || operations.includes('Prove shutter feedback');
-    }
-    if (station.id === 'SEM-01') {
-      // Stage 9 is a retained, completed acquisition. A new browser session deliberately expires
-      // operator walkaround access, but it must not rewrite the instrument witnesses that produced
-      // the already-linked BSE/EDS result.
-      if (item === 'HV blanked') return campaignStage >= 9 || operations.includes('Verify beam blanked');
-      if (item === 'stage Z clearance valid') return campaignStage >= 9 || operations.includes('Verify stage clearance');
-      if (item === 'chamber vacuum established') return campaignStage >= 9 || operations.includes('Establish chamber vacuum');
-    }
-    if (station.id === 'BET-02') {
-      if (item === 'vacuum trend stable') return operations.includes('Run manifold leak check');
-      if (item === 'N₂ supply in range') return operations.includes('Prove N₂ supply state');
-      if (item === 'tube ports isolated') return operations.includes('Isolate analysis ports');
-      if (item === '77 K bath in analysis position') return operations.includes('Position 77 K Dewar');
-    }
-    if (station.id === 'TGA-01') {
-      if (item === 'furnace near ambient') return operations.includes('Confirm furnace at start temperature');
-      if (item === 'purge path proven') return operations.includes('Prove purge path');
-      if (item === 'autosampler clear') return operations.includes('Home autosampler carousel');
-    }
-    return true;
-  };
   const liveStation = campaignStage === 8 && station.id === 'SEM-01'
     ? {
         ...station,
@@ -409,25 +308,21 @@ function HmiView({ station, profile, scenarioId, campaignStage, campaignSelected
             : item),
       }
     : station;
-  return <div className="console-view hmi-view">
-    <div className="console-view-head"><div><p className="section-kicker">HMI / SCADA</p><h3>Equipment state + permissives</h3></div><span>REFRESH 250 ms</span></div>
-    <div className="hmi-layout">
-      <div className="instrument-mimic"><InstrumentMimic station={liveStation} /><div className="mimic-caption"><span>ASSET MIMIC</span><b>{liveStation.id}</b><i>{liveStation.state}</i></div></div>
-      <div className="live-readouts">{liveStation.technicianView.map((item, index) => { const [key, value = '—'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b><i style={{ width: `${58 + index * 9}%` }} /></div>; })}</div>
-      <div className="permissive-panel"><p className="mini-label">START PERMISSIVES</p>{profile.safe.map((item) => { const proven = safeState(item); return <div key={item}><i className={proven ? 'ok' : 'attention'}>{proven ? '✓' : '!'}</i><span>{item}</span><b>{proven ? 'TRUE' : 'HOLD'}</b></div>; })}<div><i className={walkaroundComplete ? 'ok' : 'attention'}>{walkaroundComplete ? '✓' : '!'}</i><span>physical walkaround evidence</span><b>{walkaroundComplete ? 'TRUE' : 'HOLD'}</b></div><div><i className={releaseBlocked ? 'attention' : 'ok'}>{releaseBlocked ? '!' : '✓'}</i><span>quality / service release</span><b>{releaseBlocked ? 'HOLD' : 'TRUE'}</b></div></div>
-    </div>
+  return <div className="console-view hmi-view compact-hmi-view">
+    <div className="console-view-head compact-console-head"><div><p className="section-kicker">{liveStation.id} · MACHINE CONTROL</p><h3>{liveStation.state}</h3></div><div className="compact-console-progress"><span>{physicalChecks.length}/3 inspected</span><b>{completedOperations}/{operationSteps.length} steps</b></div></div>
+    <div className="compact-readouts">{liveStation.technicianView.slice(0, 3).map((item) => { const [key, value = 'N/A'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b></div>; })}</div>
     {campaignStage === 1 && station.id === 'PREP-01' && <PrepCampaignPanel selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 2 && campaignStage <= 3 && station.id === 'ROBO-02' && <RobotCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} thermalBayLevel={campaignThermalBayLevel} backlog={campaignBacklog} operations={operations} />}
-    {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} backlog={campaignBacklog} operations={operations} />}
+    {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} resultMeasured={campaignResultMeasured} priorReplicateCount={campaignPriorReplicateCount} backlog={campaignBacklog} operations={operations} />}
     {campaignStage >= 8 && station.id === 'SEM-01' && <SemCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {!campaignStage && scenarioId === 'bet' && station.id === 'BET-02' && <BetHmiPanel station={station} operations={operations} />}
     {!campaignStage && scenarioId === 'tga' && station.id === 'TGA-01' && <TgaHmiPanel station={station} operations={operations} />}
     <div className="hmi-operations">
-      <div><p className="mini-label">LOCAL CONTROL SEQUENCE</p><span>{completedOperations} / {operationSteps.length} proven</span></div>
-      {operationSteps.map((operation, index) => { const done = operations.includes(operation); const priorComplete = operationSteps.slice(0, index).every((prior) => operations.includes(prior)); const qualityBlocked = !campaignStage && releaseBlocked && /^(Execute|Start|Acquire)\b/.test(operation); const active = walkaroundComplete && priorComplete && !done && !qualityBlocked; return <button key={operation} type="button" className={done ? 'done' : qualityBlocked && priorComplete ? 'quality-blocked' : active ? 'active' : ''} disabled={!walkaroundComplete || !priorComplete || done || qualityBlocked} onClick={() => onOperation(operation)}><i>{done ? '✓' : qualityBlocked && priorComplete ? '!' : `0${index + 1}`}</i><b>{operation}</b><small>{done ? 'feedback retained' : qualityBlocked && priorComplete ? 'quality / service hold' : active ? 'ready at HMI' : walkaroundComplete ? 'sequence held' : 'walkaround held'}</small></button>; })}
+      <div><p className="mini-label">OPERATING STEPS</p><span>{completedOperations} of {operationSteps.length}</span></div>
+      {operationSteps.map((operation, index) => { const done = operations.includes(operation); const priorComplete = operationSteps.slice(0, index).every((prior) => operations.includes(prior)); const qualityBlocked = !campaignStage && releaseBlocked && /^(Execute|Start|Acquire)\b/.test(operation); const active = walkaroundComplete && priorComplete && !done && !qualityBlocked; return <button key={operation} type="button" className={done ? 'done' : qualityBlocked && priorComplete ? 'quality-blocked' : active ? 'active' : ''} disabled={!walkaroundComplete || !priorComplete || done || qualityBlocked} onClick={() => onOperation(operation)}><i>{done ? '✓' : qualityBlocked && priorComplete ? '!' : `0${index + 1}`}</i><b>{operation}</b><small>{done ? 'Done' : qualityBlocked && priorComplete ? 'On hold' : active ? 'Ready' : 'Waiting'}</small></button>; })}
     </div>
-    <ConsoleAction complete={complete} disabled={!walkaroundComplete || !operationsComplete} idle={!walkaroundComplete ? 'WALKAROUND REQUIRED' : operationsComplete ? 'ATTEST SAFE STATE' : 'COMPLETE CONTROL SEQUENCE'} done="SAFE STATE ATTESTED" note={complete ? 'Attestation staged for the LES record.' : !walkaroundComplete ? `${physicalChecks.length}/3 physical inspection points linked. Use 3D focus mode.` : operationsComplete ? 'Physical state and local feedback agree; quality or service holds remain independent.' : `${completedOperations}/${operationSteps.length} local subsystem checks retained.`} onClick={onComplete} />
+    <ConsoleAction complete={complete} disabled={!walkaroundComplete || !operationsComplete} idle={!walkaroundComplete ? 'INSPECTION REQUIRED' : operationsComplete ? 'FINISH MACHINE CHECK' : 'COMPLETE THE STEPS'} done="CHECK COMPLETE" note={complete ? 'Machine check saved.' : !walkaroundComplete ? `Inspect all 3 points on the machine first.` : operationsComplete ? 'All required feedback is present.' : 'Complete each step in order.'} onClick={onComplete} />
   </div>;
 }
 
@@ -473,13 +368,13 @@ function PrepCampaignPanel({ selected, runNumber, operations }: { selected: stri
         <rect x="20" y="21" width="207" height="136" rx="3" className={airflowProven ? 'prep-enclosure proven' : 'prep-enclosure'} /><path d="M35 46 H211 M35 61 H211" className={airflowProven ? 'airflow proven' : 'airflow'} /><text x="34" y="35">LEV-01 · {airflowProven ? '0.48 m/s PROVEN' : 'FLOW PROOF REQUIRED'}</text>
         {lots.map((lot, index) => <g key={lot.lot} transform={`translate(34 ${77 + index * 23})`} className="precursor-lot"><rect width="176" height="18" rx="2" /><text x="7" y="12">{lot.lot}</text><text x="62" y="12">{lot.material}</text><text x="132" y="12">{lot.mass}</text></g>)}
         <rect x="247" y="21" width="252" height="136" rx="3" className="balance-deck" /><text x="259" y="36">ANALYTICAL BALANCE · ±0.2 mg</text>
-        <rect x="258" y="48" width="229" height="45" rx="2" className={zeroed ? 'balance-display stable' : 'balance-display'} /><text x="270" y="64">{identity.prepSample}</text><text x="270" y="84" className="mass-value">{zeroed ? actual : '—.——'} g</text><text x="422" y="84" className={zeroed ? 'within' : ''}>{zeroed ? 'STABLE' : 'NOT TARED'}</text>
+        <rect x="258" y="48" width="229" height="45" rx="2" className={zeroed ? 'balance-display stable' : 'balance-display'} /><text x="270" y="64">{identity.prepSample}</text><text x="270" y="84" className="mass-value">{zeroed ? actual : '-.---'} g</text><text x="422" y="84" className={zeroed ? 'within' : ''}>{zeroed ? 'STABLE' : 'NOT TARED'}</text>
         <line x1="258" x2="487" y1="146" y2="146" className="mass-baseline" /><path d={massPath} className={zeroed ? 'mass-trace stable' : 'mass-trace'} /><line x1="258" x2="487" y1="119" y2="119" className="mass-target" /><text x="259" y="111">TARGET {spec.targetMass} · LIMIT ±0.0002 g</text>
         {antistatic && <g className="release-stamp"><rect x="392" y="97" width="94" height="20" rx="2" /><text x="404" y="110">RELEASE → {identity.carrier}</text></g>}
       </svg>
       <aside>
         <div className={airflowProven ? 'pass' : 'hold'}><span>ENCLOSURE FLOW</span><b>{airflowProven ? '0.48 m/s' : 'HOLD'}</b><small>{airflowProven ? 'LEV feedback true' : 'prove local capture'}</small></div>
-        <div className={zeroed ? 'pass' : airflowProven ? 'review' : 'waiting'}><span>NET MASS</span><b>{zeroed ? `${actual} g` : '—'}</b><small>{zeroed ? `${offset >= 0 ? '+' : '−'}${Math.abs(offset * 1000).toFixed(1)} mg` : 'tare required'}</small></div>
+        <div className={zeroed ? 'pass' : airflowProven ? 'review' : 'waiting'}><span>NET MASS</span><b>{zeroed ? `${actual} g` : 'N/A'}</b><small>{zeroed ? `${offset >= 0 ? '+' : '−'}${Math.abs(offset * 1000).toFixed(1)} mg` : 'tare required'}</small></div>
         <div className={antistatic ? 'pass' : 'waiting'}><span>PORTION RECORD</span><b>{identity.prepSample}</b><small>{antistatic ? `${identity.carrier} linked` : 'antistatic gate'}</small></div>
       </aside>
     </div>
@@ -589,7 +484,7 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, bac
       </svg>
       <aside>
         <div className={profileRead ? 'pass' : 'hold'}><span>{queued ? auxiliary ? 'CHAMBER A' : 'OCCUPANCY' : runOps.furnaceCondition === 'thermocouple-drift' ? 'WITNESS TC' : runOps.furnaceCondition === 'door-seal' ? 'DOOR SURVEY' : 'OVERTEMP'}</span><b>{queued ? runOps.activeFurnaceRun : runOps.furnaceConstraint ? runOps.furnaceCondition === 'thermocouple-drift' ? '+11.8 °C' : '12.6 °C' : profileRead ? 'ARMED' : 'READ'}</b><small>{queued ? auxiliary ? 'independent TC active' : 'capacity 1 / 1' : profileRead ? runOps.furnaceResult : 'proof required'}</small></div>
-        <div className={secondGate && thirdGate ? 'pass' : secondGate ? 'review' : 'waiting'}><span>{queued ? auxiliary ? 'CHAMBER B' : 'QUEUE' : runOps.furnaceCondition === 'thermocouple-drift' ? 'TC / OVERTEMP' : runOps.furnaceCondition === 'door-seal' ? 'LATCH / CHAIN' : 'DOOR CHAIN'}</span><b>{queued ? auxiliary ? secondGate ? 'READY' : 'VERIFY' : 'Q01' : thirdGate ? 'PROVEN' : secondGate ? 'VERIFY' : '—'}</b><small>{queued ? auxiliary ? 'independent TC + pre-start survey' : identity.carrier : thirdGate ? 'independent proof retained' : secondGate ? 'secondary proof due' : 'awaiting sequence'}</small></div>
+        <div className={secondGate && thirdGate ? 'pass' : secondGate ? 'review' : 'waiting'}><span>{queued ? auxiliary ? 'CHAMBER B' : 'QUEUE' : runOps.furnaceCondition === 'thermocouple-drift' ? 'TC / OVERTEMP' : runOps.furnaceCondition === 'door-seal' ? 'LATCH / CHAIN' : 'DOOR CHAIN'}</span><b>{queued ? auxiliary ? secondGate ? 'READY' : 'VERIFY' : 'Q01' : thirdGate ? 'PROVEN' : secondGate ? 'VERIFY' : 'N/A'}</b><small>{queued ? auxiliary ? 'independent TC + pre-start survey' : identity.carrier : thirdGate ? 'independent proof retained' : secondGate ? 'secondary proof due' : 'awaiting sequence'}</small></div>
         <div className={finalGate ? 'pass' : 'waiting'}><span>{queued ? 'RELEASE' : 'THERMAL DOSE'}</span><b>{queued ? `${runOps.queueMinutes} min` : spec.temperature}</b><small>{queued ? finalGate ? 'location proven' : 'carrier held' : finalGate ? `${spec.dwell} dwell · recovery retained` : `${runOps.furnaceRecoveryMinutes} min recovery`}</small></div>
       </aside>
     </div>
@@ -635,19 +530,9 @@ function diffractionPath(peaks: Array<[number, number]>, baseline: number, ampli
   }).join(' ');
 }
 
-function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed, backlog, operations }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId; resultElapsed: number; backlog: CampaignBacklogItem[]; operations: string[] }) {
+function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed, resultMeasured, priorReplicateCount, backlog, operations }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId; resultElapsed: number; resultMeasured: string; priorReplicateCount: number; backlog: CampaignBacklogItem[]; operations: string[] }) {
   const spec = getCampaignSpec(selected);
-  const observedMeasured = (() => {
-    if (typeof window === 'undefined') return spec.measured;
-    try {
-      const stored = JSON.parse(window.localStorage.getItem('mattershift-campaign-v2') ?? '{}') as { history?: Array<{ runNumber?: number; candidate?: string; measured?: string }> };
-      const history = Array.isArray(stored.history) ? stored.history : [];
-      const retained = history.find((result) => Number(result.runNumber) === runNumber);
-      if (retained?.measured) return retained.measured;
-      const priorReplicateCount = history.filter((result) => result.candidate === spec.id && Number(result.runNumber) < runNumber).length;
-      return getCampaignObservedPhase(spec, priorReplicateCount);
-    } catch { return spec.measured; }
-  })();
+  const observedMeasured = resultMeasured || getCampaignObservedPhase(spec, priorReplicateCount);
   const observedSpec = { ...spec, measured: observedMeasured };
   const evaluation = evaluateCampaignMission(observedSpec, missionId, stage >= 7 && resultElapsed > 0 ? resultElapsed : undefined);
   const identity = getCampaignIdentity(runNumber);
@@ -677,7 +562,7 @@ function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed
       </svg>
       <aside>
         <div className={referenceCaptured ? 'pass' : runOps.referenceConstraint ? 'hold' : 'review'}><span>SILICON QC</span><b>{referenceCaptured ? runOps.referenceResult : `${runOps.referenceAgeHours} H OLD`}</b><small>{referenceCaptured ? 'inside ±0.05° QC tolerance' : runOps.referenceCondition === 'trend-review' ? 'confirm position trend' : runOps.referenceCondition === 'current' ? 'review before sample' : 'sample testing blocked'}</small></div>
-        <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${observedMeasured}%` : '—'}</b><small>{sampleCaptured ? `fit mismatch ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}% Rwp · lower is better` : 'awaiting pattern'}</small></div>
+        <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${observedMeasured}%` : 'N/A'}</b><small>{sampleCaptured ? `fit mismatch ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}% Rwp · lower is better` : 'awaiting pattern'}</small></div>
         <div className={sampleCaptured ? evaluation.met ? 'pass' : 'miss' : 'waiting'}><span>MISSION</span><b>{sampleCaptured ? evaluation.gap : missionId === 'low-energy' ? 'ENERGY' : missionId === 'throughput' ? 'RATE' : '≥ 96%'}</b><small>{sampleCaptured ? evaluation.met ? 'mission met' : evaluation.constraintText : 'campaign gate'}</small></div>
       </aside>
     </div>
@@ -726,7 +611,7 @@ function SemCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
       <aside>
         <div className={vacuumReady ? 'pass' : 'hold'}><span>CHAMBER VACUUM</span><b>{vacuumReady ? '2.1e−5 Pa' : 'VENTED'}</b><small>{vacuumReady ? 'working distance linked' : 'pump required'}</small></div>
         <div className={fieldsReady ? 'pass' : vacuumReady ? 'review' : 'waiting'}><span>FIELD COVERAGE</span><b>{fieldsReady ? '4 / 4' : '0 / 4'}</b><small>{fieldsReady ? 'preplanned grid complete' : 'single-field claim blocked'}</small></div>
-        <div className={edsReady ? 'pass' : 'waiting'}><span>INTERPRETATION</span><b>{edsReady ? finding : '—'}</b><small>{edsReady ? 'hypothesis · not proof' : 'EDS map required'}</small></div>
+        <div className={edsReady ? 'pass' : 'waiting'}><span>INTERPRETATION</span><b>{edsReady ? finding : 'N/A'}</b><small>{edsReady ? 'hypothesis · not proof' : 'EDS map required'}</small></div>
       </aside>
     </div>
   </section>;
@@ -765,7 +650,7 @@ function BetHmiPanel({ station, operations }: { station: Station; operations: st
       </svg>
       <aside>
         <div className={portsIsolated ? 'pass' : 'hold'}><span>PORT VALVES</span><b>{portsIsolated ? '4 / 4 ISOLATED' : 'LOCKED'}</b><small>{portsIsolated ? 'cross-port path blocked' : 'prove service boundary'}</small></div>
-        <div className={leakPassed ? 'pass' : portsIsolated ? 'review' : 'waiting'}><span>BASE PRESSURE</span><b>{leakPassed ? '3.2e−4 mbar' : '—'}</b><small>{leakPassed ? 'leak criterion met' : 'evacuation held'}</small></div>
+        <div className={leakPassed ? 'pass' : portsIsolated ? 'review' : 'waiting'}><span>BASE PRESSURE</span><b>{leakPassed ? '3.2e−4 mbar' : 'N/A'}</b><small>{leakPassed ? 'leak criterion met' : 'evacuation held'}</small></div>
         <div className={nitrogenProven ? 'pass' : 'waiting'}><span>ADSORBATE N₂</span><b>{nitrogenProven ? '4.8 bar' : 'UNPROVEN'}</b><small>{reviewState ? 'MS-ALU-21 control under review' : nitrogenProven ? 'identity + supply linked' : 'supply proof required'}</small></div>
         <div className={dewarPositioned ? 'pass' : nitrogenProven ? 'review' : 'waiting'}><span>CRYOGENIC BATH</span><b>{dewarPositioned ? '77 K · LIFTED' : 'PARKED'}</b><small>{dewarPositioned ? 'cell bulbs immersed' : nitrogenProven ? 'position Dewar under cells' : 'gas proof required first'}</small></div>
       </aside>
@@ -780,106 +665,42 @@ function TgaHmiPanel({ station, operations }: { station: Station; operations: st
   const carouselHomed = operations.includes('Home autosampler carousel');
   const running = station.state === 'ANALYZING';
   const review = station.state === 'REVIEW' || station.state === 'RECHECK QUEUED';
-  const status = carouselHomed ? 'METHOD START STATE PROVEN' : purgeProven ? 'CAROUSEL HOME REQUIRED' : balanceTared ? 'PURGE PROOF REQUIRED' : startTemperatureProven ? 'BALANCE TARE REQUIRED' : 'START TEMPERATURE REQUIRED';
-  const massPath = review ? 'M280 57 C332 57 360 58 382 60 L395 83 C425 85 458 86 494 87' : running ? 'M280 57 C335 57 368 58 392 67 S448 78 494 80' : balanceTared ? 'M280 57 C334 56 389 58 494 57' : 'M280 82 H494';
-  const heatPath = review ? 'M280 126 C344 126 374 125 401 116 C417 91 433 94 448 120 C464 126 479 126 494 125' : purgeProven ? 'M280 126 C348 125 418 127 494 126' : 'M280 143 H494';
+  const hasResult = running || review;
+  const status = carouselHomed ? 'READY' : purgeProven ? 'HOME CAROUSEL' : balanceTared ? 'CHECK PURGE' : startTemperatureProven ? 'TARE BALANCE' : 'CHECK START TEMPERATURE';
+  const massPath = review
+    ? 'M60 35 C120 35 180 35 219 36 C226 36 230 55 243 60 C320 61 406 62 500 63'
+    : running ? 'M60 35 C150 35 205 36 232 42 C275 55 365 59 500 61' : 'M60 35 H500';
+  const heatPath = review
+    ? 'M60 162 C150 162 205 163 229 160 C237 142 245 132 253 159 C290 163 390 162 500 162'
+    : running ? 'M60 162 C175 162 221 160 245 148 C267 154 345 162 500 162' : 'M60 162 H500';
   return <section className={`native-characterizer-console tga-console${carouselHomed ? ' operation-complete' : ''}`}>
-    <header><div><span>COUPLED THERMAL ANALYZER</span><b>TGA-01 · BALANCE / DSC / GAS-3</b></div><em>{status}</em></header>
+    <header><div><span>TGA / DSC</span><b>Mass and heat flow versus temperature</b></div><em>{status}</em></header>
     <div className="native-characterizer-layout">
-      <svg viewBox="0 0 520 180" role="img" aria-label="TGA-01 coupled mass heat-flow and purge control">
-        <defs><pattern id="tgaGrid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" className="grid" /></pattern><radialGradient id="tgaFurnace"><stop stopColor="#ffb25e" stopOpacity={running ? '.85' : '.18'} /><stop offset="1" stopColor="#321b12" stopOpacity=".2" /></radialGradient></defs>
-        <rect width="520" height="180" fill="url(#tgaGrid)" />
-        <text x="18" y="20">MICROBALANCE + TWIN PAN CELL</text>
-        <rect x="30" y="37" width="203" height="116" rx="4" className="tga-cell" /><ellipse cx="131" cy="94" rx="71" ry="48" fill="url(#tgaFurnace)" className={running ? 'tga-furnace running' : 'tga-furnace'} />
-        <path d="M81 70 H181 M131 49 V70" className={balanceTared ? 'balance-beam active' : 'balance-beam'} />
-        {[91,171].map((x, index) => <g key={x} className={balanceTared ? 'tga-pan active' : 'tga-pan'}><path d={`M${x} 70 V91`} /><path d={`M${x - 16} 91 Q${x} 108 ${x + 16} 91 Z`} /><text x={x - 4} y="119">{index === 0 ? 'A' : 'B'}</text></g>)}
-        <path d="M30 136 H78 C91 136 91 126 102 126 H216" className={purgeProven ? 'purge-path active' : 'purge-path'} /><text x="39" y="147">N₂ {purgeProven ? '60 mL/min' : 'PATH HOLD'}</text>
-        <g className={carouselHomed ? 'tga-carousel active' : 'tga-carousel'}><circle cx="218" cy="59" r="20" />{[0, 1, 2, 3, 4, 5].map((index) => { const angle = index * Math.PI / 3; return <circle key={index} cx={218 + Math.cos(angle) * 12} cy={59 + Math.sin(angle) * 12} r="2.5" />; })}<text x="192" y="30">AUTO 0°</text></g>
-        <text x="270" y="20">NATIVE CHANNELS</text>
-        {[45, 83, 121, 159].map((y) => <line key={y} x1="270" x2="498" y1={y} y2={y} className="plot-grid" />)}
-        {[270, 327, 384, 441, 498].map((x) => <line key={x} x2={x} y1="31" y2="159" className="plot-grid" />)}
-        <path d={massPath} className={balanceTared ? 'tga-mass-trace active' : 'tga-mass-trace'} /><path d={heatPath} className={purgeProven ? 'tga-heat-trace active' : 'tga-heat-trace'} /><path d={purgeProven ? 'M280 151 H381 L395 143 L408 152 H494' : 'M280 151 H494'} className={purgeProven ? 'tga-gas-trace active' : 'tga-gas-trace'} />
-        <text x="275" y="48">MASS</text><text x="275" y="119">DSC</text><text x="275" y="166">N₂</text>
-        {review && <g className="tga-event"><line x1="395" x2="395" y1="32" y2="159" /><rect x="401" y="35" width="91" height="24" rx="2" /><text x="408" y="45">COUPLED EVENT</text><text x="408" y="55">412 °C · REVIEW</text></g>}
+      <svg className="tga-data-plot" viewBox="0 0 540 230" role="img" aria-label="TGA mass percent and DSC heat flow in milliwatts plotted separately against temperature in degrees Celsius">
+        <rect x="60" y="24" width="440" height="70" className="plot-field" />
+        <rect x="60" y="128" width="440" height="70" className="plot-field" />
+        {[60, 161, 263, 364, 500].map((x) => <g key={x}><line x1={x} x2={x} y1="24" y2="198" className="plot-grid" /></g>)}
+        {[35, 64, 93, 137, 162, 197].map((y) => <line key={y} x1="60" x2="500" y1={y} y2={y} className="plot-grid" />)}
+        <text x="60" y="16" className="plot-title">MASS (%)</text><text x="17" y="38">100</text><text x="27" y="67">95</text><text x="27" y="96">90</text>
+        <text x="60" y="120" className="plot-title">HEAT FLOW (mW) · EXO ↑</text><text x="29" y="140">+2</text><text x="39" y="165">0</text><text x="29" y="200">−2</text>
+        {hasResult && <path d={massPath} className="tga-mass-trace active" />}
+        {hasResult && <path d={heatPath} className="tga-heat-trace active" />}
+        {review && <g className="tga-event"><line x1="235" x2="235" y1="24" y2="198" /><text x="240" y="82">GAS FLOW CHANGE · 412.5 °C</text><circle cx="247" cy="142" r="3" /><text x="254" y="139">HEAT-FLOW EVENT · 438 °C</text></g>}
+        {!hasResult && <text x="280" y="111" textAnchor="middle" className="no-result">NO RESULT · COMPLETE SETUP AND RUN EMPTY-PAN CHECK</text>}
+        {[[60, '25'], [161, '250'], [263, '500'], [364, '750'], [500, '1000']].map(([x, label]) => <text key={label} x={Number(x)} y="214" textAnchor="middle">{label}</text>)}
+        <text x="280" y="227" textAnchor="middle" className="plot-title">TEMPERATURE (°C)</text>
       </svg>
       <aside>
-        <div className={startTemperatureProven ? 'pass' : 'hold'}><span>FURNACE START</span><b>{startTemperatureProven ? '28 °C · STABLE' : 'UNPROVEN'}</b><small>{startTemperatureProven ? 'ambient criterion met' : 'confirm cool start state'}</small></div>
-        <div className={balanceTared ? 'pass' : startTemperatureProven ? 'review' : 'waiting'}><span>BALANCE ZERO</span><b>{balanceTared ? '+0.00 mg' : 'DUE'}</b><small>{balanceTared ? 'channel feedback stable' : 'tare before method start'}</small></div>
-        <div className={purgeProven ? 'pass' : balanceTared ? 'review' : 'waiting'}><span>PURGE CHANNEL</span><b>{purgeProven ? 'N₂ · 60 mL/min' : 'UNPROVEN'}</b><small>{purgeProven ? 'identity + trend retained' : 'gas path held'}</small></div>
-        <div className={carouselHomed ? 'pass' : 'waiting'}><span>PAN POSITIONS</span><b>{carouselHomed ? 'A / B HOMED' : 'NOT HOMED'}</b><small>{review ? 'coupled event remains held' : carouselHomed ? 'method start position' : 'carousel proof required'}</small></div>
+        <div className={startTemperatureProven ? 'pass' : 'hold'}><span>START</span><b>{startTemperatureProven ? '28 °C' : 'CHECK'}</b><small>Furnace temperature</small></div>
+        <div className={balanceTared ? 'pass' : 'waiting'}><span>BALANCE</span><b>{balanceTared ? '0.00 mg' : 'TARE'}</b><small>Zero before run</small></div>
+        <div className={purgeProven ? 'pass' : 'waiting'}><span>PURGE</span><b>{purgeProven ? 'N₂ · 60 mL/min' : 'CHECK'}</b><small>Gas identity and flow</small></div>
+        <div className={carouselHomed ? 'pass' : 'waiting'}><span>PANS</span><b>{carouselHomed ? 'A / B READY' : 'HOME'}</b><small>{review ? 'Result held for overlap' : 'Matched empty pans'}</small></div>
       </aside>
     </div>
   </section>;
 }
 
-function LesView({ station, profile, campaignStage, complete, onComplete }: { station: Station; profile: typeof profiles[string]; campaignStage: number; complete: boolean; onComplete: () => void }) {
-  const active = campaignStage ? getCampaignMethodStep(campaignStage) : station.tone === 'run' ? 2 : station.tone === 'warn' ? 1 : 0;
-  return <div className="console-view">
-    <div className="console-view-head"><div><p className="section-kicker">LES / METHOD EXECUTION</p><h3>Guided work + operator attestations</h3></div><span>REV 8.4 · EFFECTIVE</span></div>
-    <div className="les-layout"><div className="procedure-rail">{profile.method.map((step, index) => <div key={step} className={index < active ? 'done' : index === active ? 'active' : ''}><span>{index < active ? '✓' : `0${index + 1}`}</span><i /><div><b>{step}</b><small>{index < active ? 'evidence attached' : index === active ? 'technician action' : 'blocked by sequence'}</small></div><em>{index < active ? 'COMPLETE' : index === active ? 'ACTIVE' : 'WAIT'}</em></div>)}</div><aside className="method-card"><span>METHOD</span><b>{station.id}-OPS-08</b><div><i />controlled copy</div><div><i />operator clearance current</div><div><i />instrument matched</div><small>Electronic signature will bind the operator, method revision, timestamp, and asset.</small></aside></div>
-    <ConsoleAction complete={complete} idle="ATTEST ACTIVE STEP" done="STEP ATTESTED" note={complete ? 'Operator + method revision bound to this execution.' : 'Attestation does not bypass the physical verification.'} onClick={onComplete} />
-  </div>;
-}
-
-function LimsView({ station, profile, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignResultElapsed, complete, onComplete }: { station: Station; profile: typeof profiles[string]; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignMissionId: CampaignMissionId; campaignResultElapsed: number; complete: boolean; onComplete: () => void }) {
-  const itemNotes = campaignStage
-    ? ['campaign formulation / physical input', 'governed run + carrier association', 'native evidence package']
-    : scenarioId === 'facility'
-    ? ['physical tag + declared target', 'governed move / service record', 'receipt + bounded data window']
-    : scenarioId === 'furnace'
-      ? ['physical load identity', 'interruption + recovery record', 'retained censored dataset']
-      : ['received + released', 'asset association', 'native result package'];
-  const facilityState = station.id === 'PREP-01'
-    ? station.state === 'BAY RELEASED' ? 'MOVE RECEIVED' : station.state === 'TRANSFER READY' ? 'MOVE RELEASED' : 'MOVE HOLD'
-    : station.state === 'READY' ? 'ELIGIBLE' : station.state === 'DATA REVIEW' ? 'WINDOW HOLD' : station.state === 'QC READY' ? 'CONTROL READY' : 'SERVICE HOLD';
-  const campaignOperations = getCampaignOperations(campaignRunNumber);
-  const campaignEvaluation = evaluateCampaignMission(getCampaignSpec(campaignSelected), campaignMissionId, campaignStage >= 7 && campaignResultElapsed > 0 ? campaignResultElapsed : undefined);
-  const chainState = campaignStage === 2
-    ? campaignOperations.robotCondition === 'contamination' ? 'CONTAM HOLD' : campaignOperations.robotCondition === 'grip-force' ? 'FORCE CHECK' : 'SETUP PROOF'
-    : campaignStage === 4 ? 'QUEUE HOLD'
-      : campaignStage === 6 ? campaignOperations.referenceCondition === 'age-due' ? 'QC HOLD' : campaignOperations.referenceCondition === 'trend-review' ? 'TREND CHECK' : 'ACQUIRE'
-        : campaignStage >= 7 ? campaignEvaluation.met ? 'VALID · HIT' : 'VALID · MISS'
-          : campaignStage ? 'IN PROCESS' : scenarioId === 'furnace' ? 'CENSORED' : scenarioId === 'bet' ? 'RECONCILE' : scenarioId === 'tga' ? 'PAN HOLD' : scenarioId === 'facility' ? facilityState : 'QC HOLD';
-  return <div className="console-view">
-    <div className="console-view-head"><div><p className="section-kicker">LIMS / SAMPLE IDENTITY</p><h3>Physical item ↔ digital record</h3></div><span>CHAIN LOCKED</span></div>
-    <div className="lims-layout"><div className="lims-chain">{profile.sample.map((item, index) => <div key={item}><span>{['SOURCE', 'SPECIMEN / RUN', 'DATASET'][index]}</span><b>{item}</b><Barcode seed={index + item.length} /><small>{itemNotes[index]}</small></div>)}</div><div className="lineage-connector"><i /><i /><span>{chainState}</span></div><aside className="lims-facts"><p className="mini-label">REQUIRED LINKS</p><div><span>lot / batch</span><b>BOUND</b></div><div><span>operator</span><b>TECH-07</b></div><div><span>method revision</span><b>08</b></div><div><span>raw file hash</span><b>READY</b></div></aside></div>
-    <ConsoleAction complete={complete} idle="SCAN + VERIFY ASSOCIATION" done="ASSOCIATION VERIFIED" note={complete ? 'Barcode, selected record, and asset context agree.' : 'A plausible neighboring record is still the wrong record.'} onClick={onComplete} />
-  </div>;
-}
-
-function CmmsView({ profile, complete, onComplete }: { profile: typeof profiles[string]; complete: boolean; onComplete: () => void }) {
-  const chamberQualified = profile.workOrder === 'OQ-04B';
-  return <div className="console-view">
-    <div className="console-view-head"><div><p className="section-kicker">CMMS / ASSET RELIABILITY</p><h3>Service evidence + return to use</h3></div><span>{profile.workOrder}</span></div>
-    <div className={`cmms-layout${chamberQualified ? ' qualification' : ''}`}><div className="health-dial" style={{ '--health': `${profile.health * 3.6}deg` } as React.CSSProperties}><div><b>{profile.health}</b><span>ASSET HEALTH</span></div></div><div className="maintenance-timeline"><div className="complete"><i /><span>PREVIOUS</span><b>{chamberQualified ? 'Installation + isolation closed' : 'Inspection closed'}</b><small>{chamberQualified ? 'independent controller proven' : 'parts + labor captured'}</small></div><div className="active"><i /><span>{chamberQualified ? 'ACCEPTED' : 'CURRENT'}</span><b>{profile.service}</b><small>{chamberQualified ? 'laboratory acceptance retained' : 'acceptance evidence required'}</small></div><div><i /><span>NEXT</span><b>{chamberQualified ? 'Uniformity verification' : 'Performance verification'}</b><small>{chamberQualified ? 'due in 180 days' : 'owner: lab operations'}</small></div></div>{chamberQualified ? <aside className="cmms-qualification-record"><header><span>QUALIFICATION RECORD</span><b>ACCEPTED</b></header><div><span>ASSET</span><b>FURN-04B</b></div><div><span>OQ CYCLE</span><b>990 °C</b></div><div><span>9-POINT MEAN</span><b>989.5 °C</b></div><div><span>SPAN / LIMIT</span><b>7.4 / ≤ 8.0 °C</b></div><footer><i />OQ-04B-990 · LOCKED</footer></aside> : <aside className="spares-card"><p className="mini-label">POINT-OF-USE</p>{profile.supplies.map((item, index) => <div key={item}><i className={index === 0 ? 'stock-low' : ''} /><span>{item}</span></div>)}</aside>}</div>
-    <ConsoleAction complete={complete} idle="REVIEW RETURN-TO-USE" done="EVIDENCE REVIEWED" note={complete ? 'Service closure and laboratory acceptance are separately recorded.' : 'A vendor-closed ticket alone does not release the asset.'} onClick={onComplete} />
-  </div>;
-}
 
 function ConsoleAction({ complete, disabled = false, idle, done, note, onClick }: { complete: boolean; disabled?: boolean; idle: string; done: string; note: string; onClick: () => void }) {
   return <footer className="console-action"><p><i className={complete ? 'online' : ''} />{note}</p><button type="button" disabled={disabled} className={complete ? 'complete' : ''} onClick={onClick}>{complete ? '✓ ' : ''}{complete ? done : idle}</button></footer>;
-}
-
-function Barcode({ seed }: { seed: number }) {
-  return <div className="barcode" aria-hidden="true">{Array.from({ length: 28 }, (_, index) => <i key={index} style={{ width: `${(index * seed) % 3 + 1}px`, opacity: index % 4 === 0 ? .45 : 1 }} />)}</div>;
-}
-
-function InstrumentMimic({ station }: { station: Station }) {
-  const stationId = station.id;
-  const tone = station.tone;
-  const accent = tone === 'warn' ? '#f4b95f' : tone === 'run' ? '#4dd5ed' : '#51e19a';
-  const furnaceRecovered = stationId === 'FURN-04' && station.state === 'READY';
-  const dualFurnace = stationId === 'FURN-04' && station.name === 'Dual-chamber furnace';
-  return <svg viewBox="0 0 520 270" role="img" aria-label={`${stationId} live equipment mimic`} style={{ '--mimic': accent } as React.CSSProperties}>
-    <defs><linearGradient id="metal" x1="0" x2="1"><stop stopColor="#536575" /><stop offset=".5" stopColor="#1b2b3b" /><stop offset="1" stopColor="#7b8992" /></linearGradient><pattern id="mgrid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="#1d3145" strokeWidth="1" /></pattern></defs>
-    <rect width="520" height="270" fill="#071019" /><rect width="520" height="270" fill="url(#mgrid)" opacity=".75" />
-    {stationId === 'XRD-03' && <g transform="translate(98 22)"><rect width="320" height="220" rx="22" fill="url(#metal)" stroke="#8094a2" /><rect x="45" y="30" width="215" height="140" rx="16" fill="#091820" stroke="#38586a" /><path d="M92 140 A75 75 0 0 1 239 140" fill="none" stroke="#8298a6" strokeWidth="13" /><circle cx="165" cy="140" r="13" fill="#d8e2e5" /><path d="M95 90 L165 140 235 78" fill="none" stroke="var(--mimic)" strokeWidth="2" /><rect x="75" y="55" width="35" height="54" rx="4" fill="#b4c1c6" transform="rotate(-28 92 82)" /><rect x="222" y="46" width="40" height="62" rx="4" fill="#566b7a" transform="rotate(30 242 77)" /><rect x="70" y="187" width="105" height="18" fill="#07161d" /><path d="M76 198 L95 190 115 201 135 186 162 196" fill="none" stroke="var(--mimic)" strokeWidth="2" /></g>}
-    {stationId === 'SEM-01' && <g transform="translate(135 18)"><path d="M120 8 H170 L185 68 H105 Z" fill="#b9c5c9" /><rect x="124" y="0" width="42" height="70" fill="url(#metal)" /><path d="M92 62 H198 L225 112 H66 Z" fill="#667986" /><ellipse cx="145" cy="154" rx="105" ry="72" fill="url(#metal)" stroke="#a3b3ba" strokeWidth="3" /><circle cx="145" cy="154" r="48" fill="#071018" stroke="#375467" /><path d="M145 45 V154" stroke="var(--mimic)" strokeWidth="2" /><circle cx="145" cy="154" r="6" fill="var(--mimic)" /><rect x="265" y="55" width="92" height="82" fill="#101f2b" stroke="#3a5266" /><g fill="#91a6ad">{Array.from({ length: 12 }, (_, i) => <circle key={i} cx={278 + (i % 4) * 21} cy={70 + Math.floor(i / 4) * 23} r={2 + i % 3} />)}</g></g>}
-    {stationId === 'BET-02' && <g transform="translate(80 18)"><rect width="300" height="225" rx="10" fill="url(#metal)" stroke="#647b89" /><rect x="42" y="24" width="210" height="150" rx="5" fill="#081820" stroke="#355062" />{[74, 120, 166, 212].map((x, i) => <g key={x}><path d={`M${x} 48 V135`} stroke="#c5d7da" strokeWidth="5" /><circle cx={x} cy="146" r="13" fill={i === 2 ? '#6c7d88' : 'var(--mimic)'} opacity={i === 2 ? .65 : .9} /><path d={`M${x} 48 V35 H150`} fill="none" stroke="#8398a3" /></g>)}<circle cx="360" cy="158" r="55" fill="#526978" stroke="#8599a2" /><rect x="347" y="68" width="26" height="82" fill="#6d8290" /><path d="M270 45 Q360 42 360 88" fill="none" stroke="var(--mimic)" strokeWidth="3" /></g>}
-    {stationId === 'TGA-01' && <g transform="translate(72 22)"><rect x="20" y="75" width="275" height="135" rx="16" fill="url(#metal)" stroke="#a8b5ba" /><rect x="142" y="112" width="112" height="42" rx="5" fill="#07161d" stroke="#415b69" /><path d="M158 137 H226" stroke="var(--mimic)" strokeWidth="3" /><g transform="translate(92 76)"><ellipse cx="0" cy="0" rx="48" ry="23" fill="#6b7e88" stroke="#a7b4b8" /><ellipse cx="0" cy="0" rx="19" ry="11" fill="#2c3940" stroke="#f09a5d" /><path d="M0 -10 V-55" stroke="#778b96" strokeWidth="28" /><ellipse cx="0" cy="-55" rx="21" ry="9" fill="#c0c8ca" /></g><g transform="translate(350 96)"><ellipse rx="72" ry="32" fill="#566d7b" stroke="#9aabb1" />{Array.from({ length: 6 }, (_, index) => { const angle = index * Math.PI / 3; return <circle key={index} cx={Math.cos(angle) * 47} cy={Math.sin(angle) * 20} r="7" fill={index < 2 ? '#d4ae66' : '#d8dfe0'} />; })}<path d="M0 0 V-48" stroke="#788d98" strokeWidth="8" /></g><path d="M394 172 Q430 115 412 52" fill="none" stroke="#708b99" strokeWidth="4" /><rect x="400" y="105" width="23" height="98" fill="#506b7a" /></g>}
-    {stationId === 'FURN-04' && (dualFurnace ? <g transform="translate(74 18)"><rect width="372" height="225" rx="8" fill="url(#metal)" stroke="#85939a" /><g transform="translate(28 34)"><rect width="138" height="124" rx="5" fill="#120c09" stroke="#9ca7aa" strokeWidth="3" /><rect x="13" y="15" width="112" height="87" fill="#7a341b" /><circle cx="69" cy="58" r="45" fill="#f28f43" opacity=".55" /><text x="13" y="118" fill="#ffb178" fontSize="9" fontFamily="monospace">A · RUNNING</text></g><g transform="translate(188 34)"><rect width="138" height="124" rx="5" fill="#081511" stroke="#9ca7aa" strokeWidth="3" /><rect x="13" y="15" width="112" height="87" fill="#17392e" /><circle cx="69" cy="58" r="45" fill="#51e19a" opacity=".2" /><text x="13" y="118" fill="#7cebb0" fontSize="9" fontFamily="monospace">B · QUALIFIED</text></g><rect x="28" y="180" width="138" height="24" fill="#07171d" /><path d="M39 196 H112" stroke="#f28f43" strokeWidth="3" /><rect x="188" y="180" width="138" height="24" fill="#07171d" /><path d="M199 196 H272" stroke="#51e19a" strokeWidth="3" /><circle cx="345" cy="64" r="5" fill="#f28f43" /><circle cx="345" cy="92" r="5" fill="#51e19a" /></g> : <g transform="translate(115 18)"><rect width="290" height="225" rx="8" fill="url(#metal)" stroke="#85939a" /><rect x="46" y="34" width="190" height="125" rx="5" fill={furnaceRecovered ? '#081511' : '#120c09'} stroke="#9ca7aa" strokeWidth="4" /><rect x="62" y="50" width="158" height="93" fill={furnaceRecovered ? '#17392e' : '#7a341b'} /><circle cx="141" cy="96" r="54" fill={furnaceRecovered ? '#51e19a' : '#f28f43'} opacity={furnaceRecovered ? '.2' : '.55'} /><rect x="57" y="180" width="115" height="24" fill="#07171d" /><path d="M67 196 H113" stroke="var(--mimic)" strokeWidth="3" /><path d="M250 55 V145" stroke={furnaceRecovered ? '#64d49f' : '#c0c8c9'} strokeWidth="7" /></g>)}
-    {stationId === 'ROBO-02' && <g transform="translate(80 10)"><path d="M30 230 H395" stroke="#7f642d" strokeWidth="5" /><path d="M30 15 V230 M395 15 V230 M30 65 H395 M30 180 H395" stroke="#9a772c" strokeWidth="5" opacity=".85" /><ellipse cx="195" cy="220" rx="70" ry="22" fill="#304457" /><path d="M195 210 L165 146 L245 94 L310 133" fill="none" stroke="#d8e0e2" strokeWidth="25" strokeLinecap="round" strokeLinejoin="round" /><g fill="#5e7180" stroke="#a8b6bc" strokeWidth="3"><circle cx="165" cy="146" r="18" /><circle cx="245" cy="94" r="18" /><circle cx="310" cy="133" r="16" /></g><circle cx="310" cy="133" r="7" fill="var(--mimic)" /><path d="M316 139 l22 16 m-25 -12 l8 26" stroke="#a8b6bc" strokeWidth="6" /></g>}
-    {stationId === 'PREP-01' && <g transform="translate(80 25)"><rect x="20" width="275" height="190" fill="url(#metal)" stroke="#82929c" /><rect x="55" y="25" width="205" height="105" fill="#0c1c24" stroke="#547081" /><rect x="65" y="35" width="185" height="85" fill="#78a5b0" opacity=".12" />{[95, 130, 165].map((x, i) => <g key={x}><rect x={x} y="87" width="20" height="33" fill={['#d2b269', '#c77c62', '#8db8c3'][i]} /><rect x={x + 3} y="80" width="14" height="8" fill="#d3dcde" /></g>)}<rect x="325" y="95" width="100" height="86" rx="5" fill="#293d4e" /><rect x="342" y="111" width="66" height="28" fill="#07171d" /><path d="M350 128 H394" stroke="var(--mimic)" strokeWidth="3" /><ellipse cx="375" cy="77" rx="52" ry="10" fill="#bbc5c8" /></g>}
-    <g transform="translate(18 18)"><circle r="5" fill="var(--mimic)" /><text x="12" y="4" fill="#8fa3b3" fontSize="10" fontFamily="monospace">SIM / {stationId}</text></g>
-  </svg>;
 }
