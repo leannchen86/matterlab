@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { evaluateCampaignMission, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import type { CampaignMissionId } from './campaign-spec';
-import { getCampaignStationId, getStationSceneSpec, SCENE_QUALITY, STATION_SCENE_ORDER } from './lab-scene-config';
+import { getCampaignStationId, getStationSceneSpec, SCENE_QUALITY, STATION_MENU_ORDER, STATION_SCENE_ORDER } from './lab-scene-config';
 import type { CameraMode, SceneQualityPolicy, StationId, StationKind, StationSceneSpec } from './lab-scene-config';
 import type { Station } from './sim-data';
 
@@ -59,6 +59,11 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
   const [observationRecord, setObservationRecord] = useState<{ stationId: string; point: InspectionPoint } | null>(null);
   const [walkCommand, setWalkCommand] = useState<WalkCommand>({ id: 0, direction: 'forward' });
   const sceneStations = stations.map((station) => ({ station, scene: getStationSceneSpec(station.id) }));
+  const menuStations = STATION_MENU_ORDER.map((stationId) => {
+    const station = stations.find((candidate) => candidate.id === stationId);
+    if (!station) throw new Error(`Missing menu station: ${stationId}`);
+    return station;
+  });
   const selectedSceneStation = sceneStations.find(({ station }) => station.id === selectedId) ?? sceneStations[0];
   const selectedStation = selectedSceneStation.station;
   const selectedScene = selectedSceneStation.scene;
@@ -137,7 +142,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
         />
       </Canvas>
       <nav className="scene-station-picker" aria-label="Select a lab station">
-        {stations.map((station) => <button key={station.id} type="button" className={`${selectedId === station.id ? 'active ' : ''}${campaignStationId === station.id ? 'campaign-active' : ''}`} style={{ '--station-tone': campaignStationId === station.id ? campaignState.color : TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
+        {menuStations.map((station) => <button key={station.id} type="button" className={`${selectedId === station.id ? 'active ' : ''}${campaignStationId === station.id ? 'campaign-active' : ''}`} style={{ '--station-tone': campaignStationId === station.id ? campaignState.color : TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
       </nav>
       {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN SIM · {getCampaignIdentity(campaignRunNumber).runId} · {campaignSelected}</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? campaignState.result : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
       {campaignBacklog.length > 0 && <button type="button" className={`campaign-backlog-hud${campaignStage > 0 ? ' with-campaign' : ''}`} onClick={onOpenCampaign}><span>OPERATE SHIFT BACKLOG</span><b>{campaignBacklog.length} PLANS · {campaignBacklog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0)} FURNACE MIN</b><i>OPEN →</i></button>}

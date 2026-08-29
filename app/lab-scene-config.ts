@@ -115,6 +115,16 @@ export const STATION_SCENE_ORDER: StationSceneSpec[] = [
   STATION_SCENE_SPECS['TGA-01'],
 ];
 
+export const STATION_MENU_ORDER: readonly StationId[] = [
+  'ROBO-02',
+  'FURN-04',
+  'XRD-03',
+  'SEM-01',
+  'BET-02',
+  'TGA-01',
+  'PREP-01',
+];
+
 export const SCENE_QUALITY: Record<CameraMode, SceneQualityPolicy> = {
   overview: { dpr: [1, 1.25], shadows: false, shadowMapSize: 1024, environmentResolution: 64 },
   walk: { dpr: [1, 1.2], shadows: false, shadowMapSize: 1024, environmentResolution: 64 },
