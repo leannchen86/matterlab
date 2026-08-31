@@ -2592,6 +2592,21 @@ machine status lamps must represent real readiness facts or they actively underm
 - Stack the machine, local controls, trace, and decision area on narrow screens while preserving the same action
   order and control labels as desktop.
 
+## Critique 141: tactile controls still concealed a fixed answer
+
+The first XRD interaction made the instrument feel more physical, but every choice still served one CT-104 story. A player could learn the button sequence without learning what preparation, scan quality, or reference selection changes in a real diffraction workflow.
+
+### Changes made
+
+- Reframed the default experience as a free XRD lab; the original walkthrough is now an optional guided setup.
+- Added four sample archetypes with distinct phase mixtures, including a secondary crystalline phase and an amorphous contribution.
+- Added three preparation states and three scan programs. They now change peak width, position, noise, and run time instead of acting as cosmetic choices.
+- Generate each diffractogram from the chosen sample, preparation, scan, and run number rather than revealing a stored answer.
+- Added five independent phase references, partial and false matches, and separate supported, weak, and unclear result paths.
+- Added a real rerun loop that preserves the sample while allowing a player to improve preparation or scan settings.
+- Kept the interface visual and compact: sample pucks, shape-coded preparation, scan-density controls, colored reference sticks, and a single live match score carry most of the explanation.
+- Tightened the free-lab layout for narrow screens and retitled the station card so the entry point promises exploration rather than one mystery.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

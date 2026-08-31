@@ -54,7 +54,7 @@ const scenarios: Record<'bet' | 'furnace', Scenario> = {
 };
 
 const deck = [
-  { id: 'xrd' as const, title: 'The unexpected peak', station: 'XRD · ROBOT · MICROSCOPE', learn: 'Machine fault vs material evidence', icon: 'xrd' },
+  { id: 'xrd' as const, title: 'Explore the XRD lab', station: 'POWDER DIFFRACTION', learn: 'Sample prep, scan quality, and phase matching', icon: 'xrd' },
   { id: 'bet' as const, title: 'Restart the BET analyzer', station: 'GAS SORPTION', learn: 'Machine fault vs material change', icon: 'bet' },
   { id: 'furnace' as const, title: 'Recover an interrupted run', station: 'FURNACE · ROBOT', learn: 'Recovery without erased history', icon: 'furnace' },
   { id: 'tga' as const, title: 'Fix the empty-pan check', station: 'THERMAL ANALYZER', learn: 'Setup artifact vs material signal', icon: 'tga' },

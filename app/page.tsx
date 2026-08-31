@@ -11,7 +11,7 @@ import { MissionLabHeading, MissionTelemetry, PhysicalEvidenceCue, useModalFocus
 import { baseStations, initialLog, type Station } from './sim-data';
 import { AlternateShift, PlannerPanel, ShiftDeckModal, type ScenarioId } from './scenario-shifts';
 import { StationAccess } from './station-access';
-import { XrdWorkbench, type XrdBenchStage, type XrdDisposition } from './xrd-workbench';
+import { XrdWorkbench, type XrdBenchStage, type XrdRunContext, type XrdRunResult } from './xrd-workbench';
 
 const TgaShift = lazy(() => import('./tga-shift').then((module) => ({ default: module.TgaShift })));
 const FacilityShift = lazy(() => import('./facility-shift').then((module) => ({ default: module.FacilityShift })));
@@ -58,7 +58,8 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const campaignActive = campaignMode && campaign.stage > 0;
   const [phase, setPhase] = useState(0);
   const [xrdBenchStage, setXrdBenchStage] = useState<XrdBenchStage>('idle');
-  const [xrdDisposition, setXrdDisposition] = useState<XrdDisposition | null>(null);
+  const [xrdRunContext, setXrdRunContext] = useState<XrdRunContext | null>(null);
+  const [xrdRunResult, setXrdRunResult] = useState<XrdRunResult | null>(null);
   const [modal, setModal] = useState<Modal>(null);
   const [selectedOverride, setSelectedId] = useState('');
   const selectedId = selectedOverride || (campaignActive ? getCampaignStationId(campaign.stage) : '') || 'XRD-03';
@@ -119,19 +120,19 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     };
     if (station.id === 'XRD-03') return {
       ...station,
-      state: phase >= 5 ? 'SAMPLE HELD' : phase === 4 ? 'REVIEW' : phase === 3 ? 'SCANNING' : phase >= 1 ? 'LOCAL CONTROL' : 'SAMPLE READY',
-      tone: phase >= 5 ? 'warn' : phase >= 3 ? 'run' : 'ready',
-      meta: phase >= 5 ? 'CT-104 · extra crystalline phase' : phase === 4 ? 'CT-104 · pattern ready' : phase === 3 ? 'CT-104 · standard scan' : 'CT-104 · prepared holder',
+      state: phase >= 5 ? xrdRunResult?.uncertain ? 'RUN HELD' : xrdRunResult?.supported ? 'CALL SAVED' : 'REVIEW' : phase === 4 ? 'INTERPRET' : phase === 3 ? 'SCANNING' : phase >= 1 ? 'LOCAL CONTROL' : 'FREE LAB READY',
+      tone: phase >= 5 ? xrdRunResult?.supported ? 'ready' : 'warn' : phase >= 3 ? 'run' : 'ready',
+      meta: phase >= 5 ? `${xrdRunResult?.sampleId ?? 'sample'} · ${xrdRunResult?.matched ?? 0}/${xrdRunResult?.total ?? 0} matched` : phase === 4 ? `${xrdRunContext?.sampleId ?? 'sample'} · choose references` : phase === 3 ? `${xrdRunContext?.sampleId ?? 'sample'} · ${xrdRunContext?.scan ?? 'scan'}` : 'Choose sample · preparation · scan',
       technicianView: phase >= 5
-        ? ['Sample: CT-104', 'Result: expected + extra phase', 'Disposition: hold for review', 'Pattern: PAT-CT-104']
+        ? [`Sample: ${xrdRunResult?.sampleId ?? '—'}`, `References: ${xrdRunResult?.selectedPhases.length ?? 0}`, `Match: ${xrdRunResult?.matched ?? 0} / ${xrdRunResult?.total ?? 0}`, `Run: ${xrdRunResult?.supported ? 'retained' : 'review'}`]
         : phase === 4
-          ? ['Sample: CT-104', 'Pattern: complete', 'Expected: CaTiO₃', 'Unmatched peaks: 2']
+          ? [`Sample: ${xrdRunContext?.sampleId ?? '—'}`, 'Pattern: complete', `Preparation: ${xrdRunContext?.prep ?? '—'}`, 'Reference library: open']
           : phase === 3
-            ? ['Sample: CT-104', 'Method: standard powder scan', 'Range: 10–80° 2θ', 'Acquisition: in progress']
-            : ['Sample: CT-104', 'Expected: CaTiO₃', 'Holder: prepared', 'Method: standard scan'],
+            ? [`Sample: ${xrdRunContext?.sampleId ?? '—'}`, `Method: ${xrdRunContext?.scan ?? '—'}`, 'Range: 10–80° 2θ', 'Acquisition: in progress']
+            : ['Samples: 4 available', 'Preparations: 3', 'Scan presets: 3', 'Reruns: enabled'],
     };
     return station;
-  }), [phase, campaign.thermalBayLevel, campaignOperations.activeFurnaceRun]);
+  }), [phase, campaign.thermalBayLevel, campaignOperations.activeFurnaceRun, xrdRunContext, xrdRunResult]);
 
   const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[0];
   const campaignSelected = useCampaignStation(selectedBase);
@@ -146,11 +147,11 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
   const progress = Math.round((displayedCompletedTasks / taskTotal) * 100);
   const labObjective = campaignActive
     ? `Continue ${campaignIdentity.runId}: ${campaignSpec.name}`
-    : phase >= 5 ? 'CT-104 held for scientific review'
-      : phase === 4 ? 'Compare CT-104 with the expected crystal pattern'
-        : phase === 3 ? 'Watch the diffraction pattern form'
-          : phase >= 1 ? 'Load CT-104 and close the XRD enclosure'
-            : 'Use XRD-03 to check what the furnace made';
+    : phase >= 5 ? `${xrdRunResult?.sampleId ?? 'Run'} saved — rerun or choose another sample`
+      : phase === 4 ? 'Try phase references or rerun with a different setup'
+        : phase === 3 ? `Watch ${xrdRunContext?.sampleId ?? 'the'} diffraction pattern form`
+          : phase >= 1 ? `Load ${xrdRunContext?.sampleId ?? 'the sample'} and operate XRD-03`
+            : 'Build any XRD run in the free lab';
   const campaignTasks = [
     { number: '01', title: 'Prepare formulation', note: campaign.stage >= 2 ? `${campaignIdentity.prepSample} released` : `${campaignSpec.targetMass} · ${campaignSpec.formula}`, start: 1, complete: 2 },
     { number: '02', title: 'Run robot synthesis', note: campaign.stage === 2 ? campaignOperations.robotCondition === 'contamination' ? 'Cleanliness witness due' : campaignOperations.robotCondition === 'grip-force' ? 'Grip-force witness due' : 'Tool ID + handshake check' : campaign.stage >= 4 ? `${campaignIdentity.carrier} dosed` : '6 crucible positions', start: 2, complete: 4 },
@@ -257,32 +258,33 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     setFeedback('');
   };
 
-  const updateXrdBenchStage = (nextStage: XrdBenchStage) => {
+  const updateXrdBenchStage = (nextStage: XrdBenchStage, context: XrdRunContext) => {
     setXrdBenchStage(nextStage);
+    setXrdRunContext(context);
+    if (nextStage === 'idle') setXrdRunResult(null);
     const nextPhase = nextStage === 'idle' ? 0
       : nextStage === 'open' ? 1
         : nextStage === 'loaded' || nextStage === 'closed' ? 2
           : nextStage === 'scanning' ? 3
             : nextStage === 'review' ? 4 : 5;
     setPhase(nextPhase);
-    if (nextStage === 'loaded') appendLog('sample', 'CT-104 holder seated on the XRD specimen stage.', 1);
-    if (nextStage === 'closed') appendLog('control', 'XRD-03 enclosure closed; sample and method ready.', 1);
-    if (nextStage === 'scanning') appendLog('measurement', 'XRD-03 standard powder scan started for CT-104.', 1);
-    if (nextStage === 'review') appendLog('result', 'PAT-CT-104 retained; seven expected peaks and two unmatched peaks visible.', 4);
+    if (nextStage === 'loaded') appendLog('sample', `${context.sampleId} holder seated on the XRD specimen stage.`, 1);
+    if (nextStage === 'closed') appendLog('control', `XRD-03 enclosure closed; ${context.prep.toLowerCase()} preparation ready.`, 1);
+    if (nextStage === 'scanning') appendLog('measurement', `${context.sampleId} ${context.scan.toLowerCase()} scan started.`, 1);
+    if (nextStage === 'review') appendLog('result', `${context.sampleId} run ${String(context.runNumber).padStart(2, '0')} retained for open reference comparison.`, context.scanMinutes);
   };
 
-  const dispositionXrdSample = (decision: XrdDisposition) => {
-    setXrdDisposition(decision);
+  const completeXrdRun = (result: XrdRunResult) => {
+    setXrdRunResult(result);
     setXrdBenchStage('complete');
     setPhase(5);
-    if (decision === 'extra') {
-      appendLog('decision', 'CT-104 held: expected CaTiO₃ pattern plus two peaks consistent with an extra crystalline phase.', 2);
-      return;
+    setXrdRunContext(result);
+    if (result.uncertain) appendLog('decision', `${result.sampleId} held as unclear; the player may change preparation or scan settings and rerun.`, 1);
+    else if (result.supported) appendLog('decision', `${result.sampleId} run ${String(result.runNumber).padStart(2, '0')} saved with ${result.matched}/${result.total} measured features explained.`, 1);
+    else {
+      penalize('integrity', 6);
+      appendLog('exception', `${result.sampleId} phase call saved with incomplete support: ${result.summary}`, 1);
     }
-    penalize('integrity', decision === 'expected' ? 16 : 5);
-    appendLog('exception', decision === 'expected'
-      ? 'CT-104 was called expected-only with two measured peaks left unexplained; scientific review recovered the disposition.'
-      : 'CT-104 was marked unclear after a candidate extra-phase overlay aligned both unmatched peaks.', 2);
   };
 
   const resetShift = () => {
@@ -307,8 +309,8 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
         <aside className="left-rail">
           <section className="rail-section shift-card">
             <p className="section-kicker">CURRENT MISSION</p>
-            <h2>{campaignActive ? campaignSpec.name : 'What did the furnace make?'}</h2>
-            <p>{campaignActive ? `Make ${campaignSpec.formula}, test it, and decide whether the result meets the goal.` : 'Load CT-104, run XRD-03, and compare its crystal pattern.'}</p>
+            <h2>{campaignActive ? campaignSpec.name : 'Explore the XRD'}</h2>
+            <p>{campaignActive ? `Make ${campaignSpec.formula}, test it, and decide whether the result meets the goal.` : 'Choose a sample, change the setup, and compare what each run reveals.'}</p>
             <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
             <div className="progress-meta"><span>{displayedCompletedTasks} / {taskTotal} tasks</span><span>{progress}%</span></div>
             {!campaignActive && <MissionTelemetry blockedAttempts={log.filter((event) => event.type === 'exception').length} evidenceCount={Math.max(0, log.length - initialLog.length)} />}
@@ -321,9 +323,9 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
                 const status = campaign.stage >= task.complete ? 'done' : campaign.stage >= task.start ? 'active' : 'pending';
                 return <Task key={task.number} number={task.number} title={task.title} note={task.note} status={status} onClick={status === 'active' ? () => setModal('campaign') : undefined} />;
               }) : <>
-                <Task number="01" title="Load CT-104" note={phase >= 2 ? 'Holder seated · enclosure closed' : 'Prepared powder holder'} status={phase >= 2 ? 'done' : 'active'} onClick={phase < 2 ? () => setModal('xrd-workbench') : undefined} />
-                <Task number="02" title="Run the scan" note={phase >= 4 ? 'Pattern retained' : phase === 3 ? 'Pattern forming' : 'Standard powder scan'} status={phase >= 4 ? 'done' : phase >= 2 ? 'active' : 'pending'} onClick={phase >= 2 && phase < 4 ? () => setModal('xrd-workbench') : undefined} />
-                <Task number="03" title="Read the pattern" note={phase >= 5 ? 'Extra phase · sample held' : 'Compare the peak positions'} status={phase >= 5 ? 'done' : phase >= 4 ? 'active' : 'pending'} onClick={phase === 4 ? () => setModal('xrd-workbench') : undefined} />
+                <Task number="01" title="Build a run" note={phase >= 2 ? `${xrdRunContext?.sampleId ?? 'Sample'} · ${xrdRunContext?.prep ?? 'prepared'}` : '4 samples · 3 preparations'} status={phase >= 2 ? 'done' : 'active'} onClick={phase < 2 ? () => setModal('xrd-workbench') : undefined} />
+                <Task number="02" title="Operate XRD-03" note={phase >= 4 ? 'Pattern retained' : phase === 3 ? `${xrdRunContext?.scan ?? 'Scan'} running` : 'Open · load · close · start'} status={phase >= 4 ? 'done' : phase >= 2 ? 'active' : 'pending'} onClick={phase >= 2 && phase < 4 ? () => setModal('xrd-workbench') : undefined} />
+                <Task number="03" title="Test a hypothesis" note={phase >= 5 ? xrdRunResult?.summary ?? 'Run saved' : 'References · rerun · hold'} status={phase >= 5 ? 'done' : phase >= 4 ? 'active' : 'pending'} onClick={phase === 4 ? () => setModal('xrd-workbench') : undefined} />
               </>}
             </ol>
           </section>
@@ -352,13 +354,13 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
 
           <section className="rail-section lineage-card">
             <div className="section-title-row"><p className="section-kicker">SAMPLE LINEAGE</p><span>SIM</span></div>
-            <div className="lineage-flow"><span>{campaignActive ? campaignLineage.nodes[0] : 'CT-104'}</span><i>→</i><span>{campaignActive ? campaignLineage.nodes[1] : 'XRD-03'}</span><i>→</i><span>{campaignActive ? campaignLineage.nodes[2] : phase >= 4 ? 'PAT-104' : 'PENDING'}</span></div>
-            <p>{campaignActive ? campaignLineage.note : phase >= 5 ? 'Measured pattern retained; CT-104 is held with the extra-phase call.' : 'Prepared powder sample linked to one standard XRD scan.'}</p>
+            <div className="lineage-flow"><span>{campaignActive ? campaignLineage.nodes[0] : xrdRunContext?.sampleId ?? 'ANY SAMPLE'}</span><i>→</i><span>{campaignActive ? campaignLineage.nodes[1] : 'XRD-03'}</span><i>→</i><span>{campaignActive ? campaignLineage.nodes[2] : phase >= 4 ? `RUN-${String(xrdRunContext?.runNumber ?? 1).padStart(2, '0')}` : 'OPEN'}</span></div>
+            <p>{campaignActive ? campaignLineage.note : phase >= 5 ? xrdRunResult?.summary : 'Every preparation and scan becomes a separate comparable run.'}</p>
           </section>
         </aside>
       </div>
 
-      {modal === 'xrd-workbench' && <XrdWorkbench stage={xrdBenchStage} disposition={xrdDisposition} onStage={updateXrdBenchStage} onDisposition={dispositionXrdSample} onClose={() => setModal(null)} />}
+      {modal === 'xrd-workbench' && <XrdWorkbench stage={xrdBenchStage} result={xrdRunResult} onStage={updateXrdBenchStage} onResult={completeXrdRun} onClose={() => setModal(null)} />}
       {modal === 'qc' && <QcModal ran={qcRan} physicalChecks={physicalInspections['XRD-03'] ?? []} feedback={feedback} onRun={runReference} onDisposition={dispositionQc} onClose={() => setModal(null)} />}
       {modal === 'lineage' && <LineageModal scanned={labelsScanned} onScan={() => { setLabelsScanned(true); setFeedback('Mismatch found: the list says A-06; the physical label says B-06.'); appendLog('lineage', 'The label scan found one identifier mismatch.', 3); }} feedback={feedback} onResolve={resolveLineage} onClose={() => setModal(null)} />}
       {modal === 'evidence' && <EvidenceModal feedback={feedback} onDecide={decideEvidence} onClose={() => setModal(null)} />}
@@ -414,12 +416,12 @@ function ActionPanel({ phase, campaignActive, onCampaign, onQc, onAdvance, onEvi
     return <section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>RUN-{identity.suffix}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={onCampaign}>OPEN CAMPAIGN CONTROL<span>→</span></button></section>;
   }
   const states = [
-    { tag: 'SAMPLE READY', title: 'CT-104', body: 'Expected crystal phase: CaTiO₃.', metric: 'Prepared holder', action: 'USE XRD-03', fn: onQc, tone: 'ready' },
-    { tag: 'LOCAL CONTROL', title: 'Enclosure open', body: 'Seat the prepared holder on the specimen stage.', metric: 'Load', action: 'CONTINUE', fn: onQc, tone: 'run' },
-    { tag: 'READY TO MEASURE', title: 'CT-104 loaded', body: 'The standard scan is selected.', metric: '~4 min', action: 'START SCAN', fn: onAdvance, tone: 'run' },
-    { tag: 'ACQUIRING', title: 'Pattern forming', body: 'The machine is reading the crystal pattern.', metric: 'Live', action: 'VIEW SCAN', fn: onAdvance, tone: 'run' },
-    { tag: 'PATTERN READY', title: 'Compare the peaks', body: 'Overlay the expected phase and inspect what remains.', metric: '2 unmatched', action: 'READ PATTERN', fn: onEvidence, tone: 'warn' },
-    { tag: 'SAMPLE HELD', title: 'Extra phase detected', body: 'The expected phase is present, with two additional crystalline peaks.', metric: 'PAT-104', action: 'VIEW RESULT', fn: onComplete, tone: 'ready' },
+    { tag: 'FREE LAB', title: 'Build any XRD run', body: 'Choose a sample, preparation, and scan preset.', metric: '4 × 3 × 3', action: 'OPEN XRD LAB', fn: onQc, tone: 'ready' },
+    { tag: 'LOCAL CONTROL', title: 'Enclosure open', body: 'Select the chosen holder, then place it on the stage.', metric: 'Load', action: 'CONTINUE', fn: onQc, tone: 'run' },
+    { tag: 'READY TO MEASURE', title: 'Run configured', body: 'Close the enclosure and start the selected scan.', metric: 'Ready', action: 'OPERATE XRD-03', fn: onAdvance, tone: 'run' },
+    { tag: 'ACQUIRING', title: 'Pattern forming', body: 'The selected preparation and scan are shaping this pattern.', metric: 'Live', action: 'VIEW SCAN', fn: onAdvance, tone: 'run' },
+    { tag: 'PATTERN READY', title: 'Test a hypothesis', body: 'Try any combination of phase references—or rerun with a new setup.', metric: 'Open', action: 'COMPARE', fn: onEvidence, tone: 'warn' },
+    { tag: 'RUN SAVED', title: 'Keep experimenting', body: 'Rerun this sample or choose another one. No storyline reset is required.', metric: 'Free play', action: 'RETURN TO LAB', fn: onComplete, tone: 'ready' },
   ];
   const state = states[phase] ?? states[5];
   return <section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>{phase >= 5 ? 'DONE' : 'ACTIVE'}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Status</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={state.fn}>{state.action}<span>→</span></button></section>;
