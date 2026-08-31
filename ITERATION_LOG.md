@@ -2555,6 +2555,43 @@ the stronger phrase “robustness pass.” Agreement alone does not establish ro
 - Direct the player to the campaign comparability audit before making a stronger inference.
 - Align the shift checklist, action panel, and spatial twin verdicts around the same cautious language.
 
+## Critique 139: the beginner XRD case described laboratory work without letting the player do it
+
+The default XRD incident had realistic records and scientific safeguards, but the main path still felt like a
+checklist layered over a visualization. A new player could advance without opening the instrument, placing a
+powder holder, closing the radiation enclosure, starting a scan, or matching a measured pattern.
+
+### Changes
+
+- Refocus the default mission on one legible question: what crystalline phases did furnace sample CT-104 make?
+- Add a direct XRD-03 workbench with a selectable powder holder, specimen stage, animated enclosure, physical
+  open/close and start controls, readiness lamps, and a short simulated acquisition.
+- Turn interpretation into a visual peak-matching action: overlay expected CaTiO3, expose two unmatched peaks,
+  test a possible TiO2 extra phase, then make an expected-only, extra-phase, or unclear disposition.
+- Preserve incorrect and cautious calls as playable branches with immediate scientific feedback instead of
+  hiding the decision behind explanatory copy.
+- Keep the 3D machine synchronized with the workbench phase and replace the older silicon-QC inspection notes
+  with CT-104 holder, method, enclosure, acquisition, and retained-pattern observations.
+- Add an explicit device-width viewport after mobile QA showed the entire lab being scaled down as a desktop
+  canvas; the new workbench now uses a full-width stacked console at 390 x 844.
+
+## Critique 140: the TGA mission did not yet prove that the machine-control pattern transfers
+
+The thermal-analysis case already contained a sound empty-pan troubleshooting lesson, but its first action was
+still a conventional instruction-and-chart form. Reusing the XRD interaction grammar exposed a second issue:
+machine status lamps must represent real readiness facts or they actively undermine the simulation.
+
+### Changes
+
+- Replace the first TGA empty-pan form with a direct TGA-01 console: open furnace, visible reference and sample
+  pans, close control, start control, live heat-zone state, and an acquiring mass/DSC trace.
+- Render room-temperature, nitrogen-flow, and empty-pan conditions as lit operational witnesses before allowing
+  the run, then retain the failed −0.38 mg drift as the decision evidence.
+- Finish with a compact physical choice between checking the pans and masking the failure with a software zero;
+  both remain playable so the consequence teaches the rule.
+- Stack the machine, local controls, trace, and decision area on narrow screens while preserving the same action
+  order and control labels as desktop.
+
 ## Verification discipline
 
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA

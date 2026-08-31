@@ -844,9 +844,9 @@ function getInspectionPoints(kind: StationKind, scenarioId: ScenarioId, phase: n
   const campaignPoints = getCampaignInspectionPoints(kind, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, campaignResultMeasured);
   if (campaignPoints) return campaignPoints;
   if (scenarioId === 'xrd' && kind === 'xrd' && phase >= 1) return [
-    { position: [-0.12, 1.23, 0.98], label: 'HOLDER', displayLabel: 'SAMPLE HOLDER', observation: phase >= 4 ? 'run holder clear · specimen record retained' : 'NIST SRM 640f seated · surface clean', state: 'pass' },
-    { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: phase >= 4 ? 'CA-TI-031 complete · anomaly review open' : 'silicon QC +0.02° 2θ · inside limit', state: phase >= 4 ? 'attention' : 'pass' },
-    { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', displayLabel: 'SOURCE SHUTTER', observation: 'closed feedback TRUE · interlock chain healthy', state: 'pass' },
+    { position: [-0.12, 1.23, 0.98], label: 'HOLDER', displayLabel: 'SAMPLE HOLDER', observation: phase === 1 ? 'stage empty · CT-104 prepared holder at load position' : phase === 2 ? 'CT-104 seated flat · powder surface level' : phase === 3 ? 'CT-104 centered · specimen stage moving' : 'CT-104 pattern retained · holder remains identified', state: phase === 1 ? 'attention' : 'pass' },
+    { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: phase <= 2 ? 'standard powder scan · 10–80° selected' : phase === 3 ? 'acquisition live · pattern forming' : phase === 4 ? '7 expected peaks · 2 unmatched peaks' : 'PAT-104 saved · sample held for review', state: phase >= 4 ? 'attention' : 'pass' },
+    { position: [-0.58, 1.7, 0.92], label: 'ENCLOSURE', displayLabel: 'RADIATION ENCLOSURE', observation: phase === 1 ? 'door open · source shutter closed' : phase === 2 ? 'door closed · interlock ready' : phase === 3 ? 'door locked · X-ray source enabled' : 'source off · door remains interlocked', state: 'pass' },
   ];
   if (scenarioId === 'xrd' && kind === 'robot' && phase >= 2) return [
     { position: [1.17, 1.28, 1.1], label: 'GATE', displayLabel: 'GATE INTERLOCK', observation: 'CH1 interlock closed · route authorized', state: 'pass' },
@@ -1277,14 +1277,14 @@ function Furnace({ active, focused, controls, scenarioId, phase, thermalBayLevel
 function Xrd({ active, focused, controls, scenarioId, phase }: { active: boolean; focused: boolean; controls: string[]; scenarioId: ScenarioId; phase: number }) {
   const stage = useRef<THREE.Group>(null);
   const enclosureDoor = useRef<THREE.Group>(null);
-  const homed = controls.includes('Home specimen stage');
+  const homed = controls.includes('Home specimen stage') || scenarioId === 'xrd' && phase >= 2;
   const enclosureClosed = controls.includes('Close radiation enclosure');
-  const acquisitionInterlock = scenarioId === 'xrd' && phase === 3;
+  const scenarioDoorClosed = scenarioId === 'xrd' && phase >= 2;
   const shutterProven = controls.includes('Prove shutter feedback');
   const referenceRead = controls.includes('Read silicon QC position');
   useFrame((_, delta) => {
     if (stage.current) stage.current.rotation.y = THREE.MathUtils.damp(stage.current.rotation.y, homed ? 0 : 0.55, 3.2, delta);
-    if (enclosureDoor.current) enclosureDoor.current.position.x = THREE.MathUtils.damp(enclosureDoor.current.position.x, enclosureClosed || acquisitionInterlock || !focused ? -0.12 : 1.96, 3.4, delta);
+    if (enclosureDoor.current) enclosureDoor.current.position.x = THREE.MathUtils.damp(enclosureDoor.current.position.x, enclosureClosed || scenarioDoorClosed || !focused ? -0.12 : 1.96, 3.4, delta);
   });
   return <group position={[0, 0.1, 0]} scale={[0.64, 0.82, 0.75]}>
     <RoundedBox args={[2.5, 2.25, 1.55]} radius={0.18} smoothness={5} position={[0, 1.15, 0]} castShadow>

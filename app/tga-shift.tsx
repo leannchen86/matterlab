@@ -125,9 +125,60 @@ function getTgaAction(phase: number, actions: (() => void)[]) {
 }
 
 function BaselineModal({ setChecks, physicalChecks, ran, setRan, clearFeedback, feedback, appendLog, onFinish, onClose }: { checks: Record<string, boolean>; setChecks: React.Dispatch<React.SetStateAction<Record<string, boolean>>>; physicalChecks: string[]; ran: boolean; setRan: (value: boolean) => void; clearFeedback: () => void; feedback: string; appendLog: (type: string, text: string, add?: number) => void; onFinish: (correct: boolean) => void; onClose: () => void }) {
-  const items = [['ambient', 'Start near room temperature', 'The comparison needs the same starting temperature.', 'FURNACE'], ['purge', 'Check the gas and flow', 'A gas-flow change can alter the reading.', 'PURGE'], ['empty', 'Inspect both empty pans', 'Residue, damage, or mixed pans can shift a no-sample reading.', 'PAN']];
-  const run = () => { clearFeedback(); setChecks({ ambient: true, purge: true, empty: true }); setRan(true); appendLog('qc', 'The repeated empty-pan check failed again and was saved.', 8); };
-  return <ModalShell title="Review the failed empty-pan check" kicker="STEP 1 · MACHINE CHECK" onClose={onClose} wide><div className="modal-grid scenario-bench-grid"><div><p className="modal-intro">The machine drifted with no sample loaded. Repeat and preserve the failure before changing the setup.</p><div className="evidence-brief">{items.map(([key, title, , hotspot]) => { const observed = physicalChecks.includes(hotspot); return <article key={key} className={observed ? 'observed' : ''} aria-label={`${title}; ${observed ? 'observed in the 3D walkaround' : 'not yet observed in the 3D walkaround'}`}><i>{observed ? '✓' : '•'}</i><div><b>{title}</b><small>{observed ? 'Observed in 3D' : 'Not inspected'}</small></div></article>; })}</div><button className="modal-run" type="button" disabled={ran} onClick={run}>{ran ? 'FAILED CHECK SAVED' : 'REPEAT EMPTY-PAN CHECK'}</button>{!ran && <button className="blank-release-shortcut" type="button" onClick={() => onFinish(false)}>Hide the drift with software zero</button>}</div><div className="instrument-console"><div className="panel-heading"><span>EMPTY-PAN CHECK</span><b>NO SAMPLE LOADED</b></div><TgaTrace baseline ran={ran} /><div className="result-box"><span>RESULT</span><b>{ran ? 'FAILED AGAIN' : 'NOT RUN'}</b><span>EVIDENCE</span><b>{ran ? 'SAVED' : 'NONE'}</b></div>{ran && <div className="decision-stack"><p className="mini-label">NEXT STEP</p><button type="button" onClick={() => onFinish(true)}>Inspect the physical pans</button><button type="button" className="secondary" onClick={() => onFinish(false)}>Zero the display and continue</button></div>}</div></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+  const [doorOpen, setDoorOpen] = useState(true);
+  const [running, setRunning] = useState(false);
+  const walkaroundCount = physicalChecks.length;
+
+  useEffect(() => {
+    if (!running || ran) return;
+    const timer = window.setTimeout(() => {
+      setChecks({ ambient: true, purge: true, empty: true });
+      setRan(true);
+      setRunning(false);
+      appendLog('qc', 'The repeated empty-pan check failed again and was saved.', 8);
+    }, 2400);
+    return () => window.clearTimeout(timer);
+  }, [appendLog, ran, running, setChecks, setRan]);
+
+  const run = () => {
+    if (doorOpen || running || ran) return;
+    clearFeedback();
+    setRunning(true);
+  };
+
+  return <ModalShell title="Repeat the empty-pan check" kicker="STEP 1 · TGA-01" onClose={onClose} wide>
+    <div className={`tga-direct-bench ${doorOpen ? 'door-open' : ''} ${running ? 'running' : ''}`}>
+      <section className="tga-direct-machine" aria-label={`TGA furnace ${doorOpen ? 'open' : 'closed'} with two empty pans loaded`}>
+        <div className="tga-direct-label"><b>TGA-01</b><span>{running ? 'HEATING' : ran ? 'CHECK FAILED' : doorOpen ? 'LOAD' : 'READY'}</span></div>
+        <div className="tga-furnace-shell">
+          <div className="tga-furnace-cavity">
+            <div className="tga-balance-arm"><i><span>REF</span></i><i><span>SAMPLE</span></i></div>
+            <div className="tga-heat-zone" />
+          </div>
+          <div className="tga-furnace-door"><i /><span>FURNACE</span></div>
+        </div>
+        <div className="tga-setup-lamps" aria-label={`Three ready conditions; ${walkaroundCount} also inspected in the 3D lab`}>
+          <span className="on"><i />ROOM TEMP</span>
+          <span className="on"><i />N₂ STABLE</span>
+          <span className="on"><i />EMPTY PANS</span>
+        </div>
+      </section>
+
+      <aside className="tga-direct-controls">
+        <div className="tga-local-display"><span>EMPTY-PAN CHECK</span><b>{running ? 'ACQUIRING' : ran ? 'DRIFT DETECTED' : doorOpen ? 'CLOSE FURNACE' : 'READY TO RUN'}</b><small>25 → 550 °C · N₂</small></div>
+        <button type="button" className="tga-door-button" disabled={running || ran} onClick={() => setDoorOpen((current) => !current)}><i />{doorOpen ? 'CLOSE' : 'OPEN'}</button>
+        <button type="button" className="tga-start-button" disabled={doorOpen || running || ran} onClick={run}><i />{running ? 'RUNNING' : 'START'}</button>
+      </aside>
+
+      <section className="tga-direct-trace">
+        <header><div><span>NO SAMPLE</span><b>{running ? 'CURVE FORMING' : ran ? 'CHECK COMPLETE' : 'WAITING'}</b></div><em>{running ? 'LIVE' : ran ? 'SAVED' : '—'}</em></header>
+        <TgaTrace baseline ran={ran || running} />
+        <div className={`tga-drift-result ${ran ? 'failed' : ''}`}><span>MASS DRIFT</span><b>{ran ? '−0.38 mg' : '—'}</b><span>RESULT</span><b>{ran ? 'FAIL' : running ? 'RUNNING' : '—'}</b></div>
+      </section>
+    </div>
+    {ran && <div className="tga-direct-decision"><div><span>YOUR CALL</span><b>The empty setup drifted again.</b></div><button type="button" onClick={() => onFinish(true)}>CHECK THE PANS</button><button type="button" className="secondary" onClick={() => onFinish(false)}>ZERO + CONTINUE</button></div>}
+    {feedback && <p className="feedback bad">{feedback}</p>}
+  </ModalShell>;
 }
 
 function PanModal({ scanned, setScanned, feedback, appendLog, onFinish, onClose }: { scanned: boolean; setScanned: (value: boolean) => void; feedback: string; appendLog: (type: string, text: string, add?: number) => void; onFinish: (correct: boolean) => void; onClose: () => void }) {
