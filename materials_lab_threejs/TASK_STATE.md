@@ -26,10 +26,12 @@ Status: complete and validated.
 - [x] Replayable cinematic camera spline
 - [x] ACES exposure correction, SSAO, thresholded bloom and FXAA
 - [x] Human-scale technician proxy
-- [x] Review cycles 1–4 captured and diagnosed
+- [x] Review cycles 1–6 captured and diagnosed
+- [x] Suspended ceiling service grid, fixture drops and facility identity sign
+- [x] Physical equipment plates, utility termination boxes and floor-level umbilicals for all seven machines
 - [x] TypeScript, ESLint, static Pages build and Vinext/Sites build
 - [x] Desktop fixed-camera and 390 × 844 mobile cinematic-tour verification
 
 ## Release result
 
-The final judgeset has no critical defects. White housings retain edge definition, close judges show the intended instrument family without foreground occlusion, the safety boundary is unobstructed, and the cinematic controls remain usable at the mobile breakpoint.
+The final judgeset has no critical defects. White housings retain edge definition, close judges show the intended instrument family without foreground occlusion, every machine carries a readable physical identity and service story, overhead fixtures have credible support, the safety boundary is unobstructed, and the cinematic controls remain usable at the mobile breakpoint.

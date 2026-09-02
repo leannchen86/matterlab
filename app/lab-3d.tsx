@@ -540,6 +540,8 @@ function LabArchitecture({ lightingMode, showScaleTechnician }: { lightingMode: 
       <boxGeometry args={[0.18, 5, 8.7]} />
       <meshStandardMaterial color={inspection ? '#999b95' : '#0d151f'} roughness={0.72} metalness={0.14} />
     </mesh>
+    <CeilingServiceFrame />
+    <FacilityIdentitySign />
     {[-5.8, -1.75, 2.3].map((x) => <group key={x} position={[x, 4.65, -4.25]}>
       <mesh castShadow><boxGeometry args={[2.7, 0.07, 0.12]} /><meshStandardMaterial color="#d7f2ff" emissive="#bdeaff" emissiveIntensity={inspection ? 1.1 : 0.7} /></mesh>
       <pointLight position={[0, -0.3, 1.2]} intensity={inspection ? 3.4 : 1.8} distance={6.5} color="#caeaff" decay={2} />
@@ -552,6 +554,59 @@ function LabArchitecture({ lightingMode, showScaleTechnician }: { lightingMode: 
     <UtilityServices />
     <FacilitySafetyInfrastructure inspection={inspection} />
     {showScaleTechnician && <ScaleTechnician />}
+  </group>;
+}
+
+function CeilingServiceFrame() {
+  const fixtures: ReadonlyArray<readonly [number, number]> = [[-5.25, -1.55], [-1.75, -1.55], [1.75, -1.55], [-5.25, 2.15], [-1.75, 2.15], [1.75, 2.15], [-1.75, 5.5], [1.75, 5.5]];
+  return <group>
+    {[-3.55, 0.05, 3.65, 6.75].map((z) => <mesh key={`rail-z-${z}`} position={[-1.75, 5.04, z]} castShadow>
+      <boxGeometry args={[14.1, 0.09, 0.1]} />
+      <meshStandardMaterial color="#4a585e" metalness={0.78} roughness={0.28} />
+    </mesh>)}
+    {[-7.85, -5.25, -1.75, 1.75, 4.25].map((x) => <mesh key={`rail-x-${x}`} position={[x, 5.0, 1.6]} castShadow>
+      <boxGeometry args={[0.1, 0.09, 10.4]} />
+      <meshStandardMaterial color="#526168" metalness={0.8} roughness={0.26} />
+    </mesh>)}
+    {fixtures.flatMap(([x, z]) => [-0.83, 0.83].map((offset) => <group key={`drop-${x}-${z}-${offset}`} position={[x + offset, 4.86, z]}>
+      <mesh castShadow><cylinderGeometry args={[0.017, 0.017, 0.31, 12]} /><meshStandardMaterial color="#65747a" metalness={0.86} roughness={0.2} /></mesh>
+      <mesh position={[0, 0.17, 0]}><cylinderGeometry args={[0.055, 0.055, 0.035, 16]} /><meshStandardMaterial color="#405058" metalness={0.82} roughness={0.26} /></mesh>
+    </group>))}
+    {[-5.25, -1.75, 1.75].map((x) => <group key={`service-drop-${x}`} position={[x, 4.25, -3.92]}>
+      <Line points={[[0, 0.74, 0], [0, 0.14, 0], [0.18, 0, 0]]} color="#405969" lineWidth={1.1} />
+      <mesh position={[0, 0.46, 0]} castShadow><cylinderGeometry args={[0.026, 0.026, 0.72, 12]} /><meshStandardMaterial color="#6b7779" metalness={0.82} roughness={0.23} /></mesh>
+    </group>)}
+  </group>;
+}
+
+function FacilityIdentitySign() {
+  const texture = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    context.fillStyle = '#13232a';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#4dd5ed';
+    context.fillRect(0, 0, 24, canvas.height);
+    context.fillStyle = '#ecf8f7';
+    context.font = '700 92px ui-monospace, SFMono-Regular, Menlo, monospace';
+    context.fillText('MATTERLAB', 74, 116);
+    context.fillStyle = '#86a9ad';
+    context.font = '600 34px ui-monospace, SFMono-Regular, Menlo, monospace';
+    context.fillText('VIRTUAL MATERIALS CHARACTERIZATION · BAY ML-01', 78, 184);
+    const panelTexture = new THREE.CanvasTexture(canvas);
+    panelTexture.colorSpace = THREE.SRGBColorSpace;
+    panelTexture.anisotropy = 4;
+    return panelTexture;
+  }, []);
+  useEffect(() => () => texture?.dispose(), [texture]);
+  if (!texture) return null;
+  return <group position={[-5.35, 3.2, -4.3]}>
+    <RoundedBox args={[4.35, 1.02, 0.09]} radius={0.04} castShadow><meshStandardMaterial color="#27363c" metalness={0.7} roughness={0.32} /></RoundedBox>
+    <mesh position={[0, 0, 0.051]}><planeGeometry args={[4.12, 0.79]} /><meshBasicMaterial map={texture} toneMapped={false} /></mesh>
   </group>;
 }
 
@@ -873,6 +928,8 @@ function StationCell({ station, scene, selected, active, toneOverride, stateOver
       <Line points={[[-1.54, 0.082, -1.36], [1.54, 0.082, -1.36], [1.54, 0.082, 1.36], [-1.54, 0.082, 1.36], [-1.54, 0.082, -1.36]]} color={selected ? '#4dd5ed' : tone} lineWidth={selected ? 1.05 : 0.55} transparent opacity={selected ? 0.48 : 0.12} />
       <StationFeet />
       <Equipment kind={scene.kind} active={active} tone={tone} focused={showHotspots} controls={controls} scenarioId={scenarioId} phase={phase} thermalBayLevel={thermalBayLevel} campaignStage={campaignStage} campaignRunNumber={campaignRunNumber} />
+      <InstrumentIdentityPlate station={station} kind={scene.kind} tone={tone} />
+      <InstrumentServiceDetails kind={scene.kind} tone={tone} active={active} />
       {showHotspots && <InspectionHotspots points={inspectionPoints} tone={tone} inspected={inspected} onInspect={onInspect} />}
       {!showHotspots && <StatusBeacon position={[1.32, 0.08, 1.08]} color={tone} active={active || selected} />}
       <ControlProofLights count={controls.length} />
@@ -883,6 +940,76 @@ function StationCell({ station, scene, selected, active, toneOverride, stateOver
       </Html>}
     </group>
   );
+}
+
+const INSTRUMENT_DETAIL: Record<StationKind, { formalName: string; services: string; sampleInterface: string }> = {
+  prep: { formalName: 'POWDER PREPARATION ENCLOSURE', services: 'EXH-01 · 230 V · ESD', sampleInterface: 'WEIGH / MILL / MOUNT' },
+  robot: { formalName: 'SAFEGUARDED TRANSFER CELL', services: '480 V · AIR · SAFETY PLC', sampleInterface: 'BC CARRIER INTERFACE' },
+  furnace: { formalName: 'PROGRAMMABLE BOX FURNACE', services: '480 V · EXH-02 · TC-K', sampleInterface: 'HOT-ZONE LOAD DECK' },
+  xrd: { formalName: 'POWDER X-RAY DIFFRACTOMETER', services: '208 V · CHW · X-RAY', sampleInterface: 'SPINNER STAGE / Ø25' },
+  sem: { formalName: 'SEM / EDS MICROANALYSIS', services: '208 V · CHW · VAC · N₂', sampleInterface: '7-AXIS VACUUM STAGE' },
+  bet: { formalName: 'GAS SORPTION ANALYZER', services: '120 V · VAC · N₂ · He', sampleInterface: '4-PORT MANIFOLD' },
+  tga: { formalName: 'TGA / DSC THERMAL ANALYZER', services: '208 V · N₂ · EXH-03', sampleInterface: 'DUAL PAN MICROBALANCE' },
+};
+
+function InstrumentIdentityPlate({ station, kind, tone }: { station: Station; kind: StationKind; tone: string }) {
+  const detail = INSTRUMENT_DETAIL[kind];
+  const texture = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    context.fillStyle = '#101b20';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = tone;
+    context.fillRect(0, 0, 22, canvas.height);
+    context.fillStyle = '#e9f3f1';
+    context.font = '700 70px ui-monospace, SFMono-Regular, Menlo, monospace';
+    context.fillText(station.id, 64, 86);
+    context.fillStyle = '#a9c0c1';
+    context.font = '600 37px ui-monospace, SFMono-Regular, Menlo, monospace';
+    context.fillText(detail.formalName, 64, 142);
+    context.fillStyle = '#67858b';
+    context.font = '600 27px ui-monospace, SFMono-Regular, Menlo, monospace';
+    context.fillText(`${detail.sampleInterface}  //  ${detail.services}`, 64, 196);
+    context.fillStyle = tone;
+    context.fillRect(64, 216, 896, 5);
+    const labelTexture = new THREE.CanvasTexture(canvas);
+    labelTexture.colorSpace = THREE.SRGBColorSpace;
+    labelTexture.anisotropy = 4;
+    return labelTexture;
+  }, [detail, station.id, tone]);
+  useEffect(() => () => texture?.dispose(), [texture]);
+  if (!texture) return null;
+  return <group position={[0, 0.23, 1.4]}>
+    <RoundedBox args={[2.18, 0.48, 0.08]} radius={0.025} castShadow><meshStandardMaterial color="#25333a" metalness={0.72} roughness={0.28} /></RoundedBox>
+    <mesh position={[0, 0, 0.046]}><planeGeometry args={[2.02, 0.36]} /><meshBasicMaterial map={texture} toneMapped={false} /></mesh>
+    {[-1.035, 1.035].map((x) => <mesh key={x} position={[x, 0, 0.047]}><circleGeometry args={[0.018, 12]} /><meshStandardMaterial color="#9ca9aa" metalness={0.9} roughness={0.16} /></mesh>)}
+  </group>;
+}
+
+function InstrumentServiceDetails({ kind, tone, active }: { kind: StationKind; tone: string; active: boolean }) {
+  const lines = kind === 'sem' || kind === 'xrd' ? ['#4b7896', '#526b78', '#26343a'] : kind === 'bet' || kind === 'tga' ? ['#78b4cf', '#d6b046', '#536878'] : ['#526b78', '#303b42', '#71808a'];
+  return <group>
+    <group position={[-1.34, 0.47, -1.13]}>
+      <RoundedBox args={[0.34, 0.62, 0.18]} radius={0.035} castShadow><meshStandardMaterial color="#26353c" metalness={0.62} roughness={0.34} /></RoundedBox>
+      <mesh position={[0, 0.13, 0.095]}><planeGeometry args={[0.23, 0.14]} /><meshBasicMaterial color="#071619" /></mesh>
+      <mesh position={[0, 0.14, 0.098]}><planeGeometry args={[0.14, 0.02]} /><meshBasicMaterial color={active ? tone : '#607277'} /></mesh>
+      {[-0.08, 0, 0.08].map((x, index) => <mesh key={x} position={[x, -0.11, 0.102]}><circleGeometry args={[0.026, 14]} /><meshStandardMaterial color={lines[index]} metalness={0.52} roughness={0.3} /></mesh>)}
+    </group>
+    {lines.map((color, index) => <Line key={color} points={[
+      [-1.42 + index * 0.07, 0.36, -1.21],
+      [-1.47 + index * 0.07, 0.18, -1.32],
+      [-1.34 + index * 0.07, 0.09, -1.42],
+    ]} color={color} lineWidth={1.15} />)}
+    <group position={[1.31, 0.42, -1.18]}>
+      <RoundedBox args={[0.33, 0.48, 0.12]} radius={0.025} castShadow><meshStandardMaterial color="#34434a" metalness={0.7} roughness={0.3} /></RoundedBox>
+      <mesh position={[0, 0.08, 0.066]}><planeGeometry args={[0.21, 0.055]} /><meshBasicMaterial color={tone} transparent opacity={0.8} /></mesh>
+      <mesh position={[0, -0.075, 0.068]}><planeGeometry args={[0.22, 0.1]} /><meshBasicMaterial color="#142328" /></mesh>
+    </group>
+  </group>;
 }
 
 function StationFeet() {

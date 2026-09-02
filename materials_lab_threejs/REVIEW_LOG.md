@@ -45,3 +45,26 @@ Mean score: 9.0 / 10.
 | C15–C16 | `review/cycle_4/C15.png` | pass | hero views | Operational density and depth hierarchy hold without clipped primary assets |
 
 No critical or major defect remains. Minor limitation: the high-bay fixtures are intentionally visible as a cutaway ceiling/service zone in overview cameras.
+
+## Cycle 5 — machine detail and overhead structure
+
+Mean score: 9.4 / 10.
+
+| Camera | Evidence | Severity | Subsystem | Root cause | Fix |
+| --- | --- | --- | --- | --- | --- |
+| C01–C04 | `review/cycle_5/C01.png` | moderate | architecture | Suspended luminaires had no visible load path and read as floating props | Added a galvanized ceiling service grid, paired fixture drops and utility risers |
+| C05–C11 | `review/cycle_5/C05.png` | moderate | instruments | Asset identity and service requirements depended on screen overlays | Added bolted, emissive-safe equipment plates with formal names, sample interfaces and utility specifications |
+| C05–C11 | `review/cycle_5/C09.png` | minor | instruments | Newly added utility text floated beside termination boxes instead of reading as physical hardware | Removed the floating annotation and retained the data on the physical plate |
+
+## Cycle 6 — final machine-detail cleanup
+
+Mean score: 9.6 / 10.
+
+| Camera | Evidence | Severity | Subsystem | Result |
+| --- | --- | --- | --- | --- |
+| C01–C04 | `review/cycle_6/C01.png` | pass | full room | Ceiling structure, suspended fixtures, facility branding, equipment scale and circulation read as one coherent room |
+| C05–C11 | `review/cycle_6/C05.png` | pass | instruments | All seven families have physical identity plates, sample-interface descriptions, local service boxes, umbilicals and distinct operating silhouettes |
+| C12–C14 | `review/cycle_6/C12.png` | pass | operations | Safety and service infrastructure remain unobstructed after the added overhead and machine detail |
+| C15–C16 | `review/cycle_6/C16.png` | pass | hero views | Added detail increases density without creating label clutter or obscuring primary assets |
+
+The frozen camera definitions were not changed during cycles 5–6.

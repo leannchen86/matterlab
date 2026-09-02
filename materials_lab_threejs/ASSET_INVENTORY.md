@@ -6,6 +6,8 @@ All visual assets are procedural React Three Fiber / Three.js geometry; play doe
 
 - Epoxy floor plate, measured grid, back and left walls
 - Eight ceiling task fixtures plus back-wall strip lighting
+- Galvanized ceiling service grid with paired fixture suspension drops and utility risers
+- Branded MatterLab bay identity sign with procedural high-resolution face texture
 - Overhead cable tray, service drops, gas/vacuum manifolds, wall panels
 - Emergency shower/eyewash, emergency control, fire extinguisher, oxygen monitor
 - Personnel door, keep-clear markings, fencing and station platforms
@@ -20,6 +22,8 @@ All visual assets are procedural React Three Fiber / Three.js geometry; play doe
 - SEM-01 column, chamber, stage, EDS detector, vacuum support and workstation
 - BET-02 analysis ports, manifold, sample tubes, dewar/vacuum equipment and gas service
 - TGA-01 furnace, paired pans, balance head, autosampler carousel and purge routing
+- Seven bolted physical equipment plates carrying formal name, sample interface and utility specification
+- Seven local service termination boxes with color-coded floor umbilicals
 
 ## Operations and small props
 
@@ -35,4 +39,3 @@ All visual assets are procedural React Three Fiber / Three.js geometry; play doe
 - EffectComposer with SSAO, thresholded UnrealBloom, FXAA and OutputPass
 - Orbit, technician-scale walk collision, station focus, inspection pins and cinematic spline tour
 - Sixteen deterministic review cameras selected with `?camera=C01` through `?camera=C16`
-

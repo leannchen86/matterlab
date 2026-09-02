@@ -1,6 +1,6 @@
 # MatterLab measured spatial plan
 
-The modeled floor plate is 15.0 m × 13.5 m. The back wall spans 14.4 m; the left service wall spans 8.7 m. The scene is a high-bay robotics and characterization room, so the 4.7–5.0 m service/lighting zone is an intentional exception to the 2.7–3.2 m general-lab ceiling target. Technician work surfaces and inspection controls stay at ordinary human scale.
+The modeled floor plate is 15.0 m × 13.5 m. The back wall spans 14.4 m; the left service wall spans 8.7 m. The scene is a high-bay robotics and characterization room, so the 4.7–5.0 m service/lighting zone is an intentional exception to the 2.7–3.2 m general-lab ceiling target. A visible 5.0 m galvanized service grid carries the suspended fixtures and drops. Technician work surfaces and inspection controls stay at ordinary human scale.
 
 ## Station grid
 
@@ -23,4 +23,3 @@ The modeled floor plate is 15.0 m × 13.5 m. The back wall spans 14.4 m; the lef
 - Emergency shower/eyewash and emergency-control routes are kept at the left wall; fire extinguisher, oxygen monitor, and utilities occupy the back-right boundary.
 
 The frozen view definitions live in `cameras.json`. C01–C04 and C15–C16 judge the whole room; C05–C11 judge instrument families; C12–C14 judge safety, utilities, and material staging.
-

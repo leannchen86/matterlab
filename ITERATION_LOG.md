@@ -2625,3 +2625,15 @@ The simulation already contained credible equipment and interactions, but visual
 - Added restrained SSAO, thresholded bloom, FXAA, ACES exposure correction, and lower practical-light energy so contacts read without washing out white equipment.
 - Added a 1.75 m technician reference to wide views and a replayable cinematic spline that follows the laboratory evidence path.
 - Verified the new four-button camera control and cinematic HUD at 390 × 844, then reran TypeScript, ESLint, the static Pages build, and the Vinext/Sites build.
+
+## Critique 143: machine identity and ceiling services still read as presentation layers
+
+The frozen judgeset showed that the instruments were scientifically distinct at close range, but their identity still depended too heavily on the interface. In the wide views, the luminaires also appeared to float because the cutaway room had no visible ceiling support system.
+
+### Changes made
+
+- Added a galvanized high-bay service grid with paired suspension drops for every task fixture and explicit utility risers at the back-wall service panels.
+- Added a physical MatterLab bay sign so the facility has an in-world identity rather than relying only on the web interface.
+- Added bolted front equipment plates to all seven stations with formal machine names, sample-interface descriptions, service specifications and status-colored rules.
+- Added local service termination boxes and color-coded power, gas, vacuum or cooling umbilicals keyed to each machine family.
+- Ran two more complete 1440 × 900 passes with the unchanged sixteen cameras. Cycle 5 exposed a floating utility-text artifact; cycle 6 removed it and retained the information only on the physical plates.
