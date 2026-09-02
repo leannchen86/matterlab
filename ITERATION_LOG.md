@@ -2612,3 +2612,16 @@ The first XRD interaction made the instrument feel more physical, but every choi
 Each branch was exercised in the browser through both correct and incorrect decisions. Visual QA
 covered a wide desktop viewport and a 390 × 844 mobile viewport, including the scenario deck and a
 stacked instrument workbench. TypeScript, lint, and production build checks are run before publish.
+
+## Critique 142: the lab had no frozen visual acceptance contract
+
+The simulation already contained credible equipment and interactions, but visual quality still depended on ad hoc viewpoints. There was no deterministic way to compare the whole room, individual instrument families, utilities, safety hardware, material staging, and hero compositions across changes. The original lighting also clipped white housings once a post-processing pipeline was introduced.
+
+### Changes made
+
+- Added a measured art direction, spatial plan, asset inventory, task state, defect log, and sixteen-camera judgeset under `materials_lab_threejs/`.
+- Added deterministic full-screen review rendering through `?camera=C01` to `?camera=C16`, including station-isolated instrument judges and an unobstructed safety-boundary judge.
+- Ran four complete 1440 × 900 camera cycles and retained every PNG, with camera, severity, subsystem, root cause, and fix recorded for each defect family.
+- Added restrained SSAO, thresholded bloom, FXAA, ACES exposure correction, and lower practical-light energy so contacts read without washing out white equipment.
+- Added a 1.75 m technician reference to wide views and a replayable cinematic spline that follows the laboratory evidence path.
+- Verified the new four-button camera control and cinematic HUD at 390 × 844, then reran TypeScript, ESLint, the static Pages build, and the Vinext/Sites build.

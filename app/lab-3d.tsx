@@ -4,6 +4,14 @@ import { Environment, Grid, Html, Lightformer, Line, OrbitControls, RoundedBox }
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+import reviewCamerasJson from '../materials_lab_threejs/cameras.json';
 import { evaluateCampaignMission, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import type { CampaignMissionId } from './campaign-spec';
 import { getCampaignStationId, getStationSceneSpec, SCENE_QUALITY, STATION_MENU_ORDER, STATION_SCENE_ORDER } from './lab-scene-config';
@@ -16,6 +24,16 @@ type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
 type LightingMode = 'inspection' | 'run';
 type WalkDirection = 'forward' | 'back' | 'left' | 'right';
 type WalkCommand = { id: number; direction: WalkDirection };
+type ReviewCamera = {
+  id: string;
+  name: string;
+  position: [number, number, number];
+  target: [number, number, number];
+  fov: number;
+  stationId?: StationId;
+  hideStations?: boolean;
+  purpose: string;
+};
 type SceneProps = {
   stations: Station[];
   selectedId: string;
@@ -34,6 +52,10 @@ type SceneProps = {
   scenarioId: ScenarioId;
   cameraMode: CameraMode;
   lightingMode: LightingMode;
+  reviewCameraId: string | null;
+  tourActive: boolean;
+  tourRun: number;
+  onTourComplete: () => void;
   controlFeedback?: Record<string, string[]>;
   onCameraMode: (mode: CameraMode) => void;
   onOpenConsole: () => void;
@@ -44,6 +66,15 @@ type SceneProps = {
   onSelect: (id: string) => void;
 };
 
+const REVIEW_CAMERAS = reviewCamerasJson as ReviewCamera[];
+const REVIEW_CAMERA_BY_ID = new Map(REVIEW_CAMERAS.map((camera) => [camera.id, camera]));
+const TOUR_CAMERA_IDS = ['C01', 'C04', 'C08', 'C09', 'C11', 'C13', 'C16'];
+const TOUR_CAMERAS = TOUR_CAMERA_IDS.map((id) => {
+  const camera = REVIEW_CAMERA_BY_ID.get(id);
+  if (!camera) throw new Error(`Missing cinematic camera ${id}`);
+  return camera;
+});
+
 const TONE_COLORS: Record<Station['tone'], string> = {
   ready: '#51e19a',
   hold: '#718198',
@@ -52,7 +83,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignResultElapsed, campaignResultMeasured, campaignConfirmationSource, campaignMissionId, campaignThermalBayLevel, campaignStagingBayLevel, campaignInventory, campaignBacklog, scenarioId, cameraMode, lightingMode, controlFeedback, onCameraMode, onOpenConsole, onOpenInventory, onOpenCampaign, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignResultElapsed, campaignResultMeasured, campaignConfirmationSource, campaignMissionId, campaignThermalBayLevel, campaignStagingBayLevel, campaignInventory, campaignBacklog, scenarioId, cameraMode, lightingMode, reviewCameraId, tourActive, tourRun, onTourComplete, controlFeedback, onCameraMode, onOpenConsole, onOpenInventory, onOpenCampaign, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -74,6 +105,9 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
   const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? observationRecord.point : null;
   const campaignState = getCampaignRoomState(campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignResultElapsed, campaignResultMeasured, campaignConfirmationSource);
   const quality = SCENE_QUALITY[cameraMode];
+  const reviewCamera = reviewCameraId ? REVIEW_CAMERA_BY_ID.get(reviewCameraId) ?? null : null;
+  const isolatedStationId = reviewCamera?.stationId ?? null;
+  const hideStations = Boolean(reviewCamera?.hideStations);
   const inspect = (label: string) => {
     const point = selectedHotspots.find((hotspot) => hotspot.label === label);
     if (point) setObservationRecord({ stationId: selectedId, point });
@@ -82,26 +116,27 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
     onInspectionChange?.(inspectionKey, checks);
   };
   return (
-    <div className={`lab-3d camera-${cameraMode}`} aria-label="Interactive 3D simulation of seven materials laboratory stations">
+    <div className={`lab-3d camera-${cameraMode}${reviewCameraId ? ' review-render' : ''}${tourActive ? ' tour-render' : ''}`} aria-label="Interactive 3D simulation of seven materials laboratory stations">
       <Canvas
         shadows={quality.shadows}
         dpr={quality.dpr}
         camera={{ position: [10.5, 11.8, 19.5], fov: 55, near: 0.1, far: 90 }}
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: Boolean(reviewCameraId) }}
         onCreated={({ gl }) => {
           gl.setClearColor(new THREE.Color('#c8c2b8'), 1);
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
+          gl.toneMappingExposure = 0.76;
         }}
       >
         <FacilityLighting mode={lightingMode} quality={quality} />
 
-        <LabArchitecture lightingMode={lightingMode} />
-        {cameraMode !== 'focus' && <OperationsProps scenarioId={scenarioId} phase={phase} inventory={campaignInventory} stagingBayLevel={campaignStagingBayLevel} stagingSelected={selectedId === 'PREP-01'} focused={false} onOpenInventory={onOpenInventory} />}
-        {cameraMode !== 'focus' && <CampaignBacklogRack backlog={campaignBacklog} thermalBayLevel={campaignThermalBayLevel} onOpenCampaign={onOpenCampaign} />}
-        {cameraMode !== 'focus' && <MaterialRoute scenarioId={scenarioId} phase={phase} />}
-        {cameraMode !== 'focus' && <CampaignMaterialRoute stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} resultMeasured={campaignResultMeasured} confirmationSource={campaignConfirmationSource} />}
-        {sceneStations.map(({ station, scene }) => (cameraMode !== 'focus' || selectedId === station.id) ? (
+        <LabArchitecture lightingMode={lightingMode} showScaleTechnician={!isolatedStationId && !hideStations} />
+        {cameraMode !== 'focus' && !isolatedStationId && !hideStations && <OperationsProps scenarioId={scenarioId} phase={phase} inventory={campaignInventory} stagingBayLevel={campaignStagingBayLevel} stagingSelected={selectedId === 'PREP-01'} focused={false} onOpenInventory={onOpenInventory} />}
+        {cameraMode !== 'focus' && !isolatedStationId && !hideStations && <CampaignBacklogRack backlog={campaignBacklog} thermalBayLevel={campaignThermalBayLevel} onOpenCampaign={onOpenCampaign} />}
+        {cameraMode !== 'focus' && !isolatedStationId && !hideStations && <MaterialRoute scenarioId={scenarioId} phase={phase} />}
+        {cameraMode !== 'focus' && !isolatedStationId && !hideStations && <CampaignMaterialRoute stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} resultMeasured={campaignResultMeasured} confirmationSource={campaignConfirmationSource} />}
+        {!hideStations && sceneStations.map(({ station, scene }) => ((cameraMode !== 'focus' || selectedId === station.id) && (!isolatedStationId || isolatedStationId === station.id)) ? (
           <StationCell
             key={station.id}
             station={station}
@@ -124,12 +159,13 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
             onSelect={onSelect}
           />
         ) : null)}
-        <CameraDirector mode={cameraMode} selectedScene={selectedScene} controls={controlsRef} />
-        <AisleNavigator active={cameraMode === 'walk'} controls={controlsRef} command={walkCommand} scenarioId={scenarioId} phase={phase} />
+        <CameraDirector mode={cameraMode} selectedScene={selectedScene} controls={controlsRef} reviewCameraId={reviewCameraId} tourActive={tourActive} tourRun={tourRun} onTourComplete={onTourComplete} />
+        <AisleNavigator active={cameraMode === 'walk' && !tourActive && !reviewCameraId} controls={controlsRef} command={walkCommand} scenarioId={scenarioId} phase={phase} />
         <OrbitControls
           ref={controlsRef}
           makeDefault
           target={[-1.55, 0.72, -0.18]}
+          enabled={!tourActive && !reviewCameraId}
           enableDamping
           dampingFactor={0.075}
           enablePan={cameraMode !== 'walk'}
@@ -140,6 +176,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
           minAzimuthAngle={-1.45}
           maxAzimuthAngle={1.25}
         />
+        <LabPostEffects enabled={!tourActive || cameraMode !== 'walk'} />
       </Canvas>
       <nav className="scene-station-picker" aria-label="Select a lab station">
         {menuStations.map((station) => <button key={station.id} type="button" className={`${selectedId === station.id ? 'active ' : ''}${campaignStationId === station.id ? 'campaign-active' : ''}`} style={{ '--station-tone': campaignStationId === station.id ? campaignState.color : TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
@@ -202,12 +239,12 @@ function FacilityLighting({ mode, quality }: { mode: LightingMode; quality: Scen
   return <>
     <color attach="background" args={[inspection ? '#c8c2b8' : '#070b12']} />
     <fog attach="fog" args={[inspection ? '#c8c2b8' : '#070b12', inspection ? 23 : 17, inspection ? 45 : 34]} />
-    <ambientLight intensity={inspection ? 1.08 : 0.68} color={inspection ? '#e3e9e8' : '#9fb6d5'} />
-    <hemisphereLight args={[inspection ? '#f4f8f5' : '#d5e8ff', inspection ? '#3c4546' : '#111722', inspection ? 1.6 : 1.08]} />
+    <ambientLight intensity={inspection ? 0.46 : 0.42} color={inspection ? '#dce4e2' : '#9fb6d5'} />
+    <hemisphereLight args={[inspection ? '#f4f8f5' : '#d5e8ff', inspection ? '#343b3d' : '#111722', inspection ? 1.02 : 0.9]} />
     <directionalLight
       castShadow={quality.shadows !== false}
       position={[7, 11, 8]}
-      intensity={inspection ? 3.7 : 2.7}
+      intensity={inspection ? 2.75 : 2.35}
       color={inspection ? '#fffaf0' : '#e7f1ff'}
       shadow-mapSize-width={quality.shadowMapSize}
       shadow-mapSize-height={quality.shadowMapSize}
@@ -217,10 +254,10 @@ function FacilityLighting({ mode, quality }: { mode: LightingMode; quality: Scen
       shadow-camera-bottom={-10}
       shadow-bias={-0.00035}
     />
-    <pointLight position={[-4, 4.5, 1]} intensity={inspection ? 8 : 24} distance={10} color="#4dd5ed" decay={2} />
-    <pointLight position={[3.5, 3.4, -2]} intensity={inspection ? 5.8 : 19} distance={9} color={inspection ? '#ffb56f' : '#ff8f67'} decay={2} />
-    <pointLight position={[-5.8, 2.7, 5.6]} intensity={inspection ? 3.4 : 10} distance={8.5} color={inspection ? '#ff9eae' : '#ff748f'} decay={2} />
-    <pointLight position={[0.5, 5.6, 4.4]} intensity={inspection ? 3.2 : 7} distance={10} color={inspection ? '#ffd98f' : '#ffc36f'} decay={2} />
+    <pointLight position={[-4, 4.5, 1]} intensity={inspection ? 3.7 : 18} distance={10} color="#4dd5ed" decay={2} />
+    <pointLight position={[3.5, 3.4, -2]} intensity={inspection ? 2.9 : 14} distance={9} color={inspection ? '#ffb56f' : '#ff8f67'} decay={2} />
+    <pointLight position={[-5.8, 2.7, 5.6]} intensity={inspection ? 2.1 : 8} distance={8.5} color={inspection ? '#ff9eae' : '#ff748f'} decay={2} />
+    <pointLight position={[0.5, 5.6, 4.4]} intensity={inspection ? 2.2 : 6} distance={10} color={inspection ? '#ffd98f' : '#ffc36f'} decay={2} />
     <Environment key={`${mode}-${quality.environmentResolution}`} resolution={quality.environmentResolution} frames={1}>
       <Lightformer form="rect" intensity={inspection ? 5.4 : 3.2} color={inspection ? '#f5f5ed' : '#d9edff'} position={[0, 7, 1]} rotation={[Math.PI / 2, 0, 0]} scale={[11, 8, 1]} />
       <Lightformer form="rect" intensity={inspection ? 2.6 : 2.1} color={inspection ? '#dce9e7' : '#75d9ee'} position={[-8, 3, 3]} rotation={[0, Math.PI / 2, 0]} scale={[5, 3, 1]} />
@@ -229,9 +266,22 @@ function FacilityLighting({ mode, quality }: { mode: LightingMode; quality: Scen
   </>;
 }
 
-function CameraDirector({ mode, selectedScene, controls }: { mode: CameraMode; selectedScene: StationSceneSpec; controls: React.RefObject<OrbitControlsHandle | null> }) {
+/* R3F camera directors intentionally mutate Three.js camera and controls objects in useFrame. */
+/* eslint-disable react-hooks/immutability */
+function CameraDirector({ mode, selectedScene, controls, reviewCameraId, tourActive, tourRun, onTourComplete }: {
+  mode: CameraMode;
+  selectedScene: StationSceneSpec;
+  controls: React.RefObject<OrbitControlsHandle | null>;
+  reviewCameraId: string | null;
+  tourActive: boolean;
+  tourRun: number;
+  onTourComplete: () => void;
+}) {
   const { camera } = useThree();
   const animating = useRef(true);
+  const tourStart = useRef<number | null>(null);
+  const tourFinished = useRef(false);
+  const reviewCamera = reviewCameraId ? REVIEW_CAMERA_BY_ID.get(reviewCameraId) ?? null : null;
   const overviewPosition = useMemo(() => new THREE.Vector3(10.5, 11.8, 19.5), []);
   const overviewTarget = useMemo(() => new THREE.Vector3(-1.55, 0.72, -0.18), []);
   const focusPosition = useMemo(() => {
@@ -253,10 +303,45 @@ function CameraDirector({ mode, selectedScene, controls }: { mode: CameraMode; s
     const [x, y, z] = selectedScene.position;
     return new THREE.Vector3(x, y + 1.28, z + 0.2);
   }, [selectedScene]);
-  useEffect(() => { animating.current = true; }, [mode, selectedScene]);
-  useFrame((_, delta) => {
+  const tourPositionCurve = useMemo(() => new THREE.CatmullRomCurve3(TOUR_CAMERAS.map((shot) => new THREE.Vector3(...shot.position)), false, 'centripetal', 0.42), []);
+  const tourTargetCurve = useMemo(() => new THREE.CatmullRomCurve3(TOUR_CAMERAS.map((shot) => new THREE.Vector3(...shot.target)), false, 'centripetal', 0.42), []);
+  const tourTarget = useMemo(() => new THREE.Vector3(), []);
+  useEffect(() => {
+    animating.current = true;
+    tourStart.current = null;
+    tourFinished.current = false;
+  }, [mode, selectedScene, reviewCameraId, tourActive, tourRun]);
+  useFrame((state, delta) => {
     const orbit = controls.current;
-    if (!orbit || !animating.current) return;
+    if (!orbit) return;
+    if (reviewCamera) {
+      camera.position.set(...reviewCamera.position);
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.fov = reviewCamera.fov;
+        camera.updateProjectionMatrix();
+      }
+      orbit.target.set(...reviewCamera.target);
+      orbit.update();
+      return;
+    }
+    if (tourActive) {
+      tourStart.current ??= state.clock.elapsedTime;
+      const rawProgress = Math.min(1, (state.clock.elapsedTime - tourStart.current) / 24);
+      const progress = rawProgress * rawProgress * (3 - 2 * rawProgress);
+      camera.position.copy(tourPositionCurve.getPointAt(progress));
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.fov = THREE.MathUtils.lerp(52, 47, Math.sin(progress * Math.PI));
+        camera.updateProjectionMatrix();
+      }
+      orbit.target.copy(tourTargetCurve.getPointAt(progress, tourTarget));
+      orbit.update();
+      if (rawProgress >= 1 && !tourFinished.current) {
+        tourFinished.current = true;
+        onTourComplete();
+      }
+      return;
+    }
+    if (!animating.current) return;
     const position = mode === 'focus' ? focusPosition : mode === 'walk' ? walkPosition : overviewPosition;
     const target = mode === 'focus' ? focusTarget : mode === 'walk' ? walkTarget : overviewTarget;
     const easing = 1 - Math.exp(-delta * 3.8);
@@ -270,6 +355,38 @@ function CameraDirector({ mode, selectedScene, controls }: { mode: CameraMode; s
       animating.current = false;
     }
   });
+  return null;
+}
+/* eslint-enable react-hooks/immutability */
+
+function LabPostEffects({ enabled }: { enabled: boolean }) {
+  const { gl, scene, camera, size } = useThree();
+  const composer = useMemo(() => {
+    const pipeline = new EffectComposer(gl);
+    pipeline.addPass(new RenderPass(scene, camera));
+    const ssao = new SSAOPass(scene, camera, size.width, size.height);
+    ssao.kernelRadius = 7;
+    ssao.minDistance = 0.0008;
+    ssao.maxDistance = 0.028;
+    pipeline.addPass(ssao);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 0.08, 0.16, 1.35);
+    pipeline.addPass(bloom);
+    const fxaa = new ShaderPass(FXAAShader);
+    pipeline.addPass(fxaa);
+    pipeline.addPass(new OutputPass());
+    return pipeline;
+  }, [camera, gl, scene, size.height, size.width]);
+  useEffect(() => {
+    composer.setSize(size.width, size.height);
+    const fxaa = composer.passes.find((pass) => pass instanceof ShaderPass) as ShaderPass | undefined;
+    const resolution = fxaa?.material.uniforms.resolution?.value as THREE.Vector2 | undefined;
+    resolution?.set(1 / (size.width * gl.getPixelRatio()), 1 / (size.height * gl.getPixelRatio()));
+    return () => composer.dispose();
+  }, [composer, gl, size.height, size.width]);
+  useFrame((_, delta) => {
+    if (enabled) composer.render(delta);
+    else gl.render(scene, camera);
+  }, 1);
   return null;
 }
 
@@ -407,7 +524,7 @@ function AisleNavigator({ active, controls, command, scenarioId, phase }: { acti
   return null;
 }
 
-function LabArchitecture({ lightingMode }: { lightingMode: LightingMode }) {
+function LabArchitecture({ lightingMode, showScaleTechnician }: { lightingMode: LightingMode; showScaleTechnician: boolean }) {
   const inspection = lightingMode === 'inspection';
   return <group>
     <mesh receiveShadow position={[-1.75, -0.07, 2.05]}>
@@ -424,16 +541,31 @@ function LabArchitecture({ lightingMode }: { lightingMode: LightingMode }) {
       <meshStandardMaterial color={inspection ? '#999b95' : '#0d151f'} roughness={0.72} metalness={0.14} />
     </mesh>
     {[-5.8, -1.75, 2.3].map((x) => <group key={x} position={[x, 4.65, -4.25]}>
-      <mesh castShadow><boxGeometry args={[2.7, 0.07, 0.12]} /><meshStandardMaterial color="#d7f2ff" emissive="#bdeaff" emissiveIntensity={inspection ? 2.8 : 0.7} /></mesh>
-      <pointLight position={[0, -0.3, 1.2]} intensity={inspection ? 8 : 1.8} distance={6.5} color="#caeaff" decay={2} />
+      <mesh castShadow><boxGeometry args={[2.7, 0.07, 0.12]} /><meshStandardMaterial color="#d7f2ff" emissive="#bdeaff" emissiveIntensity={inspection ? 1.1 : 0.7} /></mesh>
+      <pointLight position={[0, -0.3, 1.2]} intensity={inspection ? 3.4 : 1.8} distance={6.5} color="#caeaff" decay={2} />
     </group>)}
     {[[-5.25, -1.55], [-1.75, -1.55], [1.75, -1.55], [-5.25, 2.15], [-1.75, 2.15], [1.75, 2.15], [-1.75, 5.5], [1.75, 5.5]].map(([x, z]) => <group key={`${x}-${z}`} position={[x, 4.72, z]}>
       <mesh castShadow><boxGeometry args={[2.25, 0.12, 0.72]} /><meshStandardMaterial color="#687176" metalness={0.52} roughness={0.35} /></mesh>
-      <mesh position={[0, -0.07, 0]}><boxGeometry args={[2.02, 0.035, 0.56]} /><meshStandardMaterial color={inspection ? '#f4f4e9' : '#a9c2ca'} emissive={inspection ? '#fffbea' : '#a8d9e5'} emissiveIntensity={inspection ? 2.8 : 0.7} roughness={0.48} /></mesh>
-      <pointLight position={[0, -0.25, 0]} intensity={inspection ? 8.5 : 1.8} distance={6.8} color={inspection ? '#fff7df' : '#c5e6ed'} decay={2} />
+      <mesh position={[0, -0.07, 0]}><boxGeometry args={[2.02, 0.035, 0.56]} /><meshStandardMaterial color={inspection ? '#e7e7dd' : '#a9c2ca'} emissive={inspection ? '#fffbea' : '#a8d9e5'} emissiveIntensity={inspection ? 1.15 : 0.7} roughness={0.48} /></mesh>
+      <pointLight position={[0, -0.25, 0]} intensity={inspection ? 3.6 : 1.8} distance={6.8} color={inspection ? '#fff7df' : '#c5e6ed'} decay={2} />
     </group>)}
     <UtilityServices />
     <FacilitySafetyInfrastructure inspection={inspection} />
+    {showScaleTechnician && <ScaleTechnician />}
+  </group>;
+}
+
+function ScaleTechnician() {
+  return <group position={[3.5, 0.02, 7.1]} rotation={[0, -0.5, 0]}>
+    {[-0.105, 0.105].map((x) => <group key={x} position={[x, 0, 0]}>
+      <mesh position={[0, 0.43, 0]} castShadow><cylinderGeometry args={[0.055, 0.07, 0.76, 18]} /><meshStandardMaterial color="#27343b" roughness={0.72} /></mesh>
+      <RoundedBox args={[0.18, 0.09, 0.29]} radius={0.035} position={[0, 0.055, 0.045]} castShadow><meshStandardMaterial color="#151d22" roughness={0.78} /></RoundedBox>
+    </group>)}
+    <RoundedBox args={[0.46, 0.72, 0.28]} radius={0.11} position={[0, 1.1, 0]} castShadow><meshPhysicalMaterial color="#9aaeb0" roughness={0.55} clearcoat={0.08} /></RoundedBox>
+    {[-0.28, 0.28].map((x) => <mesh key={x} position={[x, 1.08, 0]} rotation={[0, 0, x < 0 ? -0.16 : 0.16]} castShadow><cylinderGeometry args={[0.045, 0.055, 0.66, 18]} /><meshStandardMaterial color="#899d9f" roughness={0.58} /></mesh>)}
+    <mesh position={[0, 1.58, 0]} castShadow><sphereGeometry args={[0.125, 26, 18]} /><meshPhysicalMaterial color="#a9816c" roughness={0.58} clearcoat={0.05} /></mesh>
+    <mesh position={[0, 1.69, -0.005]} castShadow><sphereGeometry args={[0.132, 26, 14, 0, Math.PI * 2, 0, Math.PI * 0.48]} /><meshStandardMaterial color="#dae3df" roughness={0.52} /></mesh>
+    <RoundedBox args={[0.24, 0.34, 0.025]} radius={0.025} position={[0.32, 1.04, 0.08]} rotation={[0.08, -0.18, -0.12]}><meshStandardMaterial color="#53656b" metalness={0.25} roughness={0.42} /></RoundedBox>
   </group>;
 }
 

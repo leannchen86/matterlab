@@ -23,6 +23,7 @@ An optional expert sandbox extends the XRD case into a multi-run materials campa
 - Explore a browser-rendered 3D laboratory containing powder preparation, robotics, furnace, XRD, SEM/EDS, BET, and TGA equipment.
 - Select or click equipment to focus the camera; press `Esc` to return to the overview.
 - Enter a technician-scale aisle view with keyboard or on-screen movement controls.
+- Replay a cinematic facility tour from the camera controls.
 - Inspect three physical points on each machine before entering its local controls.
 - Complete equipment-specific HMI sequences without erasing independent quality or service holds.
 - Follow sample custody, maintenance evidence, alarms, reference checks, and process history.
@@ -58,6 +59,8 @@ For the Vinext/Cloudflare build used by the local hosting configuration:
 ```bash
 pnpm build
 ```
+
+The frozen visual judgeset is defined in `materials_lab_threejs/cameras.json`. Local review renders can be opened deterministically with `?camera=C01` through `?camera=C16`; review mode hides play UI and locks the camera.
 
 ## Project structure
 

@@ -18,9 +18,16 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', c
   onInspectionChange?: (stationId: string, checks: string[]) => void;
   onSelect: (id: string) => void;
 }) {
+  const [reviewCameraId] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const camera = new URLSearchParams(window.location.search).get('camera');
+    return camera && /^C(?:0[1-9]|1[0-6])$/.test(camera) ? camera : null;
+  });
   const [cameraMode, setCameraMode] = useState<'overview' | 'walk' | 'focus'>('overview');
   const [controlFeedback, setControlFeedback] = useState<Record<string, string[]>>({});
-  const [immersive, setImmersive] = useState(false);
+  const [immersive, setImmersive] = useState(Boolean(reviewCameraId));
+  const [tourActive, setTourActive] = useState(false);
+  const [tourRun, setTourRun] = useState(0);
   const campaign = useCampaignSnapshot();
   const campaignStage = campaign.stage;
   const campaignSelected = campaign.selected;
@@ -72,6 +79,12 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', c
     setImmersive(true);
   };
 
+  const replayTour = () => {
+    setTourRun((run) => run + 1);
+    setTourActive(true);
+    setImmersive(true);
+  };
+
   const openSelectedConsole = () => {
     const campaignStationId = activeCampaignStage === 1 ? 'PREP-01' : activeCampaignStage <= 3 ? 'ROBO-02' : activeCampaignStage <= 5 ? 'FURN-04' : activeCampaignStage <= 7 ? 'XRD-03' : 'SEM-01';
     const inspectionKey = activeCampaignStage > 0 && campaignStationId === selectedId ? `${selectedId}:RUN-${campaignRunNumber}:${campaignSelected}` : selectedId;
@@ -91,17 +104,20 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', c
   };
 
   const viewport = <div
-    className={`lab-viewport mode-3d${immersive ? ' is-immersive' : ''}`}
+    className={`lab-viewport mode-3d${immersive ? ' is-immersive' : ''}${reviewCameraId ? ' is-review' : ''}${tourActive ? ' is-tour' : ''}`}
     aria-label={immersive ? 'Immersive facility view' : undefined}
     style={immersive ? { position: 'fixed', zIndex: 240, inset: 0, width: '100vw', height: '100dvh', background: '#c8c2b8' } : undefined}
   >
-    <div className="camera-switch" role="group" aria-label="3D camera mode">
+    {!reviewCameraId && <div className="camera-switch" role="group" aria-label="3D camera mode">
       <button type="button" className={cameraMode === 'overview' ? 'active' : ''} onClick={() => setCameraMode('overview')} aria-pressed={cameraMode === 'overview'}>⌂ OVERVIEW</button>
       <button type="button" className={cameraMode === 'walk' ? 'active' : ''} onClick={() => setCameraMode('walk')} aria-pressed={cameraMode === 'walk'}>⇧ WALK AISLE</button>
       <button type="button" className={cameraMode === 'focus' ? 'active' : ''} onClick={() => setCameraMode('focus')} aria-pressed={cameraMode === 'focus'}>◎ FOCUS {selectedId}</button>
-    </div>
-    {!immersive && cameraMode === 'overview' && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>WALK THROUGH THE AISLES</small><i>→</i></button>}
-    <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={activeCampaignStage} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignResultElapsed={campaign.resultElapsed} campaignResultMeasured={campaign.resultMeasured} campaignConfirmationSource={campaign.confirmationSource} campaignMissionId={campaign.missionId} campaignThermalBayLevel={campaign.thermalBayLevel} campaignStagingBayLevel={campaign.stagingBayLevel} campaignInventory={campaign.inventory} campaignBacklog={campaign.backlog} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode="inspection" controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} onOpenInventory={openMaterialStaging} onOpenCampaign={openCampaignPlanning} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
+      <button type="button" className={tourActive ? 'active tour-toggle' : 'tour-toggle'} onClick={replayTour} aria-pressed={tourActive}>▶ TOUR</button>
+    </div>}
+    {!reviewCameraId && !immersive && cameraMode === 'overview' && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>WALK THROUGH THE AISLES</small><i>→</i></button>}
+    <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={activeCampaignStage} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignResultElapsed={campaign.resultElapsed} campaignResultMeasured={campaign.resultMeasured} campaignConfirmationSource={campaign.confirmationSource} campaignMissionId={campaign.missionId} campaignThermalBayLevel={campaign.thermalBayLevel} campaignStagingBayLevel={campaign.stagingBayLevel} campaignInventory={campaign.inventory} campaignBacklog={campaign.backlog} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode="inspection" reviewCameraId={reviewCameraId} tourActive={tourActive} tourRun={tourRun} onTourComplete={() => setTourActive(false)} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} onOpenInventory={openMaterialStaging} onOpenCampaign={openCampaignPlanning} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
+    {tourActive && <div className="cinematic-hud" role="status"><span>CINEMATIC FACILITY TOUR</span><b>Following the evidence path through the lab</b><button type="button" onClick={() => setTourActive(false)}>EXIT TOUR</button></div>}
+    {reviewCameraId && <div className="review-camera-stamp" aria-hidden="true">MATTERLAB JUDGESET · {reviewCameraId}</div>}
   </div>;
 
   return immersive && typeof document !== 'undefined' ? createPortal(viewport, document.body) : viewport;

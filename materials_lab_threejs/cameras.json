@@ -1,0 +1,18 @@
+[
+  { "id": "C01", "name": "Establishing overview", "position": [9.2, 9.4, 17.1], "target": [-1.55, 0.88, 0.55], "fov": 50, "purpose": "Whole-lab silhouette, circulation, and station count" },
+  { "id": "C02", "name": "West diagonal", "position": [-13.2, 7.4, 15.4], "target": [-1.75, 1.0, 1.35], "fov": 50, "purpose": "Back-wall services and bay spacing" },
+  { "id": "C03", "name": "East diagonal", "position": [9.6, 6.4, 11.8], "target": [-1.55, 1.05, 1.55], "fov": 48, "purpose": "Front-row readability and high-bay architecture" },
+  { "id": "C04", "name": "Human-scale center aisle", "position": [0.2, 1.68, 10.7], "target": [-0.45, 1.28, 1.55], "fov": 58, "purpose": "Technician eye height and aisle clearance" },
+  { "id": "C05", "name": "Powder preparation", "position": [-4.24, 1.78, -0.32], "target": [-5.25, 1.12, -2.15], "fov": 35, "stationId": "PREP-01", "purpose": "Hood, balance, tools, and extraction" },
+  { "id": "C06", "name": "Robotic workcell", "position": [-0.5, 1.78, -0.32], "target": [-1.33, 1.12, -2.15], "fov": 38, "stationId": "ROBO-02", "purpose": "Robot, gripper, fence, and keep-clear zone" },
+  { "id": "C07", "name": "Furnace bay", "position": [0.85, 1.78, -0.32], "target": [1.75, 1.12, -2.15], "fov": 35, "stationId": "FURN-04", "purpose": "Furnace door, controller, and thermal exclusion" },
+  { "id": "C08", "name": "Powder XRD", "position": [-4.24, 1.78, 3.58], "target": [-5.25, 1.12, 1.75], "fov": 35, "stationId": "XRD-03", "purpose": "Enclosure, goniometer cue, and local HMI" },
+  { "id": "C09", "name": "SEM EDS", "position": [-0.74, 1.78, 3.58], "target": [-1.75, 1.12, 1.75], "fov": 35, "stationId": "SEM-01", "purpose": "Column, chamber, detector, and workstation" },
+  { "id": "C10", "name": "BET manifold", "position": [0.85, 1.78, 3.58], "target": [1.75, 1.12, 1.75], "fov": 35, "stationId": "BET-02", "purpose": "Ports, sample tubes, vacuum, and gas service" },
+  { "id": "C11", "name": "Thermal analysis", "position": [2.7, 1.78, 7.18], "target": [1.75, 1.12, 5.35], "fov": 35, "stationId": "TGA-01", "purpose": "TGA furnace, paired pans, carousel, and purge" },
+  { "id": "C12", "name": "Safety infrastructure", "position": [-5.5, 1.82, 2.85], "target": [-8.12, 1.3, 0.82], "fov": 42, "hideStations": true, "purpose": "Emergency shower and left-wall emergency controls" },
+  { "id": "C13", "name": "Utility boundary", "position": [6.75, 2.2, 3.3], "target": [3.15, 1.35, -1.15], "fov": 52, "purpose": "Gas bay, oxygen monitor, panels, and utility routing" },
+  { "id": "C14", "name": "Material staging", "position": [-3.9, 2.1, 8.8], "target": [-3.95, 0.78, 5.65], "fov": 48, "purpose": "Cart, retained samples, point-of-use staging, and custody flow" },
+  { "id": "C15", "name": "Low hero aisle", "position": [5.4, 1.72, 11.8], "target": [-1.45, 1.22, 1.35], "fov": 55, "purpose": "Grounded instrument silhouettes and overhead services" },
+  { "id": "C16", "name": "Final facility hero", "position": [-9.5, 5.6, 12.6], "target": [-1.45, 1.16, 1.65], "fov": 46, "purpose": "Final composition, depth hierarchy, and operational density" }
+]
