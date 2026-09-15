@@ -100,7 +100,7 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
   const selectedScene = selectedSceneStation.scene;
   const campaignStationId = getCampaignStationId(campaignStage);
   const inspectionKey = getInspectionKey(selectedId, campaignStage, campaignSelected, campaignRunNumber);
-  const selectedHotspots = getInspectionPoints(selectedScene.kind, scenarioId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, campaignResultMeasured);
+  const selectedHotspots = getInspectionPoints(selectedScene.kind, scenarioId, phase, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel);
   const inspected = visited[inspectionKey] ?? [];
   const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? observationRecord.point : null;
   const campaignState = getCampaignRoomState(campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignResultElapsed, campaignResultMeasured, campaignConfirmationSource);
@@ -181,28 +181,25 @@ export function Lab3D({ stations, selectedId, phase, campaignStage, campaignSele
       <nav className="scene-station-picker" aria-label="Select a lab station">
         {menuStations.map((station) => <button key={station.id} type="button" className={`${selectedId === station.id ? 'active ' : ''}${campaignStationId === station.id ? 'campaign-active' : ''}`} style={{ '--station-tone': campaignStationId === station.id ? campaignState.color : TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
       </nav>
-      {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><span>CAMPAIGN SIM · {getCampaignIdentity(campaignRunNumber).runId} · {campaignSelected}</span><b>{campaignState.station} / {campaignState.label}</b><i>{campaignStage >= 7 ? campaignState.result : `${String(campaignStage + 1).padStart(2, '0')} / 08`}</i></div>}
-      {campaignBacklog.length > 0 && <button type="button" className={`campaign-backlog-hud${campaignStage > 0 ? ' with-campaign' : ''}`} onClick={onOpenCampaign}><span>OPERATE SHIFT BACKLOG</span><b>{campaignBacklog.length} PLANS · {campaignBacklog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0)} FURNACE MIN</b><i>OPEN →</i></button>}
-      {campaignStage > 0 && selectedId === 'PREP-01' && <button type="button" className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}${campaignBacklog.length ? ' with-backlog' : ''}`} onClick={onOpenInventory}><span>{campaignStagingBayLevel >= 2 ? 'OPERATE STG-02 CAROUSEL' : 'OPERATE POINT-OF-USE RACK'}</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>{campaignStagingBayLevel >= 2 ? 'RETRIEVE →' : 'OPEN →'}</i></button>}
+      {campaignStage > 0 && <div className={`campaign-room-hud ${campaignState.tone}`}><b>{campaignState.station} · {campaignState.label}</b><i>{String(campaignStage + 1).padStart(2, '0')}/08</i></div>}
+      {campaignStage > 0 && selectedId === 'PREP-01' && <button type="button" className={`material-room-hud${campaignInventory.crucibles < 6 || campaignInventory.liners < 1 ? ' low' : ''}`} onClick={onOpenInventory}><span>{campaignStagingBayLevel >= 2 ? 'OPERATE STG-02 CAROUSEL' : 'OPERATE POINT-OF-USE RACK'}</span><b>{campaignInventory.crucibles} CRUC · {campaignInventory.liners} LIN · {campaignInventory.carbonTabs} TAB</b><i>{campaignStagingBayLevel >= 2 ? 'RETRIEVE →' : 'OPEN →'}</i></button>}
       {cameraMode === 'walk' && <div className="walk-hud">
-        <header><span>HUMAN-SCALE AISLE</span><b>{selectedStation.id} · {selectedStation.name}</b></header>
+        <header><b>{selectedStation.id} · {selectedStation.name}</b></header>
         <div className="walk-pad" role="group" aria-label="Aisle movement controls">
           <button type="button" className="walk-forward" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'forward' }))} aria-label="Step forward">↑</button>
           <button type="button" className="walk-left" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'left' }))} aria-label="Step left">←</button>
           <button type="button" className="walk-back" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'back' }))} aria-label="Step back">↓</button>
           <button type="button" className="walk-right" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'right' }))} aria-label="Step right">→</button>
         </div>
-        {inspected.length === selectedHotspots.length && <button type="button" className="walk-console" onClick={onOpenConsole}>OPEN MACHINE CONTROLS <i>↗</i></button>}
-        <small>WASD / ARROWS · choose a station to approach</small>
+        {inspected.length === selectedHotspots.length && <button type="button" className="walk-console" onClick={onOpenConsole}>OPEN CONSOLE <i>↗</i></button>}
+        <small>WASD / ARROWS</small>
         <button type="button" className="walk-inspect" onClick={() => onCameraMode('focus')}>◎ {inspected.length ? 'REVIEW INSPECTION' : 'INSPECT ASSET'} <i>{inspected.length}/{selectedHotspots.length}</i></button>
       </div>}
       {cameraMode === 'focus' && <div className="walkaround-panel">
-        <header><div><span>PHYSICAL WALKAROUND</span><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspected.length} / {selectedHotspots.length}</em></header>
-        <p className="walkaround-marker-key"><i /> DIGITAL INSPECTION PINS · NOT PHYSICAL PARTS</p>
+        <header><div><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspected.length} / {selectedHotspots.length}</em></header>
         <div>{selectedHotspots.map((hotspot) => <button key={hotspot.label} type="button" className={inspected.includes(hotspot.label) ? 'visited' : ''} onClick={() => inspect(hotspot.label)}><i>{inspected.includes(hotspot.label) ? '✓' : '○'}</i>{hotspot.displayLabel ?? hotspot.label}</button>)}</div>
         {activeObservation && <div className={`walkaround-observation ${activeObservation.state}`}><span>{activeObservation.displayLabel ?? activeObservation.label} OBSERVATION</span><b>{activeObservation.observation}</b><em>{activeObservation.state === 'attention' ? 'ATTENTION' : 'CAPTURED'}</em></div>}
-        {inspected.length === selectedHotspots.length && <button type="button" className="walkaround-next" onClick={onOpenConsole}>OPEN LOCAL CONSOLE <i>→</i></button>}
-        <small>{inspected.length === selectedHotspots.length ? 'Walkaround captured. Compare physical state with the local console.' : 'Select each marker on the asset or checklist.'}</small>
+        {inspected.length === selectedHotspots.length && <button type="button" className="walkaround-next" onClick={onOpenConsole}>OPEN CONSOLE <i>→</i></button>}
       </div>}
     </div>
   );
@@ -593,10 +590,7 @@ function FacilityIdentitySign() {
     context.fillRect(0, 0, 24, canvas.height);
     context.fillStyle = '#ecf8f7';
     context.font = '700 92px ui-monospace, SFMono-Regular, Menlo, monospace';
-    context.fillText('MATTERLAB', 74, 116);
-    context.fillStyle = '#86a9ad';
-    context.font = '600 34px ui-monospace, SFMono-Regular, Menlo, monospace';
-    context.fillText('VIRTUAL MATERIALS CHARACTERIZATION · BAY ML-01', 78, 184);
+    context.fillText('MATTERLAB', 74, 160);
     const panelTexture = new THREE.CanvasTexture(canvas);
     panelTexture.colorSpace = THREE.SRGBColorSpace;
     panelTexture.anisotropy = 4;
@@ -676,9 +670,6 @@ function OxygenMonitor({ inspection }: { inspection: boolean }) {
     <mesh position={[0, 0.13, 0.069]}><planeGeometry args={[0.22, 0.035]} /><meshBasicMaterial color="#75e7ae" /></mesh>
     <mesh position={[-0.13, -0.2, 0.07]}><circleGeometry args={[0.035, 16]} /><meshStandardMaterial color="#51e19a" emissive="#1e6848" emissiveIntensity={0.9} /></mesh>
     <mesh position={[0.08, -0.2, 0.07]}><circleGeometry args={[0.035, 16]} /><meshStandardMaterial color="#56676a" /></mesh>
-    <Html center position={[0, 0.48, 0.08]} distanceFactor={8.5} zIndexRange={[16, 0]} style={{ pointerEvents: 'none' }}>
-      <span className="facility-safety-label"><b>O₂ MONITOR</b><small>20.9% · NORMAL</small></span>
-    </Html>
   </group>;
 }
 
@@ -942,14 +933,14 @@ function StationCell({ station, scene, selected, active, toneOverride, stateOver
   );
 }
 
-const INSTRUMENT_DETAIL: Record<StationKind, { formalName: string; services: string; sampleInterface: string }> = {
-  prep: { formalName: 'POWDER PREPARATION ENCLOSURE', services: 'EXH-01 · 230 V · ESD', sampleInterface: 'WEIGH / MILL / MOUNT' },
-  robot: { formalName: 'SAFEGUARDED TRANSFER CELL', services: '480 V · AIR · SAFETY PLC', sampleInterface: 'BC CARRIER INTERFACE' },
-  furnace: { formalName: 'PROGRAMMABLE BOX FURNACE', services: '480 V · EXH-02 · TC-K', sampleInterface: 'HOT-ZONE LOAD DECK' },
-  xrd: { formalName: 'POWDER X-RAY DIFFRACTOMETER', services: '208 V · CHW · X-RAY', sampleInterface: 'SPINNER STAGE / Ø25' },
-  sem: { formalName: 'SEM / EDS MICROANALYSIS', services: '208 V · CHW · VAC · N₂', sampleInterface: '7-AXIS VACUUM STAGE' },
-  bet: { formalName: 'GAS SORPTION ANALYZER', services: '120 V · VAC · N₂ · He', sampleInterface: '4-PORT MANIFOLD' },
-  tga: { formalName: 'TGA / DSC THERMAL ANALYZER', services: '208 V · N₂ · EXH-03', sampleInterface: 'DUAL PAN MICROBALANCE' },
+const INSTRUMENT_DETAIL: Record<StationKind, { formalName: string }> = {
+  prep: { formalName: 'POWDER PREPARATION ENCLOSURE' },
+  robot: { formalName: 'SAFEGUARDED TRANSFER CELL' },
+  furnace: { formalName: 'PROGRAMMABLE BOX FURNACE' },
+  xrd: { formalName: 'POWDER X-RAY DIFFRACTOMETER' },
+  sem: { formalName: 'SEM / EDS MICROANALYSIS' },
+  bet: { formalName: 'GAS SORPTION ANALYZER' },
+  tga: { formalName: 'TGA / DSC THERMAL ANALYZER' },
 };
 
 function InstrumentIdentityPlate({ station, kind, tone }: { station: Station; kind: StationKind; tone: string }) {
@@ -971,9 +962,6 @@ function InstrumentIdentityPlate({ station, kind, tone }: { station: Station; ki
     context.fillStyle = '#a9c0c1';
     context.font = '600 37px ui-monospace, SFMono-Regular, Menlo, monospace';
     context.fillText(detail.formalName, 64, 142);
-    context.fillStyle = '#67858b';
-    context.font = '600 27px ui-monospace, SFMono-Regular, Menlo, monospace';
-    context.fillText(`${detail.sampleInterface}  //  ${detail.services}`, 64, 196);
     context.fillStyle = tone;
     context.fillRect(64, 216, 896, 5);
     const labelTexture = new THREE.CanvasTexture(canvas);
@@ -1051,13 +1039,13 @@ const HOTSPOTS: Record<StationKind, InspectionPoint[]> = {
   prep: [{ position: [-0.65, 1.25, 0.68], label: 'SASH', observation: '420 mm opening · airflow normal', state: 'pass' }, { position: [0.86, 0.97, 0.55], label: 'BALANCE', observation: 'level centered · zero 0.000 g', state: 'pass' }, { position: [-0.15, 0.68, 0.58], label: 'LOT', observation: 'three capped powder vials retained in secondary tray', state: 'pass' }],
   robot: [{ position: [1.17, 1.28, 1.1], label: 'GATE', displayLabel: 'GATE INTERLOCK', observation: 'CH1 interlock closed · no bypass', state: 'pass' }, { position: [0.98, 0.84, 0.18], label: 'GRIPPER', displayLabel: 'GRIPPER TOOL', observation: 'carrier jaws clear · tool seated', state: 'pass' }, { position: [1.55, 0.86, 0.81], label: 'HMI', displayLabel: 'ROBOT HMI', observation: 'AUTO hold · route inhibited', state: 'attention' }],
   furnace: [{ position: [0.59, 1.38, 0.93], label: 'INTERLOCK', displayLabel: 'DOOR INTERLOCK', observation: 'door input closed · latch engaged', state: 'pass' }, { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'PV 982 °C · SP 1,000 °C', state: 'pass' }, { position: [0, 1.38, 0.94], label: 'CHAMBER', displayLabel: 'HOT CHAMBER', observation: 'load present · hot-zone active', state: 'attention' }],
-  xrd: [{ position: [-0.12, 1.23, 0.98], label: 'HOLDER', displayLabel: 'SAMPLE HOLDER', observation: 'surface clean · specimen flat', state: 'pass' }, { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: 'silicon QC error +0.17° 2θ', state: 'attention' }, { position: [-0.48, 1.52, 0.92], label: 'SHUTTER', displayLabel: 'SOURCE SHUTTER', observation: 'closed feedback TRUE', state: 'pass' }],
+  xrd: [{ position: [-0.12, 1.23, 0.98], label: 'HOLDER', displayLabel: 'SAMPLE HOLDER', observation: 'surface clean · specimen flat', state: 'pass' }, { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: 'QC CHECK DUE', state: 'attention' }, { position: [-0.48, 1.52, 0.92], label: 'SHUTTER', displayLabel: 'SOURCE SHUTTER', observation: 'closed feedback TRUE', state: 'pass' }],
   sem: [{ position: [-0.25, 0.92, 0.82], label: 'CHAMBER', displayLabel: 'VACUUM CHAMBER', observation: 'specimen stage inside sealed chamber · vacuum 2.1e−5 Pa', state: 'pass' }, { position: [-0.25, 2.08, 0.42], label: 'COLUMN', displayLabel: 'ELECTRON COLUMN', observation: 'electron-optics stack above specimen · HV standby', state: 'pass' }, { position: [0.48, 1.22, 0.55], label: 'BSE / EDS', displayLabel: 'DETECTOR ARRAY', observation: 'annular BSE below the lens · EDS and SE on side ports', state: 'pass' }],
   bet: [{ position: [-0.3, 1.62, 0.38], label: 'PORTS', displayLabel: 'ANALYSIS PORTS', observation: 'sealed manifold feeds four sample tubes independently', state: 'attention' }, { position: [0.98, 1.42, 0.34], label: 'N₂', displayLabel: 'N₂ GAS SUPPLY', observation: 'analysis and backfill gas · regulator stable', state: 'pass' }, { position: [0.68, 0.5, 0.1], label: 'VACUUM', displayLabel: 'VACUUM SYSTEM', observation: 'evacuates sample tubes before adsorption measurement', state: 'attention' }],
   tga: [{ position: [-0.42, 1.04, 0.44], label: 'PAN', displayLabel: 'PAN SET', observation: 'matched sample/reference pans suspend from microbalance', state: 'pass' }, { position: [1, 0.95, 0.42], label: 'PURGE', displayLabel: 'PURGE GAS', observation: 'N₂ controls the furnace atmosphere and clears evolved gas', state: 'pass' }, { position: [-0.42, 1.42, 0.42], label: 'FURNACE', displayLabel: 'MOVABLE FURNACE', observation: 'furnace rises around suspended pans · 28 °C', state: 'attention' }],
 };
 
-function getCampaignInspectionPoints(kind: StationKind, stage: number, selected: string, runNumber: number, thermalBayLevel = 1, resultMeasured = ''): InspectionPoint[] | null {
+function getCampaignInspectionPoints(kind: StationKind, stage: number, selected: string, runNumber: number, thermalBayLevel = 1): InspectionPoint[] | null {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
   const operations = getCampaignOperations(runNumber, thermalBayLevel);
@@ -1088,7 +1076,7 @@ function getCampaignInspectionPoints(kind: StationKind, stage: number, selected:
   ];
   if (stage >= 6 && stage <= 7 && kind === 'xrd') return [
     { position: [-0.12, 1.23, 0.98], label: 'HOLDER', displayLabel: 'SAMPLE HOLDER', observation: stage === 6 ? operations.referenceCondition === 'age-due' ? `NIST SRM 640f QC material seated · ${identity.thermalSample} blocked` : operations.referenceCondition === 'trend-review' ? `NIST SRM 640f staged · ${identity.thermalSample} waits for trend check` : `${identity.thermalSample} flat · current QC linked` : `${identity.thermalSample} flat · silicon QC accepted`, state: 'pass' },
-    { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: stage === 6 ? operations.referenceCondition === 'age-due' ? `${operations.referenceAgeHours} h since QC check · sample testing blocked` : operations.referenceCondition === 'trend-review' ? `${operations.referenceAgeHours} h QC check · peak-position confirmation due` : `${operations.referenceAgeHours} h QC check · current` : `${operations.referenceResult} · ${resultMeasured || spec.measured}% target phase`, state: stage === 6 && operations.referenceCondition !== 'current' ? 'attention' : 'pass' },
+    { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: stage === 6 ? operations.referenceCondition === 'current' ? 'QC CURRENT' : 'QC DUE' : 'RESULT IN CONSOLE', state: stage === 6 && operations.referenceCondition !== 'current' ? 'attention' : 'pass' },
     { position: [-0.58, 1.7, 0.92], label: 'SHUTTER', displayLabel: 'SOURCE SHUTTER', observation: 'closed feedback TRUE · radiation chain healthy', state: 'pass' },
   ];
   if (stage >= 8 && kind === 'sem') return [
@@ -1099,12 +1087,12 @@ function getCampaignInspectionPoints(kind: StationKind, stage: number, selected:
   return null;
 }
 
-function getInspectionPoints(kind: StationKind, scenarioId: ScenarioId, phase: number, campaignStage = 0, campaignSelected = 'C-42', campaignRunNumber = 42, campaignThermalBayLevel = 1, campaignResultMeasured = ''): InspectionPoint[] {
-  const campaignPoints = getCampaignInspectionPoints(kind, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel, campaignResultMeasured);
+function getInspectionPoints(kind: StationKind, scenarioId: ScenarioId, phase: number, campaignStage = 0, campaignSelected = 'C-42', campaignRunNumber = 42, campaignThermalBayLevel = 1): InspectionPoint[] {
+  const campaignPoints = getCampaignInspectionPoints(kind, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel);
   if (campaignPoints) return campaignPoints;
   if (scenarioId === 'xrd' && kind === 'xrd' && phase >= 1) return [
     { position: [-0.12, 1.23, 0.98], label: 'HOLDER', displayLabel: 'SAMPLE HOLDER', observation: phase === 1 ? 'stage empty · selected holder at load position' : phase === 2 ? 'selected holder seated · preparation retained with run' : phase === 3 ? 'holder centered · specimen stage moving' : 'measured pattern retained · holder identity preserved', state: phase === 1 ? 'attention' : 'pass' },
-    { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: phase <= 2 ? 'player-selected preparation + scan · 10–80°' : phase === 3 ? 'acquisition live · generated pattern forming' : phase === 4 ? 'reference library open · rerun remains available' : 'run saved · free lab remains open', state: phase >= 4 ? 'attention' : 'pass' },
+    { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: phase <= 2 ? 'READY' : phase === 3 ? 'SCANNING' : phase === 4 ? 'ANALYSIS' : 'SAVED', state: 'pass' },
     { position: [-0.58, 1.7, 0.92], label: 'ENCLOSURE', displayLabel: 'RADIATION ENCLOSURE', observation: phase === 1 ? 'door open · source shutter closed' : phase === 2 ? 'door closed · interlock ready' : phase === 3 ? 'door locked · X-ray source enabled' : 'source off · door remains interlocked', state: 'pass' },
   ];
   if (scenarioId === 'xrd' && kind === 'robot' && phase >= 2) return [
@@ -1186,7 +1174,7 @@ function Hotspot({ position, label, displayLabel, tone, visited, markerRef, onIn
       <mesh rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.055, 0.085, 24]} /><meshBasicMaterial color={color} transparent opacity={visited ? 0.48 : 0.9} depthTest={false} /></mesh>
     </group>
     <Html center position={[0, 0.055, 0]} distanceFactor={8} zIndexRange={[18, 0]} style={{ pointerEvents: 'none' }}>
-      <span className="hotspot-label" data-hotspot={label} style={{ '--hotspot': color } as React.CSSProperties}><i>{visited ? '✓' : 'INSPECT'}</i>{displayLabel ?? label}</span>
+      <span className="hotspot-label" data-hotspot={label} style={{ '--hotspot': color } as React.CSSProperties}>{visited && <i>✓</i>}{displayLabel ?? label}</span>
     </Html>
   </group>;
 }
@@ -1732,7 +1720,7 @@ function Bet({ active, focused, tone, controls }: { active: boolean; focused: bo
       <mesh castShadow><cylinderGeometry args={[0.18, 0.2, 1.02, 28]} /><meshPhysicalMaterial color={gasProven ? '#668a7d' : '#607788'} emissive={gasProven ? '#183e31' : '#000000'} emissiveIntensity={gasProven ? 0.18 : 0} metalness={0.18} roughness={0.34} clearcoat={0.16} /></mesh>
       <mesh position={[0, 0.55, 0]}><cylinderGeometry args={[0.07, 0.07, 0.1, 18]} /><meshStandardMaterial color="#aab7bc" metalness={0.78} /></mesh>
       <mesh position={[0, 0.02, 0.2]}><planeGeometry args={[0.24, 0.28]} /><meshBasicMaterial color="#e5e2d5" /></mesh>
-      <Html transform center position={[0, 0.02, 0.206]} scale={0.18} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}><span className="gas-cylinder-physical-label"><b>N₂</b><small>ANALYSIS GAS</small></span></Html>
+      <Html transform center position={[0, 0.02, 0.206]} scale={0.18} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}><span className="gas-cylinder-physical-label"><b>N₂</b></span></Html>
       <Line points={[[-0.25, 0.18, 0.22], [0.25, 0.18, 0.22]]} color="#c7a34f" lineWidth={1.8} />
     </group>
     <group position={[1.08, 0.73, 0.02]}>
@@ -1879,22 +1867,22 @@ function getCampaignRoomState(stage: number, selected = 'C-42', runNumber = 42, 
   const observedSpec = resultMeasured ? { ...spec, measured: resultMeasured } : spec;
   const operations = getCampaignOperations(runNumber);
   const evaluation = evaluateCampaignMission(observedSpec, missionId, stage >= 7 && resultElapsed > 0 ? resultElapsed : undefined);
-  if (stage === 1) return { station: 'PREP-01', label: `${spec.id} PREP`, color: '#4dd5ed', tone: 'running', result: '' };
-  if (stage === 2 && operations.robotCondition === 'contamination') return { station: 'ROBO-02', label: 'CLEANLINESS FAULT', color: '#f4b95f', tone: 'held', result: '' };
-  if (stage === 2 && operations.robotCondition === 'grip-force') return { station: 'ROBO-02', label: 'GRIP-FORCE CHECK', color: '#f4b95f', tone: 'held', result: '' };
-  if (stage === 2) return { station: 'ROBO-02', label: 'CELL READINESS', color: '#4dd5ed', tone: 'running', result: '' };
-  if (stage === 3) return { station: 'ROBO-02', label: `${spec.id} DOSING`, color: '#4dd5ed', tone: 'running', result: '' };
-  if (stage === 4) return { station: 'FURN-04', label: 'QUEUE 01', color: '#f4b95f', tone: 'held', result: '' };
-  if (stage === 5 && operations.furnaceCondition === 'thermocouple-drift') return { station: 'FURN-04', label: 'TC OFFSET HOLD', color: '#f4b95f', tone: 'held', result: '' };
-  if (stage === 5 && operations.furnaceCondition === 'door-seal') return { station: 'FURN-04', label: 'DOOR SEAL HOLD', color: '#f4b95f', tone: 'held', result: '' };
-  if (stage === 5) return { station: 'FURN-04', label: 'START READINESS', color: '#ff955c', tone: 'running', result: '' };
-  if (stage === 6 && operations.referenceCondition === 'age-due') return { station: 'XRD-03', label: 'QC CHECK DUE', color: '#f4b95f', tone: 'held', result: '' };
-  if (stage === 6 && operations.referenceCondition === 'trend-review') return { station: 'XRD-03', label: 'SILICON QC TREND', color: '#4dd5ed', tone: 'running', result: '' };
-  if (stage === 6) return { station: 'XRD-03', label: 'ACQUISITION READY', color: '#4dd5ed', tone: 'running', result: '' };
-  if (stage === 7) return { station: 'XRD-03', label: confirmationSource ? `${resultMeasured}% · ${evaluation.met ? 'REPEAT PASS' : 'REPEAT FAILED'}` : `${evaluation.resultText} · ${evaluation.met ? 'MISSION MET' : 'MISSION MISS'}`, color: evaluation.met ? '#51e19a' : confirmationSource ? '#f4b95f' : '#8fcf8f', tone: 'complete', result: confirmationSource ? evaluation.met ? 'BOUNDARY REPEATED' : 'NOT REPEATED' : evaluation.met ? 'MISSION MET' : 'VALID MISS' };
-  if (stage === 8) return { station: 'SEM-01', label: 'FOUR-LOCATION FOLLOW-UP', color: '#b7d4d8', tone: 'running', result: 'DIAGNOSTIC RUN' };
-  if (stage >= 9) return { station: 'SEM-01', label: spec.id === 'D-08' ? 'TI-RICH CORES' : 'CA-RICH SECONDARY GRAINS', color: '#51e19a', tone: 'complete', result: 'DIAGNOSIS LINKED' };
-  return { station: 'PREP-01', label: 'CAMPAIGN READY', color: '#4dd5ed', tone: 'running', result: '' };
+  if (stage === 1) return { station: 'PREP-01', label: `${spec.id} PREP`, color: '#4dd5ed', tone: 'running' };
+  if (stage === 2 && operations.robotCondition === 'contamination') return { station: 'ROBO-02', label: 'CLEANLINESS FAULT', color: '#f4b95f', tone: 'held' };
+  if (stage === 2 && operations.robotCondition === 'grip-force') return { station: 'ROBO-02', label: 'GRIP-FORCE CHECK', color: '#f4b95f', tone: 'held' };
+  if (stage === 2) return { station: 'ROBO-02', label: 'CELL READINESS', color: '#4dd5ed', tone: 'running' };
+  if (stage === 3) return { station: 'ROBO-02', label: `${spec.id} DOSING`, color: '#4dd5ed', tone: 'running' };
+  if (stage === 4) return { station: 'FURN-04', label: 'QUEUE 01', color: '#f4b95f', tone: 'held' };
+  if (stage === 5 && operations.furnaceCondition === 'thermocouple-drift') return { station: 'FURN-04', label: 'TC OFFSET HOLD', color: '#f4b95f', tone: 'held' };
+  if (stage === 5 && operations.furnaceCondition === 'door-seal') return { station: 'FURN-04', label: 'DOOR SEAL HOLD', color: '#f4b95f', tone: 'held' };
+  if (stage === 5) return { station: 'FURN-04', label: 'START READINESS', color: '#ff955c', tone: 'running' };
+  if (stage === 6 && operations.referenceCondition === 'age-due') return { station: 'XRD-03', label: 'QC CHECK DUE', color: '#f4b95f', tone: 'held' };
+  if (stage === 6 && operations.referenceCondition === 'trend-review') return { station: 'XRD-03', label: 'SILICON QC TREND', color: '#4dd5ed', tone: 'running' };
+  if (stage === 6) return { station: 'XRD-03', label: 'ACQUISITION READY', color: '#4dd5ed', tone: 'running' };
+  if (stage === 7) return { station: 'XRD-03', label: confirmationSource ? `${resultMeasured}% · ${evaluation.met ? 'REPEAT PASS' : 'REPEAT FAILED'}` : `${evaluation.resultText} · ${evaluation.met ? 'MISSION MET' : 'MISSION MISS'}`, color: evaluation.met ? '#51e19a' : confirmationSource ? '#f4b95f' : '#8fcf8f', tone: 'complete' };
+  if (stage === 8) return { station: 'SEM-01', label: 'FOUR-LOCATION FOLLOW-UP', color: '#b7d4d8', tone: 'running' };
+  if (stage >= 9) return { station: 'SEM-01', label: spec.id === 'D-08' ? 'TI-RICH CORES' : 'CA-RICH SECONDARY GRAINS', color: '#51e19a', tone: 'complete' };
+  return { station: 'PREP-01', label: 'CAMPAIGN READY', color: '#4dd5ed', tone: 'running' };
 }
 
 function CampaignMaterialRoute({ stage, selected, runNumber, missionId, resultElapsed, resultMeasured, confirmationSource }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId; resultElapsed: number; resultMeasured: string; confirmationSource: { runNumber: number; measured: string } | null }) {

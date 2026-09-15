@@ -5,7 +5,7 @@ import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
 import { subscribeLabEvent } from './lab-events';
 import { LabViewport } from './lab-viewport';
-import { MissionLabHeading, MissionTelemetry, PhysicalEvidenceCue, useModalFocusTrap } from './mission-ui';
+import { useModalFocusTrap } from './mission-ui';
 import { ShiftDeckModal, type ScenarioId } from './scenario-shifts';
 import { baseStations, type Station } from './sim-data';
 import { StationAccess } from './station-access';
@@ -14,12 +14,7 @@ type Scores = { safety: number; traceability: number; integrity: number; uptime:
 type LogItem = { time: string; type: string; text: string };
 type Modal = 'deck' | 'campaign' | 'campaign-facility' | 'baseline' | 'pan' | 'blank' | 'evidence' | 'complete' | null;
 
-const tasks = [
-  { title: 'Review the failed check', pending: 'Empty-pan check failed', done: 'Failed check saved' },
-  { title: 'Match the sample pans', pending: 'Pan pair is uncertain', done: 'Matching pans loaded' },
-  { title: 'Run an empty test', pending: 'Waiting to start', done: 'Empty test passed' },
-  { title: 'Review the unusual result', pending: 'One change needs review', done: 'Repeat test assigned' },
-];
+const tasks = ['Review the failed check', 'Match the sample pans', 'Run an empty test', 'Review the unusual result'];
 
 const formatTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
@@ -63,8 +58,6 @@ export function TgaShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void }) {
 
   const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[6];
   const selected = selectedBase;
-  const completed = phase >= 5 ? 4 : phase <= 2 ? phase : 3;
-  const progress = Math.round(completed / 4 * 100);
   const appendLog = (type: string, text: string, add = 0) => { const next = minute + add; setMinute(next); setLog((items) => [...items, { time: formatTime(next), type, text }]); };
   const penalize = (key: keyof Scores, amount: number) => setScores((value) => ({ ...value, [key]: Math.max(0, value[key] - amount) }));
   const reward = (updates: Partial<Scores>) => setScores((value) => ({ safety: Math.min(value.safety, updates.safety ?? value.safety), traceability: Math.min(value.traceability, updates.traceability ?? value.traceability), integrity: Math.min(value.integrity, updates.integrity ?? value.integrity), uptime: Math.min(value.uptime, updates.uptime ?? value.uptime) }));
@@ -90,7 +83,7 @@ export function TgaShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void }) {
   };
   const advance = () => { setPhase(4); appendLog('result', 'TGA/DSC run completed; native mass, heat-flow, temperature, purge, and method channels linked.', 58); setFeedback(''); setModal('evidence'); };
   const finishEvidence = (correct: boolean) => {
-    if (!correct) { penalize('integrity', 17); setFeedback('The temperature change treats a gas-flow overlap as sample behavior before a repeat exists.'); appendLog('exception', 'Temperature change attempted before resolving the gas-flow overlap; suggestion held.', 3); return; }
+    if (!correct) { penalize('integrity', 17); setFeedback('The temperature change treats a gas-flow overlap as sample behavior before a repeat exists.'); appendLog('exception', 'Temperature change attempted before resolving the gas-flow overlap. The change was blocked.', 3); return; }
     setPhase(5); reward({ integrity: scores.integrity + 12, traceability: scores.traceability + 5 }); appendLog('decision', 'Gas-flow overlap flagged; temperature change held and matched-pan repeat queued.', 5); setModal('complete'); setFeedback('');
   };
 
@@ -98,13 +91,13 @@ export function TgaShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void }) {
   const action = getTgaAction(phase, actions);
 
   return <main className="shell scenario-shell scenario-tga" style={{ '--scenario-accent': '#e2a64f' } as React.CSSProperties}>
-    <header className="topbar"><div className="brand-block"><h1 className="brand-name">MatterLab</h1></div><div className="header-actions"><button className="campaign-button" type="button" aria-label="Open optional expert campaign sandbox" onClick={() => setModal('campaign')}>EXPERT SANDBOX</button><button className="deck-button" type="button" onClick={() => setModal('deck')}>SCENARIOS <span>5</span></button><button type="button" onClick={() => setLogOpen(true)}>EVIDENCE LOG</button></div></header>
-    <div className="workspace"><aside className="left-rail"><section className="rail-section shift-card"><p className="section-kicker">CURRENT MISSION</p><h2>Fix the empty-pan check</h2><p>Correct the setup, match the sample pans, and decide whether the result is trustworthy.</p><div className="progress-track"><span style={{ width: `${progress}%` }} /></div><div className="progress-meta"><span>{completed} / 4 tasks</span><span>{progress}%</span></div><MissionTelemetry blockedAttempts={log.filter((event) => event.type === 'exception').length} evidenceCount={log.length} /></section><section className="rail-section"><p className="section-kicker">MISSION STEPS</p><ol className="task-list">{tasks.map((task, index) => { const done = index === 3 ? phase >= 5 : phase > index; const active = !done && (index === phase || (index === 3 && (phase === 3 || phase === 4))); const actionsForTask = [() => open('baseline'), () => open('pan'), () => open('blank'), () => phase === 3 ? advance() : open('evidence')]; return <Task key={task.title} number={`0${index + 1}`} title={task.title} note={done ? task.done : task.pending} status={done ? 'done' : active ? 'active' : 'pending'} onClick={active ? actionsForTask[index] : undefined} />; })}</ol></section></aside>
-      <section className="lab-view"><MissionLabHeading objective={action.title} stationId={selected.id} stationState={selected.state} stationTone={selected.tone} /><LabViewport stations={stations} selectedId={selectedId} phase={phase} scenarioId="tga" inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} /></section>
-      <aside className="right-rail"><section className={`rail-section alert-card tone-${action.tone}`}><div className="alert-head"><span>{action.tag}</span><b>{phase >= 5 ? 'CLOSED' : phase === 4 ? 'REVIEW' : 'ACTIVE'}</b></div><h2>{action.title}</h2><div className="metric-row"><span>Current state</span><strong>{action.metric}</strong></div><p>{action.body}</p><button className="primary-action" type="button" onClick={action.fn}>{action.label}<span>→</span></button></section><PhysicalEvidenceCue stationId={selected.id} checks={physicalInspections[selected.id] ?? []} /><section className="rail-section station-inspector"><div className="section-title-row"><p className="section-kicker">SELECTED EQUIPMENT</p><span className={selected.tone}>{selected.state}</span></div><div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div><p>{selected.purpose}</p><StationAccess station={selected} scenarioId="tga" physicalChecks={physicalInspections[selected.id] ?? []} /></section><section className="rail-section lineage-card"><div className="section-title-row"><p className="section-kicker">EVIDENCE CHAIN</p><span>SIM</span></div><div className="lineage-flow"><span>LOT-91-T</span><i>→</i><span>PANSET-14</span><i>→</i><span>{phase >= 5 ? 'REPEAT' : phase >= 2 ? 'MATCH' : 'PAUSED'}</span></div><p>{phase >= 5 ? 'The original result is saved and a repeat is queued.' : phase >= 2 ? 'The sample, matching pans, and method agree.' : 'The physical pan pair still needs to be checked.'}</p></section></aside></div>
+    <header className="topbar"><div className="brand-block"><h1 className="brand-name">MatterLab</h1></div><div className="header-actions"><button className="deck-button" type="button" onClick={() => setModal('deck')}>SCENARIOS</button><button className="ledger-button" type="button" onClick={() => setLogOpen(true)}>EVIDENCE LOG</button></div></header>
+    <div className="workspace"><aside className="left-rail"><section className="rail-section shift-card"><p className="section-kicker">CURRENT MISSION</p><h2>Fix the empty-pan check</h2></section><section className="rail-section"><p className="section-kicker">MISSION STEPS</p><ol className="task-list">{tasks.map((title, index) => { const done = index === 3 ? phase >= 5 : phase > index; const active = !done && (index === phase || (index === 3 && (phase === 3 || phase === 4))); const actionsForTask = [() => open('baseline'), () => open('pan'), () => open('blank'), () => phase === 3 ? advance() : open('evidence')]; return <Task key={title} number={`0${index + 1}`} title={title} status={done ? 'done' : active ? 'active' : 'pending'} onClick={active ? actionsForTask[index] : undefined} />; })}</ol></section></aside>
+      <section className="lab-view"><LabViewport stations={stations} selectedId={selectedId} phase={phase} scenarioId="tga" inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} /></section>
+      <aside className="right-rail"><section className={`rail-section alert-card tone-${action.tone}`}><p>{action.body}</p><button className="primary-action" type="button" onClick={action.fn}>{action.label}<span>→</span></button></section><section className="rail-section station-inspector"><div className="station-identity"><b>{selected.id}</b><h2 title={selected.purpose}>{selected.name}</h2></div><StationAccess station={selected} scenarioId="tga" physicalChecks={physicalInspections[selected.id] ?? []} /></section></aside></div>
     {modal === 'deck' && <ShiftDeckModal active="tga" onChoose={onSwitch} onExpert={() => setModal('campaign')} onClose={() => setModal(null)} />}
     {(modal === 'campaign' || modal === 'campaign-facility') && <CampaignControlModal autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
-    {modal === 'baseline' && <BaselineModal checks={checks} setChecks={setChecks} physicalChecks={physicalInspections['TGA-01'] ?? []} ran={ran} setRan={setRan} clearFeedback={() => setFeedback('')} feedback={feedback} appendLog={appendLog} onFinish={finishBaseline} onClose={() => setModal(null)} />}
+    {modal === 'baseline' && <BaselineModal checks={checks} setChecks={setChecks} ran={ran} setRan={setRan} clearFeedback={() => setFeedback('')} feedback={feedback} appendLog={appendLog} onFinish={finishBaseline} onClose={() => setModal(null)} />}
     {modal === 'pan' && <PanModal scanned={scanned} setScanned={setScanned} feedback={feedback} appendLog={appendLog} onFinish={finishPan} onClose={() => setModal(null)} />}
     {modal === 'blank' && <BlankControlModal checks={blankChecks} setChecks={setBlankChecks} acquired={blankRan} onAcquire={acquireBlank} feedback={feedback} onFinish={finishBlank} onClose={() => setModal(null)} />}
     {modal === 'evidence' && <ThermalEvidenceModal feedback={feedback} onFinish={finishEvidence} onClose={() => setModal(null)} />}
@@ -115,19 +108,18 @@ export function TgaShift({ onSwitch }: { onSwitch: (id: ScenarioId) => void }) {
 
 function getTgaAction(phase: number, actions: (() => void)[]) {
   return [
-    { tag: 'NEXT STEP', title: 'The no-sample check failed', metric: 'Sample testing blocked', body: 'No sample was loaded, so the drift must come from the setup or the instrument.', label: 'REVIEW THE EMPTY-PAN CHECK', fn: actions[0], tone: 'warn' },
-    { tag: 'NEXT STEP', title: 'The pans may be mixed up', metric: '2 pan types', body: 'Match the physical pans to the method before running another test.', label: 'CHECK THE PANS', fn: actions[1], tone: 'warn' },
-    { tag: 'NEXT STEP', title: 'Run one empty test', metric: 'Ready', body: 'Use the matching empty pans to prove the setup is working.', label: 'RUN THE EMPTY TEST', fn: actions[2], tone: 'ready' },
-    { tag: 'IN PROGRESS', title: 'The sample is heating', metric: 'Running', body: 'Finish the acquisition to inspect the result.', label: 'COMPLETE TEST', fn: actions[3], tone: 'run' },
-    { tag: 'NEXT STEP', title: 'The gas change may have caused the signal', metric: 'One overlapping event', body: 'The mass signal changed at the same moment as the purge flow. Compare both before blaming the material.', label: 'REVIEW THE RESULT', fn: actions[4], tone: 'warn' },
-    { tag: 'MISSION COMPLETE', title: 'The result is safely held for a repeat', metric: '4 / 4', body: 'You fixed the setup and did not overclaim an uncertain result.', label: 'VIEW SUMMARY', fn: actions[5], tone: 'ready' },
-  ][phase] ?? { tag: 'MISSION COMPLETE', title: 'Thermal evidence safely held', metric: '4 / 4', body: 'The instrument path is controlled.', label: 'VIEW SUMMARY', fn: actions[5], tone: 'ready' };
+    { tag: 'NEXT STEP', title: 'The no-sample check failed', body: 'No sample was loaded, so the drift must come from the setup or the instrument.', label: 'REVIEW THE EMPTY-PAN CHECK', fn: actions[0], tone: 'warn' },
+    { tag: 'NEXT STEP', title: 'The pans may be mixed up', body: 'Match the physical pans to the method before running another test.', label: 'CHECK THE PANS', fn: actions[1], tone: 'warn' },
+    { tag: 'NEXT STEP', title: 'Run one empty test', body: 'Use the matching empty pans to prove the setup is working.', label: 'RUN THE EMPTY TEST', fn: actions[2], tone: 'ready' },
+    { tag: 'IN PROGRESS', title: 'The sample is heating', body: 'Finish the acquisition to inspect the result.', label: 'COMPLETE TEST', fn: actions[3], tone: 'run' },
+    { tag: 'NEXT STEP', title: 'The gas change may have caused the signal', body: 'The mass signal changed at the same moment as the purge flow. Compare both before blaming the material.', label: 'REVIEW THE RESULT', fn: actions[4], tone: 'warn' },
+    { tag: 'MISSION COMPLETE', title: 'The result is safely held for a repeat', body: 'You fixed the setup and did not overclaim an uncertain result.', label: 'VIEW SUMMARY', fn: actions[5], tone: 'ready' },
+  ][phase] ?? { tag: 'MISSION COMPLETE', title: 'Thermal evidence safely held', body: 'The instrument path is controlled.', label: 'VIEW SUMMARY', fn: actions[5], tone: 'ready' };
 }
 
-function BaselineModal({ setChecks, physicalChecks, ran, setRan, clearFeedback, feedback, appendLog, onFinish, onClose }: { checks: Record<string, boolean>; setChecks: React.Dispatch<React.SetStateAction<Record<string, boolean>>>; physicalChecks: string[]; ran: boolean; setRan: (value: boolean) => void; clearFeedback: () => void; feedback: string; appendLog: (type: string, text: string, add?: number) => void; onFinish: (correct: boolean) => void; onClose: () => void }) {
+function BaselineModal({ setChecks, ran, setRan, clearFeedback, feedback, appendLog, onFinish, onClose }: { checks: Record<string, boolean>; setChecks: React.Dispatch<React.SetStateAction<Record<string, boolean>>>; ran: boolean; setRan: (value: boolean) => void; clearFeedback: () => void; feedback: string; appendLog: (type: string, text: string, add?: number) => void; onFinish: (correct: boolean) => void; onClose: () => void }) {
   const [doorOpen, setDoorOpen] = useState(true);
   const [running, setRunning] = useState(false);
-  const walkaroundCount = physicalChecks.length;
 
   useEffect(() => {
     if (!running || ran) return;
@@ -149,7 +141,7 @@ function BaselineModal({ setChecks, physicalChecks, ran, setRan, clearFeedback, 
   return <ModalShell title="Repeat the empty-pan check" kicker="STEP 1 · TGA-01" onClose={onClose} wide>
     <div className={`tga-direct-bench ${doorOpen ? 'door-open' : ''} ${running ? 'running' : ''}`}>
       <section className="tga-direct-machine" aria-label={`TGA furnace ${doorOpen ? 'open' : 'closed'} with two empty pans loaded`}>
-        <div className="tga-direct-label"><b>TGA-01</b><span>{running ? 'HEATING' : ran ? 'CHECK FAILED' : doorOpen ? 'LOAD' : 'READY'}</span></div>
+        <div className="tga-direct-label"><b>TGA-01</b></div>
         <div className="tga-furnace-shell">
           <div className="tga-furnace-cavity">
             <div className="tga-balance-arm"><i><span>REF</span></i><i><span>SAMPLE</span></i></div>
@@ -157,23 +149,17 @@ function BaselineModal({ setChecks, physicalChecks, ran, setRan, clearFeedback, 
           </div>
           <div className="tga-furnace-door"><i /><span>FURNACE</span></div>
         </div>
-        <div className="tga-setup-lamps" aria-label={`Three ready conditions; ${walkaroundCount} also inspected in the 3D lab`}>
-          <span className="on"><i />ROOM TEMP</span>
-          <span className="on"><i />N₂ STABLE</span>
-          <span className="on"><i />EMPTY PANS</span>
-        </div>
       </section>
 
       <aside className="tga-direct-controls">
-        <div className="tga-local-display"><span>EMPTY-PAN CHECK</span><b>{running ? 'ACQUIRING' : ran ? 'DRIFT DETECTED' : doorOpen ? 'CLOSE FURNACE' : 'READY TO RUN'}</b><small>25 → 550 °C · N₂</small></div>
+        <div className="tga-local-display"><b>{running ? 'ACQUIRING' : ran ? 'DRIFT DETECTED' : doorOpen ? 'CLOSE FURNACE' : 'READY TO RUN'}</b></div>
         <button type="button" className="tga-door-button" disabled={running || ran} onClick={() => setDoorOpen((current) => !current)}><i />{doorOpen ? 'CLOSE' : 'OPEN'}</button>
         <button type="button" className="tga-start-button" disabled={doorOpen || running || ran} onClick={run}><i />{running ? 'RUNNING' : 'START'}</button>
       </aside>
 
       <section className="tga-direct-trace">
-        <header><div><span>NO SAMPLE</span><b>{running ? 'CURVE FORMING' : ran ? 'CHECK COMPLETE' : 'WAITING'}</b></div><em>{running ? 'LIVE' : ran ? 'SAVED' : '—'}</em></header>
         <TgaTrace baseline ran={ran || running} />
-        <div className={`tga-drift-result ${ran ? 'failed' : ''}`}><span>MASS DRIFT</span><b>{ran ? '−0.38 mg' : '—'}</b><span>RESULT</span><b>{ran ? 'FAIL' : running ? 'RUNNING' : '—'}</b></div>
+        <div className={`tga-drift-result ${ran ? 'failed' : ''}`}><span>MASS DRIFT</span><b>{ran ? '−0.38 mg' : '--'}</b></div>
       </section>
     </div>
     {ran && <div className="tga-direct-decision"><div><span>YOUR CALL</span><b>The empty setup drifted again.</b></div><button type="button" onClick={() => onFinish(true)}>CHECK THE PANS</button><button type="button" className="secondary" onClick={() => onFinish(false)}>ZERO + CONTINUE</button></div>}
@@ -183,13 +169,12 @@ function BaselineModal({ setChecks, physicalChecks, ran, setRan, clearFeedback, 
 
 function PanModal({ scanned, setScanned, feedback, appendLog, onFinish, onClose }: { scanned: boolean; setScanned: (value: boolean) => void; feedback: string; appendLog: (type: string, text: string, add?: number) => void; onFinish: (correct: boolean) => void; onClose: () => void }) {
   const scan = () => { setScanned(true); appendLog('lineage', 'The pan check found one platinum pan and one aluminum pan.', 3); };
-  return <ModalShell title="Match the sample pans" kicker="STEP 2 · PHYSICAL CHECK" onClose={onClose} wide><p className="modal-intro">The method expects two matching platinum pans. Check what is actually loaded.</p><div className="record-compare"><article><span>METHOD EXPECTS</span><b>PLATINUM / PLATINUM</b><div className="barcode" /></article><i>≠</i><article className={scanned ? 'exception-record' : ''}><span>LOADED PANS</span><b>{scanned ? 'PLATINUM / ALUMINUM' : 'NOT CHECKED'}</b><div className="pan-pair-visual"><i /><i className={scanned ? 'mismatch' : ''} /></div></article></div>{!scanned ? <button className="modal-run" type="button" onClick={scan}>CHECK BOTH PANS</button> : <div className="decision-stack horizontal"><button type="button" onClick={() => onFinish(true)}>Set aside the mixed pair</button><button type="button" className="secondary" onClick={() => onFinish(false)}>Copy the old ID into the record</button></div>}{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+  return <ModalShell title="Match the sample pans" kicker="STEP 2 · PHYSICAL CHECK" onClose={onClose} wide><div className="record-compare"><article><span>METHOD EXPECTS</span><b>PLATINUM / PLATINUM</b></article><i aria-hidden="true">{scanned ? '≠' : ''}</i><article className={scanned ? 'exception-record' : ''}><span>LOADED PANS</span><b>{scanned ? 'PLATINUM / ALUMINUM' : 'NOT CHECKED'}</b><div className="pan-pair-visual"><i /><i className={scanned ? 'mismatch' : ''} /></div></article></div>{!scanned ? <button className="modal-run" type="button" onClick={scan}>CHECK BOTH PANS</button> : <div className="decision-stack horizontal"><button type="button" onClick={() => onFinish(true)}>Set aside the mixed pair</button><button type="button" className="secondary" onClick={() => onFinish(false)}>Copy the old ID into the record</button></div>}{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
 }
 
 function BlankControlModal({ setChecks, acquired, onAcquire, feedback, onFinish, onClose }: { checks: Record<string, boolean>; setChecks: React.Dispatch<React.SetStateAction<Record<string, boolean>>>; acquired: boolean; onAcquire: () => void; feedback: string; onFinish: (correct: boolean) => void; onClose: () => void }) {
-  const items = [['pair', 'Two matching platinum pans are loaded'], ['condition', 'Both empty pans are clean and undamaged'], ['method', 'The gas flow and heating method are saved']];
   const acquire = () => { setChecks({ pair: true, condition: true, method: true }); onAcquire(); };
-  return <ModalShell title="Run the empty-pan test" kicker="STEP 3 · SETUP TEST" onClose={onClose} wide><div className="modal-grid scenario-bench-grid"><div><p className="modal-intro">The pans now match. Run one empty test to prove the setup is stable.</p><div className="evidence-brief">{items.map(([key, title]) => <article key={key}><i>•</i><div><b>{title}</b></div></article>)}</div><button className="modal-run" type="button" disabled={acquired} onClick={acquire}>{acquired ? 'EMPTY TEST PASSED' : 'RUN EMPTY-PAN TEST'}</button>{!acquired && <button className="blank-release-shortcut" type="button" onClick={() => onFinish(false)}>Skip the empty test</button>}</div><div className="instrument-console"><div className="panel-heading"><span>EMPTY-PAN TEST</span><b>MATCHED PANS</b></div><TgaBlankTrace acquired={acquired} /><div className="result-box"><span>SETUP</span><b>MATCHED</b><span>TEST RESULT</span><b>{acquired ? 'PASSED' : 'NOT RUN'}</b></div>{acquired && <div className="decision-stack"><button type="button" onClick={() => onFinish(true)}>Allow sample testing</button></div>}</div></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+  return <ModalShell title="Run the empty-pan test" kicker="STEP 3 · SETUP TEST" onClose={onClose} wide><div className="modal-grid scenario-bench-grid"><div><button className="modal-run" type="button" disabled={acquired} onClick={acquire}>{acquired ? 'EMPTY TEST PASSED' : 'RUN EMPTY-PAN TEST'}</button>{!acquired && <button className="blank-release-shortcut" type="button" onClick={() => onFinish(false)}>Skip the empty test</button>}</div><div className="instrument-console"><div className="panel-heading"><span>EMPTY-PAN TEST</span></div><TgaBlankTrace acquired={acquired} /><div className="result-box"><span>TEST RESULT</span><b>{acquired ? 'PASSED' : 'NOT RUN'}</b></div>{acquired && <div className="decision-stack"><button type="button" onClick={() => onFinish(true)}>Allow sample testing</button></div>}</div></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
 }
 
 function TgaBlankTrace({ acquired }: { acquired: boolean }) {
@@ -198,12 +183,11 @@ function TgaBlankTrace({ acquired }: { acquired: boolean }) {
     <rect className="blank-band mass" x="28" y="33" width="396" height="20" /><rect className="blank-band heat" x="28" y="111" width="396" height="22" />
     <text x="8" y="45">MASS</text><text x="8" y="124">DSC</text><text x="8" y="159">N₂</text>
     {acquired ? <><path className="blank-mass" d="M28 43 C105 42 173 45 244 43 S357 44 424 42" /><path className="blank-heat" d="M28 122 C105 124 184 121 252 123 S355 120 424 122" /><path className="blank-purge" d="M28 157 C142 156 262 158 424 157" /></> : <><path className="blank-awaiting" d="M28 43H424M28 122H424M28 157H424" /><text x="226" y="91" textAnchor="middle">ACQUISITION HELD</text></>}
-    {acquired && <text className="blank-pass" x="416" y="28" textAnchor="end">EMPTY-PAN TEST · PASS</text>}
   </svg>;
 }
 
 function ThermalEvidenceModal({ feedback, onFinish, onClose }: { feedback: string; onFinish: (correct: boolean) => void; onClose: () => void }) {
-  return <ModalShell title="Review the unusual thermal result" kicker="STEP 4 · RESULT CHECK" onClose={onClose} wide><div className="decision-question"><span>DECISION</span><b>Did the material change, or did the gas-flow change disturb the reading?</b></div><div className="evidence-grid"><div className="trace-panel"><div className="panel-heading"><span>MASS + HEAT FLOW + GAS FLOW</span><b>EVENT OVERLAP</b></div><TgaTrace /><div className="axis"><span>START</span><b>TEMPERATURE</b><span>END</span></div></div><div className="report-panel"><div className="panel-heading"><span>EVENT ORDER</span><b>COMPARE TIMING</b></div><div className="report-metric"><span>Mass change</span><b>WITH GAS CHANGE</b></div><div className="report-metric"><span>Heat-flow event</span><b>LATER</b></div><div className="report-status warn-status">CAUSE NOT PROVEN</div><p>The mass change overlaps the gas-flow change.</p></div></div><div className="ai-proposal"><div><span>NEXT-RUN SUGGESTION</span><h3>Lower the heating temperature</h3><p>Assumes the mass event came from the material.</p></div></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onFinish(true)}>Repeat with stable gas flow</button><button type="button" className="secondary" onClick={() => onFinish(false)}>Change the temperature now</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
+  return <ModalShell title="Review the unusual thermal result" kicker="STEP 4 · RESULT CHECK" onClose={onClose} wide><div className="decision-question"><span>DECISION</span><b>Did the material change, or did the gas-flow change disturb the reading?</b></div><div className="evidence-grid"><div className="trace-panel"><div className="panel-heading"><span>MASS + HEAT FLOW + GAS FLOW</span></div><TgaTrace /><div className="axis"><span>START</span><b>TEMPERATURE</b><span>END</span></div></div><div className="report-panel"><div className="panel-heading"><span>EVENT ORDER</span><b>COMPARE TIMING</b></div><div className="report-metric"><span>Mass change</span><b>WITH GAS CHANGE</b></div><div className="report-metric"><span>Heat-flow event</span><b>LATER</b></div><div className="report-status warn-status">CAUSE NOT PROVEN</div></div></div><div className="decision-stack horizontal evidence-actions"><button type="button" onClick={() => onFinish(true)}>Repeat with stable gas flow</button><button type="button" className="secondary" onClick={() => onFinish(false)}>Change the temperature now</button></div>{feedback && <p className="feedback bad">{feedback}</p>}</ModalShell>;
 }
 
 function TgaTrace({ baseline = false, ran = true }: { baseline?: boolean; ran?: boolean }) {
@@ -216,11 +200,11 @@ function TgaTrace({ baseline = false, ran = true }: { baseline?: boolean; ran?: 
 }
 
 function TgaCompleteModal({ scores, elapsedMinutes, logCount, exceptionCount, onDeck, onClose }: { scores: Scores; elapsedMinutes: number; logCount: number; exceptionCount: number; onDeck: () => void; onClose: () => void }) {
-  return <ModalShell title="Mission debrief" kicker="MISSION COMPLETE" onClose={onClose}><p className="modal-intro">You saved the failed no-sample reading, matched the pans, proved the empty setup, and refused to overclaim an uncertain result.</p><DebriefVisual scenario="tga" scores={scores} elapsedMinutes={elapsedMinutes} logCount={logCount} exceptionCount={exceptionCount} /><div className="lesson-card"><b>What changed in the lab</b><p>The mixed pans are set aside, the matched pair passed its empty test, and the uncertain result is waiting for a controlled repeat.</p></div><button className="modal-run" type="button" onClick={onDeck}>CHOOSE ANOTHER MISSION</button></ModalShell>;
+  return <ModalShell title="Mission debrief" kicker="MISSION COMPLETE" onClose={onClose}><p className="modal-intro">You saved the failed no-sample reading, matched the pans, proved the empty setup, and refused to overclaim an uncertain result.</p><DebriefVisual scenario="tga" scores={scores} elapsedMinutes={elapsedMinutes} logCount={logCount} exceptionCount={exceptionCount} /><button className="modal-run" type="button" onClick={onDeck}>CHOOSE ANOTHER MISSION</button></ModalShell>;
 }
 
-function Task({ number, title, note, status, onClick }: { number: string; title: string; note: string; status: 'done' | 'active' | 'pending'; onClick?: () => void }) {
-  const content = <><span>{status === 'done' ? '✓' : number}</span><div><b>{title}</b><small>{note}</small></div></>;
+function Task({ number, title, status, onClick }: { number: string; title: string; status: 'done' | 'active' | 'pending'; onClick?: () => void }) {
+  const content = <><span>{status === 'done' ? '✓' : number}</span><div><b>{title}</b></div></>;
   return <li className={status}>{onClick ? <button type="button" onClick={onClick}>{content}</button> : content}</li>;
 }
 
@@ -234,4 +218,4 @@ function ModalShell({ title, kicker, children, onClose, wide = false }: { title:
   return <div className="modal-backdrop" role="presentation"><section ref={dialogRef} className={`modal-card ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}><header><div><p className="section-kicker">{kicker}</p><h2>{title}</h2></div><button type="button" onClick={onClose} aria-label="Close dialog">×</button></header>{children}</section></div>;
 }
 
-function LedgerDrawer({ log, onClose }: { log: LogItem[]; onClose: () => void }) { return <div className="drawer-backdrop" role="presentation" onClick={onClose}><aside className="ledger-drawer" role="dialog" aria-modal="true" aria-label="Event ledger" onClick={(event) => event.stopPropagation()}><header><div><p className="section-kicker">RUN RECORD</p><h2>What happened</h2></div><button type="button" onClick={onClose} aria-label="Close event ledger">×</button></header><p className="drawer-intro">A time-ordered record of the no-sample check, pan identity, native traces, and decisions.</p><ol>{[...log].reverse().map((item, index) => <li key={`${item.time}-${index}`}><time>{item.time}</time><i className={item.type}>{item.type}</i><p>{item.text}</p></li>)}</ol></aside></div>; }
+function LedgerDrawer({ log, onClose }: { log: LogItem[]; onClose: () => void }) { return <div className="drawer-backdrop" role="presentation" onClick={onClose}><aside className="ledger-drawer" role="dialog" aria-modal="true" aria-label="Event ledger" onClick={(event) => event.stopPropagation()}><header><div><p className="section-kicker">RUN RECORD</p><h2>What happened</h2></div><button type="button" onClick={onClose} aria-label="Close event ledger">×</button></header>{!log.length && <p className="drawer-intro">Nothing recorded yet.</p>}<ol>{[...log].reverse().map((item, index) => <li key={`${item.time}-${index}`}><time>{item.time}</time><i className={item.type}>{item.type}</i><p>{item.text}</p></li>)}</ol></aside></div>; }

@@ -49,7 +49,7 @@ export const baseStations: Station[] = [
     tone: 'warn',
     meta: 'Silicon QC position check overdue',
     purpose: 'Uses X-rays to show which crystal structures are present.',
-    technicianView: ['QC material: NIST SRM 640f', 'Last QC error: +0.17° 2θ', 'QC tolerance: ±0.05° 2θ', 'Sample testing: paused'],
+    technicianView: ['QC material: NIST SRM 640f', 'Sample testing: paused'],
     dataProducts: ['diffraction pattern', 'phase analysis', 'QC result'],
   },
   {
@@ -81,39 +81,6 @@ export const baseStations: Station[] = [
     purpose: 'Measures mass and heat-flow changes while a sample is heated.',
     technicianView: ['Furnace: 28 °C', 'Purge N₂: stable', 'Pan pair: empty', 'No-sample check: due'],
     dataProducts: ['mass-change trace', 'heat-flow trace', 'thermal event context'],
-  },
-];
-
-export const systemsAtlas = [
-  {
-    term: 'LIMS / LES',
-    role: 'Sample identity, methods, results, and governed laboratory execution.',
-    atBench: 'QUEUES · BARCODES · REQUIRED FIELDS · EXCEPTIONS · REVIEW STATE',
-  },
-  {
-    term: 'MES / SCADA',
-    role: 'Operations coordination and supervisory visibility across equipment and process controls.',
-    atBench: 'STATES · INTERLOCKS · ALARMS · RECIPES · MATERIAL MOVES',
-  },
-  {
-    term: 'XRD',
-    role: 'Crystal-phase evidence from intensity versus diffraction angle.',
-    atBench: 'PREP · SILICON QC · PEAK ERROR · FIT MISMATCH · RAW PATTERN',
-  },
-  {
-    term: 'SEM / EDS',
-    role: 'Surface morphology plus spatially local elemental composition.',
-    atBench: 'MOUNT · VACUUM · CHARGING · FIELDS · ACQUISITION CONTEXT',
-  },
-  {
-    term: 'TGA / DSC',
-    role: 'Mass change and heat-flow response across time or temperature.',
-    atBench: 'PAN · GAS FLOW · NO-SAMPLE CHECK · MASS · HEATING HISTORY',
-  },
-  {
-    term: 'BET',
-    role: 'Specific surface area inferred from a gas-adsorption isotherm.',
-    atBench: 'DEGAS · ADSORBATE · LEAK · EQUILIBRIUM · FIT REGION',
   },
 ];
 

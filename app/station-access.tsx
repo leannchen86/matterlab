@@ -8,7 +8,6 @@ import { emitLabEvent, subscribeLabEvent } from './lab-events';
 import type { Station } from './sim-data';
 
 type ScenarioId = 'xrd' | 'bet' | 'furnace' | 'tga' | 'facility';
-type CampaignBacklogItem = { runNumber: number; candidate: string; missionId: CampaignMissionId };
 type ConsoleSession = { completed: boolean; hmiOperations: string[] };
 
 const emptyConsoleSession = (): ConsoleSession => ({ completed: false, hmiOperations: [] });
@@ -124,7 +123,7 @@ function completeCampaignMachineStage(stage: number) {
       3: { stage: 4, elapsed: elapsed + 14, insight, message: thermalBayLevel >= 2 ? `Six crucibles dosed and ${identity.carrier} released. ${runOps.furnaceLane} is qualified; independent readiness proof is required while chamber A runs ${runOps.activeFurnaceRun}.` : `Six crucibles dosed and ${identity.carrier} released. FURN-04A is occupied by ${runOps.activeFurnaceRun}; ${identity.runId} is now queue constrained.` },
       4: { stage: 5, elapsed: elapsed + runOps.queueMinutes, insight, message: furnaceEntryMessage },
       5: { stage: 6, elapsed: elapsed + runOps.furnaceRecoveryMinutes + spec.thermalMinutes, insight, message: `${furnaceExitMessage} ${referenceEntryMessage}` },
-      6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `${runOps.referenceCondition === 'current' ? 'Current silicon QC check reviewed' : runOps.referenceCondition === 'trend-review' ? 'Confirmatory silicon QC check passed' : 'Silicon QC check passed'} at ${runOps.referenceResult}. ${spec.id}: ${evaluation.resultText}; valid evidence, ${evaluation.met ? 'mission achieved.' : `${evaluation.constraintText}.`}` },
+      6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `${spec.id}:${evaluation.resultText}; valid evidence, ${evaluation.met ? 'mission achieved.' : `${evaluation.constraintText}.`}` },
       8: { stage: 9, elapsed: elapsed + 26, insight: insight + 15, message: `Four preplanned BSE fields and an EDS map retained. ${spec.id === 'D-08' ? 'Ti-rich cores support incomplete conversion as the follow-up hypothesis.' : 'Ca-rich secondary grains support precursor excess as the follow-up hypothesis.'}` },
     }[stage];
     if (!transition) return null;
@@ -206,7 +205,6 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
   const campaignPriorReplicateCount = campaign.priorReplicateCount;
   const campaignMissionId = campaign.missionId;
   const campaignThermalBayLevel = campaign.thermalBayLevel;
-  const campaignBacklog = campaign.backlog;
   const campaignActive = campaignEnabled && scenarioId === 'xrd' && getCampaignStationId(campaignStage) === station.id;
   const facilityConfigured = campaignEnabled && scenarioId === 'xrd' && station.id === 'FURN-04' && campaignThermalBayLevel >= 2;
   const contextKey = campaignActive ? `${station.id}:RUN-${campaignRunNumber}:${campaignSelected}:${campaignMissionId}:S${campaignStage}` : facilityConfigured ? `${station.id}:CONFIG-L2` : station.id;
@@ -252,6 +250,19 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
     });
   }, [station.id]);
 
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      setOpen(false);
+      setEnteredFromLab(false);
+      setEnteredChecks([]);
+    };
+    window.addEventListener('keydown', closeOnEscape, true);
+    return () => window.removeEventListener('keydown', closeOnEscape, true);
+  }, [open]);
+
   const closeConsole = () => {
     setOpen(false);
     setEnteredFromLab(false);
@@ -275,19 +286,19 @@ export function StationAccess({ station, scenarioId = 'xrd', campaignEnabled = f
   };
 
   return <>
-    <button className="station-access-button" type="button" onClick={openStationAccess}><span>⌁</span><b>{campaignActive && physicalChecks.length < 3 ? 'INSPECT THIS MACHINE' : campaignActive ? 'USE THIS MACHINE' : 'OPERATE MACHINE'}</b>{campaignActive && <i>{physicalChecks.length === 3 ? 'Inspection complete' : `${physicalChecks.length} of 3 inspection points checked`}</i>}<em>→</em></button>
+    <button className="station-access-button" type="button" onClick={openStationAccess}><span>⌁</span><b>{campaignActive && physicalChecks.length < 3 ? 'INSPECT THIS MACHINE' : campaignActive ? 'USE THIS MACHINE' : 'OPERATE MACHINE'}</b><i>{Math.min(physicalChecks.length, 3)}/3 INSPECTED</i><em>→</em></button>
     {open && <div className="modal-backdrop station-console-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) closeConsole(); }}>
       <section className="modal-card wide station-console" role="dialog" aria-modal="true" aria-label={`${consoleStation.name} local station console`}>
         <header><div><p className="section-kicker">INSTRUMENT CONTROL · {profile.controller}</p><h2>{consoleStation.name}</h2></div><div className="console-header-actions">{enteredFromLab && <button type="button" className="return-asset" onClick={returnToAsset}>← BACK TO MACHINE</button>}<button type="button" onClick={closeConsole} aria-label="Close">×</button></div></header>
         <div className="console-main compact-console-main">
-          <HmiView station={consoleStation} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} campaignResultElapsed={campaignResultElapsed} campaignResultMeasured={campaignResultMeasured} campaignPriorReplicateCount={campaignPriorReplicateCount} campaignThermalBayLevel={campaignThermalBayLevel} campaignBacklog={campaignBacklog} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed} onComplete={finish} />
+          <HmiView station={consoleStation} scenarioId={scenarioId} campaignStage={campaignActive ? campaignStage : 0} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignMissionId={campaignMissionId} campaignResultElapsed={campaignResultElapsed} campaignResultMeasured={campaignResultMeasured} campaignPriorReplicateCount={campaignPriorReplicateCount} campaignThermalBayLevel={campaignThermalBayLevel} physicalChecks={activePhysicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed} onComplete={finish} />
         </div>
       </section>
     </div>}
   </>;
 }
 
-function HmiView({ station, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignResultElapsed, campaignResultMeasured, campaignPriorReplicateCount, campaignThermalBayLevel, campaignBacklog, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignMissionId: CampaignMissionId; campaignResultElapsed: number; campaignResultMeasured: string; campaignPriorReplicateCount: number; campaignThermalBayLevel: number; campaignBacklog: CampaignBacklogItem[]; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
+function HmiView({ station, scenarioId, campaignStage, campaignSelected, campaignRunNumber, campaignMissionId, campaignResultElapsed, campaignResultMeasured, campaignPriorReplicateCount, campaignThermalBayLevel, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; scenarioId: ScenarioId; campaignStage: number; campaignSelected: string; campaignRunNumber: number; campaignMissionId: CampaignMissionId; campaignResultElapsed: number; campaignResultMeasured: string; campaignPriorReplicateCount: number; campaignThermalBayLevel: number; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
   const releaseBlocked = station.tone === 'warn' || station.tone === 'off' || station.tone === 'hold';
   const walkaroundComplete = physicalChecks.length === 3;
   const operationSteps = getCampaignHmiOperations(station.id, campaignStage, campaignSelected, campaignRunNumber, campaignThermalBayLevel) ?? (station.id === 'FURN-04' && station.state !== 'READY'
@@ -309,12 +320,12 @@ function HmiView({ station, scenarioId, campaignStage, campaignSelected, campaig
       }
     : station;
   return <div className="console-view hmi-view compact-hmi-view">
-    <div className="console-view-head compact-console-head"><div><p className="section-kicker">{liveStation.id} · MACHINE CONTROL</p><h3>{liveStation.state}</h3></div><div className="compact-console-progress"><span>{physicalChecks.length}/3 inspected</span><b>{completedOperations}/{operationSteps.length} steps</b></div></div>
+    <div className="console-view-head compact-console-head"><div><p className="section-kicker">{liveStation.id} · MACHINE CONTROL</p><h3>{liveStation.state}</h3></div></div>
     <div className="compact-readouts">{liveStation.technicianView.slice(0, 3).map((item) => { const [key, value = 'N/A'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b></div>; })}</div>
     {campaignStage === 1 && station.id === 'PREP-01' && <PrepCampaignPanel selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {campaignStage >= 2 && campaignStage <= 3 && station.id === 'ROBO-02' && <RobotCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
-    {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} thermalBayLevel={campaignThermalBayLevel} backlog={campaignBacklog} operations={operations} />}
-    {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} resultMeasured={campaignResultMeasured} priorReplicateCount={campaignPriorReplicateCount} backlog={campaignBacklog} operations={operations} />}
+    {campaignStage >= 4 && campaignStage <= 5 && station.id === 'FURN-04' && <FurnaceCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} thermalBayLevel={campaignThermalBayLevel} operations={operations} />}
+    {campaignStage >= 6 && station.id === 'XRD-03' && <XrdCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} missionId={campaignMissionId} resultElapsed={campaignResultElapsed} resultMeasured={campaignResultMeasured} priorReplicateCount={campaignPriorReplicateCount} operations={operations} />}
     {campaignStage >= 8 && station.id === 'SEM-01' && <SemCampaignPanel stage={campaignStage} selected={campaignSelected} runNumber={campaignRunNumber} operations={operations} />}
     {!campaignStage && scenarioId === 'bet' && station.id === 'BET-02' && <BetHmiPanel station={station} operations={operations} />}
     {!campaignStage && scenarioId === 'tga' && station.id === 'TGA-01' && <TgaHmiPanel station={station} operations={operations} />}
@@ -322,7 +333,7 @@ function HmiView({ station, scenarioId, campaignStage, campaignSelected, campaig
       <div><p className="mini-label">OPERATING STEPS</p><span>{completedOperations} of {operationSteps.length}</span></div>
       {operationSteps.map((operation, index) => { const done = operations.includes(operation); const priorComplete = operationSteps.slice(0, index).every((prior) => operations.includes(prior)); const qualityBlocked = !campaignStage && releaseBlocked && /^(Execute|Start|Acquire)\b/.test(operation); const active = walkaroundComplete && priorComplete && !done && !qualityBlocked; return <button key={operation} type="button" className={done ? 'done' : qualityBlocked && priorComplete ? 'quality-blocked' : active ? 'active' : ''} disabled={!walkaroundComplete || !priorComplete || done || qualityBlocked} onClick={() => onOperation(operation)}><i>{done ? '✓' : qualityBlocked && priorComplete ? '!' : `0${index + 1}`}</i><b>{operation}</b><small>{done ? 'Done' : qualityBlocked && priorComplete ? 'On hold' : active ? 'Ready' : 'Waiting'}</small></button>; })}
     </div>
-    <ConsoleAction complete={complete} disabled={!walkaroundComplete || !operationsComplete} idle={!walkaroundComplete ? 'INSPECTION REQUIRED' : operationsComplete ? 'FINISH MACHINE CHECK' : 'COMPLETE THE STEPS'} done="CHECK COMPLETE" note={complete ? 'Machine check saved.' : !walkaroundComplete ? `Inspect all 3 points on the machine first.` : operationsComplete ? 'All required feedback is present.' : 'Complete each step in order.'} onClick={onComplete} />
+    <ConsoleAction complete={complete} disabled={!walkaroundComplete || !operationsComplete} idle={!walkaroundComplete ? 'INSPECTION REQUIRED' : operationsComplete ? 'FINISH MACHINE CHECK' : 'COMPLETE THE STEPS'} done="CHECK COMPLETE" onClick={onComplete} />
   </div>;
 }
 
@@ -442,7 +453,7 @@ function RobotCampaignPanel({ stage, selected, runNumber, operations }: { stage:
   </section>;
 }
 
-function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, backlog, operations }: { stage: number; selected: string; runNumber: number; thermalBayLevel: number; backlog: CampaignBacklogItem[]; operations: string[] }) {
+function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, operations }: { stage: number; selected: string; runNumber: number; thermalBayLevel: number; operations: string[] }) {
   const spec = getCampaignSpec(selected);
   const identity = getCampaignIdentity(runNumber);
   const runOps = getCampaignOperations(runNumber, thermalBayLevel);
@@ -464,7 +475,6 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, bac
   const status = queued ? auxiliary ? finalGate ? 'LANE B READY' : secondGate ? 'ROUTE CHECK' : profileRead ? 'LANE B CHECK' : 'CHAMBER A ACTIVE' : finalGate ? 'QUEUE PROVEN' : secondGate ? 'LOCATION CHECK' : profileRead ? 'Q01 CONFIRMED' : 'OCCUPANCY HOLD' : finalGate ? 'PROFILE ACTIVE' : thirdGate ? 'START ENABLED' : secondGate ? runOps.furnaceCondition === 'thermocouple-drift' ? 'OFFSET APPLIED' : runOps.furnaceCondition === 'door-seal' ? 'LATCH ADJUSTED' : 'DOOR CHECK' : profileRead ? runOps.furnaceCondition === 'thermocouple-drift' ? 'TC BIAS CONFIRMED' : runOps.furnaceCondition === 'door-seal' ? 'SEAL LOSS CONFIRMED' : 'SAFETY CHAIN' : runOps.furnaceCondition === 'thermocouple-drift' ? 'TC OFFSET HOLD' : runOps.furnaceCondition === 'door-seal' ? 'DOOR SEAL HOLD' : 'RECIPE LOADED';
   return <section className={`campaign-furnace-console${finalGate ? ' operation-complete' : ''}`}>
     <header><div><span>THERMAL PROCESS CONTROL</span><b>TC-04 / OT-04 · MAT-{identity.suffix} · {spec.profile}</b></div><em>{status}</em></header>
-    <StationBacklogStrip backlog={backlog} station="furnace" lanes={thermalBayLevel} />
     <div className="campaign-furnace-layout">
       <svg viewBox="0 0 520 180" role="img" aria-label={queued ? `${identity.runId} furnace queue behind ${runOps.activeFurnaceRun}` : `${identity.runId} ${spec.temperature} ${spec.dwell} thermal profile`}>
         <defs><pattern id="furnaceGrid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" className="grid" /></pattern><linearGradient id="furnaceGlow" x1="0" x2="1"><stop stopColor="#ff9a58" stopOpacity=".12" /><stop offset=".5" stopColor="#ff9a58" stopOpacity=".55" /><stop offset="1" stopColor="#ffca79" stopOpacity=".12" /></linearGradient></defs>
@@ -530,7 +540,7 @@ function diffractionPath(peaks: Array<[number, number]>, baseline: number, ampli
   }).join(' ');
 }
 
-function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed, resultMeasured, priorReplicateCount, backlog, operations }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId; resultElapsed: number; resultMeasured: string; priorReplicateCount: number; backlog: CampaignBacklogItem[]; operations: string[] }) {
+function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed, resultMeasured, priorReplicateCount, operations }: { stage: number; selected: string; runNumber: number; missionId: CampaignMissionId; resultElapsed: number; resultMeasured: string; priorReplicateCount: number; operations: string[] }) {
   const spec = getCampaignSpec(selected);
   const observedMeasured = resultMeasured || getCampaignObservedPhase(spec, priorReplicateCount);
   const observedSpec = { ...spec, measured: observedMeasured };
@@ -544,41 +554,27 @@ function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed
       : operations.includes('Review current Si control'));
   const sampleCaptured = stage >= 7 || operations.includes(`Acquire ${identity.runId} pattern`);
   const samplePeaks = getSamplePeaks(observedSpec);
-  const referenceStatus = runOps.referenceCondition === 'age-due' ? 'SILICON QC REQUIRED' : runOps.referenceCondition === 'trend-review' ? 'QC TREND REVIEW' : 'SILICON QC CURRENT';
   return <section className={`campaign-xrd-console${sampleCaptured ? ' result-ready' : ''}`}>
-    <header><div><span>DIFFRACTION ACQUISITION</span><b>{identity.xrdDataset} · Cu Kα · 10–80° 2θ</b></div><em>{sampleCaptured ? 'PATTERN COMPLETE' : referenceCaptured ? runOps.referenceCondition === 'current' ? 'QC REVIEWED' : 'QC CHECK PASSED' : referenceStatus}</em></header>
-    <StationBacklogStrip backlog={backlog} station="xrd" lanes={1} />
+    <header><div><span>DIFFRACTION ACQUISITION</span><b>{identity.xrdDataset} · Cu Kα · 10–80° 2θ</b></div>{sampleCaptured && <em>PATTERN COMPLETE</em>}</header>
     <div className="campaign-xrd-layout">
       <svg viewBox="0 0 660 210" role="img" aria-label={`${identity.runId} simulated silicon QC check and diffraction pattern`}>
         <defs><linearGradient id="xrdFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#4dd5ed" stopOpacity=".25" /><stop offset="1" stopColor="#4dd5ed" stopOpacity="0" /></linearGradient></defs>
         {[42, 126, 210, 294, 378, 462, 546, 626].map((x) => <line key={`x-${x}`} x1={x} x2={x} y1="17" y2="186" className="grid" />)}
         {[30, 64, 98, 132, 166].map((y) => <line key={`y-${y}`} x1="42" x2="626" y1={y} y2={y} className="grid" />)}
         <line x1="42" x2="626" y1="76" y2="76" className="baseline" /><line x1="42" x2="626" y1="174" y2="174" className="baseline" />
-        <text x="48" y="24">NIST SRM 640f CONTROL</text><text x="48" y="116">{identity.runId} · {spec.id}</text>
+        <text x="48" y="24">SILICON QC</text><text x="48" y="116">{identity.runId} · {spec.id}</text>
         {referenceCaptured ? <path d={diffractionPath([[28.44, 1], [47.3, .24], [56.1, .16]], 72, 42)} className="reference-trace" /> : <path d="M42 72 H626" className="awaiting-trace" />}
         {sampleCaptured ? <><path d={`${diffractionPath(samplePeaks, 172, 58)} L626 174 L42 174 Z`} className="sample-fill" /><path d={diffractionPath(samplePeaks, 172, 58)} className="sample-trace" /></> : <path d="M42 172 H626" className="awaiting-trace" />}
         {!sampleCaptured && referenceCaptured && <line x1="118" x2="118" y1="106" y2="176" className="scan-sweep" />}
         <text x="38" y="198">10°</text><text x="324" y="198">2θ</text><text x="609" y="198">80°</text>
       </svg>
       <aside>
-        <div className={referenceCaptured ? 'pass' : runOps.referenceConstraint ? 'hold' : 'review'}><span>SILICON QC</span><b>{referenceCaptured ? runOps.referenceResult : `${runOps.referenceAgeHours} H OLD`}</b><small>{referenceCaptured ? 'inside ±0.05° QC tolerance' : runOps.referenceCondition === 'trend-review' ? 'confirm position trend' : runOps.referenceCondition === 'current' ? 'review before sample' : 'sample testing blocked'}</small></div>
-        <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${observedMeasured}%` : 'N/A'}</b><small>{sampleCaptured ? `fit mismatch ${spec.id === 'Z-17' ? '7.2' : spec.id === 'D-08' ? '8.1' : '7.6'}% Rwp · lower is better` : 'awaiting pattern'}</small></div>
+        <div className={referenceCaptured ? 'pass' : runOps.referenceConstraint ? 'hold' : 'review'}><span>SILICON QC</span><b>{referenceCaptured ? runOps.referenceResult : `${runOps.referenceAgeHours} H OLD`}</b>{!referenceCaptured && <small>{runOps.referenceCondition === 'trend-review' ? 'confirm position trend' : runOps.referenceCondition === 'current' ? 'review before sample' : 'sample testing blocked'}</small>}</div>
+        <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${observedMeasured}%` : 'N/A'}</b>{!sampleCaptured && <small>awaiting pattern</small>}</div>
         <div className={sampleCaptured ? evaluation.met ? 'pass' : 'miss' : 'waiting'}><span>MISSION</span><b>{sampleCaptured ? evaluation.gap : missionId === 'low-energy' ? 'ENERGY' : missionId === 'throughput' ? 'RATE' : '≥ 96%'}</b><small>{sampleCaptured ? evaluation.met ? 'mission met' : evaluation.constraintText : 'campaign gate'}</small></div>
       </aside>
     </div>
   </section>;
-}
-
-function StationBacklogStrip({ backlog, station, lanes }: { backlog: CampaignBacklogItem[]; station: 'furnace' | 'xrd'; lanes: number }) {
-  const load = station === 'furnace' ? backlog.reduce((total, item) => total + getCampaignSpec(item.candidate).thermalMinutes, 0) : backlog.length * 18;
-  const limit = station === 'furnace' ? lanes * 360 : 54;
-  const pressure = load > limit;
-  return <div className={`station-backlog-strip ${station}${pressure ? ' pressure' : ''}`}><span>NEXT</span>{[0, 1, 2].map((slot) => {
-    const item = backlog[slot];
-    if (!item) return <div className="empty" key={slot}><b>OPEN</b><small>unreleased</small></div>;
-    const itemSpec = getCampaignSpec(item.candidate);
-    return <div key={`${item.runNumber}-${item.candidate}`}><b>RUN-{String(item.runNumber).padStart(3, '0')} · {item.candidate}</b><small>{station === 'furnace' ? `${itemSpec.thermalMinutes} min · ${itemSpec.temperatureShort}` : '18 min · powder scan'}</small></div>;
-  })}<em>{load} MIN · {pressure ? 'LOAD PRESSURE' : 'CAPACITY VISIBLE'}</em></div>;
 }
 
 function SemCampaignPanel({ stage, selected, runNumber, operations }: { stage: number; selected: string; runNumber: number; operations: string[] }) {
@@ -701,6 +697,6 @@ function TgaHmiPanel({ station, operations }: { station: Station; operations: st
 }
 
 
-function ConsoleAction({ complete, disabled = false, idle, done, note, onClick }: { complete: boolean; disabled?: boolean; idle: string; done: string; note: string; onClick: () => void }) {
-  return <footer className="console-action"><p><i className={complete ? 'online' : ''} />{note}</p><button type="button" disabled={disabled} className={complete ? 'complete' : ''} onClick={onClick}>{complete ? '✓ ' : ''}{complete ? done : idle}</button></footer>;
+function ConsoleAction({ complete, disabled = false, idle, done, onClick }: { complete: boolean; disabled?: boolean; idle: string; done: string; onClick: () => void }) {
+  return <footer className="console-action"><i className={complete ? 'online' : ''} /><button type="button" disabled={disabled} className={complete ? 'complete' : ''} onClick={onClick}>{complete ? '✓ ' : ''}{complete ? done : idle}</button></footer>;
 }

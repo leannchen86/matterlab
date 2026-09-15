@@ -79,6 +79,11 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', c
     setImmersive(true);
   };
 
+  const exitLab = () => {
+    setTourActive(false);
+    setImmersive(false);
+  };
+
   const replayTour = () => {
     setTourRun((run) => run + 1);
     setTourActive(true);
@@ -114,9 +119,10 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', c
       <button type="button" className={cameraMode === 'focus' ? 'active' : ''} onClick={() => setCameraMode('focus')} aria-pressed={cameraMode === 'focus'}>◎ FOCUS {selectedId}</button>
       <button type="button" className={tourActive ? 'active tour-toggle' : 'tour-toggle'} onClick={replayTour} aria-pressed={tourActive}>▶ TOUR</button>
     </div>}
-    {!reviewCameraId && !immersive && cameraMode === 'overview' && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><small>WALK THROUGH THE AISLES</small><i>→</i></button>}
+    {!reviewCameraId && !immersive && cameraMode === 'overview' && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><i>→</i></button>}
+    {!reviewCameraId && immersive && <button className="exit-lab-button" type="button" onClick={exitLab} aria-label="Exit immersive view">EXIT LAB</button>}
     <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} campaignStage={activeCampaignStage} campaignSelected={campaignSelected} campaignRunNumber={campaignRunNumber} campaignResultElapsed={campaign.resultElapsed} campaignResultMeasured={campaign.resultMeasured} campaignConfirmationSource={campaign.confirmationSource} campaignMissionId={campaign.missionId} campaignThermalBayLevel={campaign.thermalBayLevel} campaignStagingBayLevel={campaign.stagingBayLevel} campaignInventory={campaign.inventory} campaignBacklog={campaign.backlog} scenarioId={scenarioId} cameraMode={cameraMode} lightingMode="inspection" reviewCameraId={reviewCameraId} tourActive={tourActive} tourRun={tourRun} onTourComplete={() => setTourActive(false)} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} onOpenInventory={openMaterialStaging} onOpenCampaign={openCampaignPlanning} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
-    {tourActive && <div className="cinematic-hud" role="status"><span>CINEMATIC FACILITY TOUR</span><b>Following the evidence path through the lab</b><button type="button" onClick={() => setTourActive(false)}>EXIT TOUR</button></div>}
+    {tourActive && <div className="cinematic-hud" role="status"><span>TOUR</span><button type="button" onClick={() => setTourActive(false)}>EXIT TOUR</button></div>}
     {reviewCameraId && <div className="review-camera-stamp" aria-hidden="true">MATTERLAB JUDGESET · {reviewCameraId}</div>}
   </div>;
 
@@ -126,6 +132,6 @@ export function LabViewport({ stations, selectedId, phase, scenarioId = 'xrd', c
 function SceneBoot() {
   return <div className="scene-boot" role="status" aria-label="Loading 3D lab">
     <div className="scene-boot-grid">{Array.from({ length: 6 }, (_, index) => <i key={index} />)}</div>
-    <div className="scene-boot-status"><span /><div><b>LOADING 3D LAB</b><small>equipment · lighting · navigation</small></div></div>
+    <div className="scene-boot-status"><span /><div><b>LOADING 3D LAB</b></div></div>
   </div>;
 }

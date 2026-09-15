@@ -2637,3 +2637,22 @@ The frozen judgeset showed that the instruments were scientifically distinct at 
 - Added bolted front equipment plates to all seven stations with formal machine names, sample-interface descriptions, service specifications and status-colored rules.
 - Added local service termination boxes and color-coded power, gas, vacuum or cooling umbilicals keyed to each machine family.
 - Ran two more complete 1440 × 900 passes with the unchanged sixteen cameras. Cycle 5 exposed a floating utility-text artifact; cycle 6 removed it and retained the information only on the physical plates.
+
+## Critique 144: the XRD bench rewarded clicking through, not judgement
+
+The old XRD modal read identities off the sample, scored matches with fixed multipliers, printed authored phase percentages and a single green fit score, and ran the free lab and the campaign on separate models. A player could reach a "correct" result by pressing the next button.
+
+### Changes made
+
+- Built one science core (`app/xrd/`): hidden sample state → seeded measurement → observed counts → analysis that sees only the counts and the chosen references → a committed call. Runs are immutable; interpretations are stored separately.
+- Took the references from COD CIFs with provenance (`data/crystal-structures/`, `scripts/build-references.ts`). Ca4Ti3O10 has no reference on purpose.
+- Replaced match scores with a pseudo-Voigt fit, residual z-scores, unexplained and missing lines, overlap checks and chemical support. There are no weight fractions and no single score.
+- Rebuilt the bench around choices: mount, scan program, zoom and probe, targeted rescans, reference chips with A/B comparison, a claim with leftovers, and a next step. Each has a time or capacity cost.
+- The debrief grades measurement, support, identity and decision separately and names which next steps would have worked.
+- Tests cover the ten acceptance criteria: an efficient straightforward sample, overlap, counts versus artefacts, a good fit without chemical support, a justified unresolved call, references changing the interpretation but not the data, reruns keeping their settings, label invariance and follow-up costs.
+
+### Known gaps
+
+- Fitting still starts automatically after chip changes instead of on an explicit FIT.
+- Mobile layout is stacked but has not been checked in a browser on this pass.
+- Costs are illustrative. They are not instrument timings.

@@ -3,11 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DebriefVisual } from './debrief-visual';
 import { CampaignControlModal } from './campaign-control';
-import { useCampaignSnapshot } from './campaign-context';
-import { campaignSpecs, evaluateCampaignMission, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import { subscribeLabEvent } from './lab-events';
 import { LabViewport } from './lab-viewport';
-import { MissionLabHeading, MissionTelemetry, PhysicalEvidenceCue, useModalFocusTrap } from './mission-ui';
+import { useModalFocusTrap } from './mission-ui';
 import { baseStations, type Station } from './sim-data';
 import { StationAccess } from './station-access';
 
@@ -19,37 +17,24 @@ type Scenario = {
   id: 'bet' | 'furnace';
   label: string;
   title: string;
-  summary: string;
   stationId: string;
   accent: string;
   handoff: [string, string, string][];
-  tasks: { title: string; pending: string; done: string }[];
+  tasks: string[];
 };
 
 const scenarios: Record<'bet' | 'furnace', Scenario> = {
   bet: {
     id: 'bet', label: 'Surface area', title: 'Restart the BET analyzer',
-    summary: 'Check a repaired analyzer, match the correct sample tube, and review a low reading.',
     stationId: 'BET-02', accent: '#b48cff',
     handoff: [['SERVICE', 'MX-233', 'pump replaced'], ['QUEUE', '4', 'samples waiting'], ['GAS', 'N₂', 'supply normal']],
-    tasks: [
-      { title: 'Check the analyzer', pending: 'Machine needs lab checks', done: 'Machine checks passed' },
-      { title: 'Match the sample tube', pending: 'One label may be wrong', done: 'Tube matched' },
-      { title: 'Run the surface-area test', pending: 'Waiting to start', done: '4 samples tested' },
-      { title: 'Review the low reading', pending: 'QC material is below range', done: 'Repeat check assigned' },
-    ],
+    tasks: ['Check the analyzer', 'Match the sample tube', 'Run the surface-area test', 'Review the low reading'],
   },
   furnace: {
     id: 'furnace', label: 'Workcell recovery', title: 'Recover an interrupted furnace run',
-    summary: 'Save the stopped run, let the furnace cool, locate the sample, and prove the empty equipment is safe to restart.',
     stationId: 'FURN-04', accent: '#ff995f',
     handoff: [['ALARM', 'I-204', 'cycle interrupted'], ['CARRIER', 'BC-207', 'occupancy unknown'], ['CELL', 'HOLD', 'robot parked']],
-    tasks: [
-      { title: 'Save trace + cool the furnace', pending: 'Furnace stopped hot', done: 'Trace saved · cooled safely' },
-      { title: 'Find the carrier', pending: 'Location uncertain', done: 'Carrier found' },
-      { title: 'Run an empty safety test', pending: 'Waiting for dry run', done: 'Safety test passed' },
-      { title: 'Review the incomplete result', pending: 'Heating cycle incomplete', done: 'Incomplete result held' },
-    ],
+    tasks: ['Save trace + cool the furnace', 'Find the carrier', 'Run an empty safety test', 'Review the incomplete result'],
   },
 };
 
@@ -79,76 +64,6 @@ function EquipmentGlyph({ type }: { type: string }) {
   if (type === 'furnace') return <div className="glyph glyph-furnace"><i /><b /><span /></div>;
   if (type === 'tga') return <div className="glyph glyph-tga"><i /><i /><b /><span /></div>;
   return <div className="glyph glyph-facility"><i /><i /><b /><span /></div>;
-}
-
-export function PlannerPanel({ scenario, phase, campaignActive = false }: { scenario: ScenarioId; phase: number; campaignActive?: boolean }) {
-  const campaign = useCampaignSnapshot();
-  if (campaignActive && campaign.stage > 0 && scenario === 'xrd') {
-    const spec = getCampaignSpec(campaign.selected);
-    const observedSpec = campaign.resultMeasured ? { ...spec, measured: campaign.resultMeasured } : spec;
-    const identity = getCampaignIdentity(campaign.runNumber);
-    const operations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
-    const evaluation = evaluateCampaignMission(observedSpec, campaign.missionId, campaign.stage >= 7 ? campaign.resultElapsed : undefined);
-    const cursor = campaign.stage === 8 ? 2 : campaign.stage >= 7 ? 3 : campaign.stage >= 6 ? 2 : 1;
-    const status = campaign.stage >= 9 ? 'DIAGNOSIS LINKED · LEARNING' : campaign.stage === 8 ? 'SEM / EDS FOLLOW-UP' : campaign.stage >= 7 ? campaign.confirmationSource ? evaluation.met ? 'REPEAT PASS · ROBUST' : 'REPEAT FAILED · LEARNING' : evaluation.met ? 'MISSION MET · LEARNING' : 'VALID MISS · LEARNING' : campaign.stage >= 6 ? 'MEASUREMENT GATE' : 'LAB EXECUTION';
-    const request = campaign.stage >= 9 ? `Assimilate diagnosis · ${identity.runId}` : campaign.stage === 8 ? `Explain valid negative · ${identity.runId}` : campaign.stage >= 7 ? campaign.confirmationSource ? `Compare repeats · ${campaign.confirmationSource.measured}% → ${campaign.resultMeasured}%` : `Assimilate ${identity.runId} · ${evaluation.resultText}` : `Execute ${spec.id} · ${spec.formula}`;
-    const gate = campaign.stage === 2
-      ? operations.robotCondition === 'grip-force' ? 'Jaw-force witness required' : operations.robotCondition === 'contamination' ? 'Gripper cleanliness witness' : 'Tool identity + carrier handshake'
-      : campaign.stage === 4 ? campaign.thermalBayLevel >= 2 ? 'FURN-04B start-readiness proof' : 'Capacity-one furnace queue'
-        : campaign.stage === 6 ? operations.referenceCondition === 'age-due' ? 'Overdue NIST SRM 640f QC check' : operations.referenceCondition === 'trend-review' ? 'Silicon QC trend confirmation' : 'Current silicon QC review'
-          : campaign.stage === 8 ? 'Four preplanned BSE fields + one EDS map' : campaign.stage >= 9 ? `${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich grains'} · hypothesis linked` : campaign.stage >= 7 ? campaign.confirmationSource ? `${Math.abs(Number(campaign.resultMeasured) - Number(campaign.confirmationSource.measured)).toFixed(1)} pp replicate spread · ${evaluation.met ? 'boundary repeated' : 'margin lost'}` : `${evaluation.gap} mission gap · qualified result` : `${identity.runId} physical evidence`;
-    const next = campaign.stage >= 9 ? 'Archive evidence + propose next candidate' : campaign.stage === 8 ? 'Measure the preplanned microscope locations' : campaign.stage >= 7 ? campaign.confirmationSource && !evaluation.met ? 'Reopen design or diagnose mechanism' : 'Archive result + propose next candidate' : campaign.stage >= 6 ? 'Acquire qualified diffraction pattern' : 'Advance governed material route';
-    return <section className="rail-section planner-panel campaign-planner"><div className="section-title-row"><p className="section-kicker">AI EXPERIMENT LOOP</p><span className={campaign.stage >= 7 ? 'held' : campaign.stage >= 6 ? 'review' : ''}>{status}</span></div><div className="planner-loop">{['PLAN', 'EXECUTE', 'MEASURE', 'LEARN'].map((label, index) => <div key={label} className={index < cursor ? 'passed' : index === cursor ? 'current' : ''}><i>{index < cursor ? '✓' : `0${index + 1}`}</i><span>{label}</span></div>)}</div><div className="design-space campaign-mini-space" style={{ '--design-accent': '#4dd5ed' } as React.CSSProperties}><div className="design-space-head"><span>CAMPAIGN SPACE</span><b>{identity.runId} · {spec.id}</b></div><svg viewBox="0 0 100 74" role="img" aria-label={`${spec.id} in the campaign composition and temperature design space`}><path className="space-contour" d="M10 59 C24 25, 50 14, 90 31 M8 68 C34 43, 64 32, 94 18" />{campaignSpecs.map((candidate) => <g key={candidate.id} className={candidate.id === spec.id ? 'proposal-point' : 'measured-point'} transform={`translate(${candidate.point[0] / 3.2} ${candidate.point[1] / 2.43})`}><circle r={candidate.id === spec.id ? 5.2 : 2.2} />{candidate.id === spec.id && <path d="M-3 0H3M0-3V3" />}</g>)}<text x="6" y="70">Ca-rich</text><text x="76" y="70">Ti-rich</text></svg></div><div className="planner-request"><span>MODEL / RUN REQUEST</span><b>{request}</b></div><div className="planner-gate"><i>{campaign.stage >= 7 ? 'MODEL GATE' : 'TECH GATE'}</i><div><b>{gate}</b><span>Next: {next}</span></div></div></section>;
-  }
-  const states = {
-    xrd: {
-      request: 'Increase dwell · 4 h → 6 h', gate: 'Unresolved 36.1° reflection', next: 'SEM/EDS follow-up',
-      status: phase >= 5 ? 'HOLD + INVESTIGATE' : phase >= 4 ? 'TECH REVIEW' : 'WAITING ON LAB',
-    },
-    bet: {
-      request: 'Lower calcination · −35 °C', gate: 'Low QC-material result', next: 'Repeat QC check',
-      status: phase >= 5 ? 'PROPOSAL HELD' : phase >= 4 ? 'TECH REVIEW' : 'WAITING ON LAB',
-    },
-    furnace: {
-      request: 'Ingest run HT-44-207', gate: 'Interrupted thermal history', next: 'Replacement run',
-      status: phase >= 5 ? 'EXCLUDED · CENSORED' : phase >= 4 ? 'ELIGIBILITY REVIEW' : 'WAITING ON LAB',
-    },
-    tga: {
-      request: 'Lower calcination · −25 °C', gate: 'Purge-coupled mass step', next: 'Matched-pan repeat',
-      status: phase >= 5 ? 'PROPOSAL HELD' : phase >= 4 ? 'TECH REVIEW' : 'WAITING ON LAB',
-    },
-    facility: {
-      request: 'Ingest BET batch · GAS-41', gate: phase >= 5 ? 'Transition runs excluded' : 'Gas identity + service transition', next: phase >= 5 ? 'Post-proof batch ingestion' : 'Post-changeover control',
-      status: phase >= 5 ? 'TRANSITION DATA HELD' : phase >= 4 ? 'ELIGIBILITY REVIEW' : 'WAITING ON LAB',
-    },
-  }[scenario];
-  const cursor = phase >= 5 ? 3 : phase >= 4 ? 2 : phase >= 2 ? 1 : 0;
-  return <section className="rail-section planner-panel"><div className="section-title-row"><p className="section-kicker">AI EXPERIMENT LOOP</p><span className={phase >= 5 ? 'held' : phase >= 4 ? 'review' : ''}>{states.status}</span></div><div className="planner-loop">{['PLAN', 'EXECUTE', 'MEASURE', 'LEARN'].map((label, index) => <div key={label} className={index < cursor ? 'passed' : index === cursor ? 'current' : ''}><i>{index < cursor ? '✓' : `0${index + 1}`}</i><span>{label}</span></div>)}</div><DesignSpace scenario={scenario} phase={phase} /><div className="planner-request"><span>MODEL REQUEST</span><b>{states.request}</b></div><div className="planner-gate"><i>TECH GATE</i><div><b>{states.gate}</b><span>Next: {states.next}</span></div></div></section>;
-}
-
-function DesignSpace({ scenario, phase }: { scenario: ScenarioId; phase: number }) {
-  const config = {
-    xrd: { x: 'DWELL', y: 'COMPOSITION', accent: '#4dd5ed', proposal: [78, 28], points: [[18, 72], [31, 58], [45, 67], [58, 43], [69, 55], [84, 35]] },
-    bet: { x: 'CALCINATION', y: 'SURFACE AREA', accent: '#b48cff', proposal: [35, 69], points: [[16, 42], [28, 51], [43, 62], [58, 58], [70, 39], [82, 28]] },
-    furnace: { x: 'THERMAL DOSE', y: 'PHASE SCORE', accent: '#ff995f', proposal: [72, 34], points: [[14, 76], [29, 66], [42, 54], [56, 45], [69, 38], [84, 29]] },
-    tga: { x: 'PEAK TEMP', y: 'MASS RETENTION', accent: '#e2a64f', proposal: [64, 38], points: [[14, 68], [28, 61], [43, 53], [57, 47], [72, 41], [86, 34]] },
-    facility: { x: 'SERVICE STATE', y: 'CONTROL RESPONSE', accent: '#68d4ad', proposal: [70, 33], points: [[15, 70], [28, 62], [42, 55], [57, 48], [72, 37], [86, 31]] },
-  }[scenario];
-  const visible = Math.min(config.points.length, 2 + Math.floor(phase / 2));
-  const gated = phase >= 4;
-  return <div className={`design-space ${gated ? 'gated' : ''}`} style={{ '--design-accent': config.accent } as React.CSSProperties}>
-    <div className="design-space-head"><span>EXPERIMENT SPACE</span><b>{gated ? 'EVIDENCE GATE' : 'MODEL PROPOSAL'}</b></div>
-    <svg viewBox="0 0 100 74" role="img" aria-label={`${config.x} by ${config.y} experiment design space with ${visible} measured points and one proposed point`}>
-      <defs><radialGradient id={`field-${scenario}`}><stop offset="0" stopColor={config.accent} stopOpacity=".28" /><stop offset="1" stopColor={config.accent} stopOpacity="0" /></radialGradient></defs>
-      <path className="space-contour" d="M10 55 C22 25, 47 18, 91 30 M7 66 C34 38, 61 36, 94 15 M18 70 C44 54, 69 50, 94 46" />
-      <ellipse cx={config.proposal[0]} cy={config.proposal[1]} rx="22" ry="18" fill={`url(#field-${scenario})`} />
-      {config.points.slice(0, visible).map(([x, y], index) => <g key={`${x}-${y}`} className="measured-point"><circle cx={x} cy={y} r="2.2" /><text x={x + 3.5} y={y + 1.8}>{String(index + 1).padStart(2, '0')}</text></g>)}
-      <g className="proposal-point" transform={`translate(${config.proposal[0]} ${config.proposal[1]})`}><circle r="5.2" /><path d="M-3 0H3M0-3V3" />{gated && <path className="gate-slash" d="M-5 5L5-5" />}</g>
-      <text className="axis-label axis-y-label" x="4" y="9">{config.y}</text>
-      <text className="axis-label axis-x-label" x="96" y="71" textAnchor="end">{config.x}</text>
-    </svg>
-    <div className="design-legend"><span><i className="measured" />MEASURED</span><span><i className="proposed" />PROPOSED</span><em>{gated ? 'HOLD' : 'UNCERTAINTY ↓'}</em></div>
-  </div>;
 }
 
 export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | 'furnace'; onSwitch: (id: ScenarioId) => void }) {
@@ -199,8 +114,6 @@ export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | '
 
   const selectedBase = stations.find((station) => station.id === selectedId) ?? stations[0];
   const selected = selectedBase;
-  const completed = phase >= 5 ? 4 : phase <= 2 ? phase : 3;
-  const progress = Math.round((completed / 4) * 100);
   const appendLog = (type: string, text: string, add = 0) => {
     const next = minute + add; setMinute(next); setLog((items) => [...items, { time: formatTime(next), type, text }]);
   };
@@ -262,10 +175,10 @@ export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | '
   const state = getActionState(scenarioId, phase, () => open('bench'), () => open('sample', scenarioId === 'furnace' ? 'ROBO-02' : 'BET-02'), releaseAction, advance, () => setModal('evidence'), () => setModal('complete'));
 
   return <main className={`shell scenario-shell scenario-${scenarioId}`} style={{ '--scenario-accent': scenario.accent } as React.CSSProperties}>
-    <header className="topbar"><div className="brand-block"><h1 className="brand-name">MatterLab</h1></div><div className="header-actions"><button className="campaign-button" type="button" aria-label="Open optional expert campaign sandbox" onClick={() => setModal('campaign')}>EXPERT SANDBOX</button><button className="deck-button" type="button" onClick={() => setModal('deck')}>SCENARIOS <span>5</span></button><button type="button" onClick={() => setLogOpen(true)}>EVIDENCE LOG</button></div></header>
-    <div className="workspace"><aside className="left-rail"><section className="rail-section shift-card"><p className="section-kicker">CURRENT MISSION</p><h2>{scenario.title}</h2><p>{scenario.summary}</p><div className="progress-track"><span style={{ width: `${progress}%` }} /></div><div className="progress-meta"><span>{completed} / 4 tasks</span><span>{progress}%</span></div><MissionTelemetry blockedAttempts={log.filter((event) => event.type === 'exception').length} evidenceCount={log.length} /></section><section className="rail-section"><p className="section-kicker">MISSION STEPS</p><ol className="task-list">{scenario.tasks.map((task, index) => { const done = index === 3 ? phase >= 5 : phase > index; const active = !done && (index === phase || (index === 3 && (phase === 3 || phase === 4))); const actions = [() => open('bench'), () => open('sample', scenarioId === 'furnace' ? 'ROBO-02' : 'BET-02'), releaseAction, () => phase === 3 ? advance() : setModal('evidence')]; return <Task key={task.title} number={`0${index + 1}`} title={task.title} note={done ? task.done : task.pending} status={done ? 'done' : active ? 'active' : 'pending'} onClick={active ? actions[index] : undefined} />; })}</ol></section></aside>
-      <section className="lab-view"><MissionLabHeading objective={state.title} stationId={selected.id} stationState={selected.state} stationTone={selected.tone} /><LabViewport stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} /></section>
-      <aside className="right-rail"><section className={`rail-section alert-card tone-${state.tone}`}><div className="alert-head"><span>{state.tag}</span><b>{phase >= 5 ? 'CLOSED' : phase === 4 ? 'REVIEW' : 'ACTIVE'}</b></div><h2>{state.title}</h2><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={state.fn}>{state.action}<span>→</span></button></section><PhysicalEvidenceCue stationId={selected.id} checks={physicalInspections[selected.id] ?? []} /><section className="rail-section station-inspector"><div className="section-title-row"><p className="section-kicker">SELECTED EQUIPMENT</p><span className={selected.tone}>{selected.state}</span></div><div className="station-identity"><b>{selected.id}</b><h2>{selected.name}</h2></div><p>{selected.purpose}</p><StationAccess station={selected} scenarioId={scenarioId} physicalChecks={physicalInspections[selected.id] ?? []} /></section><section className="rail-section lineage-card"><div className="section-title-row"><p className="section-kicker">EVIDENCE CHAIN</p><span>SIM</span></div><div className="lineage-flow"><span>{scenarioId === 'bet' ? 'LOT-77' : 'LOT-112'}</span><i>→</i><span>{scenarioId === 'bet' ? 'ADS-77-C' : 'BC-207'}</span><i>→</i><span>{scenarioId === 'bet' ? (phase >= 2 ? 'READY' : 'HOLD') : (phase >= 5 ? 'EXCLUDE' : 'HOLD')}</span></div><p>{scenarioId === 'bet' ? (phase >= 2 ? 'Tube identity and preparation record agree.' : 'The tube record needs review.') : (phase >= 5 ? 'The interrupted result is saved but excluded from predictions.' : phase >= 2 ? 'The interrupted load is set aside with its record saved.' : 'The furnace contents still need to be checked.')}</p></section></aside></div>
+    <header className="topbar"><div className="brand-block"><h1 className="brand-name">MatterLab</h1></div><div className="header-actions"><button className="deck-button" type="button" onClick={() => setModal('deck')}>SCENARIOS</button><button className="ledger-button" type="button" onClick={() => setLogOpen(true)}>EVIDENCE LOG</button></div></header>
+    <div className="workspace"><aside className="left-rail"><section className="rail-section shift-card"><p className="section-kicker">CURRENT MISSION</p><h2>{scenario.title}</h2></section><section className="rail-section"><p className="section-kicker">MISSION STEPS</p><ol className="task-list">{scenario.tasks.map((title, index) => { const done = index === 3 ? phase >= 5 : phase > index; const active = !done && (index === phase || (index === 3 && (phase === 3 || phase === 4))); const actions = [() => open('bench'), () => open('sample', scenarioId === 'furnace' ? 'ROBO-02' : 'BET-02'), releaseAction, () => phase === 3 ? advance() : setModal('evidence')]; return <Task key={title} number={`0${index + 1}`} title={title} status={done ? 'done' : active ? 'active' : 'pending'} onClick={active ? actions[index] : undefined} />; })}</ol></section></aside>
+      <section className="lab-view"><LabViewport stations={stations} selectedId={selectedId} phase={phase} scenarioId={scenarioId} inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} /></section>
+      <aside className="right-rail"><section className={`rail-section alert-card tone-${state.tone}`}><p>{state.body}</p><button className="primary-action" type="button" onClick={state.fn}>{state.action}<span>→</span></button></section><section className="rail-section station-inspector"><div className="station-identity"><b>{selected.id}</b><h2 title={selected.purpose}>{selected.name}</h2></div><StationAccess station={selected} scenarioId={scenarioId} physicalChecks={physicalInspections[selected.id] ?? []} /></section></aside></div>
     {modal === 'deck' && <ShiftDeckModal active={scenarioId} onChoose={onSwitch} onExpert={() => setModal('campaign')} onClose={() => setModal(null)} />}
     {(modal === 'campaign' || modal === 'campaign-facility') && <CampaignControlModal autoOpenFacility={modal === 'campaign-facility'} onClose={() => setModal(null)} />}
     {modal === 'bench' && <BenchModal scenarioId={scenarioId} physicalChecks={physicalInspections[scenario.stationId] ?? []} ran={ran} setRan={setRan} clearFeedback={() => setFeedback('')} feedback={feedback} appendLog={appendLog} onFinish={finishBench} onClose={() => setModal(null)} />}
@@ -279,23 +192,23 @@ export function AlternateShift({ scenarioId, onSwitch }: { scenarioId: 'bet' | '
 
 function getActionState(id: 'bet' | 'furnace', phase: number, bench: () => void, sample: () => void, release: () => void, advance: () => void, evidence: () => void, complete: () => void) {
   const bet = [
-    ['NEXT STEP', 'Check the repaired BET analyzer', 'A repair ticket is not enough. Run the lab checks before using the machine.', 'Needs checks', 'CHECK THE ANALYZER', bench, 'warn'],
-    ['NEXT STEP', 'One sample tube does not match', 'Compare the tube label with the preparation rack and find the mismatch.', '1 mismatch', 'CHECK THE TUBE', sample, 'warn'],
-    ['NEXT STEP', 'The analyzer is ready', 'The machine and sample records now agree.', '4 tubes', 'START TEST', release, 'ready'],
-    ['IN PROGRESS', 'The BET test is running', 'Finish the acquisition to inspect the result.', 'Running', 'COMPLETE TEST', advance, 'run'],
-    ['NEXT STEP', 'The QC-material reading is low', 'Check the curve before blaming the material or changing the recipe.', 'Below range', 'REVIEW THE RESULT', evidence, 'warn'],
-    ['MISSION COMPLETE', 'A repeat check is queued', 'You avoided making a material change from an uncertain machine reading.', '4 / 4', 'VIEW SUMMARY', complete, 'ready'],
+    ['NEXT STEP', 'Check the repaired BET analyzer', 'A repair ticket is not enough. Run the lab checks before using the machine.', 'CHECK THE ANALYZER', bench, 'warn'],
+    ['NEXT STEP', 'One sample tube does not match', 'Compare the tube label with the preparation rack and find the mismatch.', 'CHECK THE TUBE', sample, 'warn'],
+    ['NEXT STEP', 'The analyzer is ready', 'The machine and sample records now agree.', 'START TEST', release, 'ready'],
+    ['IN PROGRESS', 'The BET test is running', 'Finish the acquisition to inspect the result.', 'COMPLETE TEST', advance, 'run'],
+    ['NEXT STEP', 'The QC-material reading is low', 'Check the curve before blaming the material or changing the recipe.', 'REVIEW THE RESULT', evidence, 'warn'],
+    ['MISSION COMPLETE', 'A repeat check is queued', 'You avoided making a material change from an uncertain machine reading.', 'VIEW SUMMARY', complete, 'ready'],
   ];
   const furnace = [
-    ['NEXT STEP', 'The furnace stopped mid-run', 'Save the alarm trace, keep the door locked, and let the furnace cool before checking the load.', 'Stopped hot', 'START SAFE RECOVERY', bench, 'warn'],
-    ['NEXT STEP', 'Find the sample carrier', 'The furnace is cool enough for the approved access check. Confirm where the carrier actually is.', 'Location unknown', 'CHECK THE WORKCELL', sample, 'warn'],
-    ['NEXT STEP', 'Test the empty equipment', 'Run a dry cycle before putting another sample at risk.', 'No sample loaded', 'RUN THE SAFETY TEST', release, 'ready'],
-    ['NEXT STEP', 'The equipment is working again', 'Now decide whether the interrupted result can be reused.', 'Checks passed', 'REVIEW OLD RUN', advance, 'ready'],
-    ['NEXT STEP', 'Can the old result be reused?', 'The furnace stopped early. Compare the planned and actual heating histories before deciding.', '1 interrupted run', 'REVIEW THE RESULT', evidence, 'warn'],
-    ['MISSION COMPLETE', 'The furnace and robot are ready', 'The interrupted run remains visible but will not mislead future experiments.', '4 / 4', 'VIEW SUMMARY', complete, 'ready'],
+    ['NEXT STEP', 'The furnace stopped mid-run', 'Save the alarm trace, keep the door locked, and let the furnace cool before checking the load.', 'START SAFE RECOVERY', bench, 'warn'],
+    ['NEXT STEP', 'Find the sample carrier', 'The furnace is cool enough for the approved access check. Confirm where the carrier actually is.', 'CHECK THE WORKCELL', sample, 'warn'],
+    ['NEXT STEP', 'Test the empty equipment', 'Run a dry cycle before putting another sample at risk.', 'RUN THE SAFETY TEST', release, 'ready'],
+    ['NEXT STEP', 'The equipment is working again', 'Now decide whether the interrupted result can be reused.', 'REVIEW OLD RUN', advance, 'ready'],
+    ['NEXT STEP', 'Can the old result be reused?', 'The furnace stopped early. Compare the planned and actual heating histories before deciding.', 'REVIEW THE RESULT', evidence, 'warn'],
+    ['MISSION COMPLETE', 'The furnace and robot are ready', 'The interrupted run remains visible but will not mislead future experiments.', 'VIEW SUMMARY', complete, 'ready'],
   ];
   const raw = (id === 'bet' ? bet : furnace)[phase] ?? (id === 'bet' ? bet : furnace)[5];
-  return { tag: raw[0] as string, title: raw[1] as string, body: raw[2] as string, metric: raw[3] as string, action: raw[4] as string, fn: raw[5] as () => void, tone: raw[6] as string };
+  return { tag: raw[0] as string, title: raw[1] as string, body: raw[2] as string, action: raw[3] as string, fn: raw[4] as () => void, tone: raw[5] as string };
 }
 
 function ModalShell({ title, kicker, children, onClose, wide = true }: { title: string; kicker: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
@@ -356,8 +269,8 @@ function EligibilityChart() { return <div className="eligibility-chart" aria-lab
 
 function ScenarioCompleteModal({ scenarioId, scores, elapsedMinutes, logCount, exceptionCount, onDeck, onClose }: { scenarioId: 'bet' | 'furnace'; scores: Scores; elapsedMinutes: number; logCount: number; exceptionCount: number; onDeck: () => void; onClose: () => void }) {
   const isBet = scenarioId === 'bet';
-  return <ModalShell title="Mission debrief" kicker="MISSION COMPLETE" onClose={onClose} wide={false}><p className="modal-intro">{isBet ? 'You checked the repaired analyzer, matched the sample record, and avoided changing the material from an uncertain reading.' : 'You preserved the interrupted heating history, found the physical sample, tested the empty equipment, and excluded the incomplete result.'}</p><DebriefVisual scenario={scenarioId} scores={scores} elapsedMinutes={elapsedMinutes} logCount={logCount} exceptionCount={exceptionCount} /><div className="lesson-card"><b>What changed in the lab</b><p>{isBet ? 'Four matched tubes are ready. The low QC-material result is queued for a repeat check, and no material recipe was changed.' : 'The interrupted sample and trace remain saved. The empty equipment passed, and a replacement run is ready.'}</p></div><button className="modal-run" type="button" onClick={onDeck}>CHOOSE ANOTHER MISSION</button></ModalShell>;
+  return <ModalShell title="Mission debrief" kicker="MISSION COMPLETE" onClose={onClose} wide={false}><p className="modal-intro">{isBet ? 'You checked the repaired analyzer, matched the sample record, and avoided changing the material from an uncertain reading.' : 'You preserved the interrupted heating history, found the physical sample, tested the empty equipment, and excluded the incomplete result.'}</p><DebriefVisual scenario={scenarioId} scores={scores} elapsedMinutes={elapsedMinutes} logCount={logCount} exceptionCount={exceptionCount} /><button className="modal-run" type="button" onClick={onDeck}>CHOOSE ANOTHER MISSION</button></ModalShell>;
 }
 
-function Task({ number, title, note, status, onClick }: { number: string; title: string; note: string; status: 'done' | 'active' | 'pending'; onClick?: () => void }) { const content = <><span>{status === 'done' ? '✓' : number}</span><div><b>{title}</b><small>{note}</small></div></>; return <li className={status}>{onClick ? <button type="button" onClick={onClick}>{content}</button> : content}</li>; }
-function LedgerDrawer({ log, onClose }: { log: LogItem[]; onClose: () => void }) { return <div className="drawer-backdrop" role="presentation" onClick={onClose}><aside className="ledger-drawer" role="dialog" aria-modal="true" aria-label="Event ledger" onClick={(event) => event.stopPropagation()}><header><div><p className="section-kicker">RUN RECORD</p><h2>Event ledger</h2></div><button type="button" onClick={onClose} aria-label="Close event ledger">×</button></header><p className="drawer-intro">A chronological record of operator checks, equipment state, material exceptions, results, and decisions.</p><ol>{[...log].reverse().map((item, index) => <li key={`${item.time}-${index}`}><time>{item.time}</time><i className={item.type}>{item.type}</i><p>{item.text}</p></li>)}</ol></aside></div>; }
+function Task({ number, title, status, onClick }: { number: string; title: string; status: 'done' | 'active' | 'pending'; onClick?: () => void }) { const content = <><span>{status === 'done' ? '✓' : number}</span><div><b>{title}</b></div></>; return <li className={status}>{onClick ? <button type="button" onClick={onClick}>{content}</button> : content}</li>; }
+function LedgerDrawer({ log, onClose }: { log: LogItem[]; onClose: () => void }) { return <div className="drawer-backdrop" role="presentation" onClick={onClose}><aside className="ledger-drawer" role="dialog" aria-modal="true" aria-label="Event ledger" onClick={(event) => event.stopPropagation()}><header><div><p className="section-kicker">RUN RECORD</p><h2>Event ledger</h2></div><button type="button" onClick={onClose} aria-label="Close event ledger">×</button></header>{!log.length && <p className="drawer-intro">Nothing recorded yet.</p>}<ol>{[...log].reverse().map((item, index) => <li key={`${item.time}-${index}`}><time>{item.time}</time><i className={item.type}>{item.type}</i><p>{item.text}</p></li>)}</ol></aside></div>; }

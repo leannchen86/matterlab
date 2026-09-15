@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@11.19.0",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "dev": "vinext dev",
@@ -12,7 +12,9 @@
     "build:pages": "vite build --config vite.pages.config.ts",
     "start": "vinext start",
     "lint": "eslint .",
-    "check": "tsc --noEmit && eslint ."
+    "references": "node scripts/build-references.ts",
+    "test": "node --test \"app/**/*.test.ts\"",
+    "check": "tsc --noEmit && eslint . && node --test \"app/**/*.test.ts\""
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",

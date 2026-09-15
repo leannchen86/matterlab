@@ -1,0 +1,65 @@
+#------------------------------------------------------------------------------
+# Ca4Ti3O10, Ruddlesden-Popper n = 3 calcium titanate, Pbca (No. 61), long axis c.
+#
+# Provenance (two sources, combined):
+#  - Fractional coordinates: DFT-relaxed structure mp-15315 from the Materials Project
+#    (https://materialsproject.org/materials/mp-15315, retrieved through the public OPTIMADE
+#    endpoint https://optimade.materialsproject.org, CC BY 4.0), symmetrized with pymatgen.
+#    The Materials Project entry is linked to the experimental ICSD entry 86242.
+#  - Cell lengths: M. M. Elcombe, E. H. Kisi, K. D. Hawkins, T. J. White, P. Goodman and
+#    S. Matheson, Acta Cryst. B47 (1991) 305-314, doi:10.1107/S0108768190013416, reported
+#    in setting Pcab as a = 5.4083, b = 27.1432, c = 5.4337 A. Pcab is Pbca with a and b
+#    exchanged, so in this Pbca setting a = 5.4083, b = 5.4337, c = 27.1432 A.
+#    The DFT cell (5.4447, 5.5279, 27.1789 A) is replaced by these experimental lengths.
+#
+# No displacement parameters are given, so B is assumed by the reader.
+# This structure is used only to generate hidden specimens; it is deliberately absent from
+# the in-game reference library (a legitimate "missing reference" case).
+#------------------------------------------------------------------------------
+data_computed_Ca4Ti3O10
+_chemical_formula_sum            'Ca16 O40 Ti12'
+_symmetry_space_group_name_H-M   'P b c a'
+_symmetry_Int_Tables_number      61
+_cell_length_a                   5.4083
+_cell_length_b                   5.4337
+_cell_length_c                   27.1432
+_cell_angle_alpha                90
+_cell_angle_beta                 90
+_cell_angle_gamma                90
+_cell_formula_units_Z            4
+_journal_paper_doi               10.1107/S0108768190013416
+_journal_year                    1991
+loop_
+_publ_author_name
+'Elcombe, M M'
+'Kisi, E H'
+'Hawkins, K D'
+'White, T J'
+'Goodman, P'
+'Matheson, S'
+loop_
+_symmetry_equiv_pos_as_xyz
+'x, y, z'
+'-x, -y, -z'
+'-x+1/2, -y, z+1/2'
+'x+1/2, y, -z+1/2'
+'x+1/2, -y+1/2, -z'
+'-x+1/2, y+1/2, z'
+'-x, y+1/2, -z+1/2'
+'x, -y+1/2, z+1/2'
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+Ca1 Ca 0.005538 0.540231 0.430605 1
+Ca2 Ca 0.007080 0.045926 0.794816 1
+Ti1 Ti 0.001715 0.513285 0.857432 1
+Ti2 Ti 0.000000 0.000000 0.500000 1
+O1  O  0.068677 0.023147 0.287506 1
+O2  O  0.075513 0.017986 0.570568 1
+O3  O  0.208973 0.213508 0.152160 1
+O4  O  0.209715 0.209894 0.988896 1
+O5  O  0.209903 0.204376 0.869406 1
