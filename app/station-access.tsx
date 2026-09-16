@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { evaluateCampaignMission, getCampaignIdentity, getCampaignObservedPhase, getCampaignOperations, getCampaignSpec } from './campaign-spec';
-import type { CampaignMissionId, CampaignSpec } from './campaign-spec';
+import { useEffect, useMemo, useState } from 'react';
+import { campaignShareLabel, evaluateCampaignMission, getCampaignFinding, getCampaignIdentity, getCampaignObservedPhase, getCampaignOperations, getCampaignSpec, recomputeCampaignHistory } from './campaign-spec';
+import type { CampaignMissionId } from './campaign-spec';
+import { campaignComposition, campaignPattern, siliconQcPattern, type CampaignPattern } from './xrd/campaign';
 import { getCampaignStationId, getCampaignStationView, useCampaignSnapshot } from './campaign-context';
 import { emitLabEvent, subscribeLabEvent } from './lab-events';
 import type { Station } from './sim-data';
@@ -84,7 +85,7 @@ function completeCampaignMachineStage(stage: number) {
     const spec = getCampaignSpec(String(current.selected ?? 'C-42'));
     const missionId = current.missionId ?? 'purity';
     const identity = getCampaignIdentity(Number(current.runNumber ?? 42));
-    const history = Array.isArray(current.history) ? current.history : [];
+    const history = Array.isArray(current.history) ? recomputeCampaignHistory(current.history) : [];
     const priorReplicateCount = history.filter((result) => result && typeof result === 'object' && 'candidate' in result && String((result as { candidate?: string }).candidate) === spec.id && Number((result as { runNumber?: number }).runNumber) < identity.runNumber).length;
     const observedMeasured = getCampaignObservedPhase(spec, priorReplicateCount);
     const observedSpec = { ...spec, measured: observedMeasured };
@@ -124,7 +125,7 @@ function completeCampaignMachineStage(stage: number) {
       4: { stage: 5, elapsed: elapsed + runOps.queueMinutes, insight, message: furnaceEntryMessage },
       5: { stage: 6, elapsed: elapsed + runOps.furnaceRecoveryMinutes + spec.thermalMinutes, insight, message: `${furnaceExitMessage} ${referenceEntryMessage}` },
       6: { stage: 7, elapsed: elapsed + 18, insight: insight + spec.insightReward, message: `${spec.id}:${evaluation.resultText}; valid evidence, ${evaluation.met ? 'mission achieved.' : `${evaluation.constraintText}.`}` },
-      8: { stage: 9, elapsed: elapsed + 26, insight: insight + 15, message: `Four preplanned BSE fields and an EDS map retained. ${spec.id === 'D-08' ? 'Ti-rich cores support incomplete conversion as the follow-up hypothesis.' : 'Ca-rich secondary grains support precursor excess as the follow-up hypothesis.'}` },
+      8: { stage: 9, elapsed: elapsed + 26, insight: insight + 15, message: `Four preplanned BSE fields and an EDS map retained. ${getCampaignFinding(spec).hypothesis}` },
     }[stage];
     if (!transition) return null;
     const nextHistory = stage === 6
@@ -147,7 +148,7 @@ function completeCampaignMachineStage(stage: number) {
         },
       }]
       : stage === 8
-        ? history.map((result) => result && typeof result === 'object' && 'runNumber' in result && Number((result as { runNumber?: number }).runNumber) === identity.runNumber ? { ...result, diagnosis: spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains' } : result)
+        ? history.map((result) => result && typeof result === 'object' && 'runNumber' in result && Number((result as { runNumber?: number }).runNumber) === identity.runNumber ? { ...result, diagnosis: getCampaignFinding(spec).label } : result)
         : history;
     const next = { ...current, ...transition, history: nextHistory };
     window.localStorage.setItem('mattershift-campaign-v2', JSON.stringify(next));
@@ -501,41 +502,10 @@ function FurnaceCampaignPanel({ stage, selected, runNumber, thermalBayLevel, ope
   </section>;
 }
 
-const XRD_PEAKS: Record<string, Array<[number, number]>> = {
-  'C-42': [[23.2, .28], [33.1, 1], [40.8, .36], [47.6, .55], [59.2, .72], [69.4, .31]],
-  'Z-17': [[22.9, .22], [29.5, .27], [32.8, 1], [40.4, .41], [47.1, .61], [58.8, .78], [69.1, .38], [74.2, .18]],
-  'D-08': [[23.1, .25], [33.0, 1], [40.6, .34], [47.4, .49], [59.0, .68], [69.3, .29]],
-  'A-29': [[22.8, .2], [29.4, .16], [32.9, 1], [40.5, .39], [47.2, .58], [58.9, .76], [69.2, .35], [74.0, .14]],
-  'R-31': [[23.1, .18], [33.0, 1], [40.7, .38], [47.5, .57], [59.1, .74], [69.3, .34]],
-};
-
-function getSamplePeaks(spec: CampaignSpec) {
-  const retained = XRD_PEAKS[spec.id];
-  if (retained) return retained;
-  if (!spec.composition) return XRD_PEAKS['C-42'];
-  const { caExcess, zrDopant, temperature, dwell } = spec.composition;
-  const latticeShift = -zrDopant * .043;
-  const mainPhase = XRD_PEAKS['R-31'].map(([center, height]) => [center + latticeShift, height] as [number, number]);
-  const impurityScale = Math.max(.04, Math.min(.28, (100 - Number(spec.measured)) / 18));
-  const secondary: Array<[number, number]> = [];
-  if (Math.abs(caExcess) >= 4) {
-    secondary.push([29.38 + latticeShift * .18, impurityScale * (.75 + Math.abs(caExcess) / 16)]);
-    secondary.push([36.16, impurityScale * .58]);
-  }
-  if (temperature <= 950 || dwell <= 3.5) {
-    secondary.push([27.43, impurityScale * (temperature <= 900 ? 1.05 : .65)]);
-    secondary.push([54.32, impurityScale * .42]);
-  }
-  if (zrDopant >= 2) secondary.push([74.08 + latticeShift, Math.min(.22, .06 + zrDopant * .02)]);
-  return [...mainPhase, ...secondary].sort((left, right) => left[0] - right[0]);
-}
-
-function diffractionPath(peaks: Array<[number, number]>, baseline: number, amplitude: number) {
-  return Array.from({ length: 151 }, (_, index) => {
-    const angle = 10 + index * (70 / 150);
-    const intensity = peaks.reduce((sum, [center, height]) => sum + height * Math.exp(-0.5 * ((angle - center) / .34) ** 2), 0);
-    const x = 42 + index * (584 / 150);
-    const y = baseline - Math.min(1.06, intensity) * amplitude;
+function patternPath({ angles, intensities }: CampaignPattern, baseline: number, amplitude: number) {
+  return angles.map((angle, index) => {
+    const x = 42 + ((angle - 10) / 70) * 584;
+    const y = baseline - Math.min(1.06, intensities[index]) * amplitude;
     return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
   }).join(' ');
 }
@@ -553,7 +523,8 @@ function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed
       ? operations.includes('Confirm silicon QC position')
       : operations.includes('Review current Si control'));
   const sampleCaptured = stage >= 7 || operations.includes(`Acquire ${identity.runId} pattern`);
-  const samplePeaks = getSamplePeaks(observedSpec);
+  const samplePath = useMemo(() => patternPath(campaignPattern(getCampaignSpec(selected)), 172, 58), [selected]);
+  const qcPath = useMemo(() => patternPath(siliconQcPattern(), 72, 42), []);
   return <section className={`campaign-xrd-console${sampleCaptured ? ' result-ready' : ''}`}>
     <header><div><span>DIFFRACTION ACQUISITION</span><b>{identity.xrdDataset} · Cu Kα · 10–80° 2θ</b></div>{sampleCaptured && <em>PATTERN COMPLETE</em>}</header>
     <div className="campaign-xrd-layout">
@@ -563,14 +534,14 @@ function XrdCampaignPanel({ stage, selected, runNumber, missionId, resultElapsed
         {[30, 64, 98, 132, 166].map((y) => <line key={`y-${y}`} x1="42" x2="626" y1={y} y2={y} className="grid" />)}
         <line x1="42" x2="626" y1="76" y2="76" className="baseline" /><line x1="42" x2="626" y1="174" y2="174" className="baseline" />
         <text x="48" y="24">SILICON QC</text><text x="48" y="116">{identity.runId} · {spec.id}</text>
-        {referenceCaptured ? <path d={diffractionPath([[28.44, 1], [47.3, .24], [56.1, .16]], 72, 42)} className="reference-trace" /> : <path d="M42 72 H626" className="awaiting-trace" />}
-        {sampleCaptured ? <><path d={`${diffractionPath(samplePeaks, 172, 58)} L626 174 L42 174 Z`} className="sample-fill" /><path d={diffractionPath(samplePeaks, 172, 58)} className="sample-trace" /></> : <path d="M42 172 H626" className="awaiting-trace" />}
+        {referenceCaptured ? <path d={qcPath} className="reference-trace" /> : <path d="M42 72 H626" className="awaiting-trace" />}
+        {sampleCaptured ? <><path d={`${samplePath} L626 174 L42 174 Z`} className="sample-fill" /><path d={samplePath} className="sample-trace" /></> : <path d="M42 172 H626" className="awaiting-trace" />}
         {!sampleCaptured && referenceCaptured && <line x1="118" x2="118" y1="106" y2="176" className="scan-sweep" />}
         <text x="38" y="198">10°</text><text x="324" y="198">2θ</text><text x="609" y="198">80°</text>
       </svg>
       <aside>
         <div className={referenceCaptured ? 'pass' : runOps.referenceConstraint ? 'hold' : 'review'}><span>SILICON QC</span><b>{referenceCaptured ? runOps.referenceResult : `${runOps.referenceAgeHours} H OLD`}</b>{!referenceCaptured && <small>{runOps.referenceCondition === 'trend-review' ? 'confirm position trend' : runOps.referenceCondition === 'current' ? 'review before sample' : 'sample testing blocked'}</small>}</div>
-        <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? `${observedMeasured}%` : 'N/A'}</b>{!sampleCaptured && <small>awaiting pattern</small>}</div>
+        <div className={sampleCaptured ? 'pass' : 'waiting'}><span>PHASE FIT</span><b>{sampleCaptured ? campaignShareLabel(observedMeasured) : 'N/A'}</b>{!sampleCaptured && <small>awaiting pattern</small>}</div>
         <div className={sampleCaptured ? evaluation.met ? 'pass' : 'miss' : 'waiting'}><span>MISSION</span><b>{sampleCaptured ? evaluation.gap : missionId === 'low-energy' ? 'ENERGY' : missionId === 'throughput' ? 'RATE' : '≥ 96%'}</b><small>{sampleCaptured ? evaluation.met ? 'mission met' : evaluation.constraintText : 'campaign gate'}</small></div>
       </aside>
     </div>
@@ -583,7 +554,8 @@ function SemCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
   const vacuumReady = stage >= 9 || operations.includes('Establish chamber vacuum');
   const fieldsReady = stage >= 9 || operations.includes('Acquire four preplanned BSE fields');
   const edsReady = stage >= 9 || operations.includes('Acquire EDS map across the field grid');
-  const finding = spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains';
+  const finding = getCampaignFinding(spec);
+  const { zrDopant } = campaignComposition(spec);
   const fields = [[31, 37], [183, 37], [31, 104], [183, 104]];
   const microstructures = [
     { phases: ['M1 2L31 1l14 13-9 18-31 2-4-12Z', 'M45 1h35l9 17-17 15-30-6Z', 'M88 1h49l2 25-28 8-23-16Z', 'M4 36l34-3 18 22H1Z', 'M58 34l28-12 23 14-8 19H58Z', 'M108 36l31-8v27h-38Z'], boundary: 'M0 34l38-2 7-18M42 27l16 7 28-12m0 0 23 14 31-9M58 34v22m43-1 8-19', pores: [[22,20,2],[75,44,1.7],[123,17,1.4]] },
@@ -599,15 +571,15 @@ function SemCampaignPanel({ stage, selected, runNumber, operations }: { stage: n
         <defs><pattern id="semNoise" width="17" height="17" patternUnits="userSpaceOnUse"><circle cx="3" cy="4" r=".7" fill="#8d9ba0" opacity=".18" /><circle cx="12" cy="10" r=".5" fill="#c4ccce" opacity=".12" /></pattern></defs>
         <rect width="520" height="180" className="sem-background" /><text x="18" y="19">BSE MOSAIC · 4 PREPLANNED LOCATIONS</text>
         {fields.map(([x, y], fieldIndex) => { const micro = microstructures[fieldIndex]; return <g key={`${x}-${y}`} className={`sem-field${fieldsReady ? ' acquired' : ''}`} transform={`translate(${x} ${y})`}><rect width="140" height="56" rx="2" /><rect width="140" height="56" rx="2" fill="url(#semNoise)" />{fieldsReady && <g className="sem-microstructure">{micro.phases.map((path, phaseIndex) => <path key={path} d={path} className={`sem-phase-${phaseIndex % 3}`} />)}<path d={micro.boundary} className="sem-grain-boundary" />{micro.pores.map(([cx, cy, radius]) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={radius} className="sem-pore" />)}<circle cx={105 - fieldIndex * 7} cy={23 + fieldIndex * 4} r={fieldIndex === 2 ? 7 : 4} className="sem-inclusion" /><circle cx={108 - fieldIndex * 7} cy={21 + fieldIndex * 4} r={fieldIndex === 2 ? 2.4 : 1.5} className="sem-inclusion-core" /></g>}<text x="5" y="10">F0{fieldIndex + 1}</text></g>; })}
-        <g className={`sem-eds-map${edsReady ? ' ready' : ''}`}><text x="335" y="19">CORRELATED EDS MAP + SPECTRUM</text><rect x="335" y="27" width="163" height="65" rx="2" />{edsReady ? <><g className="eds-map-dots eds-o">{[[347,38],[366,45],[385,34],[403,57],[421,42],[446,68],[470,38],[486,73],[358,78],[397,80]].map(([cx,cy]) => <circle key={`o-${cx}-${cy}`} cx={cx} cy={cy} r="2.2" />)}</g><g className="eds-map-dots eds-ca">{[[351,62],[374,70],[393,48],[419,75],[440,36],[479,53]].map(([cx,cy]) => <circle key={`ca-${cx}-${cy}`} cx={cx} cy={cy} r="3" />)}</g><g className="eds-map-dots eds-ti">{[[447,51],[452,55],[457,50],[449,59],[461,57],[455,63]].map(([cx,cy]) => <circle key={`ti-${cx}-${cy}`} cx={cx} cy={cy} r={spec.id === 'D-08' ? 4 : 2.3} />)}</g><text x="340" y="88">MAP COMPLETE · {finding.toUpperCase()}</text></> : <text x="379" y="63" className="sem-map-awaiting">MAP QUEUED</text>}</g>
-        <g className="sem-spectrum"><text x="335" y="108">EDS SPECTRUM</text><line x1="335" x2="498" y1="148" y2="148" />{[['O', 356, 25], ['Ca', 397, 34], ['Ti', 439, spec.id === 'D-08' ? 42 : 31], ['Zr', 474, spec.id === 'D-08' ? 8 : 18]].map(([label, x, height]) => <g key={String(label)} className={edsReady ? 'peak ready' : 'peak'}><line x1={Number(x)} x2={Number(x)} y1="148" y2={148 - Number(height)} /><text x={Number(x) - 5} y="162">{label}</text></g>)}</g>
+        <g className={`sem-eds-map${edsReady ? ' ready' : ''}`}><text x="335" y="19">CORRELATED EDS MAP + SPECTRUM</text><rect x="335" y="27" width="163" height="65" rx="2" />{edsReady ? <><g className="eds-map-dots eds-o">{[[347,38],[366,45],[385,34],[403,57],[421,42],[446,68],[470,38],[486,73],[358,78],[397,80]].map(([cx,cy]) => <circle key={`o-${cx}-${cy}`} cx={cx} cy={cy} r="2.2" />)}</g><g className="eds-map-dots eds-ca">{[[351,62],[374,70],[393,48],[419,75],[440,36],[479,53]].map(([cx,cy]) => <circle key={`ca-${cx}-${cy}`} cx={cx} cy={cy} r={finding.kind === 'calcium' ? 4 : 3} />)}</g><g className="eds-map-dots eds-ti">{[[447,51],[452,55],[457,50],[449,59],[461,57],[455,63]].map(([cx,cy]) => <circle key={`ti-${cx}-${cy}`} cx={cx} cy={cy} r={finding.kind === 'titania' ? 4 : 2.3} />)}</g><text x="340" y="88">MAP COMPLETE · {finding.label.toUpperCase()}</text></> : <text x="379" y="63" className="sem-map-awaiting">MAP QUEUED</text>}</g>
+        <g className="sem-spectrum"><text x="335" y="108">EDS SPECTRUM</text><line x1="335" x2="498" y1="148" y2="148" />{[['O', 356, 25], ['Ca', 397, finding.kind === 'calcium' ? 42 : 34], ['Ti', 439, finding.kind === 'titania' ? 42 : 31], ['Zr', 474, finding.kind === 'zirconia' ? 24 : zrDopant > 0 ? 12 : 0]].map(([label, x, height]) => <g key={String(label)} className={edsReady ? 'peak ready' : 'peak'}><line x1={Number(x)} x2={Number(x)} y1="148" y2={148 - Number(height)} /><text x={Number(x) - 5} y="162">{label}</text></g>)}</g>
         {!fieldsReady && <text x="112" y="98" className="sem-awaiting">ACQUISITION HELD · COVERAGE 0 / 4</text>}
         <text x="17" y="174">20 µm</text><line x1="50" x2="95" y1="171" y2="171" className="scale-bar" />
       </svg>
       <aside>
         <div className={vacuumReady ? 'pass' : 'hold'}><span>CHAMBER VACUUM</span><b>{vacuumReady ? '2.1e−5 Pa' : 'VENTED'}</b><small>{vacuumReady ? 'working distance linked' : 'pump required'}</small></div>
         <div className={fieldsReady ? 'pass' : vacuumReady ? 'review' : 'waiting'}><span>FIELD COVERAGE</span><b>{fieldsReady ? '4 / 4' : '0 / 4'}</b><small>{fieldsReady ? 'preplanned grid complete' : 'single-field claim blocked'}</small></div>
-        <div className={edsReady ? 'pass' : 'waiting'}><span>INTERPRETATION</span><b>{edsReady ? finding : 'N/A'}</b><small>{edsReady ? 'hypothesis · not proof' : 'EDS map required'}</small></div>
+        <div className={edsReady ? 'pass' : 'waiting'}><span>INTERPRETATION</span><b>{edsReady ? finding.label : 'N/A'}</b><small>{edsReady ? 'hypothesis · not proof' : 'EDS map required'}</small></div>
       </aside>
     </div>
   </section>;

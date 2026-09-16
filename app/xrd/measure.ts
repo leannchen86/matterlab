@@ -193,8 +193,8 @@ export function prepareMount(specimen: Specimen, sampleCode: string, mount: Moun
 }
 
 /**
- * Counts per unit exposure. Calibrated so a hand-ground CaTiO₃ survey peaks near 4000 counts, above the roughly 3000
- * Rigaku suggests for identification, while the standard program reaches the 10 000 suggested for quantification.
+ * Counts per unit exposure. Calibrated so a hand-ground CaTiO₃ survey peaks near 4000 counts, above the sim's illustrative
+ * 3000-count identification threshold (IDENTIFY_COUNTS in lab.ts), while the standard program reaches about 10 000.
  */
 const FLUX = 3.2e7;
 /** Air scatter reaching the detector at low angle, in the diffuse units used below (about 1.5% of the CaTiO₃ maximum at 10°). */

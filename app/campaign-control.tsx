@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties, type KeyboardEvent } from 'react';
-import { buildCustomCampaignSpec, campaignMissions, campaignSpecs as recipes, customCompositionOptions, evaluateCampaignMission, forecastCampaignMission, getAuthoredCampaignFollowUp, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import { buildCustomCampaignSpec, campaignMissions, campaignShareLabel, campaignSpecs as recipes, customCompositionOptions, evaluateCampaignMission, forecastCampaignMission, getAuthoredCampaignFollowUp, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec, recomputeCampaignHistory } from './campaign-spec';
 import type { CampaignMissionId, CampaignOperations, CampaignSpec, CustomComposition } from './campaign-spec';
 import { emitLabEvent } from './lab-events';
 
@@ -72,7 +72,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
       const saved = window.localStorage.getItem(storageKey);
       if (!saved) return initialRun;
       const parsed = JSON.parse(saved) as Partial<CampaignRun>;
-      return { ...initialRun, ...parsed, inventory: { ...initialInventory, ...parsed.inventory } };
+      return { ...initialRun, ...parsed, inventory: { ...initialInventory, ...parsed.inventory }, history: Array.isArray(parsed.history) ? recomputeCampaignHistory(parsed.history.filter((item) => Boolean(item) && typeof item === 'object')) : initialRun.history };
     } catch {
       return initialRun;
     }
@@ -108,7 +108,8 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
   const history = Array.isArray(run.history) ? run.history : [];
   const backlog = Array.isArray(run.backlog) ? run.backlog : [];
   const adaptiveUnlocked = history.length >= 2;
-  const diagnosisUnlocked = history.some((result) => result.candidate === 'D-08' && Boolean(result.diagnosis));
+  // R-31 tests incomplete conversion, so any retained Ti-rich finding unlocks it, whichever candidate produced it.
+  const diagnosisUnlocked = history.some((result) => Boolean(result.diagnosis?.includes('Ti-rich')));
   const customCandidate = run.customCandidate ? getCampaignSpec(run.customCandidate) : null;
   const availableRecipes = [...recipes, ...(customCandidate ? [customCandidate] : [])].filter((candidate) => (candidate.id !== 'A-29' || adaptiveUnlocked) && (candidate.id !== 'R-31' || diagnosisUnlocked));
   const identity = getCampaignIdentity(currentRunNumber);
@@ -189,7 +190,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
   const changedFactors = experimentFactors?.filter((factor) => factor.changed) ?? [];
   const heldFactors = experimentFactors?.filter((factor) => !factor.changed) ?? [];
   const experimentExpectation = !sourceSpec?.composition || !recipe.composition ? 'MISSION RESPONSE ↑'
-    : sourceResult?.diagnosis?.includes('Ca-rich') && recipe.composition.caExcess < sourceSpec.composition.caExcess ? 'SECONDARY PHASE ↓'
+    : (sourceResult?.diagnosis?.includes('Ca-rich') && recipe.composition.caExcess < sourceSpec.composition.caExcess) || (sourceResult?.diagnosis?.includes('Ti-rich') && recipe.composition.caExcess > sourceSpec.composition.caExcess) ? 'SECONDARY PHASE ↓'
       : sourceResult?.diagnosis?.includes('Ti-rich') && recipe.composition.dwell > sourceSpec.composition.dwell ? 'CORE CONVERSION ↑'
         : recipe.composition.zrDopant > sourceSpec.composition.zrDopant ? 'TARGET PHASE ↑'
           : recipe.composition.dwell < sourceSpec.composition.dwell ? 'CYCLE ↓ · PHASE HELD'
@@ -240,14 +241,15 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
       const archivedHistory = history.some((result) => result.runNumber === currentRunNumber)
         ? history
         : [...history, { runNumber: currentRunNumber, candidate: recipe.id, measured: observedMeasured, gap: evaluation.gap, objectiveMet: evaluation.met, elapsed: run.elapsed, missionId: run.missionId }];
-      const mechanismRecovery = run.stage >= 9 && recipe.id === 'D-08' && archivedHistory.some((result) => result.runNumber === currentRunNumber && Boolean(result.diagnosis));
       const diagnosticFollowUp = run.stage >= 9 && recipe.composition ? followUp : null;
+      // With no one-lever follow-up left, Ti-rich cores route to R-31, the stoichiometric conversion-recovery recipe.
+      const mechanismRecovery = run.stage >= 9 && !diagnosticFollowUp && recipe.id !== 'R-31' && archivedHistory.some((result) => result.runNumber === currentRunNumber && Boolean(result.diagnosis?.includes('Ti-rich')));
       const nextPlan = !mechanismRecovery && !diagnosticFollowUp ? backlog[0] : undefined;
       const nextSelected = mechanismRecovery ? 'R-31' : diagnosticFollowUp?.id ?? nextPlan?.candidate ?? run.selected;
       const nextMission = nextPlan?.missionId ?? run.missionId;
       const remainingBacklog = (nextPlan ? backlog.slice(1) : backlog).map((item, index) => ({ ...item, runNumber: currentRunNumber + index + 2 }));
       updateRun({ ...initialRun, insight: run.insight, missionId: nextMission, thermalBayLevel: run.plannedThermalUpgrade ? 2 : run.thermalBayLevel, stagingBayLevel: run.stagingBayLevel, customCandidate: nextSelected.startsWith('U-') ? nextSelected : run.customCandidate, inventory, selected: nextSelected, runNumber: currentRunNumber + 1, history: archivedHistory, backlog: remainingBacklog, plannedThermalUpgrade: false, resultDecision: undefined, message: mechanismRecovery
-        ? `${identity.runId} diagnosis assimilated. R-31 raises thermal dose while preserving stoichiometry to test the incomplete-conversion hypothesis.`
+        ? `${identity.runId} diagnosis assimilated. R-31 tests the incomplete-conversion hypothesis with a stoichiometric batch.`
         : diagnosticFollowUp ? `${identity.runId} SEM / EDS evidence assimilated. ${diagnosticFollowUp.id} changes one governed lever (${followUpLever.toLowerCase()}) while retaining the measured phase map as its mechanism basis.`
         : nextPlan ? `${identity.runId} archived. RUN-${String(currentRunNumber + 1).padStart(3, '0')} loaded from the shift backlog: ${nextPlan.candidate} · ${getCampaignMission(nextPlan.missionId).shortLabel}.`
           : `${identity.runId} archived. Select the next candidate.` });
@@ -423,7 +425,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
                 const offset = (index % 3) * 4 - 4;
                 return <g key={`${result.runNumber}-${result.candidate}`}>
                   <circle className={`campaign-result-point ${result.objectiveMet ? 'hit' : 'miss'}`} cx={measuredSpec.point[0] + offset} cy={measuredSpec.point[1] + 13 + Math.floor(index / 3) * 5} r="5" />
-                  <text className="campaign-result-label" x={measuredSpec.point[0] + offset + 7} y={measuredSpec.point[1] + 17 + Math.floor(index / 3) * 5}>{result.measured}</text>
+                  <text className="campaign-result-label" x={measuredSpec.point[0] + offset + 7} y={measuredSpec.point[1] + 17 + Math.floor(index / 3) * 5}>{campaignShareLabel(result.measured).replace('%', '')}</text>
                 </g>;
               })}
               <circle className="proposal-halo" cx={recipe.point[0]} cy={recipe.point[1]} r="24" />
@@ -438,7 +440,7 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
             {availableRecipes.map((candidate) => {
               const measured = [...history].reverse().find((result) => result.candidate === candidate.id);
               return <button key={candidate.id} type="button" className={`${candidate.id === run.selected ? 'active ' : ''}${candidate.id === 'A-29' ? 'learned' : candidate.id === 'R-31' ? 'mechanism' : candidate.id.startsWith('U-') ? 'scientist' : ''}`} disabled={run.stage > 0} onClick={() => updateRun({ selected: candidate.id, message: `${candidate.id} selected.` })}>
-                <span>{candidate.id}</span><div><b>{candidate.name}</b><small>{candidate.formula}</small><small>{candidate.temperatureShort} · {candidate.dwell} · MODEL {candidate.prediction}</small></div><div className="candidate-outcome"><em>{measured ? `${measured.measured}%` : candidate.temperatureShort}</em><u className={measured ? measured.objectiveMet ? 'fit' : 'risk' : ''}>{measured ? measured.objectiveMet ? 'PASS' : 'MISS' : `${candidate.thermalMinutes} MIN`}</u></div>
+                <span>{candidate.id}</span><div><b>{candidate.name}</b><small>{candidate.formula}</small><small>{candidate.temperatureShort} · {candidate.dwell} · MODEL {candidate.prediction}</small></div><div className="candidate-outcome"><em>{measured ? campaignShareLabel(measured.measured) : candidate.temperatureShort}</em><u className={measured ? measured.objectiveMet ? 'fit' : 'risk' : ''}>{measured ? measured.objectiveMet ? 'PASS' : 'MISS' : `${candidate.thermalMinutes} MIN`}</u></div>
               </button>;
             })}
           </div>
@@ -509,21 +511,21 @@ export function CampaignControlModal({ autoOpenInventory = false, autoOpenFacili
 
           {run.stage >= 7 && recipe.composition && followUp && <div className="authored-learning">
             <header><div><span>{retainedResult?.diagnosis ? 'EVIDENCE UPDATE · SEM / EDS INFORMED' : 'MODEL UPDATE · AUTHORED MATERIAL'}</span><b>{recipe.id} → {followUp.id}</b></div><em>{recipeObservations.length > 1 ? 'MEAN ' : ''}{modelResidual >= 0 ? '+' : '−'}{Math.abs(modelResidual).toFixed(1)} pp RESIDUAL</em></header>
-            <div className="learning-posterior"><span>PRIOR<b>{recipe.prediction}</b></span><i><u style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.prediction) - 90) * 10))}%` }} />{recipeObservations.slice(-3).map((result) => <u key={result.runNumber} className={result.runNumber === currentRunNumber ? 'measured' : 'replicate'} style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(result.measured) - 90) * 10))}%` }} />)}</i><span>{recipeObservations.length > 1 ? 'MEAN' : 'MEASURED'}<b>{recipeObservations.length > 1 ? observationMean.toFixed(1) : observedMeasured}%</b></span><span>{recipeObservations.length > 1 ? `n = ${recipeObservations.length} REPEATS` : 'CURRENT POINT'}<b>±2.1 → ±{posteriorUncertainty}%</b></span></div>
+            <div className="learning-posterior"><span>PRIOR<b>{recipe.prediction}</b></span><i><u style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(recipe.prediction) - 90) * 10))}%` }} />{recipeObservations.slice(-3).map((result) => <u key={result.runNumber} className={result.runNumber === currentRunNumber ? 'measured' : 'replicate'} style={{ left: `${Math.max(5, Math.min(95, (Number.parseFloat(result.measured) - 90) * 10))}%` }} />)}</i><span>{recipeObservations.length > 1 ? 'MEAN' : 'MEASURED'}<b>{campaignShareLabel(recipeObservations.length > 1 ? observationMean.toFixed(1) : observedMeasured)}</b></span><span>{recipeObservations.length > 1 ? `n = ${recipeObservations.length} REPEATS` : 'CURRENT POINT'}<b>{recipe.uncertainty.replace('%', '')} → ±{posteriorUncertainty}%</b></span></div>
             <div className="learning-proposal"><div><span>NEXT MISSION LEVER</span><b>{followUpLever}</b></div><dl><div><dt>RECIPE</dt><dd>{followUp.id}</dd></div><div><dt>PROGRAM</dt><dd>{followUp.temperatureShort} · {followUp.dwell}</dd></div><div><dt>MODEL</dt><dd>{followUp.prediction} · {followUp.uncertainty}</dd></div></dl><button type="button" disabled>✓ CANDIDATE GENERATED</button></div>
           </div>}
 
           {run.stage >= 7 && recipe.composition && !followUp && evaluation.met && !isConfirmationRun && <div className="confirmation-gate">
             <header><div><span>REPRODUCIBILITY GATE</span><b>MISSION CANDIDATE · ONE QUALIFIED RESULT</b></div><em>n = 1</em></header>
-            <div className="replicate-track"><article className="qualified"><i>1</i><span>{identity.runId}</span><b>{observedMeasured}%</b><small>{retainedElapsed} MIN · PASS</small></article><u>→</u><article className={confirmationQueued ? 'queued' : ''}><i>2</i><span>CONFIRMATION</span><b>{confirmationQueued ? `RUN-${String(currentRunNumber + 1).padStart(3, '0')}` : 'UNPLANNED'}</b><small>SAME RECIPE · SAME PROGRAM</small></article></div>
-            <dl><div><dt>RECIPE</dt><dd>{recipe.id}</dd></div><div><dt>PHASE FLOOR</dt><dd>{phaseFloor.toFixed(1)}%</dd></div><div><dt>OBSERVED</dt><dd>{observedMeasured}%</dd></div><div><dt>CONTROL</dt><dd>NO LEVER CHANGE</dd></div></dl>
+            <div className="replicate-track"><article className="qualified"><i>1</i><span>{identity.runId}</span><b>{campaignShareLabel(observedMeasured)}</b><small>{retainedElapsed} MIN · PASS</small></article><u>→</u><article className={confirmationQueued ? 'queued' : ''}><i>2</i><span>CONFIRMATION</span><b>{confirmationQueued ? `RUN-${String(currentRunNumber + 1).padStart(3, '0')}` : 'UNPLANNED'}</b><small>SAME RECIPE · SAME PROGRAM</small></article></div>
+            <dl><div><dt>RECIPE</dt><dd>{recipe.id}</dd></div><div><dt>PHASE FLOOR</dt><dd>{phaseFloor.toFixed(1)}%</dd></div><div><dt>OBSERVED</dt><dd>{campaignShareLabel(observedMeasured)}</dd></div><div><dt>CONTROL</dt><dd>NO LEVER CHANGE</dd></div></dl>
             <button type="button" disabled={confirmationQueued || backlog.length >= 3} onClick={queueConfirmation}>{confirmationQueued ? '✓ CONFIRMATION QUEUED' : 'QUEUE CONFIRMATION →'}</button>
           </div>}
 
           {run.stage >= 7 && isConfirmationRun && sourceResult && <div className={`replicate-result ${evaluation.met ? 'robust' : 'unstable'}`}>
             <header><div><span>REPRODUCIBILITY RESULT</span><b>{evaluation.met ? 'BOUNDARY REPEATED · CANDIDATE ROBUST' : 'BOUNDARY FAILED · ROBUSTNESS NOT DEMONSTRATED'}</b></div><em>n = 2</em></header>
             <div className={`comparability-audit ${changedCovariates ? 'conditional' : 'matched'}`}><div><span>COMPARABILITY AUDIT</span><b>{changedCovariates ? `${changedCovariates} ROUTE CONDITIONS CHANGED` : 'ROUTES MATCHED'}</b></div>{routeCovariates.map((factor) => <span key={factor.label}><i>{factor.label}</i><b>{factor.before}</b><u>→</u><em>{factor.after}</em></span>)}<strong>{changedCovariates ? 'ATTRIBUTION CONDITIONAL' : 'MATERIAL EFFECT ISOLATED'}</strong></div>
-            <div className="replicate-pair"><article><span>RUN-{String(sourceResult.runNumber).padStart(3, '0')}</span><b>{sourceResult.measured}%</b><small>{sourceResult.elapsed} MIN</small></article><i>↔</i><article><span>{identity.runId}</span><b>{observedMeasured}%</b><small>{retainedElapsed} MIN</small></article></div>
+            <div className="replicate-pair"><article><span>RUN-{String(sourceResult.runNumber).padStart(3, '0')}</span><b>{campaignShareLabel(sourceResult.measured)}</b><small>{sourceResult.elapsed} MIN</small></article><i>↔</i><article><span>{identity.runId}</span><b>{campaignShareLabel(observedMeasured)}</b><small>{retainedElapsed} MIN</small></article></div>
             <dl><div><dt>RECIPE</dt><dd>{recipe.id} × 2</dd></div><div><dt>PHASE SPREAD</dt><dd>{Math.abs(Number(observedMeasured) - Number(sourceResult.measured)).toFixed(1)} pp</dd></div><div><dt>FLOOR</dt><dd>{phaseFloor.toFixed(1)}%</dd></div><div><dt>VERDICT</dt><dd>{evaluation.met ? 'REPEATED PASS' : 'MARGIN LOST'}</dd></div></dl>
             <em>{evaluation.met ? 'RELEASE ROBUSTNESS CLAIM' : 'RETURN TO DESIGN SPACE'}</em>
           </div>}
@@ -834,7 +836,7 @@ function getPrimaryAction(stage: number, runId: string, operations: CampaignOper
       : operations.referenceCondition === 'trend-review'
         ? { label: 'REVIEW XRD-03 TREND', hint: `Confirm the Si trend before measuring ${runId}` }
         : { label: 'OPERATE XRD-03', hint: `Review the current Si control and acquire ${runId}` },
-    { label: 'START NEXT CAMPAIGN', hint: 'AI-eligible result · objective missed by 0.2 percentage point' },
+    { label: 'START NEXT CAMPAIGN', hint: 'Archive the qualified result and plan the next run' },
     { label: 'OPERATE SEM-01', hint: 'Measure four preplanned locations and acquire an EDS map' },
     { label: 'PROPOSE RECOVERY RUN', hint: 'Use the diagnosis to change the next governed experiment' },
   ][stage] ?? { label: 'START NEXT CAMPAIGN', hint: 'Clear the completed lane' };

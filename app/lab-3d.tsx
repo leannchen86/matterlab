@@ -12,7 +12,7 @@ import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import reviewCamerasJson from '../materials_lab_threejs/cameras.json';
-import { evaluateCampaignMission, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import { campaignShareLabel, evaluateCampaignMission, getCampaignFinding, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import type { CampaignMissionId } from './campaign-spec';
 import { getCampaignStationId, getStationSceneSpec, SCENE_QUALITY, STATION_MENU_ORDER, STATION_SCENE_ORDER } from './lab-scene-config';
 import type { CameraMode, SceneQualityPolicy, StationId, StationKind, StationSceneSpec } from './lab-scene-config';
@@ -1082,7 +1082,7 @@ function getCampaignInspectionPoints(kind: StationKind, stage: number, selected:
   if (stage >= 8 && kind === 'sem') return [
     { position: [-0.25, 0.92, 0.82], label: 'CHAMBER', displayLabel: 'VACUUM CHAMBER', observation: `${identity.thermalSample} on STUB-${identity.suffix} · clearance proven`, state: 'pass' },
     { position: [-0.25, 2.08, 0.42], label: 'COLUMN', displayLabel: 'ELECTRON COLUMN', observation: 'BSE 15 kV · working distance 9.8 mm · aperture seated', state: 'pass' },
-    { position: [0.48, 1.22, 0.55], label: 'BSE / EDS', displayLabel: 'DETECTOR ARRAY', observation: stage === 8 ? 'coverage 0 / 4 · preplanned field grid required' : `4 fields + map · ${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'}`, state: stage === 8 ? 'attention' : 'pass' },
+    { position: [0.48, 1.22, 0.55], label: 'BSE / EDS', displayLabel: 'DETECTOR ARRAY', observation: stage === 8 ? 'coverage 0 / 4 · preplanned field grid required' : `4 fields + map · ${getCampaignFinding(spec).label}`, state: stage === 8 ? 'attention' : 'pass' },
   ];
   return null;
 }
@@ -1879,9 +1879,9 @@ function getCampaignRoomState(stage: number, selected = 'C-42', runNumber = 42, 
   if (stage === 6 && operations.referenceCondition === 'age-due') return { station: 'XRD-03', label: 'QC CHECK DUE', color: '#f4b95f', tone: 'held' };
   if (stage === 6 && operations.referenceCondition === 'trend-review') return { station: 'XRD-03', label: 'SILICON QC TREND', color: '#4dd5ed', tone: 'running' };
   if (stage === 6) return { station: 'XRD-03', label: 'ACQUISITION READY', color: '#4dd5ed', tone: 'running' };
-  if (stage === 7) return { station: 'XRD-03', label: confirmationSource ? `${resultMeasured}% · ${evaluation.met ? 'REPEAT PASS' : 'REPEAT FAILED'}` : `${evaluation.resultText} · ${evaluation.met ? 'MISSION MET' : 'MISSION MISS'}`, color: evaluation.met ? '#51e19a' : confirmationSource ? '#f4b95f' : '#8fcf8f', tone: 'complete' };
+  if (stage === 7) return { station: 'XRD-03', label: confirmationSource ? `${campaignShareLabel(resultMeasured)} · ${evaluation.met ? 'REPEAT PASS' : 'REPEAT FAILED'}` : `${evaluation.resultText} · ${evaluation.met ? 'MISSION MET' : 'MISSION MISS'}`, color: evaluation.met ? '#51e19a' : confirmationSource ? '#f4b95f' : '#8fcf8f', tone: 'complete' };
   if (stage === 8) return { station: 'SEM-01', label: 'FOUR-LOCATION FOLLOW-UP', color: '#b7d4d8', tone: 'running' };
-  if (stage >= 9) return { station: 'SEM-01', label: spec.id === 'D-08' ? 'TI-RICH CORES' : 'CA-RICH SECONDARY GRAINS', color: '#51e19a', tone: 'complete' };
+  if (stage >= 9) return { station: 'SEM-01', label: getCampaignFinding(spec).label.toUpperCase(), color: '#51e19a', tone: 'complete' };
   return { station: 'PREP-01', label: 'CAMPAIGN READY', color: '#4dd5ed', tone: 'running' };
 }
 

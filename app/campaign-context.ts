@@ -1,7 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { evaluateCampaignMission, getCampaignIdentity, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import { campaignShareLabel, evaluateCampaignMission, getCampaignFinding, getCampaignIdentity, getCampaignOperations, getCampaignSpec, recomputeCampaignHistory } from './campaign-spec';
 import type { CampaignMissionId } from './campaign-spec';
 import { subscribeLabEvent } from './lab-events';
 import type { Station } from './sim-data';
@@ -63,7 +63,8 @@ function parseCampaign(source: string | null): CampaignSnapshot {
   try {
     const stored = JSON.parse(source) as StoredCampaign;
     const runNumber = asNumber(stored.runNumber, fallbackCampaign.runNumber);
-    const history = Array.isArray(stored.history) ? stored.history as StoredCampaignResult[] : [];
+    // Saved results are recomputed from the current model; items that are not objects are dropped rather than failing the snapshot.
+    const history = Array.isArray(stored.history) ? recomputeCampaignHistory((stored.history as unknown[]).filter((item): item is StoredCampaignResult => Boolean(item) && typeof item === 'object')) : [];
     const selected = String(stored.selected ?? fallbackCampaign.selected);
     const retainedResult = history.find((item) => asNumber(item.runNumber, -1) === runNumber);
     const precedingResult = history.findLast((item) => asNumber(item.runNumber, runNumber) < runNumber);
@@ -148,7 +149,7 @@ export function getCampaignStationView(station: Station, stage: number, selected
   if (stage === 6 && operations.referenceCondition === 'trend-review') return { ...station, state: 'TREND REVIEW', tone: 'run', meta: `Silicon QC trend · ${operations.referenceAgeHours} h`, technicianView: ['QC material: NIST SRM 640f', `Last QC check: ${operations.referenceAgeHours} h ago`, 'Next step: confirm peak position'] };
   if (stage === 6) return { ...station, state: 'ACQUISITION READY', tone: 'run', meta: `Silicon QC current · ${operations.referenceAgeHours} h`, technicianView: ['QC material: NIST SRM 640f', `Last QC check: ${operations.referenceAgeHours} h ago`, 'Sample: ready to measure'] };
   if (stage === 8) return { ...station, state: 'DIAGNOSTIC RUN', tone: 'run', meta: `${identity.runId} · four-field BSE / EDS`, technicianView: [`Specimen: ${identity.thermalSample}`, 'Coverage: 0 / 4 fields', 'EDS map: queued'] };
-  if (stage >= 9) return { ...station, state: 'DIAGNOSIS READY', tone: 'ready', meta: `${identity.runId} · multi-location follow-up`, technicianView: ['Coverage: 4 / 4 fields', `Finding: ${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'}`, 'Interpretation: model-linked'] };
+  if (stage >= 9) return { ...station, state: 'DIAGNOSIS READY', tone: 'ready', meta: `${identity.runId} · multi-location follow-up`, technicianView: ['Coverage: 4 / 4 fields', `Finding: ${getCampaignFinding(spec).label}`, 'Interpretation: model-linked'] };
   return { ...station, state: 'RESULT REVIEW', tone: 'ready', meta: `${evaluation.resultText} · mission ${evaluation.met ? 'met' : 'missed'}`, technicianView: [`Result: ${evaluation.resultText}`, `Mission gap: ${evaluation.gap}`] };
 }
 
@@ -162,7 +163,7 @@ export function useCampaignStation(station: Station): Station {
   const view = getCampaignStationView(station, campaign.stage, campaign.selected, campaign.runNumber, campaign.thermalBayLevel, campaign.missionId, campaign.resultElapsed, campaign.resultMeasured);
   if (campaign.stage === 7 && campaign.confirmationSource) {
     const evaluation = evaluateCampaignMission({ ...getCampaignSpec(campaign.selected), measured: campaign.resultMeasured }, campaign.missionId, campaign.resultElapsed);
-    return { ...view, state: evaluation.met ? 'REPEAT PASS' : 'NOT ROBUST', tone: evaluation.met ? 'ready' : 'warn', meta: `${campaign.confirmationSource.measured}% → ${campaign.resultMeasured}%`, technicianView: [`Recipe: ${campaign.selected} unchanged`, `Prior: ${campaign.confirmationSource.measured}%`, `Repeat: ${campaign.resultMeasured}%`, `Verdict: ${evaluation.met ? 'boundary repeated' : 'phase margin lost'}`] };
+    return { ...view, state: evaluation.met ? 'REPEAT PASS' : 'NOT ROBUST', tone: evaluation.met ? 'ready' : 'warn', meta: `${campaignShareLabel(campaign.confirmationSource.measured)} → ${campaignShareLabel(campaign.resultMeasured)}`, technicianView: [`Recipe: ${campaign.selected} unchanged`, `Prior: ${campaignShareLabel(campaign.confirmationSource.measured)}`, `Repeat: ${campaignShareLabel(campaign.resultMeasured)}`, `Verdict: ${evaluation.met ? 'boundary repeated' : 'phase margin lost'}`] };
   }
   return view;
 }

@@ -444,7 +444,7 @@ export type Debrief = {
 const REPORTABLE = 0.005;
 const TRACE = 0.001;
 const MINOR = 0.02;
-/** Rigaku guidance: about 3000 counts on the strongest peak for identification. */
+/** Illustrative identification threshold used by the sim, in counts on the strongest peak. */
 const IDENTIFY_COUNTS = 3000;
 /** Features are flagged from z 4, which counting noise reaches about once in twenty scans; from z 5 it almost never does. */
 const ROBUST_Z = 5;

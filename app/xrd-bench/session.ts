@@ -10,6 +10,7 @@ import { apply, cachedAnalysis, createLab, replay, type Action, type LabState, t
 import type { RunRecord } from '../xrd/records';
 
 const STORAGE_KEY = 'matterlab-xrd-bench-v1';
+const SLOTS_KEY = 'matterlab-xrd-bench-slots-v1';
 
 type Session = { readonly seed: string; readonly actions: readonly Action[]; readonly state: LabState };
 
@@ -72,12 +73,65 @@ export function dispatch(action: Action): Outcome {
   return outcome;
 }
 
+/** The mount sitting in the diffractometer. It stays seated while the bench is closed; a zero check or a new shift clears it. */
+export type Seated = { readonly code: string; readonly mountIndex: number } | null;
+
+let seated: Seated = null;
+
+export function seatedMount(): Seated {
+  return seated;
+}
+
+export function seat(next: Seated) {
+  seated = next;
+}
+
 /** Starts a new shift with a new seed and returns its state. */
 export function newShift(): LabState {
   const seed = freshSeed();
   const state = createLab(seed, CASE_CODES);
+  seated = null;
+  try {
+    window.localStorage.removeItem(SLOTS_KEY);
+  } catch {
+    // Slots saved under the old seed are ignored anyway.
+  }
   publish({ seed, actions: [], state });
   return state;
+}
+
+/** A sample's A and B chips and whether their fits use the spike and the checked zero, as the player left them. */
+export type SavedSlots = { readonly A: readonly string[]; readonly B: readonly string[]; readonly spike: boolean; readonly zero: boolean };
+
+/** Every sample's saved slots for this shift; slots saved under another seed belong to an earlier shift and read as none. */
+function slotStore(seed: string): Readonly<Record<string, unknown>> {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(SLOTS_KEY) ?? 'null') as { seed?: unknown; samples?: unknown } | null;
+    if (saved && saved.seed === seed && typeof saved.samples === 'object' && saved.samples !== null && !Array.isArray(saved.samples)) return saved.samples as Record<string, unknown>;
+  } catch {
+    // Unreadable or blocked storage restores nothing.
+  }
+  return {};
+}
+
+const phaseIds = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
+
+/** The slots saved for a sample in this shift, or undefined when nothing well formed is stored. The caller checks the ids. */
+export function savedSlots(seed: string, code: string): SavedSlots | undefined {
+  const store = slotStore(seed);
+  const entry = Object.hasOwn(store, code) ? store[code] : undefined;
+  if (typeof entry !== 'object' || entry === null) return undefined;
+  const { A, B, spike, zero } = entry as Record<string, unknown>;
+  return phaseIds(A) && phaseIds(B) && typeof spike === 'boolean' && typeof zero === 'boolean' ? { A, B, spike, zero } : undefined;
+}
+
+export function saveSlots(seed: string, code: string, slots: SavedSlots) {
+  try {
+    const { A, B, spike, zero } = slots;
+    window.localStorage.setItem(SLOTS_KEY, JSON.stringify({ seed, samples: { ...slotStore(seed), [code]: { A, B, spike, zero } } }));
+  } catch {
+    // The slots still hold while the page is open; they just will not survive a reload.
+  }
 }
 
 /** The analysis of a run with these references: returned at once when cached, otherwise fitted in the background. */

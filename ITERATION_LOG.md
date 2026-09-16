@@ -1218,6 +1218,8 @@ the microscopy evidence.
 - Browser-verified RUN-046 / D-08 diagnosis unlocking the fifth candidate, the transition to RUN-047 /
   R-31, its 990 °C / 4 h / 96.6% envelope, and the physical PREP-01 record with the two correct precursor
   lots and mass values.
+- Superseded in critique 145: D-08 now fires at 900 °C / 2.5 h, and R-31's results come from the shared
+  model (98.6 ± 0.8% forecast, ≥99.5% reported). The diagnosis gate is unchanged.
 
 ## Critique 67: the campaign lived inside an overlay instead of owning the lab
 
@@ -2653,6 +2655,34 @@ The old XRD modal read identities off the sample, scored matches with fixed mult
 
 ### Known gaps
 
-- Fitting still starts automatically after chip changes instead of on an explicit FIT.
-- Mobile layout is stacked but has not been checked in a browser on this pass.
+- Fitting still starts automatically after chip changes instead of on an explicit FIT. (Fixed in critique 145.)
+- Mobile layout is stacked but has not been checked in a browser on this pass. (Checked in critique 145.)
+- Costs are illustrative. They are not instrument timings.
+
+## Critique 145: the bench still read as a form
+
+The science core was sound, but the bench still looked like a settings form stacked on a chart. References were fitted as soon as a chip changed, so the player never chose when to test an idea. The campaign trace had its own pattern code, and about two hundred lines of old `.xrd-*` styles were still in use.
+
+### Changes made
+
+- Made the pattern the workspace. It zooms, pans and probes, and a target on the plot opens a targeted rescan. A reference can be previewed as a ghost before it is added, and the residual sits under the fit.
+- Made FIT an explicit action. The two explanation slots can be compared side by side, and a verdict word never claims proof.
+- Commit is a 700 ms hold. Keyboard and assistive-technology users press twice instead. The debrief separates what was in the powder from which next steps would have worked.
+- Moved the campaign trace onto the shared core (`app/xrd/campaign.ts`) and removed the legacy XRD styles and keyframes.
+- Documented the model and its references in `README.md` and `RESEARCH.md`.
+- Checked the full flow at 390 × 844: scan, add, fit, decide, commit and debrief. Fixed a grid track that let the sample select widen the page.
+- Re-authored the campaign on the shared model. PHASE FIT, mission verdicts and the SEM note now all come from `app/xrd/campaign.ts`; only the forecasts shown before a run are authored.
+  - D-08 now fires at 900 °C for 2.5 h. It reports 95.3% with leftover rutile, misses purity, meets the low-energy mission, and its Ti-rich cores still unlock R-31.
+  - C-42 now fires at 1,100 °C for 3.5 h. It reports 95.2%, with most of the excess Ca left as lime and a little reacted into Ca₄Ti₃O₁₀, and misses purity.
+  - Z-17, A-29 and R-31 convert fully in the model and report ≥99.5%, a reporting ceiling, so no surface claims 100%.
+  - Every authored forecast brackets its reported share within 2σ. A-29 moved to 98.4 ± 0.9% and R-31 to 98.6 ± 0.8%.
+  - Composed candidates keep a heuristic forecast, not a fit. It peaks at stoichiometric Ca, penalises a Ca deficit more than an excess (as the model does at 0% Zr), and brackets all 256 grid compositions within 2σ.
+- Saved campaign histories are recomputed from the model when they load, so old saves show the new numbers without a storage-key change.
+- Review fixes: the touch track reserves its measured 40 px below the axis instead of covering the labels, the DATA dock shows the run name before a fit instead of a second NO FIT, and the dialog focus rule moved to CSS.
+
+### Known gaps
+
+- The plot is drawn on canvas, not SVG, and a one-finger drag pans rather than scrubbing the probe.
+- Detection limits, the cell reading and shared-line counts are computed but not shown.
+- Composed-candidate forecasts sit about 1 pp below the model on average, and high-Zr composed points plot outside the design triangle, as Z-17 already did.
 - Costs are illustrative. They are not instrument timings.

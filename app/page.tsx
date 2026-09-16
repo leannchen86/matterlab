@@ -3,7 +3,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { CampaignControlModal } from './campaign-control';
 import { getCampaignStationId, useCampaignSnapshot, useCampaignStation } from './campaign-context';
-import { evaluateCampaignMission, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
+import { campaignShareLabel, evaluateCampaignMission, getCampaignFinding, getCampaignIdentity, getCampaignMission, getCampaignOperations, getCampaignSpec } from './campaign-spec';
 import { LabViewport } from './lab-viewport';
 import { subscribeLabEvent } from './lab-events';
 import { baseStations, initialLog, type Station } from './sim-data';
@@ -166,7 +166,9 @@ function XrdShift({ onSwitch }: { onSwitch: (scenario: ScenarioId) => void }) {
     if (nextStage === 'loaded') appendLog('sample', `${context.sampleId} holder seated on the XRD specimen stage.`);
     if (nextStage === 'closed') appendLog('control', `XRD-03 enclosure closed; ${context.prep.toLowerCase()} preparation ready.`);
     if (nextStage === 'scanning') appendLog('measurement', `${context.sampleId} ${context.scan.toLowerCase()} scan started.`);
-    if (nextStage === 'review') appendLog('result', `${context.sampleId} run ${String(context.runNumber).padStart(2, '0')} retained for open reference comparison.`);
+    if (nextStage === 'review') appendLog('result', context.runNumber === 0
+      ? `${context.sampleId} zero offset checked against the Si standard.`
+      : `${context.sampleId} run ${String(context.runNumber).padStart(2, '0')} retained for open reference comparison.`);
   };
 
   const completeXrdRun = (result: XrdRunResult) => {
@@ -243,6 +245,7 @@ function ActionPanel({ campaignActive, onCampaign, onOpen }: { campaignActive: b
   const campaign = useCampaignSnapshot();
   if (campaignActive && campaign.stage > 0) {
     const spec = getCampaignSpec(campaign.selected);
+    const finding = getCampaignFinding(spec);
     const observedSpec = campaign.resultMeasured ? { ...spec, measured: campaign.resultMeasured } : spec;
     const identity = getCampaignIdentity(campaign.runNumber);
     const operations = getCampaignOperations(campaign.runNumber, campaign.thermalBayLevel);
@@ -267,10 +270,10 @@ function ActionPanel({ campaignActive, onCampaign, onOpen }: { campaignActive: b
           ? { body: 'The silicon QC check is still current, but its position trend needs confirmation before the sample is measured.', metric: `${operations.referenceAgeHours} h QC check`, tone: 'run' }
           : { body: 'The silicon QC check is current. Review it, prove the shutter chain, and acquire the sample pattern.', metric: `${operations.referenceAgeHours} h QC check`, tone: 'run' },
       7: campaign.confirmationSource
-        ? { body: `The unchanged recipe moved from ${campaign.confirmationSource.measured}% to ${campaign.resultMeasured}%. ${evaluation.met ? 'The mission boundary repeated; inspect the comparability audit before claiming robustness.' : 'The mission boundary did not repeat; return to design or acquire mechanism evidence.'}`, metric: `${Math.abs(Number(campaign.resultMeasured) - Number(campaign.confirmationSource.measured)).toFixed(1)} pp spread`, tone: 'ready' }
+        ? { body: `The unchanged recipe moved from ${campaignShareLabel(campaign.confirmationSource.measured)} to ${campaignShareLabel(campaign.resultMeasured)}. ${evaluation.met ? 'The mission boundary repeated; inspect the comparability audit before claiming robustness.' : 'The mission boundary did not repeat; return to design or acquire mechanism evidence.'}`, metric: `${Math.abs(Number(campaign.resultMeasured) - Number(campaign.confirmationSource.measured)).toFixed(1)} pp spread`, tone: 'ready' }
         : { body: `${evaluation.resultText};${evaluation.constraintText}. The qualified result remains useful evidence.`, metric: evaluation.gap, tone: 'ready' },
       8: { body: 'Measure four preplanned, separated locations and one matching EDS map before suggesting a mechanism.', metric: '0 / 4 locations', tone: 'run' },
-      9: { body: `${spec.id === 'D-08' ? 'Ti-rich cores' : 'Ca-rich secondary grains'} are retained as a follow-up hypothesis, not treated as bulk proof.`, metric: '4 / 4 fields', tone: 'ready' },
+      9: { body: finding.kind === 'none' ? 'No secondary grains were resolved in four fields. That is not proof of a single-phase batch.' : `${finding.label} are retained as a follow-up hypothesis, not treated as bulk proof.`, metric: '4 / 4 fields', tone: 'ready' },
     } as const;
     const state = campaignStates[campaign.stage as keyof typeof campaignStates] ?? campaignStates[7];
     return <section className={`rail-section alert-card tone-${state.tone}`}><div className="metric-row"><span>Current state</span><strong>{state.metric}</strong></div><p>{state.body}</p><button className="primary-action" type="button" onClick={onCampaign}>OPEN CAMPAIGN CONTROL<span>→</span></button></section>;

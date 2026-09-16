@@ -1,3 +1,5 @@
+import { campaignComposition, campaignPhaseReportable, campaignSecondaryPhase, campaignTargetShare, type CampaignSecondaryPhase } from './xrd/campaign.ts';
+
 export type CampaignCandidateId = 'C-42' | 'Z-17' | 'D-08' | 'A-29' | 'R-31' | `U-${string}`;
 export type CampaignMissionId = 'purity' | 'low-energy' | 'throughput';
 
@@ -75,7 +77,7 @@ export function evaluateCampaignMission(spec: CampaignSpec, missionId: CampaignM
       met: phasePass && temperaturePass,
       gap: !phasePass ? `−${(94.5 - measured).toFixed(1)} pp` : !temperaturePass ? `+${temperature - 950} °C` : 'WINDOW PASS',
       targetText: 'Phase ≥ 94.5% · calcine ≤ 950 °C',
-      resultText: `${measured.toFixed(1)}% · ${temperature} °C`,
+      resultText: `${campaignShareLabel(measured.toFixed(1))} · ${temperature} °C`,
       constraintText: !phasePass ? 'phase floor missed' : !temperaturePass ? 'temperature ceiling exceeded' : 'energy window achieved',
     };
   }
@@ -87,7 +89,7 @@ export function evaluateCampaignMission(spec: CampaignSpec, missionId: CampaignM
       met: phasePass && durationPass,
       gap: !phasePass ? `−${(95.5 - measured).toFixed(1)} pp` : !durationPass ? `+${cycleMinutes - 420} min` : 'RATE PASS',
       targetText: 'Phase ≥ 95.5% · release-to-result ≤ 420 min',
-      resultText: `${measured.toFixed(1)}% · ${cycleMinutes} min cycle`,
+      resultText: `${campaignShareLabel(measured.toFixed(1))} · ${cycleMinutes} min cycle`,
       constraintText: !phasePass ? 'phase floor missed' : !durationPass ? 'cycle-time window exceeded' : 'throughput window achieved',
     };
   }
@@ -96,7 +98,7 @@ export function evaluateCampaignMission(spec: CampaignSpec, missionId: CampaignM
     met: gap >= 0,
     gap: `${gap >= 0 ? '+' : '−'}${Math.abs(gap).toFixed(1)} pp`,
     targetText: 'Target phase ≥ 96.0%',
-    resultText: `${measured.toFixed(1)}% target phase`,
+    resultText: `${campaignShareLabel(measured.toFixed(1))} target phase`,
     constraintText: gap >= 0 ? 'purity objective achieved' : 'purity objective missed',
   };
 }
@@ -130,37 +132,83 @@ export function forecastCampaignMission(spec: CampaignSpec, missionId: CampaignM
   return { tone: 'risk', status: 'PHASE RISK', detail: `${(phaseFloor - prediction).toFixed(1)} pp below predicted floor` };
 }
 
-export const campaignSpecs: CampaignSpec[] = [
+/**
+ * Highest target-phase share a campaign result reports, in percent: 100 minus the 0.5 wt% floor below which a leftover phase is
+ * not reportable, so a batch with no resolved secondary phase reads as at least 99.5%, never as a proven 100%.
+ */
+export const CAMPAIGN_SHARE_CEILING = 99.5;
+
+/** A reported share for display: '≥99.5%' at the reporting ceiling, otherwise the share with a percent sign. */
+export function campaignShareLabel(measured: string) {
+  return Number.parseFloat(measured) >= CAMPAIGN_SHARE_CEILING ? `≥${CAMPAIGN_SHARE_CEILING.toFixed(1)}%` : `${measured}%`;
+}
+
+/** A candidate before it is made: recipe, process, and the authored forecast (prediction and uncertainty). */
+type CampaignRecipe = Omit<CampaignSpec, 'measured' | 'gap' | 'objectiveMet'>;
+
+/**
+ * Adds the batch result. `measured` is the target-phase share from the shared synthesis model that also draws the campaign
+ * trace (app/xrd/campaign.ts), capped at the reporting ceiling, so every verdict read from it agrees with that trace.
+ * `gap` and `objectiveMet` are against the purity floor.
+ */
+function withModelResult(recipe: CampaignRecipe): CampaignSpec {
+  const measured = Math.min(campaignTargetShare(recipe), CAMPAIGN_SHARE_CEILING);
+  const gap = measured - 96;
+  return { ...recipe, measured: measured.toFixed(1), gap: `${gap >= 0 ? '+' : '−'}${Math.abs(gap).toFixed(1)} pp`, objectiveMet: gap >= 0 };
+}
+
+const authoredRecipes: CampaignRecipe[] = [
   {
     id: 'C-42', name: 'Ca-rich edge', formula: 'CaTiO₃ + 8.3 mol% Ca excess', precursorLabel: 'Ca + Ti precursor lots', targetMass: '24.00 g',
-    temperature: '980 °C', temperatureShort: '980 °C', dwell: '4.0 h', prediction: '96.4%', uncertainty: '±1.9%',
-    profile: 'C42-980-4H', measured: '95.8', gap: '−0.2 pp', objectiveMet: false, insightReward: 46, thermalMinutes: 360, throughput: '0.17 runs / h', point: [196, 70],
+    temperature: '1,100 °C', temperatureShort: '1100 °C', dwell: '3.5 h', prediction: '96.4%', uncertainty: '±1.9%',
+    profile: 'C42-1100-3H30', insightReward: 46, thermalMinutes: 330, throughput: '0.18 runs / h', point: [140, 48],
   },
   {
     id: 'Z-17', name: 'Zr-doped', formula: 'CaTi₀.₉₆Zr₀.₀₄O₃', precursorLabel: 'Ca + Ti + Zr precursor lots', targetMass: '22.50 g',
     temperature: '1,020 °C', temperatureShort: '1020 °C', dwell: '3.5 h', prediction: '97.1%', uncertainty: '±2.6%',
-    profile: 'Z17-1020-3H30', measured: '96.7', gap: '+0.7 pp', objectiveMet: true, insightReward: 58, thermalMinutes: 330, throughput: '0.18 runs / h', point: [230, 91],
+    profile: 'Z17-1020-3H30', insightReward: 58, thermalMinutes: 330, throughput: '0.18 runs / h', point: [230, 91],
   },
   {
     id: 'D-08', name: 'Low-energy', formula: 'CaTiO₃', precursorLabel: 'stoichiometric Ca + Ti lots', targetMass: '24.00 g',
-    temperature: '900 °C', temperatureShort: '900 °C', dwell: '6.0 h', prediction: '94.8%', uncertainty: '±1.2%',
-    profile: 'D08-900-6H', measured: '95.1', gap: '−0.9 pp', objectiveMet: false, insightReward: 38, thermalMinutes: 480, throughput: '0.13 runs / h', point: [166, 112],
+    temperature: '900 °C', temperatureShort: '900 °C', dwell: '2.5 h', prediction: '94.8%', uncertainty: '±1.2%',
+    profile: 'D08-900-2H30', insightReward: 38, thermalMinutes: 270, throughput: '0.22 runs / h', point: [166, 124],
   },
   {
     id: 'A-29', name: 'Model-learned', formula: 'CaTi₀.₉₈Zr₀.₀₂O₃', precursorLabel: 'Ca + Ti + Zr adaptive lots', targetMass: '24.00 g',
-    temperature: '1,000 °C', temperatureShort: '1000 °C', dwell: '3.75 h', prediction: '97.4%', uncertainty: '±0.9%',
-    profile: 'A29-1000-3H45', measured: '97.0', gap: '+1.0 pp', objectiveMet: true, insightReward: 65, thermalMinutes: 345, throughput: '0.17 runs / h', point: [212, 82],
+    temperature: '1,000 °C', temperatureShort: '1000 °C', dwell: '3.75 h', prediction: '98.4%', uncertainty: '±0.9%',
+    profile: 'A29-1000-3H45', insightReward: 65, thermalMinutes: 345, throughput: '0.17 runs / h', point: [212, 82],
   },
   {
     id: 'R-31', name: 'Conversion recovery', formula: 'CaTiO₃', precursorLabel: 'stoichiometric Ca + Ti recovery lots', targetMass: '24.00 g',
-    temperature: '990 °C', temperatureShort: '990 °C', dwell: '4.0 h', prediction: '96.6%', uncertainty: '±0.8%',
-    profile: 'R31-990-4H', measured: '96.2', gap: '+0.2 pp', objectiveMet: true, insightReward: 70, thermalMinutes: 360, throughput: '0.17 runs / h', point: [174, 78],
+    temperature: '990 °C', temperatureShort: '990 °C', dwell: '4.0 h', prediction: '98.6%', uncertainty: '±0.8%',
+    profile: 'R31-990-4H', insightReward: 70, thermalMinutes: 360, throughput: '0.17 runs / h', point: [174, 78],
   },
 ];
+
+export const campaignSpecs: CampaignSpec[] = authoredRecipes.map(withModelResult);
 
 export function getCampaignSpec(id?: string) {
   if (id?.startsWith('U-')) return parseCustomCampaignSpec(id);
   return campaignSpecs.find((candidate) => candidate.id === id) ?? campaignSpecs[0];
+}
+
+export type CampaignFinding = { readonly kind: CampaignSecondaryPhase; readonly label: string; readonly hypothesis: string };
+
+/**
+ * What the SEM / EDS follow-up finds: the leftover phase that dominates the model batch, or none above the reportable floor.
+ * The hypothesis reads the batch chemistry too: leftover titania in a Ca-deficient batch points to the weighing, not to conversion.
+ */
+export function getCampaignFinding(spec: CampaignSpec): CampaignFinding {
+  const kind = campaignSecondaryPhase(spec);
+  const { caExcess } = campaignComposition(spec);
+  if (kind === 'titania') return { kind, label: 'Ti-rich cores', hypothesis: `Ti-rich cores support ${caExcess < 0 ? 'a Ca-deficient batch' : 'incomplete conversion'} as the follow-up hypothesis.` };
+  if (kind === 'calcium') {
+    // Ca₄Ti₃O₁₀ takes up excess Ca only at a hot setpoint, and then only part of it (most stays as lime), so a reportable amount ties part of the excess to the firing.
+    const reacted = caExcess > 0 && campaignPhaseReportable(spec, ['ca4ti3o10']);
+    return { kind, label: 'Ca-rich secondary grains', hypothesis: `Ca-rich secondary grains support ${reacted ? 'precursor excess, part of which reacted into Ca₄Ti₃O₁₀ at the hot setpoint' : caExcess > 0 ? 'precursor excess' : 'incomplete conversion'} as the follow-up hypothesis.` };
+  }
+  if (kind === 'zirconia') return { kind, label: 'Zr-rich grains', hypothesis: 'Zr-rich grains support undissolved zirconia as the follow-up hypothesis.' };
+  return { kind, label: 'No secondary grains resolved', hypothesis: 'No secondary grains were resolved. That is not proof of a single-phase batch.' };
 }
 
 export const customCompositionOptions = {
@@ -182,9 +230,12 @@ export function getAuthoredCampaignFollowUp(spec: CampaignSpec, missionId: Campa
   };
   const composition: CustomComposition = { ...spec.composition };
   const measured = Number.parseFloat(spec.measured);
-  if (diagnosis?.includes('Ca-rich') && composition.caExcess > customCompositionOptions.caExcess[0]) {
+  // A secondary phase from off-stoichiometric weighing moves Ca toward stoichiometry; one from an on-stoichiometry batch extends the dwell.
+  if (diagnosis?.includes('Ca-rich') && composition.caExcess > 0) {
     composition.caExcess = step(customCompositionOptions.caExcess, composition.caExcess, -1);
-  } else if (diagnosis?.includes('Ti-rich') && composition.dwell < customCompositionOptions.dwell.at(-1)!) {
+  } else if (diagnosis?.includes('Ti-rich') && composition.caExcess < 0) {
+    composition.caExcess = step(customCompositionOptions.caExcess, composition.caExcess, 1);
+  } else if ((diagnosis?.includes('Ti-rich') || diagnosis?.includes('Ca-rich')) && composition.dwell < customCompositionOptions.dwell.at(-1)!) {
     composition.dwell = step(customCompositionOptions.dwell, composition.dwell, 1);
   } else if (missionId === 'throughput') {
     if (measured >= 95.5 && composition.dwell > customCompositionOptions.dwell[0]) composition.dwell = step(customCompositionOptions.dwell, composition.dwell, -1);
@@ -199,9 +250,37 @@ export function getAuthoredCampaignFollowUp(spec: CampaignSpec, missionId: Campa
   return followUp.id === spec.id ? null : followUp;
 }
 
+/**
+ * A replicate's reported share: the model share plus a small fixed scatter, at most 0.2 pp, standing in for batch-to-batch variation,
+ * kept between 0 and the reporting ceiling.
+ */
 export function getCampaignObservedPhase(spec: CampaignSpec, priorReplicateCount = 0) {
   const replicateVariation = [0, -0.2, 0.1, -0.1][Math.max(0, priorReplicateCount) % 4] ?? 0;
-  return Math.max(89.5, Math.min(99.1, Number.parseFloat(spec.measured) + replicateVariation)).toFixed(1);
+  return Math.max(0, Math.min(CAMPAIGN_SHARE_CEILING, Number.parseFloat(spec.measured) + replicateVariation)).toFixed(1);
+}
+
+/**
+ * A saved campaign history recomputed from the current model, so saves made under older firings, forecasts, or reporting rules read
+ * like new results. Each result's share is its candidate's replicate share (counting earlier results for that candidate), its gap and
+ * verdict are re-evaluated for its mission and retained cycle, and a recorded SEM finding is re-derived. Other fields are kept, and
+ * items that are not results of a known candidate pass through unchanged.
+ */
+export function recomputeCampaignHistory<T>(history: readonly T[]): T[] {
+  const replicates = new Map<string, number>();
+  return history.map((item) => {
+    if (!item || typeof item !== 'object') return item;
+    const result = item as { candidate?: unknown; missionId?: unknown; elapsed?: unknown; diagnosis?: unknown };
+    if (typeof result.candidate !== 'string') return item;
+    const spec = getCampaignSpec(result.candidate);
+    if (spec.id !== result.candidate) return item;
+    const priorReplicateCount = replicates.get(spec.id) ?? 0;
+    replicates.set(spec.id, priorReplicateCount + 1);
+    const measured = getCampaignObservedPhase(spec, priorReplicateCount);
+    const missionId: CampaignMissionId = result.missionId === 'low-energy' || result.missionId === 'throughput' ? result.missionId : 'purity';
+    const elapsed = Number(result.elapsed);
+    const evaluation = evaluateCampaignMission({ ...spec, measured }, missionId, Number.isFinite(elapsed) ? elapsed : undefined);
+    return { ...item, measured, gap: evaluation.gap, objectiveMet: evaluation.met, ...(result.diagnosis === undefined ? {} : { diagnosis: getCampaignFinding(spec).label }) };
+  });
 }
 
 function customFormula({ caExcess, zrDopant }: CustomComposition) {
@@ -224,16 +303,15 @@ export function buildCustomCampaignSpec(input: CustomComposition): CampaignSpec 
     dwell: customCompositionOptions.dwell[dwellIndex],
   };
   const id: CampaignCandidateId = `U-${caIndex}${zrIndex}${temperatureIndex}${dwellIndex}`;
-  const temperatureScore = -Math.abs(composition.temperature - 1000) * 0.024;
-  const caScore = 1.15 - Math.abs(composition.caExcess - 4) * 0.19;
+  // A heuristic forecast, not a fit to the model. Only setpoints below 1000 °C are penalized, since hotter firings convert fully.
+  const temperatureScore = -Math.max(0, 1000 - composition.temperature) * 0.024;
+  // Stoichiometric Ca scores best; a mol% of deficit leaves heavier rutile than a mol% of excess leaves lime, so it costs more.
+  const caScore = 1.15 - Math.abs(composition.caExcess) * (composition.caExcess > 0 ? 0.16 : 0.24);
   const zrScore = composition.zrDopant * 0.3;
   const dwellScore = (composition.dwell - 2.5) * 0.32;
-  const predictionValue = Math.max(90.2, Math.min(98.4, 93.8 + temperatureScore + caScore + zrScore + dwellScore));
-  const deterministicOffset = [-0.7, 0.2, -0.3, 0.6][(caIndex + zrIndex * 2 + temperatureIndex * 3 + dwellIndex) % 4];
-  const measuredValue = Math.max(89.5, Math.min(99.1, predictionValue + deterministicOffset));
-  const objectiveGap = measuredValue - 96;
+  const predictionValue = Math.max(90.2, Math.min(99, 95.3 + temperatureScore + caScore + zrScore + dwellScore));
   const thermalMinutes = Math.round(composition.dwell * 60 + 120);
-  return {
+  return withModelResult({
     id,
     name: `${composition.zrDopant}% Zr · ${composition.caExcess >= 0 ? '+' : ''}${composition.caExcess}% Ca`,
     formula: customFormula(composition),
@@ -243,17 +321,14 @@ export function buildCustomCampaignSpec(input: CustomComposition): CampaignSpec 
     temperatureShort: `${composition.temperature} °C`,
     dwell: `${composition.dwell.toFixed(1)} h`,
     prediction: `${predictionValue.toFixed(1)}%`,
-    uncertainty: '±2.1%',
+    uncertainty: '±2.4%',
     profile: `USR-${composition.temperature}-${Math.round(composition.dwell * 60)}M`,
-    measured: measuredValue.toFixed(1),
-    gap: `${objectiveGap >= 0 ? '+' : '−'}${Math.abs(objectiveGap).toFixed(1)} pp`,
-    objectiveMet: objectiveGap >= 0,
     insightReward: 54 + zrIndex * 3,
     thermalMinutes,
     throughput: `${(60 / thermalMinutes).toFixed(2)} runs / h`,
-    point: [150 + composition.zrDopant * 18 + composition.caExcess * 2.5, 132 - (composition.temperature - 900) * 0.27 - composition.dwell * 3],
+    point: [150 + composition.zrDopant * 18 - composition.caExcess * 2.5, 132 - (composition.temperature - 900) * 0.27 - composition.dwell * 3],
     composition,
-  };
+  });
 }
 
 function parseCustomCampaignSpec(id: string) {

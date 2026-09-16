@@ -25,6 +25,70 @@ The labels **LIMS**, **LES**, **MES**, and **SCADA** are simplified workstation 
 
 The simulated traces, values, tolerances, and failure cases are illustrative. They are not validated analytical methods or operating limits.
 
+## XRD model
+
+The XRD bench in `app/xrd/` generates each pattern from hidden sample state and analyses it from counts alone. Numbers below are the values the code defines.
+
+### Reference structures
+
+`scripts/build-references.ts` (`pnpm references`) reads the CIFs in `data/crystal-structures/` and writes `app/xrd/references.generated.ts`: reflections to 120° 2θ at Cu Kα1, cell contents, and each structure's literature citation. The build checks calculated reflections against the Pnma, Pbca, and Cmcm reflection conditions. Where a CIF gives no displacement parameter, or gives zero, the build assumes B = 0.5 Å² (1.5 Å² for H) and records the assumption.
+
+| Phase | Source | Build notes |
+| --- | --- | --- |
+| CaTiO₃, Pnma | COD 1567488 | Converted from Pbnm to Pnma (a′ = b, b′ = c, c′ = a). |
+| Rutile TiO₂, P4₂/mnm | COD 9004141 | |
+| Anatase TiO₂, I4₁/amd | COD 9015929 | The CIF's anisotropic columns are mislabelled; B recomputed from the reordered diagonal: Ti 0.458 Å², O 0.568 Å². |
+| CaO, Fm-3m | COD 9006694 | B assumed. |
+| Ca(OH)₂, P-3m1 | COD 1008781 | |
+| CaCO₃, R-3c | COD 1547350 | |
+| Al₂O₃, R-3c | COD 1000032 | |
+| Si, Fd-3m | COD 9011998 | Cell set to the NIST SRM 640f certified value a = 5.431144 Å at 22.5 °C. B = 0.469 Å² from C. Flensburg and R. F. Stewart, Phys. Rev. B 60 (1999) 284, [doi:10.1103/PhysRevB.60.284](https://doi.org/10.1103/PhysRevB.60.284). |
+| ZrO₂, P2₁/c | COD 2108450 | |
+| CaZrO₃, Pnma | COD 1532747 | Converted from Pcmn to Pnma (a′ = c, c′ = a). B assumed (reported as zero). |
+| BaTiO₃, P4mm | COD 2100858 | The CIF lists no symmetry operations; the build script supplies P4mm. B assumed. |
+| BaCO₃, Pnma | COD 9010928 | Converted from Pmcn to Pnma (a′ = c, b′ = a, c′ = b). |
+| CaTi₂O₄, Cmcm | COD 1008077 | Converted from Bbmm to Cmcm (a′ = c, b′ = a, c′ = b). Early structure determination with R = 0.16. B assumed. |
+| Ca₄Ti₃O₁₀, Pbca | Materials Project mp-15315, computed coordinates, CC BY 4.0 | DFT-relaxed coordinates in the experimental cell of Elcombe et al. (1991), Acta Cryst. B47, 305 (Pcab, a and b exchanged to Pbca). B assumed. Used only to generate samples. |
+
+### Forward model
+
+`synthesis.ts` turns a hidden synthesis history into phases. `measure.ts`, `profile.ts`, and `pattern.ts` turn phases, mount, and program into Poisson counts that name no phase.
+
+- **Synthesis:** CaCO₃ + TiO₂ (+ ZrO₂) calcined in air, then stored. Subsolidus CaO–TiO₂ fields set the end state: Ca/Ti < 1 gives CaTiO₃ + TiO₂; 1 < Ca/Ti ≤ 4/3 gives CaTiO₃ + Ca₄Ti₃O₁₀. Rate constants are illustrative first-order game constants, not fitted kinetics. They follow trends: hotter, longer, reground, and finer-TiO₂ batches react further; coarse ZrO₂ dissolves slowly; Ca₄Ti₃O₁₀ needs higher temperatures than perovskite; free CaO hydrates, then carbonates, in humid storage; zirconia milling media add ZrO₂. Dissolved Zr expands the CaTiO₃ cell by 0.0005 per mol%.
+- **Radiation:** Cu Kα1, λ = 1.5405929 Å (G. Hölzer et al., Phys. Rev. A 56 (1997) 4554, as used by the SRM 640f certificate), with Kα2 at 1.544426 Å (weight 0.5) and Kβ at 1.39225 Å (weight 0.01) through a Ni filter.
+- **Intensity:** λ³/(32πV²ρ) · M|F|²·LP · w/μ* (Klug & Alexander, 1974), with LP = (1 + cos²2θ)/(sin²θ cosθ). March–Dollase preferred orientation applies to portlandite (001), calcite (104), and Ca₄Ti₃O₁₀ (001), less on back-loaded mounts.
+- **Profile:** Thompson–Cox–Hastings pseudo-Voigt (J. Appl. Cryst. 20 (1987) 79). Gaussian width from Caglioti terms (G. Caglioti et al., 1958; U 0.004, V −0.002, W 0.002) and microstrain (4ε tanθ); Lorentzian width from X/cosθ (X 0.02) and Scherrer size (K = 0.9). A split profile widens the low-angle side below 90° 2θ. Each bin integrates the profile, so narrow peaks keep their area at any step.
+- **Mount:** grinding scales grain size by 1.6 (as received), 0.7 (hand), or 0.3 (extended), with a 0.8 µm floor. Extended grinding of grains ≤ 4 µm shrinks crystallites (×0.6, 25 nm floor), adds 0.0006 microstrain, and adds amorphous surface (0.03 of the damaged share). Specimen displacement s is drawn per mount (SD 0.04 mm front-loaded, 0.02 mm back-loaded) and moves peaks by −2s cosθ/R with R = 240 mm. The instrument zero is drawn once per shift (SD 0.012°, clamped to ±0.03°).
+- **Grain statistics:** each reflection gets a lognormal intensity factor with mean 1 and coefficient of variation min(0.6, 0.02 (grain size/10 µm)^1.5/√N), where N = (multiplicity/8) × weight fraction, ×4 when spinning. The factors stay fixed until a remount.
+- **Internal standard:** a silicon (600 nm crystallites) or corundum (300 nm) spike at fraction 0.1, with no preferred orientation.
+- **Background:** Compton and thermal diffuse scattering from each phase, an amorphous hump centred at 30° 2θ, air scatter decaying from 5° 2θ, and a fluorescence term scaled by Ti mass fraction plus a holder floor. Only the flux (3.2 × 10⁷), air scatter, and fluorescence constants are calibrated; the flux is set so a hand-ground CaTiO₃ survey peaks near 4000 counts.
+- **Counting:** a 2.5° strip detector gives exposure = minutes × 2.5/(span + 2.5). Counts are Poisson draws (Knuth below mean 10, PTRS above; W. Hörmann, 1993) from an sfc32 generator seeded via splitmix32. A rescan redraws counting noise only.
+- **Programs:** survey 10–80° at 0.02° for 6 min; standard 10–80° at 0.01° for 30 min; slow 10–80° at 0.01° for 120 min; wide 5–100° at 0.02° for 12 min; targeted ±1.5° around a chosen angle at 0.01° for 15 min. Each scan adds 2 min of handling.
+
+### Analysis
+
+`analysis.ts` reads the counts, recorded mount facts, and the candidates the player chose, never the specimen.
+
+- **Linear fit:** Lawson–Hanson NNLS for non-negative phase scales on bin-integrated reference patterns, with an unconstrained background of five Chebyshev terms and two low-angle terms (a straight line for spans under 8°). Optional broad humps at 22, 30, and 38° 2θ take up diffuse scatter and are never reported as phases. Weights are 1/(N + 1), then 1/max(model, 1).
+- **Nonlinear fit:** coarse scans over displacement (±0.45 mm) and lattice scale (0.994–1.006), then Levenberg–Marquardt within bounds: displacement ±0.6 mm, zero ±0.2° (fixed when a standard check measured it), lattice scale 0.99–1.01 (the spike cell stays fixed), crystallite size 20–3000 nm, microstrain 0–0.004.
+- **Phase status:** ΔBIC = Δχ²/max(1, χ²ν) − 3 ln N_eff. Unique Kα1 lines (at least 1% of the phase's strongest line, other phases at most 0.2 of it) are tested against Currie limits (L. A. Currie, Anal. Chem. 40 (1968) 586): L_C = 1.645√B, L_D = 2.71 + 3.29√B. Above ΔBIC 10 a phase is required when a line is detected (predicted and net counts above L_C), otherwise overlapped. A zero scale is not detected; anything else is not required. A line predicted above L_D but observed below L_C is missing. Candidates whose weighted patterns have cosine > 0.95 are indistinguishable.
+- **Residual:** the plot shows z = (obs − calc)/√max(calc, 1) per bin. Features are scanned in windows about one FWHM wide (at least 3 bins, half overlapping) with z = Σ(obs − calc)/√Σmax(calc, 1). Z_THRESHOLD = 4 flags a window, as do two halves that both reach |z| 4 with opposite signs.
+- **Features:** position (|z| ≥ 3 on both sides of the modelled maximum, opposite signs); unexplained (excess at least the modelled peak); intensity (|excess| ≥ 0.15 of the modelled peak, reported as the grains limit); broad (2° windows outside narrow features, z divided by √max(1, χ²ν), |z| ≥ 6).
+- **Limits:** counts when the strongest peak above the fitted background is under 3000 counts, an illustrative identification threshold used by the sim; sampling when points per FWHM (mid-range FWHM/step) fall below 3; missing lines when a phase misses 2 or more; overlap for overlapped or indistinguishable phases. Without an internal standard the fit also carries a shift-correlated warning.
+- **ROBUST_Z = 5:** the code notes that counting noise reaches z 4 about once in twenty scans and almost never z 5. A call that leaves unexplained features unflagged is graded poor on support when one reaches z 5, mixed otherwise.
+- **Comparison:** delta = Δdeviance/max(1, min χ²ν) + Δparameters × ln N_eff, from the Poisson deviance. B is much worse above 100, worse above 10, better below −10, much better below −100, and similar otherwise. Fit statistics serve comparison only and are never shown as confidence.
+
+### Heuristic boundaries
+
+- There is no Rietveld structure refinement. Atomic positions, occupancies, and displacement parameters stay at the reference values; only lattice scale, crystallite size, microstrain, displacement, and zero are refined.
+- Weight fractions are indicative. `normalizedWeightFractions` (Hill & Howard, J. Appl. Cryst. 20 (1987) 467) is valid only when every crystalline phase is identified and nothing is amorphous; it validates the engine and is never shown to players. The debrief shows true phases only as major (> 0.2), minor (≥ 0.02), or trace (≥ 0.001) by weight fraction.
+- The search library covers the 13 catalogued COD phases only, limited to phases whose heavy elements are on record or confirmed unless the player broadens the search.
+- Ca₄Ti₃O₁₀ has a computed structure but no library entry, so no fit can claim it. Its peaks stay unexplained, and a call can hold for a missing reference.
+- Synthesis rate constants, bench minutes, powder amounts, instrument slots, and the 480-minute shift are illustrative game values.
+- The expert campaign reads each batch's target-phase share (CaTiO₃ weight over all phases) and its SEM/EDS finding from the synthesis model that draws its trace. A share reports at most 99.5% (shown as ≥99.5%): 100 minus the 0.5 wt% floor for a reportable leftover phase. The forecasts and uncertainties shown before a run are authored, illustrative values; each authored forecast brackets its batch's reported share within two uncertainties. Composed candidates get a simple heuristic forecast, not a fit to the model, that brackets at least 90% of the composition grid within two uncertainties. Saved campaign histories are recomputed from the current model when they load. Repeat runs add a fixed scatter of at most 0.2 percentage points in place of batch-to-batch variation.
+- TGA is a qualitative model. It reports mass-loss steps, never phases, in fixed windows (adsorbed water 40–160 °C, portlandite 390–480 °C, calcite 650–800 °C, or 600–730 °C for crystallites under 50 nm), with temperatures jittered in 5 °C steps, 0.03% loss noise, and a 0.1% detection limit.
+- SEM/EDS is a qualitative model. It reports elements as major (≥ 10 wt%), minor (≥ 1 wt%), or trace (≥ 0.3 wt%) after about 25% lognormal scatter, plus 8 particle spots, carbon from tape, an Al stub signal with probability 0.35, and Ba unresolved under Ti when Ti ≥ 1 wt% and Ba < 10 wt%. It returns no images or quantities.
+
 ## Autonomous-laboratory precedent
 
 The primary precedent is Szymanski et al., [“An autonomous laboratory for the accelerated synthesis of inorganic materials”](https://doi.org/10.1038/s41586-023-06734-w), *Nature* 624, 86–91 (2023).
