@@ -2760,3 +2760,30 @@ The bench runs instantly, yet it printed simulated minutes everywhere: "472 MIN 
 - On a phone the shift bar previews a cost only while a finger is down. The dot carries the size before then.
 - Costs are still illustrative, not instrument timings.
 - Other audit suggestions were not taken this round: dock subtitles, the M1 · QUEUE mount tag, the probe's z value, and words such as BASIS and RECALCINE.
+
+## Critique 149: the lab still carried cases the XRD focus had left behind
+
+The page still carried earlier rounds of work: a scenario deck with BET, furnace, TGA and facility cases, an expert campaign sandbox, and an evidence log drawer. None of it fed the XRD bench, and each one added a control a newcomer had to read past.
+
+### Changes made
+
+- The scenario deck, the campaign sandbox and the evidence log are gone, along with their modules and the campaign test. The top bar shows only the brand.
+- The left rail names one mission, Explore the XRD, with its three steps. The right rail keeps OPEN XRD LAB and the station inspector with OPERATE MACHINE.
+- All seven machines stay in the 3D lab as scenery. Walk, tour, focus, the review cameras and the hotspots work as they did in the XRD case.
+- The machine console keeps the operating steps for each station. The BET, TGA and campaign panels are gone, and console profiles keep only each station's controller label.
+- The robot cell drops the dose, recovery and transfer motion only the removed cases reached. The furnace drops its empty-cell state.
+- Lab events carry only opening a console, returning to the lab and control actions.
+- Styles used only by the removed pieces are gone from `app/globals.css`. The bench stylesheet is untouched.
+- README and RESEARCH no longer describe the removed cases.
+
+### Defaults chosen
+
+- The selected station starts at XRD-03.
+- BET-02 and TGA-01 open as ready, with plain status lines.
+- Scenery the removed cases and the campaign used to drive shows one fixed state: an empty backlog rack, a parked pallet jack, an idle gas bay, no quarantine stand, a single-chamber furnace and the sample route from PREP-01 to XRD-03.
+- The robot arm rests in its idle pose. The furnace console asks for the relay, door and occupancy checks.
+
+### Known gaps
+
+- Some older styles for panels no page renders were already unused before this round. They were left alone.
+- Station records still carry `meta` and `dataProducts` fields that nothing shows.

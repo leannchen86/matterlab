@@ -12,8 +12,6 @@ MatterLab is a fictional educational simulation. It is not a representation of a
 - work execution, identity, maintenance, and result records; and
 - downstream experiment planning.
 
-The labels **LIMS**, **LES**, **MES**, and **SCADA** are simplified workstation concepts in the simulation. They do not claim exact ISA-95 placement, interoperability, or fidelity to a specific commercial system.
-
 ## Characterization methods
 
 | Method | What MatterLab emphasizes | Research basis |
@@ -88,7 +86,6 @@ The XRD bench in `app/xrd/` generates each pattern from hidden sample state and 
 - The search library covers the 13 catalogued COD phases only, limited to phases whose heavy elements are on record or confirmed unless the player broadens the search.
 - Ca₄Ti₃O₁₀ has a computed structure but no library entry, so no fit can claim it. Its peaks stay unexplained, and a call can hold for a missing reference.
 - Synthesis rate constants, bench minutes, powder amounts, instrument slots, and the 480-minute shift are illustrative game values.
-- The expert campaign reads each batch's target-phase share (CaTiO₃ weight over all phases) and its SEM/EDS finding from the synthesis model that draws its trace. A share reports at most 99.5% (shown as ≥99.5%): 100 minus the 0.5 wt% floor for a reportable leftover phase. The forecasts and uncertainties shown before a run are authored, illustrative values; each authored forecast brackets its batch's reported share within two uncertainties. Composed candidates get a simple heuristic forecast, not a fit to the model, that brackets at least 90% of the composition grid within two uncertainties. Saved campaign histories are recomputed from the current model when they load. Repeat runs add a fixed scatter of at most 0.2 percentage points in place of batch-to-batch variation.
 - TGA is a qualitative model. It reports mass-loss steps, never phases, in fixed windows (adsorbed water 40–160 °C, portlandite 390–480 °C, calcite 650–800 °C, or 600–730 °C for crystallites under 50 nm), with temperatures jittered in 5 °C steps, 0.03% loss noise, and a 0.1% detection limit.
 - SEM/EDS is a qualitative model. It reports elements as major (≥ 10 wt%), minor (≥ 1 wt%), or trace (≥ 0.3 wt%) after about 25% lognormal scatter, plus 8 particle spots, carbon from tape, an Al stub signal with probability 0.35, and Ba unresolved under Ti when Ti ≥ 1 wt% and Ba < 10 wt%. It returns no images or quantities.
 

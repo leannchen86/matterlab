@@ -6,18 +6,6 @@ MatterLab is an interactive virtual materials laboratory for practicing experime
 
 The simulation places the player inside a high-throughput laboratory where restoring equipment is only part of the job. Measurements must also remain linked to physical inspections, sample identity, process history, reference controls, and the decisions that make a result usable or deliberately exclude it.
 
-## Scenarios
-
-MatterLab includes five playable cases:
-
-- **Unexpected XRD peak:** restore XRD control, reconcile sample identity, and decide whether SEM/EDS follow-up is justified.
-- **BET recommissioning:** accept an analyzer after service, verify pretreatment lineage, and investigate a low control result.
-- **Interrupted furnace run:** preserve the thermal trace, reconcile robot and furnace occupancy, and recover the workcell safely.
-- **Failed TGA empty-pan check:** correct the pan setup, run a governed blank, and separate purge behavior from a material signal.
-- **Gas-service changeover:** move material with traceability, prove the new gas boundary, and quarantine results collected before verification.
-
-An optional expert sandbox extends the XRD case into a multi-run materials campaign with candidate selection, constrained equipment capacity, retained results, and microscopy-informed follow-up. Each batch's phase share and microscopy finding come from the bench's synthesis model. Only the forecasts shown before a run are authored.
-
 ## What you can do
 
 - Explore a browser-rendered 3D laboratory containing powder preparation, robotics, furnace, XRD, SEM/EDS, BET, and TGA equipment.
@@ -25,15 +13,14 @@ An optional expert sandbox extends the XRD case into a multi-run materials campa
 - Enter a technician-scale aisle view with keyboard or on-screen movement controls.
 - Replay a cinematic facility tour from the camera controls.
 - Inspect three physical points on each machine before entering its local controls.
-- Complete equipment-specific HMI sequences without erasing independent quality or service holds.
-- Follow sample custody, maintenance evidence, alarms, reference checks, and process history.
-- Review a chronological evidence log that retains actions, exceptions, and final decisions.
+- Complete equipment-specific HMI sequences without erasing independent quality holds.
+- Follow sample custody and reference checks at each machine's inspection points and console readouts.
 
-All equipment geometry, plots, spectra, micrographs, and material routes are generated in the application; the simulation does not depend on external image assets during play.
+All equipment geometry, plots, and material routes are generated in the application; the simulation does not depend on external image assets during play.
 
 ## XRD bench
 
-The XRD bench opens from the XRD scenario. One 480-minute shift covers seven CaTiO₃ batches. For each sample the player can:
+The XRD bench opens from OPEN XRD LAB. One 480-minute shift covers seven CaTiO₃ batches. For each sample the player can:
 
 - **Read the record:** objective, recorded facts, and notebook cues.
 - **Mount and prepare:** choose the powder portion, grinding, loading, an internal-standard spike, and spinning. Mounting spends shift time, and powder is limited.
@@ -95,16 +82,10 @@ The frozen visual judgeset is defined in `materials_lab_threejs/cameras.json`. L
 
 ```text
 app/
-  campaign-control.tsx       expert campaign sandbox
-  campaign-context.ts        normalized campaign state
-  campaign-spec.ts           campaign recipes and evaluation rules
   lab-3d.tsx                 Three.js facility and equipment models
   lab-viewport.tsx           3D loading and viewport controls
-  page.tsx                   XRD scenario and application entry
-  scenario-shifts.tsx        scenario deck, BET, and furnace cases
+  page.tsx                   XRD lab page and application entry
   station-access.tsx         local equipment-control simulations
-  tga-shift.tsx              thermal-analysis case
-  facility-shift.tsx         material-move and gas-change case
   xrd-workbench.tsx          XRD bench interface
   xrd-plot.tsx               pattern canvas with fit, residual, and probe
   xrd-bench/
@@ -114,7 +95,6 @@ app/
     session.ts               seeded shift store, replay, background fits
     view.ts                  run tags, fit readouts, goal step, debrief sentence
   xrd/
-    campaign.ts              campaign traces and phase shares from the shared model
     synthesis.ts             synthesis history to phases
     measure.ts               mount physics and Poisson counts
     analysis.ts              phase fit, residual features, comparisons
@@ -133,8 +113,6 @@ scripts/
 github-pages/                static browser entry
 public/                      favicon and social preview
 ```
-
-The application keeps scenario logic in React state. The expert campaign is persisted in browser storage and exposed to the lab through one normalized campaign snapshot.
 
 ## Deployment
 

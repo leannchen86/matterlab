@@ -65,23 +65,21 @@ export const baseStations: Station[] = [
   {
     id: 'BET-02',
     name: 'Gas sorption',
-    state: 'OFFLINE',
-    tone: 'off',
-    meta: 'Service ticket MX-233',
+    state: 'READY',
+    tone: 'ready',
+    meta: 'Analysis ports ready',
     purpose: 'Uses gas adsorption to estimate surface area and pore structure.',
-    technicianView: ['Analysis ports: locked', 'Vacuum pump: service', 'Degas station: ready', 'Ticket: MX-233'],
+    technicianView: ['Analysis ports: ready', 'Vacuum pump: ready', 'Degas station: ready'],
     dataProducts: ['adsorption isotherm', 'BET fit window', 'degassing record'],
   },
   {
     id: 'TGA-01',
     name: 'Thermal analyzer',
-    state: 'NO-SAMPLE CHECK DUE',
-    tone: 'warn',
-    meta: 'Empty-pan check due · 13:30',
+    state: 'READY',
+    tone: 'ready',
+    meta: 'Empty-pan check complete',
     purpose: 'Measures mass and heat-flow changes while a sample is heated.',
-    technicianView: ['Furnace: 28 °C', 'Purge N₂: stable', 'Pan pair: empty', 'No-sample check: due'],
+    technicianView: ['Furnace: 28 °C', 'Purge N₂: stable', 'Pan pair: empty'],
     dataProducts: ['mass-change trace', 'heat-flow trace', 'thermal event context'],
   },
 ];
-
-export const initialLog: { time: string; type: string; text: string }[] = [];

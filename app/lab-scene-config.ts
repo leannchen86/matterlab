@@ -145,12 +145,3 @@ export function getStationSceneSpec(stationId: string): StationSceneSpec {
       throw new Error(`Unknown laboratory station: ${stationId}`);
   }
 }
-
-export function getCampaignStationId(stage: number): StationId | null {
-  if (stage <= 0) return null;
-  if (stage === 1) return 'PREP-01';
-  if (stage <= 3) return 'ROBO-02';
-  if (stage <= 5) return 'FURN-04';
-  if (stage <= 7) return 'XRD-03';
-  return 'SEM-01';
-}

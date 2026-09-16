@@ -1,13 +1,7 @@
 type LabEventMap = {
-  'campaign-state': { stage: number };
-  'open-campaign': { view?: 'facility' };
-  'open-material-staging': Record<string, never>;
-  'open-console': { stationId: string; physicalChecks: string[] };
+  'open-console': { stationId: string };
   'return-to-lab': { stationId: string };
-  'station-event':
-    | { type: 'control'; stationId: string; text: string; action: string }
-    | { type: 'attestation'; stationId: string; text: string }
-    | { type: 'campaign'; text: string };
+  'station-event': { stationId: string; action: string };
 };
 
 type LabEventType = keyof LabEventMap;

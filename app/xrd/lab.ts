@@ -1,4 +1,4 @@
-// One shift in the analytical lab, shared by free play, guided samples and the campaign. State holds only what a notebook
+// One shift in the analytical lab, shared by free play and guided samples. State holds only what a notebook
 // would: revealed notes, mounts, immutable runs, interpretations, requests and calls. Powders and the instrument are
 // derived from the seed whenever an instrument reads them and are never stored where an interface could show them. Hidden
 // truth appears only in the debrief, and only after a call is committed.
