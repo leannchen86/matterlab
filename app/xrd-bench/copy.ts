@@ -37,7 +37,13 @@ export const WORD = {
   add: 'ADD',
   max: 'MAX',
   seen: 'SEEN',
+  shared: 'SHARED',
   absent: 'ABSENT',
+  smallWouldShow: 'SMALL AMOUNTS WOULD SHOW',
+  largeOnly: 'ONLY LARGER AMOUNTS WOULD SHOW',
+  noOwnLines: 'NO LINES OF ITS OWN',
+  spacing: 'SPACING',
+  checkZeroFirst: 'CHECK ZERO FIRST',
   looksLike: 'LOOKS LIKE',
   unsupported: 'UNSUPPORTED',
   remove: 'REMOVE',
@@ -140,6 +146,7 @@ export const ARIA = {
   showLines: 'Show lines',
   notOnRecord: 'Elements not on record',
   internalStandard: 'Internal standard',
+  reachShare: 'Compared with the phases in this fit, spike excluded',
   strongestPeak: 'Strongest net peak',
   resultReady: 'Result ready',
   addReference: (slot: string) => `Add reference to ${slot}`,
@@ -164,6 +171,31 @@ export function phaseLabel(id: string) {
   if (id === 'anatase') return 'TiO₂ A';
   return catalogPhase(id).reference.formula;
 }
+
+/** What amount of a phase the fit did not need would have shown in this scan. Never a claim that the powder is without it. */
+export const REACH_WORD: Readonly<Record<'small' | 'large' | 'none', string>> = {
+  small: WORD.smallWouldShow,
+  large: WORD.largeOnly,
+  none: WORD.noOwnLines,
+};
+
+/** Common name of each catalogued phase, shown beside its formula. A name only: never a role in the sample. */
+export const PHASE_NAME: Readonly<Record<string, string>> = {
+  catio3: 'calcium titanate',
+  rutile: 'rutile',
+  anatase: 'anatase',
+  lime: 'lime',
+  portlandite: 'slaked lime',
+  calcite: 'calcium carbonate',
+  corundum: 'corundum',
+  silicon: 'silicon',
+  baddeleyite: 'zirconia',
+  cazro3: 'calcium zirconate',
+  batio3: 'barium titanate',
+  witherite: 'barium carbonate',
+  catio2o4: 'calcium dititanate',
+  ca4ti3o10: 'calcium titanate, Ca-rich',
+};
 
 /** Where a sample stands in the sample menu; never a grade. */
 export type SampleStatus = 'new' | 'started' | 'ready' | 'committed';

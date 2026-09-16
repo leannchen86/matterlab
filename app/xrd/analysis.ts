@@ -16,7 +16,7 @@ import { catalogPhase } from './phases.ts';
 import { accumulateLines, braggScale, calculateLines, gridAngle, type Grid } from './pattern.ts';
 import { CU_KALPHA1, LAB_OPTICS, peakShape, positionShift, type InstrumentOptics } from './profile.ts';
 
-export const ANALYSIS_VERSION = 'analysis-1';
+export const ANALYSIS_VERSION = 'analysis-2';
 
 export type Observation = { readonly grid: Grid; readonly counts: ArrayLike<number> };
 
@@ -56,6 +56,8 @@ export type PhaseFit = {
   readonly detected: readonly LineCheck[];
   /** Reflections of this phase alone predicted above the detection limit but not observed. */
   readonly missing: readonly LineCheck[];
+  /** Reflections where other phases put more than a fifth of this phase's predicted counts, counted as neither seen nor absent. */
+  readonly shared: number;
   /** Candidates whose calculated patterns this scan cannot tell apart from this one. */
   readonly indistinguishableFrom: readonly string[];
   /** Smallest scale at which a reflection of its own would reach the detection limit. */
@@ -500,6 +502,7 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
     const strongest = lines[0]?.intensity ?? 0;
     const taken: [number, number][] = [];
     const checks: (LineCheck & { unit: number })[] = [];
+    let shared = 0;
     for (const line of lines) {
       if (line.intensity < 0.01 * strongest) break;
       const centre = line.twoTheta + positionShift(line.twoTheta, displacement, finalOptics);
@@ -523,10 +526,13 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
       const decision = 1.645 * Math.sqrt(b);
       const detection = 2.71 + 3.29 * Math.sqrt(b);
       const predicted = scale * unit;
-      if (others > UNIQUE_SHARE * (scale > 0 ? predicted : detection)) continue;
+      if (others > UNIQUE_SHARE * (scale > 0 ? predicted : detection)) {
+        shared += 1;
+        continue;
+      }
       checks.push({ twoTheta: centre, predicted, net: observed - b, decision, detection, unit });
     }
-    return checks;
+    return { checks, shared };
   };
 
   const phases = ids.map((id, p): PhaseFit => {
@@ -536,7 +542,7 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
       const without = fit(phaseColumns.map((values, q) => (q === p ? undefined : values)));
       deltaBic = Math.max(0, without.chiSquare - current.chiSquare) / Math.max(1, reducedChiSquare) - penalty;
     }
-    const checks = lineChecks(p);
+    const { checks, shared } = lineChecks(p);
     const detected = scale > 0 ? checks.filter((check) => check.predicted >= check.decision && check.net > check.decision) : [];
     const missing = scale > 0 ? checks.filter((check) => check.predicted >= check.detection && check.net < check.decision) : [];
     let detectionScale = Infinity;
@@ -566,6 +572,7 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
       status,
       detected: detected.map(withoutUnit),
       missing: missing.map(withoutUnit),
+      shared: scale > 0 ? shared : 0,
       indistinguishableFrom,
       detectionScale,
       latticeSigma: latticeSigmas.get(p) ?? Infinity,

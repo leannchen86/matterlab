@@ -12,6 +12,7 @@ import { createRandom, hashSeed } from './random.ts';
 import { createInterpretation, createRun, interpretationOptions, sameInterpretation, type Interpretation, type RunRecord } from './records.ts';
 import { ZR_LATTICE_PER_MOL_PERCENT, synthesize, type PhaseAmount, type SynthesisHistory } from './synthesis.ts';
 
+export { ZR_LATTICE_PER_MOL_PERCENT };
 export const SHIFT_MINUTES = 480;
 
 /** Illustrative bench times in minutes. */
@@ -441,7 +442,7 @@ export type Debrief = {
 };
 
 /** Reportable phases in a qualitative call. */
-const REPORTABLE = 0.005;
+export const REPORTABLE = 0.005;
 const TRACE = 0.001;
 const MINOR = 0.02;
 /** Illustrative identification threshold used by the sim, in counts on the strongest peak. */
@@ -540,10 +541,17 @@ export function debrief(state: LabState, code: string): Debrief | undefined {
   const measurement: Note[] = [];
   if (result.peakCounts < 1000) measurement.push({ grade: 'poor', text: 'Strongest peak under 1000 counts' });
   else if (result.peakCounts < IDENTIFY_COUNTS) measurement.push({ grade: 'mixed', text: 'Strongest peak under 3000 counts' });
-  if (result.features.some((feature) => feature.kind === 'intensity')) measurement.push({ grade: 'mixed', text: 'Intensity misfit left: grains or orientation' });
+  // A phase the fit is missing distorts intensities too, so the cause is only named when nothing is left unexplained.
+  if (result.features.some((feature) => feature.kind === 'intensity')) {
+    const unexplained = result.features.some((feature) => feature.kind === 'unexplained');
+    measurement.push({ grade: 'mixed', text: unexplained ? 'Intensities still off' : 'Intensity misfit left: grains or orientation' });
+  }
   if (result.warnings.includes('undersampled')) measurement.push({ grade: 'mixed', text: 'Steps too coarse for the peak width' });
   const settles = (candidate: RunRecord) => {
-    const check = analysisOf(candidate, checkOptions(basis, candidate));
+    const options = checkOptions(basis, candidate);
+    const check = analysisOf(candidate, options);
+    // A refined zero trades against the cell, so a run cannot settle a solid-solution aim without a checked zero or a spike.
+    if (source.record.objective.zrMolPercent !== undefined && check.zeroRefined && !options.internalStandard) return false;
     return check.peakCounts >= IDENTIFY_COUNTS && !check.warnings.includes('undersampled') && check.features.length === 0 && call.phases.every((id) => check.phases.some((phase) => phase.id === id && phase.status === 'required'));
   };
   const settled = earlierChecks(sample, run).find(settles);
@@ -615,7 +623,10 @@ export function debrief(state: LabState, code: string): Debrief | undefined {
   const decision: Note[] = [];
   const holdJustified = missed.some((phase) => !catalogPhase(phase.structureId).inLibrary);
   if (call.decision === 'hold-reference') {
-    if (holdJustified) decision.push({ grade: 'good', text: 'Holding for a reference was justified' });
+    if (holdJustified) {
+      decision.push({ grade: 'good', text: 'Holding for a reference was justified' });
+      if (fixes.length > 0) decision.push({ grade: 'good', text: `Once identified, ${DECISION_LABELS[fixes[0]]} meets the objective` });
+    }
     else decision.push({ grade: 'mixed', text: fixes.length > 0 ? `${DECISION_LABELS[fixes[0]]} would have settled it` : 'Nothing needed a new reference' });
   } else if (!meets(call.decision)) {
     decision.push({ grade: 'poor', text: fixes.length > 0 ? `Misses the objective; ${DECISION_LABELS[fixes[0]]} meets it` : 'Misses the objective' });

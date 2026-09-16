@@ -39,7 +39,7 @@ The XRD bench opens from the XRD scenario. One 480-minute shift covers seven CaT
 - **Mount and prepare:** choose the powder portion, grinding, loading, an internal-standard spike, and spinning. Mounting costs minutes, and powder is limited.
 - **Scan:** pick a program that trades minutes for range, step, and counts.
 - **Probe:** list reference lines near a chosen angle.
-- **Explain:** fit one set of reference phases in slot A and another in slot B over the same run, then compare them.
+- **Explain:** fit one set of reference phases in slot A and another in slot B over the same run, then compare them. Selecting a phase reads how its lines fared: how many were seen, how many sit under another phase, and how many are missing. A phase the fit did not need reads what amount of it this scan could have shown instead, which is never a claim that the powder is without it. Where a sample aims at a solid solution, the host also reads the Zr its spacing implies, once the goniometer zero is checked or a spike pins it.
 - **Check limits:** read what a fit cannot settle, and send TGA or SEM/EDS follow-ups, which use time, powder, and shared instrument slots.
 - **Call:** commit the phases, what stays unexplained, and a batch decision.
 - **Debrief:** read the hidden truth and how the call held up.
@@ -54,7 +54,7 @@ The core in `app/xrd/` runs one way: hidden state → measurement → observable
 
 A shift is a seed plus a list of actions. Every random draw comes from a seeded generator split into named streams, so the same seed and actions replay the same shift, counts included. Failed actions change nothing. Fitting other references adds explanations and never alters a run. The bench keeps the seed and actions in browser storage and replays them on reload.
 
-There is no single score. The debrief grades measurement, support, identity, and decision as good, mixed, or poor, shows true phases as major, minor, or trace, and lists the batch decisions that would have met the objective, cheapest first.
+There is no single score. The debrief opens with one plain sentence on what the powder was and whether the call met the aim, then grades measurement, support, identity, and decision as good, mixed, or poor, shows true phases as major, minor, or trace, and lists the batch decisions that would have met the objective, cheapest first. Neither the sentence nor the bands carry a percentage.
 
 ## Run locally
 

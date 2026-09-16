@@ -75,6 +75,7 @@ export function catalogPhase(id: string): CatalogPhase {
   return phase;
 }
 
+export const CATALOG_IDS: readonly string[] = [...CATALOG.keys()];
 export const LIBRARY_PHASE_IDS: readonly string[] = [...CATALOG.values()].filter((phase) => phase.inLibrary).map((phase) => phase.id);
 
 /** Library phases whose elements (ignoring O, H and C, which EDS and records handle poorly) are all in the given set. */

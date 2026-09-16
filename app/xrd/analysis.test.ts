@@ -50,6 +50,23 @@ test('extra candidates are not rewarded', () => {
   assert.ok(['similar', 'worse', 'much-worse'].includes(compareExplanations(single, padded)));
 });
 
+test('lines that sit under another phase are counted as shared, not as seen or absent', () => {
+  const alone = analyzePattern(clean, { candidates: ['catio3'] });
+  const host = alone.phases.find((phase) => phase.id === 'catio3');
+  assert.ok(host && host.detected.length > 0);
+  // With nothing else in the fit, every line of the host is its own.
+  assert.equal(host.shared, 0);
+  // CaZrO₃ is the same perovskite with a larger cell: the scan puts its lines under the host's rather than beside them.
+  const withPerovskite = analyzePattern(clean, { candidates: ['catio3', 'cazro3'] });
+  const zirconate = withPerovskite.phases.find((phase) => phase.id === 'cazro3');
+  assert.ok(zirconate);
+  assert.notEqual(zirconate.status, 'required');
+  assert.ok(zirconate.shared > 0, `shared ${zirconate.shared}`);
+  // Shared lines are not evidence either way, so they are absent from both counts.
+  assert.equal(zirconate.detected.length, 0);
+  assert.equal(zirconate.missing.length, 0);
+});
+
 test('more counts strengthen the evidence for a weak minor phase', () => {
   const survey = analyzePattern(scan('S-117', 'survey'), { candidates: ['catio3', 'rutile'] });
   const standard = analyzePattern(scan('S-117', 'standard'), { candidates: ['catio3', 'rutile'] });

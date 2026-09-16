@@ -14,8 +14,10 @@ import {
   GRIND_LABEL,
   LIMIT_COPY,
   METHOD_LABEL,
+  PHASE_NAME,
   PROGRAM_LABEL,
   PROGRAM_ORDER,
+  REACH_WORD,
   ROW_LABEL,
   SAMPLE_STATUS,
   SHEET_LABEL,
@@ -33,7 +35,7 @@ import {
   unsupportedLine,
 } from './xrd-bench/copy';
 import { dispatch, newShift, saveSlots, savedSlots, seat, seatedMount, useAnalysesReady, useAnalysis, useLab } from './xrd-bench/session';
-import { overlayScale, probeGroups, probeZ, runCentre, runCovers, runTag, sampleStatus } from './xrd-bench/view';
+import { debriefSummary, detectionReach, lineCountsText, overlayScale, probeGroups, probeZ, runCentre, runCovers, runTag, sampleStatus, spacingReading } from './xrd-bench/view';
 import { PatternPlot, phaseColor, type PlotOverlay, type PlotRange, type PlotTicks } from './xrd-plot';
 import { compareExplanations, type AnalysisResult, type Comparison } from './xrd/analysis';
 import { ensureAnalysis } from './xrd/analysis-client';
@@ -691,6 +693,9 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
     { id: 'decide', value: committed ? WORD.committed : callDraft.decision ? DECISION_LABELS[callDraft.decision].toUpperCase() : WORD.unset },
   ];
   const selectedFit = chip ? activeFit?.phases.find((item) => item.id === chip) : undefined;
+  // What this scan could have shown of a phase it did not need, and what the host cell reads, where either applies.
+  const selectedReach = chip && activeFit ? detectionReach(activeFit.phases, chip, spike) : undefined;
+  const selectedSpacing = chip && activeFit ? spacingReading(activeFit, chip, source.record.objective, spike) : undefined;
   const nextOpen = state.samples.find((item) => !item.call && item.code !== sample.code);
 
   return <div className="xb-backdrop">
@@ -792,9 +797,12 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
 
           {chip && <div className="xb-detail">
             <b style={{ color: phaseColor(chip) }}>{phaseLabel(chip)}</b>
+            {PHASE_NAME[chip] && <span className="xb-muted">{PHASE_NAME[chip]}</span>}
             {selectedFit ? <>
               <span>{STATUS_WORD[selectedFit.status]}</span>
-              <span>{selectedFit.detected.length} {WORD.seen} · {selectedFit.missing.length} {WORD.absent}</span>
+              {/* A phase the fit did not need has no lines to count, so it reads what this scan could have shown instead. */}
+              {selectedReach ? <span title={ARIA.reachShare}>{REACH_WORD[selectedReach]}</span> : <span>{lineCountsText(selectedFit)}</span>}
+              {selectedSpacing && <span>{WORD.spacing} {selectedSpacing.kind === 'zr' ? `≈ Zr${selectedSpacing.value}` : `· ${WORD.checkZeroFirst}`}</span>}
               {selectedFit.indistinguishableFrom.length > 0 && <span className="xb-warn">{WORD.looksLike} {selectedFit.indistinguishableFrom.map(phaseLabel).join(', ')}</span>}
             </> : <span className="xb-muted">{fitting(active) ? WORD.fitting : WORD.noFit}</span>}
             {chemicalSupport(chip, evidence).unsupported.map((element) => <span key={element} className="xb-warn">{element} {WORD.unsupported}</span>)}
@@ -864,7 +872,7 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
           />}
           {sheet === 'aim' && <AimSheet state={state} sample={sample} onAct={act} onCost={onCost} />}
           {sheet === 'decide' && (committed
-            ? <DebriefView report={report} tried={sample.interpretations.length} hasNext={Boolean(nextOpen)} onNext={() => nextOpen && resetUi(nextOpen)} onNewShift={startShift} onClose={close} />
+            ? <DebriefView report={report} decision={sample.call?.decision} tried={sample.interpretations.length} hasNext={Boolean(nextOpen)} onNext={() => nextOpen && resetUi(nextOpen)} onNewShift={startShift} onClose={close} />
             : <DecideSheet
               state={state}
               sample={sample}
@@ -1375,8 +1383,9 @@ function GradeMark({ grade }: { readonly grade: Grade }) {
   </svg>;
 }
 
-function DebriefView({ report, tried, hasNext, onNext, onNewShift, onClose }: {
+function DebriefView({ report, decision, tried, hasNext, onNext, onNewShift, onClose }: {
   readonly report?: Debrief;
+  readonly decision?: Decision;
   readonly tried: number;
   readonly hasNext: boolean;
   readonly onNext: () => void;
@@ -1387,6 +1396,7 @@ function DebriefView({ report, tried, hasNext, onNext, onNewShift, onClose }: {
   if (!report) return <p className="xb-line xb-muted" role="status">{WORD.reviewing}</p>;
   return <div className="xb-debrief">
     <h3 className="xb-title">{report.code} {WORD.committed}</h3>
+    {decision && <p className="xb-line">{debriefSummary(report, decision)}</p>}
     <p className="xb-line xb-muted">{debriefCounts(report, tried)}</p>
     <ul className="xb-list">
       {report.rows.map((row) => <li key={row.id}>

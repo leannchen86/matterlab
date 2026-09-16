@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { PhaseFit, PhaseStatus } from '../xrd/analysis.ts';
 import { CASE_CODES, sampleCase, specimenFor } from '../xrd/cases.ts';
-import { apply, createLab, libraryFor, replay, sampleState, tgaStatus, type Action, type LabState } from '../xrd/lab.ts';
+import { apply, createLab, libraryFor, replay, sampleState, tgaStatus, type Action, type LabState, type TruthPhase } from '../xrd/lab.ts';
 import { acquisitionFor, expectedCounts, prepareMount, type Acquisition, type MountRecord } from '../xrd/measure.ts';
-import { SAMPLE_STATUS } from './copy.ts';
-import { overlayScale, probeZ, resultReady, runCovers, runTag, sampleStatus } from './view.ts';
+import { CATALOG_IDS } from '../xrd/phases.ts';
+import { PHASE_NAME, SAMPLE_STATUS } from './copy.ts';
+import { debriefSummary, detectionReach, lineCountsText, overlayScale, probeZ, resultReady, runCovers, runTag, sampleStatus, spacingReading } from './view.ts';
 
 function act(state: LabState, ...actions: Action[]): LabState {
   let current = state;
@@ -130,4 +132,63 @@ test('overlay scale lines up the strongest peak of the same mount across program
     assert.ok(Math.abs(scaled / standard.counts - 1) < 0.1, `${overlay.program}: ${scaled.toFixed(0)} vs ${standard.counts.toFixed(0)}`);
   }
   assert.equal(overlayScale(acquisitionFor('survey'), acquisitionFor('survey')), 1);
+});
+
+type ReachPhase = Pick<PhaseFit, 'id' | 'scale' | 'status' | 'detectionScale'>;
+const reachPhase = (id: string, scale: number, status: PhaseStatus, detectionScale: number): ReachPhase => ({ id, scale, status, detectionScale });
+
+test('detection reach says what this scan could have shown, over the fitted phases and without the spike', () => {
+  // A host at scale 100 and a spike at 900: a candidate reaching detection at 0.4 is under a two-hundredth of the host alone.
+  const phases = [reachPhase('catio3', 100, 'required', 0.02), reachPhase('silicon', 900, 'required', 0.02), reachPhase('rutile', 0, 'not-detected', 0.4)];
+  assert.equal(detectionReach(phases, 'rutile', 'silicon'), 'small');
+  // Counting the spike in the total would wrongly make the same candidate look reportable, so the spike has to be excluded.
+  assert.equal(detectionReach(phases, 'rutile'), 'small');
+  assert.equal(detectionReach([reachPhase('catio3', 100, 'required', 0.02), reachPhase('rutile', 0, 'not-detected', 3)], 'rutile'), 'large');
+  // Every line of its own sits under another phase, so the scan cannot say what amount would have shown.
+  assert.equal(detectionReach([reachPhase('catio3', 100, 'required', 0.02), reachPhase('rutile', 0, 'not-required', Infinity)], 'rutile'), 'none');
+  // A phase the fit needs has no reach to report, and neither has one that was never a candidate.
+  assert.equal(detectionReach(phases, 'catio3'), undefined);
+  assert.equal(detectionReach(phases, 'lime'), undefined);
+});
+
+test('the spacing reading asks for a zero check before reading Zr off the host cell', () => {
+  const objective = { targets: ['catio3'], zrMolPercent: 8 };
+  const phases = [{ id: 'catio3', scale: 100, latticeScale: 1.004 }, { id: 'rutile', scale: 0, latticeScale: 1 }];
+  // A refined zero trades against the cell, so the reading waits for a checked zero or a spike.
+  assert.deepEqual(spacingReading({ zeroRefined: true, phases }, 'catio3', objective), { kind: 'check-zero' });
+  assert.deepEqual(spacingReading({ zeroRefined: true, phases }, 'catio3', objective, 'silicon'), { kind: 'zr', value: 8 });
+  assert.deepEqual(spacingReading({ zeroRefined: false, phases }, 'catio3', objective), { kind: 'zr', value: 8 });
+  // A cell at or below the reference reads as none, never as a negative amount.
+  assert.deepEqual(spacingReading({ zeroRefined: false, phases: [{ id: 'catio3', scale: 100, latticeScale: 0.999 }] }, 'catio3', objective), { kind: 'zr', value: 0 });
+  // Only the host of a sample aiming at a solid solution has a reading, and only once it is fitted.
+  assert.equal(spacingReading({ zeroRefined: false, phases }, 'rutile', objective), undefined);
+  assert.equal(spacingReading({ zeroRefined: false, phases }, 'catio3', { targets: ['catio3'] }), undefined);
+});
+
+test('line counts separate the lines that sit under another phase from those seen and absent', () => {
+  const check = { twoTheta: 33, predicted: 0, net: 0, decision: 0, detection: 0 };
+  assert.equal(lineCountsText({ detected: [check, check], shared: 3, missing: [check] }), '2 SEEN · 3 SHARED · 1 ABSENT');
+});
+
+test('every catalogued phase has a common name', () => {
+  for (const id of CATALOG_IDS) assert.equal(typeof PHASE_NAME[id], 'string', `no name for ${id}`);
+});
+
+const truth = (id: string, band: TruthPhase['band'], claimed: boolean, inLibrary = true): TruthPhase => ({ id, band, claimed, inLibrary });
+const summary = (truthPhases: readonly TruthPhase[], objectiveMet: boolean, fixes: Parameters<typeof debriefSummary>[0]['fixes'], decision: Parameters<typeof debriefSummary>[1]) =>
+  debriefSummary({ truth: truthPhases, objectiveMet, fixes }, decision);
+
+test('the debrief summary says what the powder was and whether the call met the aim, without a number', () => {
+  const missedSecondPhase = summary([truth('catio3', 'major', true), truth('rutile', 'minor', false)], false, ['recalcine'], 'release');
+  assert.equal(missedSecondPhase, 'The powder was mostly CaTiO₃ with a small amount of TiO₂ R that you did not claim. Release missed the aim; Recalcine meets it.');
+  assert.equal(summary([truth('catio3', 'major', true)], true, ['release'], 'release'), 'The powder was mostly CaTiO₃. Release met the aim.');
+  // A phase with no reference cannot be claimed, so the summary says so rather than blaming the player.
+  assert.match(summary([truth('catio3', 'major', true), truth('ca4ti3o10', 'minor', false, false)], false, ['recalcine'], 'hold-reference'), /with no reference in the library\. Once identified, Recalcine meets the aim\./);
+  assert.equal(summary([truth('catio3', 'major', true)], true, ['release'], 'hold-reference'), 'The powder was mostly CaTiO₃. Nothing needed a new reference; the batch already met the aim.');
+  // Two phases in one band with the same standing are named together, and a trace is never a percentage.
+  assert.match(summary([truth('catio3', 'major', true), truth('lime', 'trace', false), truth('calcite', 'trace', false)], false, [], 'release'), /a trace of CaO and CaCO₃ that you did not claim\./);
+  for (const text of [missedSecondPhase, summary([truth('catio3', 'major', true), truth('lime', 'trace', false)], false, ['recalcine', 'change-media'], 'change-media')]) {
+    assert.doesNotMatch(text, /\d/, text);
+    assert.doesNotMatch(text, /%/, text);
+  }
 });

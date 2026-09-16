@@ -2683,6 +2683,29 @@ The science core was sound, but the bench still looked like a settings form stac
 ### Known gaps
 
 - The plot is drawn on canvas, not SVG, and a one-finger drag pans rather than scrubbing the probe.
-- Detection limits, the cell reading and shared-line counts are computed but not shown.
+- Detection limits, the cell reading and shared-line counts are computed but not shown. (Shown in critique 146.)
 - Composed-candidate forecasts sit about 1 pp below the model on average, and high-Zr composed points plot outside the design triangle, as Z-17 already did.
+- Costs are illustrative. They are not instrument timings.
+
+## Critique 146: the scan knew more than it said
+
+Three things the analysis already computed never reached the player. A candidate the fit did not need showed no counts at all, so there was no way to tell a phase the scan would have caught from one it could never have seen. The refined cell was read for the campaign but never shown on the bench, so a sample aiming at a solid solution could not be judged on its spacing. And lines sitting under another phase were silently dropped from both counts, so a chip could read `0 SEEN · 0 ABSENT` with no hint that twenty of its lines were unusable.
+
+### Changes made
+
+- A phase the fit did not need now reads what this scan could have shown of it: `SMALL AMOUNTS WOULD SHOW`, `ONLY LARGER AMOUNTS WOULD SHOW`, or `NO LINES OF ITS OWN` when every line it has sits under another phase. The share is taken over the fitted phases with the spike excluded. It never says a phase is absent from the powder.
+- `PhaseFit.shared` counts the lines dropped at the unique-share check, and a chip reads `n SEEN · n SHARED · n ABSENT`. On S-130 zirconia reads `6 SEEN · 21 SHARED · 0 ABSENT`, which says plainly how little of that pattern is its own.
+- The host of a sample with a Zr aim reads `SPACING ≈ Zr6`, or `SPACING · CHECK ZERO FIRST` when the zero was refined and no spike pins it. On S-130 the reading is Zr6 against an aim of Zr8, because 1.7 wt% of the zirconia never dissolved: the same run shows required ZrO₂ lines and a host that falls short.
+- For a Zr aim, an earlier run can no longer settle the call unless its zero was checked or a spike pinned it.
+- The intensity note no longer names grains or orientation as the cause when the fit also left peaks unexplained, since a missing phase distorts intensities too.
+- Holding for a reference, when justified, now also names the cheapest decision that meets the aim once the phase is identified.
+- The debrief opens with a plain sentence built from the revealed bands and the committed decision, with no percentage and no grade: "The powder was mostly CaTiO₃ with a small amount of TiO₂ R that you did not claim. Release missed the aim; Recalcine meets it."
+- Chips carry the common name beside the formula, so a newcomer reads "CaTiO₃ calcium titanate" rather than a formula alone.
+
+### Known gaps
+
+- The bench still assumes the reader knows what XRD is. There is no intro, no tap-to-explain for its words, and every control is visible from the first sample. That was the larger half of this round and is not done.
+- The spacing slope is an illustrative 0.0005 per mol% Zr, not a measured Vegard slope, and the reading is rounded to whole mol%.
+- Detection reach is a property of the scan and the fitted phases, not of the powder. A phase whose lines all overlap reads `NO LINES OF ITS OWN` however much of it is present.
+- The plot is still drawn on canvas, and a one-finger drag pans rather than scrubbing the probe.
 - Costs are illustrative. They are not instrument timings.
