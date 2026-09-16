@@ -59,7 +59,7 @@ test('a clean sample is called quickly, and holding or scanning longer earns not
   const longer = act(settled.state, scan('S-101', 'slow'));
   const slow = act(longer.state, interpret('S-101', longer.id, ['catio3']));
   const late = debrief(act(slow.state, call('S-101', slow.id, ['catio3'], 'release')).state, 'S-101');
-  assert.ok(row(late, 'measurement')?.notes.includes('R1 already settled it: +122 min'));
+  assert.ok(row(late, 'measurement')?.notes.includes('R1 already settled it; later scans only used up the shift'));
 });
 
 test('requesting every follow-up is not rewarded when they add nothing', () => {

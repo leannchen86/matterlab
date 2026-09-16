@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { PhaseFit, PhaseStatus } from '../xrd/analysis.ts';
 import { CASE_CODES, sampleCase, specimenFor } from '../xrd/cases.ts';
-import { apply, createLab, libraryFor, replay, sampleState, tgaStatus, type Action, type LabState, type TruthPhase } from '../xrd/lab.ts';
-import { acquisitionFor, expectedCounts, prepareMount, type Acquisition, type MountRecord } from '../xrd/measure.ts';
+import { COSTS, apply, costOf, createLab, libraryFor, replay, sampleState, tgaStatus, type Action, type LabState, type TruthPhase } from '../xrd/lab.ts';
+import { acquisitionFor, expectedCounts, prepareMount, type Acquisition, type MountRecord, type ProgramId } from '../xrd/measure.ts';
 import { CATALOG_IDS } from '../xrd/phases.ts';
-import { PHASE_NAME, SAMPLE_STATUS } from './copy.ts';
+import { PHASE_NAME, SAMPLE_STATUS, debriefCounts } from './copy.ts';
 import { GLOSS, GOAL_LINE, INTRO_LINES, LEGEND } from './gloss.ts';
-import { debriefSummary, detectionReach, goalStep, lineCounts, overlayScale, probeZ, resultReady, runCovers, runTag, sampleStatus, spacingReading } from './view.ts';
+import { debriefSummary, detectionReach, goalStep, lineCounts, overlayScale, probeZ, resultReady, runCovers, runTag, sampleStatus, spacingReading, speedOf } from './view.ts';
 
 function act(state: LabState, ...actions: Action[]): LabState {
   let current = state;
@@ -40,7 +40,7 @@ test('run tags name what each run repeats or changes, from the recorded mounts',
     { type: 'scan', code: CODE, program: 'targeted', centreDeg: 27.5 },
   ];
   const state = act(createLab('view-tags', CASE_CODES), ...actions);
-  assert.deepEqual(tags(state), ['R1 SURVEY', 'R2 STANDARD · RESCAN', 'R3 SURVEY · NEW MOUNT', 'R4 SURVEY · NEW ALIQUOT', 'R5 TARGET 27.5°']);
+  assert.deepEqual(tags(state), ['R1 SURVEY', 'R2 STANDARD · RESCAN', 'R3 SURVEY · NEW MOUNT', 'R4 SURVEY · NEW ALIQUOT', 'R5 CLOSE-UP 27.5°']);
   assert.deepEqual(tags(replay('view-tags', CASE_CODES, actions)), tags(state));
 });
 
@@ -71,7 +71,7 @@ test('the probe reads a significance only at angles the displayed run measured',
 
 test('a targeted run on the queue mount counts as an earlier run on that mount', () => {
   const state = act(createLab('view-target', CASE_CODES), { type: 'scan', code: CODE, program: 'targeted', centreDeg: 33 }, survey);
-  assert.deepEqual(tags(state), ['R1 TARGET 33.0°', 'R2 SURVEY · RESCAN']);
+  assert.deepEqual(tags(state), ['R1 CLOSE-UP 33.0°', 'R2 SURVEY · RESCAN']);
 });
 
 function statusWord(state: LabState, code = CODE) {
@@ -203,6 +203,24 @@ test('the goal line follows only what the bench shows', () => {
   assert.equal(goalStep({ run: true, probing: true, chips: 2 }), 'fit');
   assert.equal(goalStep({ run: true, probing: false, chips: 1, fit: misfit }), 'misfit');
   assert.equal(goalStep({ run: true, probing: false, chips: 1, fit: { features: [] } }), 'decide');
+});
+
+test('each costed control reads as one of three speeds, never as minutes', () => {
+  const state = createLab('view-speed', CASE_CODES);
+  const speed = (action: Action) => {
+    const cost = costOf(state, action);
+    assert.ok(typeof cost !== 'string', `${action.type} failed: ${cost}`);
+    return speedOf(cost.minutes);
+  };
+  const scan = (program: ProgramId): Action => ({ type: 'scan', code: CODE, program, ...(program === 'targeted' ? { centreDeg: 27.5 } : {}) });
+  const programs: readonly ProgramId[] = ['survey', 'wide', 'targeted', 'standard', 'slow'];
+  assert.deepEqual(programs.map((program) => speed(scan(program))), ['quick', 'quick', 'quick', 'longer', 'longest']);
+  assert.equal(speed({ type: 'standard' }), 'longer');
+  // Sending a test is quick handling; waiting for its result is the long part.
+  assert.equal(speed({ type: 'tga', code: CODE }), 'quick');
+  assert.equal(speed({ type: 'wait', minutes: COSTS.tga.duration }), 'longest');
+  assert.equal(speed({ type: 'wait', minutes: COSTS.sem.duration }), 'longest');
+  assert.equal(debriefCounts({ scans: 2, followUps: 1 }, 5), '2 SCANS · 1 TEST · 5 EXPLANATIONS TRIED');
 });
 
 test('newcomer copy stays one short plain line with no numbers or verdicts', () => {

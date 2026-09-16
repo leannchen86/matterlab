@@ -36,8 +36,8 @@ All equipment geometry, plots, spectra, micrographs, and material routes are gen
 The XRD bench opens from the XRD scenario. One 480-minute shift covers seven CaTiO₃ batches. For each sample the player can:
 
 - **Read the record:** objective, recorded facts, and notebook cues.
-- **Mount and prepare:** choose the powder portion, grinding, loading, an internal-standard spike, and spinning. Mounting costs minutes, and powder is limited.
-- **Scan:** pick a program that trades minutes for range, step, and counts.
+- **Mount and prepare:** choose the powder portion, grinding, loading, an internal-standard spike, and spinning. Mounting spends shift time, and powder is limited.
+- **Scan:** pick a program that trades shift time for range, step, and counts.
 - **Probe:** list reference lines near a chosen angle.
 - **Explain:** fit one set of reference phases in slot A and another in slot B over the same run, then compare them. Selecting a phase reads how its lines fared: how many were seen, how many sit under another phase, and how many are missing. A phase the fit did not need reads what amount of it this scan could have shown instead, which is never a claim that the powder is without it. Where a sample aims at a solid solution, the host also reads the Zr its spacing implies, once the goniometer zero is checked or a spike pins it.
 - **Check limits:** read what a fit cannot settle, and send TGA or SEM/EDS follow-ups, which use time, powder, and shared instrument slots.
@@ -45,6 +45,8 @@ The XRD bench opens from the XRD scenario. One 480-minute shift covers seven CaT
 - **Debrief:** read the hidden truth and how the call held up.
 
 A first-time player meets a short card before the bench. Each kind of crystal scatters X-rays into its own barcode of peaks, a fit tests which barcodes explain a pattern, and peaks that nothing explains are clues. Underlined words explain themselves on tap. Until the first call of a shift, one line under the bench names the next step, read only from what is on screen. It points at an action, never at an answer. `?` in the top bar reopens the card.
+
+Costs show as colours, not minutes, because the web bench runs instantly and simulated minutes only confused. A dot on each costed control marks it quick, longer or longest, and a key under the scan programs names the colours. Hovering or focusing a control previews its share on the shift bar along the top, in the same colour. The jar bar previews powder the same way.
 
 The core in `app/xrd/` runs one way: hidden state → measurement → observables → analysis → decision.
 

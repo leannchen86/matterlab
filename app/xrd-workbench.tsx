@@ -22,6 +22,8 @@ import {
   SAMPLE_STATUS,
   SHEET_LABEL,
   SOURCE_WORD,
+  SPEED_ORDER,
+  SPEED_WORD,
   SPIKE_LABEL,
   STATUS_WORD,
   SWEEP_MS,
@@ -29,7 +31,6 @@ import {
   UNEXPLAINED_LABEL,
   WORD,
   debriefCounts,
-  formatCounts,
   mountTag,
   phaseLabel,
   unsupportedLine,
@@ -37,7 +38,7 @@ import {
 import { dispatch, newShift, saveSlots, savedSlots, seat, seatedMount, useAnalysesReady, useAnalysis, useLab } from './xrd-bench/session';
 import { GLOSS } from './xrd-bench/gloss';
 import { GlossContext, GuideLine, IntroCard, Term, introSeen, markIntroSeen, useGloss, type Gloss } from './xrd-bench/guide';
-import { debriefSummary, detectionReach, goalStep, lineCounts, overlayScale, probeGroups, probeZ, runCentre, runCovers, runTag, sampleStatus, spacingReading, type GoalStep } from './xrd-bench/view';
+import { debriefSummary, detectionReach, goalStep, lineCounts, overlayScale, probeGroups, probeZ, runCentre, runCovers, runTag, sampleStatus, spacingReading, speedOf, type GoalStep, type Speed } from './xrd-bench/view';
 import { PatternPlot, phaseColor, type PlotOverlay, type PlotRange, type PlotTicks } from './xrd-plot';
 import { compareExplanations, type AnalysisResult, type Comparison } from './xrd/analysis';
 import { ensureAnalysis } from './xrd/analysis-client';
@@ -219,13 +220,16 @@ function runName(run: RunRecord) {
   return `${runShort(run)}${run.acquisition.program === 'targeted' ? ` ${degrees(runCentre(run), 1)}` : ''}`;
 }
 
-/** `SCAN 8 MIN`, `MOUNT 28 MIN · 0 G`, or the label with the error in place of the cost. */
-function costText(state: LabState, action: Action, label: string, grams = false) {
+/** A costed control's label, or the label with the error after it, and how much of the shift it spends. */
+function costLabel(state: LabState, action: Action, label: string): { readonly label: string; readonly disabled: boolean; readonly speed?: Speed } {
   const cost = costOf(state, action);
   if (typeof cost === 'string') return { label: `${label} · ${ERROR_WORD[cost]}`, disabled: true };
-  const parts = [cost.minutes > 0 || grams ? `${label} ${cost.minutes} ${WORD.min}` : label];
-  if (grams || cost.powderG > 0) parts.push(`${Number(cost.powderG.toFixed(3))} ${WORD.g}`);
-  return { label: parts.join(' · '), disabled: false };
+  return { label, disabled: false, ...(cost.minutes > 0 ? { speed: speedOf(cost.minutes) } : {}) };
+}
+
+/** A control's share of the shift as a colour, never minutes; the key under the programs names each colour. */
+function SpeedDot({ speed }: { readonly speed: Speed }) {
+  return <i className="xb-speed" data-speed={speed} role="img" aria-label={SPEED_WORD[speed]} />;
 }
 
 function reducedMotion() {
@@ -693,6 +697,7 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
   const minutesLeft = Math.max(0, SHIFT_MINUTES - state.minute);
   const shiftOver = minutesLeft < SHIFT_OVER_MIN;
   const ghostMinutes = Math.min(shownCost?.minutes ?? 0, minutesLeft);
+  const ghostSpeed = shownCost && shownCost.minutes > 0 ? speedOf(shownCost.minutes) : undefined;
   const dataWords = limits.filter((item) => DATA_LIMITS.includes(item)).map((item) => LIMIT_COPY[item].word);
   const supportWords = [...limits.filter((item) => !DATA_LIMITS.includes(item)).map((item) => LIMIT_COPY[item].word), ...unsupported.map((element) => `${element} ${WORD.unsupported}`)];
   const beforeFit = fitting(active) ? WORD.fitting : WORD.noFit;
@@ -730,9 +735,11 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
           </select>
         </label>
         <div className="xb-clock" data-tone={shiftOver ? 'over' : minutesLeft < 60 ? 'low' : undefined}>
-          {shiftOver ? <b>{WORD.shiftOver}</b> : <><b>{minutesLeft}</b> {WORD.minLeft}</>}
+          {/* The bar along the top edge is the shift; a hovered control previews its share in its speed colour. */}
+          {shiftOver ? <b>{WORD.shiftOver}</b> : <Term word={WORD.shift} line={GLOSS.word.shift} />}
+          <span className="xb-hidden">{ARIA.shiftLeft(Math.round((100 * minutesLeft) / SHIFT_MINUTES))}</span>
           <i style={{ width: clockShare(minutesLeft) }} />
-          {ghostMinutes > 0 && <i className="xb-ghost" style={{ left: clockShare(minutesLeft - ghostMinutes), width: clockShare(ghostMinutes) }} />}
+          {ghostMinutes > 0 && <i className="xb-ghost" data-speed={ghostSpeed} style={{ left: clockShare(minutesLeft - ghostMinutes), width: clockShare(ghostMinutes) }} />}
         </div>
         <button type="button" className="xb-icon" aria-label={ARIA.intro} aria-expanded={intro} onClick={() => (intro ? closeIntro() : setIntro(true))}>?</button>
         <button type="button" className="xb-icon" aria-label={ARIA.close} onClick={close}>✕</button>
@@ -744,8 +751,7 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
             <div className="xb-runs" role="tablist" aria-label={ARIA.runs}>
               {sample.runs.map((item) => <button key={item.id} type="button" role="tab" aria-selected={item.id === run?.id} onClick={() => viewRun(item.id)}>{runName(item)}</button>)}
             </div>
-            {sweeping ? <button type="button" className="xb-link" onClick={settle}>{WORD.skip}</button>
-              : activeFit && <span className="xb-muted" title={ARIA.strongestPeak}>{formatCounts(activeFit.peakCounts)}</span>}
+            {sweeping && <button type="button" className="xb-link" onClick={settle}>{WORD.skip}</button>}
           </div>
 
           <div className="xb-plot">
@@ -925,26 +931,26 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
   </div>;
 }
 
-function PrimaryCost({ state, action, label, onRun, onCost, secondary = false, grams = false, disabled = false }: {
+function PrimaryCost({ state, action, label, onRun, onCost, secondary = false, disabled = false }: {
   readonly state: LabState;
   readonly action: Action;
   readonly label: string;
   readonly onRun: () => void;
   readonly onCost: OnCost;
   readonly secondary?: boolean;
-  /** Show grams even when zero, as PREP and the test cards do. */
-  readonly grams?: boolean;
   readonly disabled?: boolean;
 }) {
-  const cost = costText(state, action, label, grams);
+  const cost = costLabel(state, action, label);
   const off = cost.disabled || disabled;
-  return <button type="button" className={secondary ? 'xb-secondary' : 'xb-primary'} disabled={off} onClick={onRun} {...onCost(off ? undefined : action)}>{cost.label}</button>;
+  return <button type="button" className={secondary ? 'xb-secondary' : 'xb-primary'} disabled={off} onClick={onRun} {...onCost(off ? undefined : action)}>
+    {cost.speed && !off && <SpeedDot speed={cost.speed} />}{cost.label}
+  </button>;
 }
 
 /** The only way a slot's chips get fitted: an explicit press or `F`. */
 function FitButton({ state, action, onFit }: { readonly state: LabState; readonly action?: Action; readonly onFit: () => void }) {
   if (!action) return null;
-  const cost = costText(state, action, WORD.fit);
+  const cost = costLabel(state, action, WORD.fit);
   return <button type="button" className="xb-primary xb-fit" aria-keyshortcuts="F" disabled={cost.disabled} onClick={onFit}>{cost.label}</button>;
 }
 
@@ -1005,7 +1011,7 @@ function ProbeCard({ state, sample, run, deg, fit, evidence, library, set, runSp
       </li>)}
       {groups.length > MAX_CHIPS && <li className="xb-muted">+{groups.length - MAX_CHIPS}</li>}
     </ul>
-    {!committed && <PrimaryCost state={state} secondary action={{ type: 'scan', code: sample.code, program: 'targeted', centreDeg: deg }} label={WORD.target} onRun={onTarget} onCost={onCost} />}
+    {!committed && <PrimaryCost state={state} secondary action={{ type: 'scan', code: sample.code, program: 'targeted', centreDeg: deg }} label={PROGRAM_LABEL.targeted} onRun={onTarget} onCost={onCost} />}
   </div>;
 }
 
@@ -1052,7 +1058,6 @@ function Tabs<T extends string>({ value, options, glosses, onChange }: {
   </div>;
 }
 
-const plainDeg = (value: number) => `${Number(value.toFixed(2))}`;
 const GRIND_RANK: Readonly<Record<Grind, number>> = { 'as-received': 0, hand: 1, extended: 2 };
 
 function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, draft, costGhost, onTab, onProgram, onDraft, onScan, onMount, onZero, onView, onOverlay, onRerun, onCost }: {
@@ -1100,16 +1105,20 @@ function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, dra
           const pinned = id === 'targeted' && targetDeg === undefined;
           const action: Action = { type: 'scan', code: sample.code, program: id, ...(id === 'targeted' && targetDeg !== undefined ? { centreDeg: targetDeg } : {}) };
           const cost = costOf(state, action);
-          const acquisition = acquisitionFor(id, targetDeg);
-          const detail = id !== 'targeted' ? `${plainDeg(acquisition.range.startDeg)}-${plainDeg(acquisition.range.endDeg)}° · ${acquisition.stepDeg}°` : targetDeg === undefined ? WORD.holdPlot : `${degrees(targetDeg, 1)} · ${WORD.checkOnly}`;
+          // Only a close-up carries a second line: the peak it looks at, or how to pick one.
+          const detail = typeof cost === 'string' ? ERROR_WORD[cost] : id !== 'targeted' ? undefined : targetDeg === undefined ? WORD.tapPeak : degrees(targetDeg, 1);
           return <button key={id} type="button" aria-pressed={program === id} onClick={() => {
             show({ word: PROGRAM_LABEL[id], line: GLOSS.program[id] });
             onProgram(id);
           }} {...onCost(pinned ? undefined : action)}>
-            <b>{PROGRAM_LABEL[id]} {typeof cost === 'string' ? ERROR_WORD[cost] : cost.minutes}</b><span>{detail}</span>
+            <b>{typeof cost !== 'string' && <SpeedDot speed={speedOf(cost.minutes)} />}{PROGRAM_LABEL[id]}</b>{detail && <span>{detail}</span>}
           </button>;
         })}
       </div>
+      <p className="xb-speed-key">
+        <Term word={WORD.time} line={GLOSS.word.time} />
+        {SPEED_ORDER.map((speed) => <span key={speed}><i className="xb-speed" data-speed={speed} aria-hidden="true" />{SPEED_WORD[speed]}</span>)}
+      </p>
       <PrimaryCost state={state} action={scanAction} label={rescan ? WORD.rescan : WORD.scan} onRun={() => onScan(program, centre)} onCost={onCost} disabled={waiting} />
       <button type="button" className="xb-link" aria-expanded={more.scan} onClick={() => setMore({ ...more, scan: !more.scan })}>{WORD.more}</button>
       {more.scan && <div className="xb-field">
@@ -1134,7 +1143,7 @@ function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, dra
     </>}
     {tab === 'prep' && <>
       <div className="xb-field">
-        <p className="xb-line">{WORD.jar} {leftG.toFixed(2)} {WORD.g}</p>
+        <p className="xb-line"><Term word={WORD.jar} line={GLOSS.word.jar} /><span className="xb-hidden">{ARIA.powderLeft(Math.round((100 * leftG) / jarG))}</span></p>
         <div className="xb-bar">
           <i style={{ width: jarShare(leftG) }} />
           {ghostG > 0 && <i className="xb-ghost" style={{ left: jarShare(leftG - ghostG), width: jarShare(ghostG) }} />}
@@ -1148,7 +1157,7 @@ function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, dra
         <Options label={WORD.load} gloss={GLOSS.word.load} value={draft.method} options={[['front', METHOD_LABEL.front], ['back', METHOD_LABEL.back]]} onChange={(method) => onDraft({ ...draft, method })} />
         <Options label={WORD.spike} gloss={GLOSS.word.spike} value={draft.spike} options={(Object.keys(SPIKE_LABEL) as SpikeKind[]).map((kind) => [kind, SPIKE_LABEL[kind]] as const)} onChange={(spike) => onDraft({ ...draft, spike })} disabled={(kind) => same && mount.spike !== 'none' && kind !== mount.spike} />
       </>}
-      <PrimaryCost state={state} grams action={{ type: 'mount', code: sample.code, choice: draft }} label={WORD.mount} onRun={onMount} onCost={onCost} />
+      <PrimaryCost state={state} action={{ type: 'mount', code: sample.code, choice: draft }} label={WORD.mount} onRun={onMount} onCost={onCost} />
     </>}
   </>;
 }
@@ -1249,13 +1258,12 @@ function TestStatus({ state, kind, code, status, onAct, onCost }: {
 }) {
   if (status.status === 'none') {
     const send: Action = { type: kind, code };
-    return <PrimaryCost state={state} secondary grams action={send} label={WORD.send} onRun={() => onAct(send)} onCost={onCost} />;
+    return <PrimaryCost state={state} secondary action={send} label={WORD.send} onRun={() => onAct(send)} onCost={onCost} />;
   }
   if (status.status !== 'running') return null;
-  const minutes = status.readyMinute - state.minute;
-  const wait: Action = { type: 'wait', minutes };
+  const wait: Action = { type: 'wait', minutes: status.readyMinute - state.minute };
   return <div className="xb-actions">
-    <span className="xb-line xb-muted">{WORD.readyIn} {minutes} {WORD.min}</span>
+    <span className="xb-line xb-muted">{WORD.running}</span>
     <PrimaryCost state={state} secondary action={wait} label={WORD.wait} onRun={() => onAct(wait)} onCost={onCost} />
   </div>;
 }

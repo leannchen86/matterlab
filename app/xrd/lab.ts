@@ -555,10 +555,7 @@ export function debrief(state: LabState, code: string): Debrief | undefined {
     return check.peakCounts >= IDENTIFY_COUNTS && !check.warnings.includes('undersampled') && check.features.length === 0 && call.phases.every((id) => check.phases.some((phase) => phase.id === id && phase.status === 'required'));
   };
   const settled = earlierChecks(sample, run).find(settles);
-  if (settled) {
-    const extra = sample.runs.filter((candidate) => candidate.index > settled.index).reduce((sum, candidate) => sum + candidate.acquisition.minutes + COSTS.scanHandling, 0);
-    measurement.push({ grade: 'mixed', text: `R${settled.index} already settled it: +${extra} min` });
-  }
+  if (settled) measurement.push({ grade: 'mixed', text: `R${settled.index} already settled it; later scans only used up the shift` });
   const requested = (['tga', 'sem'] as const).filter((kind) => sample[kind]);
   const pending = requested.filter((kind) => (sample[kind]?.readyMinute ?? 0) > call.minute);
   if (pending.length > 0) measurement.push({ grade: 'mixed', text: `${pending.map((kind) => FOLLOW_UP_LABELS[kind]).join(' + ')} still running at the call` });

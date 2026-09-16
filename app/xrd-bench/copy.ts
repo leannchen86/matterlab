@@ -5,8 +5,9 @@ import type { ElementSource } from '../xrd/context.ts';
 import type { Debrief, DebriefRowId, Grade, LabError, Limitation, TruthBand, Unexplained } from '../xrd/lab.ts';
 import type { Grind, MountRecord, ProgramId, SpikeKind } from '../xrd/measure.ts';
 import { catalogPhase } from '../xrd/phases.ts';
+import type { Speed } from './view.ts';
 
-export const PROGRAM_LABEL: Readonly<Record<ProgramId, string>> = { survey: 'SURVEY', standard: 'STANDARD', slow: 'SLOW', wide: 'WIDE', targeted: 'TARGET' };
+export const PROGRAM_LABEL: Readonly<Record<ProgramId, string>> = { survey: 'SURVEY', standard: 'STANDARD', slow: 'SLOW', wide: 'WIDE', targeted: 'CLOSE-UP' };
 export const PROGRAM_ORDER: readonly ProgramId[] = ['survey', 'standard', 'slow', 'wide', 'targeted'];
 /** Sweep animation per program; counts already exist when it starts. */
 export const SWEEP_MS: Readonly<Record<ProgramId, number>> = { survey: 1500, targeted: 1500, wide: 2000, standard: 3000, slow: 5000 };
@@ -18,13 +19,15 @@ export const SPIKE_LABEL: Readonly<Record<SpikeKind, string>> = { none: 'NONE', 
 /** What a run repeats or changes, next to its program. */
 export const RUN_WORD = { rescan: 'RESCAN', mount: 'NEW MOUNT', aliquot: 'NEW ALIQUOT' } as const;
 
+/** How much of the shift a control spends: a coloured dot on the control, named once in the key under the programs. */
+export const SPEED_WORD: Readonly<Record<Speed, string>> = { quick: 'QUICK', longer: 'LONGER', longest: 'LONGEST' };
+export const SPEED_ORDER: readonly Speed[] = ['quick', 'longer', 'longest'];
+
 /** Words on the bench's controls and lines. */
 export const WORD = {
   // Top bar and workspace
   shiftOver: 'SHIFT OVER',
-  minLeft: 'MIN LEFT',
-  min: 'MIN',
-  g: 'G',
+  shift: 'SHIFT',
   skip: 'SKIP',
   scanning: 'SCANNING',
   fit: 'FIT',
@@ -33,7 +36,6 @@ export const WORD = {
   noFit: 'NO FIT',
   notProof: 'FIT, NOT PROOF',
   noLines: 'NO LIBRARY LINES',
-  target: 'TARGET',
   add: 'ADD',
   max: 'MAX',
   seen: 'SEEN',
@@ -58,8 +60,8 @@ export const WORD = {
   prep: 'PREP',
   runs: 'RUNS',
   more: 'MORE',
-  holdPlot: 'HOLD PLOT',
-  checkOnly: 'CHECK ONLY',
+  tapPeak: 'TAP A PEAK FIRST',
+  time: 'TIME',
   zero: 'ZERO',
   unchecked: 'UNCHECKED',
   checkZero: 'CHECK ZERO',
@@ -89,7 +91,6 @@ export const WORD = {
   useSpike: 'USE SPIKE',
   useZero: 'USE ZERO',
   send: 'SEND',
-  readyIn: 'READY IN',
   wait: 'WAIT',
   noSteps: 'NO STEPS',
   hiddenBy: 'HIDDEN BY',
@@ -150,8 +151,9 @@ export const ARIA = {
   notOnRecord: 'Elements not on record',
   internalStandard: 'Internal standard',
   reachShare: 'Compared with the phases in this fit, spike excluded',
-  strongestPeak: 'Strongest net peak',
   resultReady: 'Result ready',
+  shiftLeft: (percent: number) => `${percent}% of the shift left`,
+  powderLeft: (percent: number) => `${percent}% of the powder left`,
   addReference: (slot: string) => `Add reference to ${slot}`,
   add: (formula: string) => `Add ${formula}`,
   particle: (index: number) => `Particle ${index}`,
@@ -252,9 +254,7 @@ export const GRADE_WORD: Readonly<Record<Grade, string>> = { good: 'GOOD', mixed
 
 const counted = (value: number, one: string, many: string) => `${value} ${value === 1 ? one : many}`;
 
-/** `64 MIN · 2 SCANS · 1 TEST · 5 EXPLANATIONS TRIED` */
-export function debriefCounts(report: Pick<Debrief, 'minutes' | 'scans' | 'followUps'>, tried: number) {
-  return [`${report.minutes} MIN`, counted(report.scans, 'SCAN', 'SCANS'), counted(report.followUps, 'TEST', 'TESTS'), `${counted(tried, 'EXPLANATION', 'EXPLANATIONS')} TRIED`].join(' · ');
+/** `2 SCANS · 1 TEST · 5 EXPLANATIONS TRIED` */
+export function debriefCounts(report: Pick<Debrief, 'scans' | 'followUps'>, tried: number) {
+  return [counted(report.scans, 'SCAN', 'SCANS'), counted(report.followUps, 'TEST', 'TESTS'), `${counted(tried, 'EXPLANATION', 'EXPLANATIONS')} TRIED`].join(' · ');
 }
-
-export const formatCounts = (value: number) => (value >= 1000 ? `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}k` : `${Math.round(value)}`);

@@ -28,7 +28,7 @@ export const LEGEND = { misfit: 'fit disagrees', missing: 'expected peak missing
 
 export const GLOSS = {
   sheet: {
-    data: 'Prepare the powder and scan it. Every scan spends shift minutes',
+    data: 'Prepare the powder and scan it. Every scan uses some of the shift',
     support: 'What a fit cannot settle, the reference barcodes, and other tests',
     aim: 'What this batch was meant to be, and what its record says',
     decide: 'Name what is in the powder and what happens to the batch',
@@ -77,7 +77,7 @@ export const GLOSS = {
     standard: 'Finer steps and more counts, so weak peaks stand out',
     slow: 'The longest scan and the most counts, for the faintest peaks',
     wide: 'A quick look over a wider range of angles',
-    targeted: 'A short, close look around one angle held on the plot',
+    targeted: 'A short, close look around one peak you picked',
   } satisfies Record<ProgramId, string>,
   row: {
     measurement: 'Were the scans good enough for the call?',
@@ -86,6 +86,9 @@ export const GLOSS = {
     decision: 'Did the batch decision meet the aim?',
   } satisfies Record<DebriefRowId, string>,
   word: {
+    shift: 'Time left in the shift. Scans and tests use it up',
+    time: 'The dot colour shows how much of the shift an action uses',
+    jar: 'Powder left for this sample. Mounts and tests use some',
     fit: 'Scale the chosen barcodes to the pattern and see what is left over',
     notProof: 'A better fit favours an explanation. It never proves one',
     looksLike: 'This scan cannot tell these phases apart',

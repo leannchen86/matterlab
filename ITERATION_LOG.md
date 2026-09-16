@@ -2734,3 +2734,29 @@ A newcomer opening the bench met a plot, four state cells, and words like REQUIR
 - Picking a choice shows its meaning every time, which experienced players may find chatty. There is no setting to turn meanings off.
 - The plot is still drawn on canvas, and a one-finger drag pans rather than scrubbing the probe.
 - Costs are illustrative. They are not instrument timings.
+
+## Critique 148: the bench spoke in minutes a web page never takes
+
+The bench runs instantly, yet it printed simulated minutes everywhere: "472 MIN LEFT" on the clock, "TARGET 17" on a program button, "+122 min" in a debrief note. A newcomer read them as waits or as IDs, and "TARGET 17" read as nothing at all.
+
+### Changes made
+
+- No control shows minutes. The clock reads SHIFT over its bar, and SCAN, MOUNT, CHECK ZERO, READ, SEND and WAIT name only the action. A blocked action still says why (NO TIME, NO POWDER).
+- Cost shows as a coloured dot: green for quick, amber for longer, rose for longest. A key under the scan programs names the three colours. Hovering or focusing a costed control previews its share on the shift bar in the same colour.
+- The jar bar drops its gram count. MOUNT and SEND no longer print "0 G".
+- TARGET is now CLOSE-UP. Until a peak is picked it reads TAP A PEAK FIRST, and then it shows the picked angle. Run names follow, as in R5 CLOSE-UP 27.5°.
+- The unlabelled peak count in the run bar is gone.
+- The debrief counts scans, tests and explanations tried, without minutes. The note on a later scan reads "R1 already settled it; later scans only used up the shift".
+
+### Defaults chosen
+
+- Under 20 simulated minutes is quick and under 60 is longer. Anything longer is longest. Survey, wide and close-up scans, reading a note and sending a test are quick. A standard scan, a zero check and most mounts are longer. The slow scan and waiting for a test result are longest.
+- Rose is a new colour, kept apart from the cyan, violet, green and amber the bench already uses.
+- The shift budget, costs and limits are unchanged. Only how they read changed.
+
+### Known gaps
+
+- Amber also marks misfit on the plot, so "longer" shares a colour with a warning.
+- On a phone the shift bar previews a cost only while a finger is down. The dot carries the size before then.
+- Costs are still illustrative, not instrument timings.
+- Other audit suggestions were not taken this round: dock subtitles, the M1 · QUEUE mount tag, the probe's z value, and words such as BASIS and RECALCINE.

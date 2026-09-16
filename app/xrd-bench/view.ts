@@ -13,10 +13,21 @@ export function runCentre(run: Pick<RunRecord, 'acquisition'>) {
   return (run.acquisition.range.startDeg + run.acquisition.range.endDeg) / 2;
 }
 
+/** How much of the shift a costed action spends, shown as a colour and never as minutes. */
+export type Speed = 'quick' | 'longer' | 'longest';
+
+/**
+ * Survey, wide and close-up scans, reading a note and sending a test are quick; a standard scan, a zero check and most
+ * mounts are longer; the slow scan and waiting for a test result are the longest. The bounds sit between those costs.
+ */
+export function speedOf(minutes: number): Speed {
+  return minutes < 20 ? 'quick' : minutes < 60 ? 'longer' : 'longest';
+}
+
 /**
  * `R1 SURVEY` on the queue mount, `R2 STANDARD · RESCAN` when an earlier run used the same mount, `R3 SURVEY · NEW MOUNT`
  * for the first run on a new mount from an earlier aliquot, `R4 SURVEY · NEW ALIQUOT` for the first run on fresh powder,
- * and `R5 TARGET 27.5°` for targeted runs.
+ * and `R5 CLOSE-UP 27.5°` for targeted runs.
  */
 export function runTag(sample: Pick<SampleState, 'runs' | 'mounts'>, run: RunRecord) {
   const head = `R${run.index} ${PROGRAM_LABEL[run.acquisition.program]}`;
