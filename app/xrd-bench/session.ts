@@ -7,6 +7,7 @@ import type { AnalysisOptions, AnalysisResult } from '../xrd/analysis';
 import { ensureAnalysis } from '../xrd/analysis-client';
 import { CASE_CODES } from '../xrd/cases';
 import { apply, cachedAnalysis, createLab, replay, type Action, type LabState, type Outcome } from '../xrd/lab';
+import { ENGINE_VERSION } from '../xrd/measure';
 import type { RunRecord } from '../xrd/records';
 
 const STORAGE_KEY = 'matterlab-xrd-bench-v1';
@@ -23,8 +24,9 @@ function freshSeed() {
 
 function restore(): Session {
   try {
-    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null') as { seed?: unknown; actions?: unknown } | null;
-    if (saved && typeof saved.seed === 'string' && Array.isArray(saved.actions)) {
+    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null') as { seed?: unknown; actions?: unknown; engine?: unknown } | null;
+    // Actions saved under another engine would replay into different runs, so they start a new shift instead.
+    if (saved && typeof saved.seed === 'string' && Array.isArray(saved.actions) && saved.engine === ENGINE_VERSION) {
       const actions = saved.actions as Action[];
       return { seed: saved.seed, actions, state: replay(saved.seed, CASE_CODES, actions) };
     }
@@ -37,7 +39,7 @@ function restore(): Session {
 
 function persist(next: Session) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ seed: next.seed, actions: next.actions }));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ seed: next.seed, actions: next.actions, engine: ENGINE_VERSION }));
   } catch {
     // The shift still runs; it just will not survive a reload.
   }

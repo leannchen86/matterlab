@@ -156,9 +156,12 @@ export function slotsLeft(state: LabState, kind: 'tga' | 'sem') {
 
 const hiddenKey = (state: LabState, code: string) => `${state.seed}/${code}`;
 
+/** Largest goniometer zero offset a shift's instrument can have, in degrees. */
+export const ZERO_SHIFT_LIMIT_DEG = 0.03;
+
 function instrumentOf(seed: string): InstrumentState {
   const random = createRandom(hashSeed('instrument', seed));
-  return { zeroShiftDeg: Math.max(-0.03, Math.min(0.03, 0.012 * random.normal())) };
+  return { zeroShiftDeg: Math.max(-ZERO_SHIFT_LIMIT_DEG, Math.min(ZERO_SHIFT_LIMIT_DEG, 0.012 * random.normal())) };
 }
 
 export type FollowUp<T> = { readonly status: 'none' } | { readonly status: 'running'; readonly readyMinute: number } | { readonly status: 'ready'; readonly readyMinute: number; readonly result: T };

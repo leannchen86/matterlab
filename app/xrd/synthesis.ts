@@ -44,7 +44,7 @@ export type PhaseAmount = {
 
 const MASS = { CaCO3: 100.087, TiO2: 79.866, ZrO2: 123.218, CaO: 56.077, CaOH2: 74.093, CaTiO3: 135.943, Ca4Ti3O10: 463.903 };
 
-/** Vegard estimate on cell volume: Δa/a ≈ +0.05% per mol% Zr on the Ti site. */
+/** Vegard estimate on the mean cell length: Δa/a ≈ +0.05% per mol% Zr on the Ti site, rounded from the cube root of the CaZrO₃/CaTiO₃ reference cell-volume ratio. */
 export const ZR_LATTICE_PER_MOL_PERCENT = 0.0005;
 
 function rate(temperatureC: number, d50Um: number) {

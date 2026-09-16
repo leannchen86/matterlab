@@ -1,7 +1,7 @@
 // Minimal CIF 1.1 reader for crystal structures from the Crystallography Open Database.
 // Used by the offline reference-structure build script and its tests, not at play time.
 
-import type { CrystalStructure, SiteAtom, UnitCell } from './crystallography.ts';
+import { metricTensor, reciprocalMetric, type CrystalStructure, type SiteAtom, type UnitCell } from './crystallography.ts';
 import { isElementSymbol } from './elements.ts';
 
 export type CifLoop = {
@@ -161,22 +161,44 @@ function elementFor(typeSymbol: string | undefined, label: string) {
   return symbol;
 }
 
-function anisotropicEquivalents(block: CifBlock) {
+// Tensor components in CIF tag order: 11, 22, 33, 12, 13, 23.
+const TENSOR_COMPONENTS = [[0, 0], [1, 1], [2, 2], [0, 1], [0, 2], [1, 2]] as const;
+
+/**
+ * Equivalent isotropic value of a displacement tensor given as CIF U_ij or B_ij (11, 22, 33, 12, 13, 23):
+ * Ueq = ⅓ Σᵢⱼ Uⁱʲ a*ᵢ a*ⱼ (aᵢ · aⱼ) (Fischer & Tillmanns, Acta Cryst. C44 (1988) 775).
+ * The mean of the diagonal equals it only in orthogonal cells.
+ */
+export function equivalentIsotropic(cell: UnitCell, tensor: readonly number[]) {
+  const direct = metricTensor(cell);
+  const reciprocal = reciprocalMetric(cell);
+  let sum = 0;
+  TENSOR_COMPONENTS.forEach(([i, j], component) => {
+    // Off-diagonal components appear twice in the double sum.
+    const weight = i === j ? 1 : 2;
+    sum += weight * tensor[component] * Math.sqrt(reciprocal[i][i] * reciprocal[j][j]) * direct[i][j];
+  });
+  return sum / 3;
+}
+
+/** Equivalent isotropic B by site label; off-diagonal columns absent from the loop count as zero. */
+export function anisotropicEquivalents(block: CifBlock, cell: UnitCell) {
   const equivalents = new Map<string, number>();
   const loop = findLoop(block, '_atom_site_aniso_label');
   if (!loop) return equivalents;
   const labels = loopColumn(loop, '_atom_site_aniso_label') ?? [];
-  const uDiagonal = ['_atom_site_aniso_u_11', '_atom_site_aniso_u_22', '_atom_site_aniso_u_33'].map((tag) => loopColumn(loop, tag));
-  const bDiagonal = ['_atom_site_aniso_b_11', '_atom_site_aniso_b_22', '_atom_site_aniso_b_33'].map((tag) => loopColumn(loop, tag));
+  const columns = (kind: 'u' | 'b') => ['11', '22', '33', '12', '13', '23'].map((indices) => loopColumn(loop, `_atom_site_aniso_${kind}_${indices}`));
+  const uColumns = columns('u');
+  const bColumns = columns('b');
+  const tensorAt = (tensorColumns: readonly (readonly string[] | undefined)[], row: number) => {
+    const values = tensorColumns.map((column, component) => (component >= 3 && column === undefined ? 0 : cifNumber(column?.[row])));
+    return values.every((value) => value !== undefined) ? (values as number[]) : undefined;
+  };
   labels.forEach((label, row) => {
-    const uValues = uDiagonal.map((column) => cifNumber(column?.[row]));
-    const bValues = bDiagonal.map((column) => cifNumber(column?.[row]));
-    if (uValues.every((value) => value !== undefined)) {
-      const mean = (uValues as number[]).reduce((sum, value) => sum + value, 0) / 3;
-      equivalents.set(label, 8 * Math.PI * Math.PI * mean);
-    } else if (bValues.every((value) => value !== undefined)) {
-      equivalents.set(label, (bValues as number[]).reduce((sum, value) => sum + value, 0) / 3);
-    }
+    const u = tensorAt(uColumns, row);
+    const b = tensorAt(bColumns, row);
+    if (u) equivalents.set(label, 8 * Math.PI * Math.PI * equivalentIsotropic(cell, u));
+    else if (b) equivalents.set(label, equivalentIsotropic(cell, b));
   });
   return equivalents;
 }
@@ -212,7 +234,7 @@ export function structureFromCif(
   const occupancies = column('_atom_site_occupancy');
   const bIso = column('_atom_site_b_iso_or_equiv');
   const uIso = column('_atom_site_u_iso_or_equiv');
-  const anisotropic = anisotropicEquivalents(block);
+  const anisotropic = anisotropicEquivalents(block, cell);
 
   const atoms: SiteAtom[] = labels.map((label, row) => {
     const element = elementFor(types?.[row], label);

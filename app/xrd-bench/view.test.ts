@@ -5,9 +5,12 @@ import { CASE_CODES, sampleCase, specimenFor } from '../xrd/cases.ts';
 import { COSTS, apply, costOf, createLab, libraryFor, replay, sampleState, tgaStatus, type Action, type LabState, type TruthPhase } from '../xrd/lab.ts';
 import { acquisitionFor, expectedCounts, prepareMount, type Acquisition, type MountRecord, type ProgramId } from '../xrd/measure.ts';
 import { CATALOG_IDS } from '../xrd/phases.ts';
+import { lineWindow, referenceLines } from '../xrd/probe.ts';
+import { CU_KALPHA1, CU_KALPHA2, CU_KBETA, dFromTwoTheta, twoThetaFromD } from '../xrd/profile.ts';
+import type { RunRecord } from '../xrd/records.ts';
 import { PHASE_NAME, SAMPLE_STATUS, debriefCounts } from './copy.ts';
 import { GLOSS, GOAL_LINE, INTRO_LINES, LEGEND } from './gloss.ts';
-import { debriefSummary, detectionReach, goalStep, lineCounts, overlayScale, probeZ, resultReady, runCovers, runTag, sampleStatus, spacingReading, speedOf } from './view.ts';
+import { closeUpCentre, debriefSummary, detectionReach, goalStep, lineCounts, overlayScale, probeGroups, probeZ, resultReady, runCovers, runTag, sampleStatus, spacingReading, speedOf, targetCentre } from './view.ts';
 
 function act(state: LabState, ...actions: Action[]): LabState {
   let current = state;
@@ -67,6 +70,79 @@ test('the probe reads a significance only at angles the displayed run measured',
   assert.equal(probeZ(target, matched, 47.6), undefined);
   assert.equal(probeZ(target, matched, target.grid.startDeg - 0.5), undefined);
   assert.equal(probeZ(target, matched, lastDeg + 0.5), undefined);
+});
+
+/** The bin with the most counts, averaged over ±half bins, between two angles. */
+function apex(run: Pick<RunRecord, 'grid' | 'counts'>, fromDeg: number, toDeg: number, half: number) {
+  const at = (deg: number) => Math.round((deg - run.grid.startDeg) / run.grid.stepDeg);
+  let best = -Infinity;
+  let index = at(fromDeg);
+  for (let i = at(fromDeg); i <= at(toDeg); i += 1) {
+    let sum = 0;
+    for (let j = i - half; j <= i + half; j += 1) sum += run.counts[j];
+    if (sum > best) [best, index] = [sum, i];
+  }
+  return run.grid.startDeg + index * run.grid.stepDeg;
+}
+
+const emissionAngle = (twoTheta: number, wavelength: number) => twoThetaFromD(dFromTwoTheta(twoTheta, CU_KALPHA1), wavelength) ?? NaN;
+
+test('the Kβ bump of the strongest host line names its phase, marked Kβ', () => {
+  const state = act(createLab('view-probe', CASE_CODES), survey);
+  const run = sampleState(state, CODE)?.runs[0];
+  assert.ok(run);
+  const library = libraryFor(state, CODE);
+  const strongest = referenceLines('catio3').find((line) => line.relative === 1);
+  assert.ok(strongest);
+  const bump = apex(run, 29.75, 29.95, 0);
+  assert.ok(Math.abs(bump - emissionAngle(strongest.twoTheta, CU_KBETA)) < 0.1);
+  const host = probeGroups(bump, library).find((group) => group.id === 'catio3');
+  assert.equal(host?.satellite, 'Kβ');
+  assert.equal(host?.relative, 0.01);
+  // The line itself, and its unresolved Kα2 partner, read as the host line with no marker.
+  for (const deg of [strongest.twoTheta, emissionAngle(strongest.twoTheta, CU_KALPHA2)]) {
+    const line = probeGroups(deg, library).find((group) => group.id === 'catio3');
+    assert.equal(line?.satellite, undefined);
+    assert.equal(line?.relative, 1);
+  }
+  // Only the strongest line is strong enough to lend a Kβ satellite.
+  const second = referenceLines('catio3').filter((line) => line.relative < 1).reduce((best, line) => (line.relative > best.relative ? line : best));
+  assert.equal(probeGroups(emissionAngle(second.twoTheta, CU_KBETA), ['catio3'])[0]?.satellite, undefined);
+});
+
+test('a resolved Kα2 partner at high angle names its phase, marked Kα2', () => {
+  const line = referenceLines('catio2o4').find((item) => Math.abs(item.twoTheta - 92.38) < 0.01);
+  assert.ok(line);
+  const partner = emissionAngle(line.twoTheta, CU_KALPHA2);
+  assert.ok(partner - line.twoTheta > lineWindow(line.twoTheta, 'catio2o4').above);
+  assert.deepEqual(probeGroups(partner, ['catio2o4']), [{ id: 'catio2o4', relative: line.relative * 0.5, satellite: 'Kα2' }]);
+});
+
+test('host-cell maxima at high angle on a Zr-expanded wide scan all find their phase', () => {
+  const code = 'S-130';
+  const state = act(createLab('view-probe', CASE_CODES), { type: 'scan', code, program: 'wide' });
+  const run = sampleState(state, code)?.runs[0];
+  assert.ok(run);
+  const library = libraryFor(state, code);
+  const offsets: number[] = [];
+  for (const line of referenceLines('catio3').filter((item) => item.twoTheta >= 85 && item.twoTheta <= 100 && item.relative >= 0.03)) {
+    const peak = apex(run, line.twoTheta - 0.6, line.twoTheta + 0.05, 2);
+    offsets.push(peak - line.twoTheta);
+    assert.ok(probeGroups(peak, library).some((group) => group.id === 'catio3'), `${line.twoTheta.toFixed(3)} → ${peak.toFixed(2)}`);
+  }
+  // The dissolved Zr puts some of these maxima more than 0.3° below their ticks.
+  assert.ok(offsets.some((offset) => offset < -0.3));
+});
+
+test('a close-up offers the held target, else the probed angle, and asks for a tap only when nothing was probed', () => {
+  assert.equal(closeUpCentre(undefined, undefined), undefined);
+  assert.equal(closeUpCentre(undefined, 47.6), 47.6);
+  assert.equal(closeUpCentre(27.5, 47.6), 27.5);
+  assert.equal(closeUpCentre(27.5, undefined), 27.5);
+  // A probe near the goniometer limit is held where the close-up window still fits.
+  const low = closeUpCentre(undefined, 0);
+  assert.equal(low, targetCentre(0));
+  assert.ok(low !== undefined && low > 0);
 });
 
 test('a targeted run on the queue mount counts as an earlier run on that mount', () => {

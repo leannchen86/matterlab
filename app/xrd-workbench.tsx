@@ -38,7 +38,7 @@ import {
 import { dispatch, newShift, saveSlots, savedSlots, seat, seatedMount, useAnalysesReady, useAnalysis, useLab } from './xrd-bench/session';
 import { GLOSS } from './xrd-bench/gloss';
 import { GlossContext, GuideLine, IntroCard, Term, introSeen, markIntroSeen, useGloss, type Gloss } from './xrd-bench/guide';
-import { debriefSummary, detectionReach, goalStep, lineCounts, overlayScale, probeGroups, probeZ, runCentre, runCovers, runTag, sampleStatus, spacingReading, speedOf, type GoalStep, type Speed } from './xrd-bench/view';
+import { closeUpCentre, debriefSummary, detectionReach, goalStep, lineCounts, overlayScale, probeGroups, probeZ, runCentre, runCovers, runTag, sampleStatus, spacingReading, speedOf, targetCentre, type GoalStep, type Speed } from './xrd-bench/view';
 import { PatternPlot, phaseColor, type PlotOverlay, type PlotRange, type PlotTicks } from './xrd-plot';
 import { compareExplanations, type AnalysisResult, type Comparison } from './xrd/analysis';
 import { ensureAnalysis } from './xrd/analysis-client';
@@ -138,19 +138,15 @@ const DOOR_MS = 1400;
 const DOOR: readonly Step[] = [[0, 'open'], [700, 'loaded'], [DOOR_MS, 'closed']];
 /** Below the cheapest scan the shift is over for measurements; fits, references and calls cost nothing. */
 const SHIFT_OVER_MIN = Math.min(...PROGRAM_ORDER.map((id) => acquisitionFor(id).minutes)) + COSTS.scanHandling;
-/** Targeted centres whose window the goniometer limits never cut, so a targeted run's midpoint is the centre asked for. */
-const TARGET_LIMITS = (() => {
-  const { startDeg, endDeg } = acquisitionFor('targeted', 60).range;
-  const half = (endDeg - startDeg) / 2;
-  return { min: acquisitionFor('targeted', -1e3).range.startDeg + half, max: acquisitionFor('targeted', 1e3).range.endDeg - half };
-})();
-const targetCentre = (deg: number) => Math.min(TARGET_LIMITS.max, Math.max(TARGET_LIMITS.min, deg));
+/** The probe angle earns a second decimal once a pixel is finer than the finest scan step. */
+const FINE_STEP_DEG = Math.min(...PROGRAM_ORDER.map((id) => acquisitionFor(id).stepDeg));
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** What the bench remembers between openings. */
 const memory = { code: CASE_CODES[0], held: new Map<string, Held>(), calls: new Map<string, CallDraft>(), unreported: new Set<string>() };
 
-const degrees = (value: number, digits = 2) => `${value.toFixed(digits)}°`;
+// Rounds the magnitude first, so ±z read alike and a small negative reads 0.00°, never -0.00°.
+const degrees = (value: number, digits = 2) => `${((Math.sign(value) * Math.round(Math.abs(value) * 10 ** digits)) / 10 ** digits || 0).toFixed(digits)}°`;
 const LINE_WORD = { seen: WORD.seen, shared: WORD.shared, absent: WORD.absent } as const;
 const flagWord = (words: readonly string[]) => (words.length === 0 ? WORD.noFlags : words.length === 1 ? words[0] : `${words.length} ${WORD.flags}`);
 const reportKey = (state: LabState, code: string) => `${state.seed}/${code}`;
@@ -255,6 +251,7 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
   const [active, setActive] = useState<SlotId>('A');
   const [chip, setChip] = useState<string>();
   const [probeDeg, setProbeDeg] = useState<number>();
+  const [probeDigits, setProbeDigits] = useState(1);
   const [sheet, setSheet] = useState<Sheet>(() => initialSheet(sample));
   const [supportTab, setSupportTab] = useState<SupportTab>('limits');
   const [draft, setDraft] = useState<MountChoice>(() => mountDraft(sample));
@@ -554,9 +551,15 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
 
   const sweeping = Boolean(run && sweep?.runId === run.id);
 
+  /** Opens the probe at an angle; with CLOSE-UP chosen the target follows it. */
+  const probeAt = (deg: number) => {
+    setProbeDeg(deg);
+    if (program === 'targeted') setTargetDeg(targetCentre(deg));
+  };
+
   const probe = (deg: number) => {
     if (sweeping) return settle();
-    setProbeDeg(deg);
+    probeAt(deg);
   };
 
   const selectSlot = (id: SlotId) => {
@@ -591,6 +594,12 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
     setSheet('data');
   };
 
+  /** CLOSE-UP with a probe open holds the probed angle. */
+  const chooseProgram = (id: ProgramId) => {
+    if (id === 'targeted' && probeDeg !== undefined) holdTarget(probeDeg);
+    else setProgram(id);
+  };
+
   /** Copies a run's program and centre into SCAN without scanning. */
   const rerun = (item: RunRecord) => {
     setProgram(item.acquisition.program);
@@ -599,7 +608,7 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
   };
 
   const focusOn = (deg: number, half = 1.2) => {
-    setProbeDeg(deg);
+    probeAt(deg);
     setFocus((current) => ({ startDeg: deg - half, endDeg: deg + half, key: (current?.key ?? 0) + 1 }));
   };
 
@@ -770,6 +779,7 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
               onTarget={committed ? undefined : holdTarget}
               probeDeg={probeDeg}
               onProbe={probe}
+              onScale={(degPerPixel) => setProbeDigits(degPerPixel < FINE_STEP_DEG ? 2 : 1)}
               revealDeg={sweeping ? revealDeg : undefined}
               focus={focus}
               label={ARIA.plot(runTag(sample, run), sample.code)}
@@ -789,6 +799,7 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
             sample={sample}
             run={run}
             deg={probeDeg}
+            digits={probeDigits}
             fit={activeFit}
             evidence={evidence}
             library={library}
@@ -865,11 +876,12 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
             tab={dataTab}
             program={program}
             targetDeg={targetDeg}
+            probeDeg={probeDeg}
             overlayId={overlayRun?.id}
             draft={draft}
             costGhost={shownCost}
             onTab={setDataTab}
-            onProgram={setProgram}
+            onProgram={chooseProgram}
             onDraft={setDraft}
             onScan={scan}
             onMount={mount}
@@ -968,11 +980,13 @@ function CompareWord({ comparison, pending }: { readonly comparison?: Comparison
   </button>;
 }
 
-function ProbeCard({ state, sample, run, deg, fit, evidence, library, set, runSpike, ghost, committed, onGhost, onAdd, onTarget, onCost, onClose }: {
+function ProbeCard({ state, sample, run, deg, digits, fit, evidence, library, set, runSpike, ghost, committed, onGhost, onAdd, onTarget, onCost, onClose }: {
   readonly state: LabState;
   readonly sample: SampleState;
   readonly run: RunRecord;
   readonly deg: number;
+  /** Decimals the plot's current pixel can resolve. */
+  readonly digits: number;
   readonly fit?: AnalysisResult;
   readonly evidence: readonly ElementEvidence[];
   readonly library: readonly string[];
@@ -993,7 +1007,7 @@ function ProbeCard({ state, sample, run, deg, fit, evidence, library, set, runSp
   const feature = fit?.features.find((item) => deg >= item.startDeg - step && deg <= item.endDeg + step);
   return <div className="xb-probe">
     <div className="xb-probe-head">
-      <b>{degrees(deg)}</b>
+      <b>{degrees(deg, digits)}</b>
       {/* No z at an angle this run never measured; amber stays on the feature word. */}
       {!fit ? <span className="xb-muted">{WORD.noFit}</span> : z !== undefined && <span className="xb-muted">z {z >= 0 ? '+' : '−'}{Math.abs(z).toFixed(1)}</span>}
       {feature && <span className="xb-warn"><Term word={FEATURE_WORD[feature.kind]} line={GLOSS.feature[feature.kind]} /></span>}
@@ -1001,9 +1015,10 @@ function ProbeCard({ state, sample, run, deg, fit, evidence, library, set, runSp
     </div>
     <ul className="xb-groups" aria-label={ARIA.libraryLines}>
       {groups.length === 0 && <li className="xb-muted">{WORD.noLines}</li>}
-      {groups.slice(0, MAX_CHIPS).map(({ id, relative }) => <li key={id}>
+      {groups.slice(0, MAX_CHIPS).map(({ id, relative, satellite }) => <li key={id}>
         <button type="button" className="xb-chip" aria-pressed={ghost === id} title={ARIA.showLines} onClick={() => onGhost(id)}>
           <i style={{ background: phaseColor(id) }} />{phaseLabel(id)}
+          {satellite && <span className="xb-muted">{' '}{satellite}</span>}
           <span className="xb-strength" role="img" aria-label={ARIA.strength(relative)}>{relative >= 0.5 ? '▮▮▮' : relative >= 0.15 ? '▮▮' : '▮'}</span>
           {!chemicalSupport(id, evidence).supported && <em className="xb-dot" title={ARIA.notOnRecord} />}
         </button>
@@ -1060,13 +1075,14 @@ function Tabs<T extends string>({ value, options, glosses, onChange }: {
 
 const GRIND_RANK: Readonly<Record<Grind, number>> = { 'as-received': 0, hand: 1, extended: 2 };
 
-function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, draft, costGhost, onTab, onProgram, onDraft, onScan, onMount, onZero, onView, onOverlay, onRerun, onCost }: {
+function DataSheet({ state, sample, run, tab, program, targetDeg, probeDeg, overlayId, draft, costGhost, onTab, onProgram, onDraft, onScan, onMount, onZero, onView, onOverlay, onRerun, onCost }: {
   readonly state: LabState;
   readonly sample: SampleState;
   readonly run?: RunRecord;
   readonly tab: DataTab;
   readonly program: ProgramId;
   readonly targetDeg?: number;
+  readonly probeDeg?: number;
   readonly overlayId?: string;
   readonly draft: MountChoice;
   readonly costGhost?: CostGhost;
@@ -1084,10 +1100,11 @@ function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, dra
   const mount = currentMount(sample);
   const [more, setMore] = useState({ scan: false, prep: draft.method === 'back' || draft.spike !== 'none' });
   const targeted = program === 'targeted';
-  const centre = targeted ? targetDeg : undefined;
+  const offered = closeUpCentre(targetDeg, probeDeg);
+  const centre = targeted ? offered : undefined;
   const scanAction: Action = { type: 'scan', code: sample.code, program, ...(centre === undefined ? {} : { centreDeg: centre }) };
-  // costOf falls back to 33° without a centre, so a targeted scan waits for a centre set on the plot.
-  const waiting = targeted && targetDeg === undefined;
+  // costOf falls back to 33° without a centre, so a targeted scan waits for a centre set or probed on the plot.
+  const waiting = targeted && centre === undefined;
   const rescan = sample.runs.some((item) => item.mount.index === mount.index);
   const same = draft.aliquot === 'same';
   const mounts = [...new Map(sample.runs.map((item) => [item.mount.index, item.mount])).values()].reverse();
@@ -1102,11 +1119,11 @@ function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, dra
       <p className="xb-line">{mountTag(mount)}</p>
       <div className="xb-programs" role="group" aria-label={ARIA.program}>
         {PROGRAM_ORDER.map((id) => {
-          const pinned = id === 'targeted' && targetDeg === undefined;
-          const action: Action = { type: 'scan', code: sample.code, program: id, ...(id === 'targeted' && targetDeg !== undefined ? { centreDeg: targetDeg } : {}) };
+          const pinned = id === 'targeted' && offered === undefined;
+          const action: Action = { type: 'scan', code: sample.code, program: id, ...(id === 'targeted' && offered !== undefined ? { centreDeg: offered } : {}) };
           const cost = costOf(state, action);
           // Only a close-up carries a second line: the peak it looks at, or how to pick one.
-          const detail = typeof cost === 'string' ? ERROR_WORD[cost] : id !== 'targeted' ? undefined : targetDeg === undefined ? WORD.tapPeak : degrees(targetDeg, 1);
+          const detail = typeof cost === 'string' ? ERROR_WORD[cost] : id !== 'targeted' ? undefined : offered === undefined ? WORD.tapPeak : degrees(offered, 1);
           return <button key={id} type="button" aria-pressed={program === id} onClick={() => {
             show({ word: PROGRAM_LABEL[id], line: GLOSS.program[id] });
             onProgram(id);
@@ -1122,7 +1139,7 @@ function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, dra
       <PrimaryCost state={state} action={scanAction} label={rescan ? WORD.rescan : WORD.scan} onRun={() => onScan(program, centre)} onCost={onCost} disabled={waiting} />
       <button type="button" className="xb-link" aria-expanded={more.scan} onClick={() => setMore({ ...more, scan: !more.scan })}>{WORD.more}</button>
       {more.scan && <div className="xb-field">
-        <span className="xb-label"><Term word={WORD.zero} line={GLOSS.word.zero} /> {state.zeroDeg === undefined ? WORD.unchecked : degrees(state.zeroDeg, 3)}</span>
+        <span className="xb-label"><Term word={WORD.zero} line={GLOSS.word.zero} /> {state.zeroDeg === undefined ? WORD.unchecked : degrees(state.zeroDeg)}</span>
         <PrimaryCost state={state} secondary action={{ type: 'standard' }} label={WORD.checkZero} onRun={onZero} onCost={onCost} />
       </div>}
     </>}

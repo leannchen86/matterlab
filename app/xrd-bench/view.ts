@@ -3,8 +3,8 @@
 import type { AnalysisResult, PhaseFit } from '../xrd/analysis.ts';
 import type { Objective } from '../xrd/cases.ts';
 import { DECISION_LABELS, REPORTABLE, ZR_LATTICE_PER_MOL_PERCENT, type Debrief, type Decision, type LabState, type Request, type SampleState, type TruthBand, type TruthPhase } from '../xrd/lab.ts';
-import { exposure, type Acquisition } from '../xrd/measure.ts';
-import { linesNear } from '../xrd/probe.ts';
+import { acquisitionFor, exposure, type Acquisition } from '../xrd/measure.ts';
+import { linesNear, type LineHit } from '../xrd/probe.ts';
 import type { RunRecord } from '../xrd/records.ts';
 import { PROGRAM_LABEL, RUN_WORD, phaseLabel, type SampleStatus } from './copy.ts';
 
@@ -47,11 +47,32 @@ export function overlayScale(displayed: Acquisition, overlay: Acquisition) {
   return from > 0 ? (exposure(displayed) * displayed.stepDeg) / from : 1;
 }
 
-/** Library phases with a line near an angle, strongest line per phase, in catalogue order and never strength order. */
+/**
+ * Library phases with a line near an angle, strongest line per phase, in catalogue order and never strength order. When
+ * that line reaches the angle through a Kα2 partner or a Kβ satellite, `satellite` names the emission.
+ */
 export function probeGroups(deg: number, library: readonly string[], exclude?: string) {
-  const hits = new Map<string, number>();
-  for (const hit of linesNear(deg, library)) if (hit.phaseId !== exclude) hits.set(hit.phaseId, Math.max(hits.get(hit.phaseId) ?? 0, hit.relative));
-  return library.filter((id) => hits.has(id)).map((id) => ({ id, relative: hits.get(id) ?? 0 }));
+  const hits = new Map<string, LineHit>();
+  // linesNear sorts strongest first, so the first hit per phase is its strongest.
+  for (const hit of linesNear(deg, library)) if (hit.phaseId !== exclude && !hits.has(hit.phaseId)) hits.set(hit.phaseId, hit);
+  return library.flatMap((id) => {
+    const hit = hits.get(id);
+    return hit ? [{ id, relative: hit.relative, satellite: hit.emission === 'Kα1' ? undefined : hit.emission }] : [];
+  });
+}
+
+/** Targeted centres whose window the goniometer limits never cut, so a targeted run's midpoint is the centre asked for. */
+const TARGET_LIMITS = (() => {
+  const { startDeg, endDeg } = acquisitionFor('targeted', 60).range;
+  const half = (endDeg - startDeg) / 2;
+  return { min: acquisitionFor('targeted', -1e3).range.startDeg + half, max: acquisitionFor('targeted', 1e3).range.endDeg - half };
+})();
+
+export const targetCentre = (deg: number) => Math.min(TARGET_LIMITS.max, Math.max(TARGET_LIMITS.min, deg));
+
+/** The centre a close-up would use: the held target, else the probed angle; undefined only when nothing was probed. */
+export function closeUpCentre(targetDeg: number | undefined, probeDeg: number | undefined) {
+  return targetDeg ?? (probeDeg === undefined ? undefined : targetCentre(probeDeg));
 }
 
 /** Whether a run measured an angle: its nearest bin lies on the run's grid. */

@@ -2787,3 +2787,77 @@ The page still carried earlier rounds of work: a scenario deck with BET, furnace
 
 - Some older styles for panels no page renders were already unused before this round. They were left alone.
 - Station records still carry `meta` and `dataProducts` fields that nothing shows.
+
+## Critique 150: the probe lost the Kα2 side of a peak
+
+The last round swapped the probe's fixed 0.3° tolerance for the model's own bounds and added Kα2 and Kβ satellites. Checking it showed several problems:
+
+- **Peak tops above a tick named nothing.** A satellite was skipped whenever it sat inside its parent's Kα1 window, so tapping the Kα2 side of a peak, just past that window, returned no phase. CaTiO₃ 59.38° ends its window at 59.575°, and a tap at 59.58° named nothing.
+- **Every phase got CaTiO₃'s window.** The lattice-scale allowance was CaTiO₃'s largest scale, applied to all phases.
+- **Merged lines could chain.** Reflections merged by walking from each new angle, so a run of close reflections crept along: Ca₄Ti₃O₁₀ showed 508 ticks instead of 512.
+- **The sampling warning depended on the seed.** The "narrowest fitted line" rule sat right at the threshold, so it flagged S-123 SURVEY and WIDE on 4 of 6 seeds, S-101 WIDE on 1 of 6 and S-117 SURVEY on 1 of 6.
+- **Corundum-spiked runs changed under the same engine label.** The corundum displacement-parameter (Ueq) fix altered their counts, but a saved shift would still replay into different runs with nothing marking the change.
+
+### Changes made
+
+- The probe keeps the Kα1 window for each line.
+  - Outside that window, a line's Kα2 or Kβ component names the phase when two things hold: the tap lies within the component's own window, and the component's relative intensity (after its emission weight) is at least 0.01.
+  - A resolved component takes displacement, zero and lattice scale, but not the Kα2 pull.
+  - A tap at 59.58° now names CaTiO₃, marked Kα2 (relative 0.116).
+- The lattice allowance is the largest scale any case gives that phase. Only CaTiO₃ has one.
+  - Tolerance below/above in degrees, compared with HEAD's fixed 0.3°:
+
+    | Phase | 20° | 50° | 90° |
+    | --- | --- | --- | --- |
+    | CaTiO₃ | 0.218/0.172 | 0.312/0.190 | 0.477/0.215 |
+    | Rutile and other unscaled phases | 0.155/0.172 | 0.145/0.190 | 0.120/0.215 |
+
+  - A resolved satellite of an unscaled phase gets 0.155/0.145/0.120 on both sides.
+- Reflections join a line when they sit within 0.02° of its first reflection, and the line sits at their intensity-weighted angle. Ca₄Ti₃O₁₀ shows 512 ticks again, and every other phase keeps its count.
+- The sampling check is back to HEAD's mid-range FWHM/step, so it warns on nothing new.
+  - SURVEY and WIDE read 4.17 and 4.43 points per FWHM on every seed.
+  - The true narrowest lines on those programs are 2.95–3.13 for S-101, S-117, S-123, S-130, S-156 and S-163. The fitted estimate jittered by about ±3% around 3, which is why the warning followed the seed.
+- `ENGINE_VERSION` is now `xrd-engine-2`.
+  - The saved session records the engine version.
+  - A shift saved under another engine starts a new shift rather than replaying into different runs.
+- The corundum reference now uses the Fischer–Tillmanns reduction:
+
+  | Quantity | Before | After |
+  | --- | --- | --- |
+  | O1 B (Å²) | 0.195 | 0.183 |
+  | Al1 B (Å²) | 0.147 | 0.147 |
+  | Mean B (Å²) | 0.1758 | 0.169 |
+
+  - |F|² moves −1.43% to +1.21% on all 43 reflections.
+  - The largest relative-intensity change is −0.080 points, on (104) at 35.14° (95.97 → 95.89).
+  - Portlandite changes by −0.004 points at most.
+  - REFERENCE_DATA_VERSION goes from refs-852e2479 to refs-22529460.
+- Corundum-spiked runs, 4 seeds × 7 samples × SURVEY/STANDARD (56 runs): the warnings match HEAD exactly. One phase status moved (w1 S-142 SURVEY, calcite overlapped → required).
+- Tap audit: 4 seeds × 7 samples × SURVEY/WIDE, the 10 strongest maxima of each run, tapped at the apex, ±0.5 px and ±1 px on a 565 px plot (2800 taps).
+
+  | Measure | HEAD | Before this round | Now |
+  | --- | --- | --- | --- |
+  | Misses | 44 | 95 | 54 |
+  | Chips | 4708 | 4186 | 4403 |
+  | Marked chips | 0 | 87 | 532 |
+
+  - Every apex and half-pixel miss is a Ca₄Ti₃O₁₀ maximum, which has no library entry.
+  - CaTiO₃ misses went 4 → 55 → 14.
+- CLOSE-UP follows the probe.
+  - With CLOSE-UP chosen, a tap or a feature focus moves the target.
+  - Choosing CLOSE-UP with a probe open takes the probed angle, even when a target was already held.
+- Degree readouts round the magnitude, so ±0.005° read alike.
+- The Vegard comment now reads as an estimate on the mean cell length, rounded. The constant is still 0.0005.
+
+### Defaults chosen
+
+- Each phase shows its strongest hit. A Kα1 hit always beats that line's own satellites.
+- The satellite floor is the Kβ weight of a phase's strongest line, 0.01. The analysis line checks use the same 1% floor.
+- An old saved shift starts over once. Slots saved under its seed then read as none.
+
+### Known gaps
+
+- A tap a full pixel off a peak's apex can fall outside the window. That is 0.124° on SURVEY and 0.168° on WIDE, more than one FWHM. The audit found 14 CaTiO₃ taps like this, against 4 under HEAD's fixed 0.3°.
+- The probe reads no sample state, so a marked Kα2 or Kβ chip can name a phase the sample lacks.
+- The sampling check still judges a mid-range width, so narrowest lines just under 3 points per FWHM do not warn.
+- The engine guard in the session store has no automated test, since it needs browser storage.

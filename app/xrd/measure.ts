@@ -13,7 +13,7 @@ import { CU_KALPHA1, DEG, LAB_OPTICS, type InstrumentOptics } from './profile.ts
 import { createRandom, hashSeed } from './random.ts';
 import type { PhaseAmount } from './synthesis.ts';
 
-export const ENGINE_VERSION = 'xrd-engine-1';
+export const ENGINE_VERSION = 'xrd-engine-2';
 
 export type Grind = 'as-received' | 'hand' | 'extended';
 export type SpikeKind = 'none' | 'silicon' | 'corundum';
@@ -94,7 +94,7 @@ const GRIND: Readonly<Record<Grind, GrindEffect>> = {
 };
 
 /** Displacement spread of a hand-made mount in mm; back-loading sets the surface against a flat plate. */
-const DISPLACEMENT_SD_MM: Readonly<Record<MountMethod, number>> = { front: 0.04, back: 0.02 };
+export const DISPLACEMENT_SD_MM: Readonly<Record<MountMethod, number>> = { front: 0.04, back: 0.02 };
 
 const SPIKE_PHASE: Readonly<Record<Exclude<SpikeKind, 'none'>, Omit<PhaseAmount, 'weightFraction'>>> = {
   silicon: { structureId: 'silicon', latticeScale: 1, crystalliteNm: 600, microstrain: 0.00005, grainUm: 4.5 },

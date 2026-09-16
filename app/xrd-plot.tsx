@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
 import type { AnalysisResult, PhaseStatus } from './xrd/analysis';
 import type { Grid } from './xrd/pattern';
 import type { ReferenceLine } from './xrd/probe';
@@ -396,7 +396,7 @@ type Brush = { readonly startFraction: number; readonly startX: number; moved: b
  * zoom, tap to probe an angle or a flagged band, right-click or hold to set the target band, double-click to show the
  * full range. Give it a key per run so the view resets when the scan changes.
  */
-export function PatternPlot({ grid, counts, fit, dim = false, other, overlay, highlight, ticks = [], ghost, target, onTarget, probeDeg, onProbe, revealDeg, sqrt = false, focus, label }: {
+export function PatternPlot({ grid, counts, fit, dim = false, other, overlay, highlight, ticks = [], ghost, target, onTarget, probeDeg, onProbe, onScale, revealDeg, sqrt = false, focus, label }: {
   readonly grid: Grid;
   readonly counts: ArrayLike<number>;
   readonly fit?: AnalysisResult;
@@ -414,6 +414,8 @@ export function PatternPlot({ grid, counts, fit, dim = false, other, overlay, hi
   readonly onTarget?: (deg: number) => void;
   readonly probeDeg?: number;
   readonly onProbe?: (deg: number) => void;
+  /** Degrees per pixel of the current view, reported whenever the view or the size changes. */
+  readonly onScale?: (degPerPixel: number) => void;
   /** While acquiring, counts beyond this angle have not arrived. */
   readonly revealDeg?: number;
   readonly sqrt?: boolean;
@@ -450,6 +452,11 @@ export function PatternPlot({ grid, counts, fit, dim = false, other, overlay, hi
   }, []);
 
   useEffect(() => () => window.clearTimeout(hold.current), []);
+
+  const reportScale = useEffectEvent((degPerPixel: number) => onScale?.(degPerPixel));
+  useEffect(() => {
+    if (size.width > 0) reportScale((view.endDeg - view.startDeg) / layout(size.width, size.height, tickRows, size.track).plotW);
+  }, [size, view, tickRows]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

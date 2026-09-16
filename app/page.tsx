@@ -26,7 +26,7 @@ export default function Home() {
         : phase === 4
           ? [`Sample: ${xrdRunContext?.sampleId ?? '-'}`, 'Pattern: complete', `Preparation: ${xrdRunContext?.prep ?? '-'}`, 'Reference library: open']
           : phase === 3
-            ? [`Sample: ${xrdRunContext?.sampleId ?? '-'}`, `Method: ${xrdRunContext?.scan ?? '-'}`, 'Range: 10–80° 2θ', 'Acquisition: in progress']
+            ? [`Sample: ${xrdRunContext?.sampleId ?? '-'}`, `Method: ${xrdRunContext?.scan ?? '-'}`, 'Acquisition: in progress']
             : ['Samples: 7 in queue', 'Mounts: front · back · spin · spike', 'Scan programs: 5', 'Reruns: enabled'],
     };
     return station;
