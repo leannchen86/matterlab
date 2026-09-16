@@ -44,6 +44,8 @@ The XRD bench opens from the XRD scenario. One 480-minute shift covers seven CaT
 - **Call:** commit the phases, what stays unexplained, and a batch decision.
 - **Debrief:** read the hidden truth and how the call held up.
 
+A first-time player meets a short card before the bench. Each kind of crystal scatters X-rays into its own barcode of peaks, a fit tests which barcodes explain a pattern, and peaks that nothing explains are clues. Underlined words explain themselves on tap. Until the first call of a shift, one line under the bench names the next step, read only from what is on screen. It points at an action, never at an answer. `?` in the top bar reopens the card.
+
 The core in `app/xrd/` runs one way: hidden state → measurement → observables → analysis → decision.
 
 - **Hidden state:** each batch has a synthesis history that sets its phases, amounts, crystallite and grain sizes, and lattice. The bench shows it only in the debrief, after a call.
@@ -105,7 +107,10 @@ app/
   xrd-plot.tsx               pattern canvas with fit, residual, and probe
   xrd-bench/
     copy.ts                  bench strings
+    gloss.ts                 newcomer meanings, intro and goal lines
+    guide.tsx                intro card, tap-to-explain words, guide line
     session.ts               seeded shift store, replay, background fits
+    view.ts                  run tags, fit readouts, goal step, debrief sentence
   xrd/
     campaign.ts              campaign traces and phase shares from the shared model
     synthesis.ts             synthesis history to phases

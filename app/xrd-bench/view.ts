@@ -6,7 +6,7 @@ import { DECISION_LABELS, REPORTABLE, ZR_LATTICE_PER_MOL_PERCENT, type Debrief, 
 import { exposure, type Acquisition } from '../xrd/measure.ts';
 import { linesNear } from '../xrd/probe.ts';
 import type { RunRecord } from '../xrd/records.ts';
-import { PROGRAM_LABEL, RUN_WORD, WORD, phaseLabel, type SampleStatus } from './copy.ts';
+import { PROGRAM_LABEL, RUN_WORD, phaseLabel, type SampleStatus } from './copy.ts';
 
 /** Centre of a run's angular range; for a targeted run, the angle it checked. */
 export function runCentre(run: Pick<RunRecord, 'acquisition'>) {
@@ -119,9 +119,15 @@ export function spacingReading(
   return { kind: 'zr', value: Math.max(0, Math.round((phase.latticeScale - 1) / ZR_LATTICE_PER_MOL_PERCENT)) };
 }
 
-/** `2 SEEN · 1 SHARED · 0 ABSENT` */
-export function lineCountsText(fit: Pick<PhaseFit, 'detected' | 'shared' | 'missing'>) {
-  return `${fit.detected.length} ${WORD.seen} · ${fit.shared} ${WORD.shared} · ${fit.missing.length} ${WORD.absent}`;
+export type LineCount = { readonly kind: 'seen' | 'shared' | 'absent'; readonly count: number };
+
+/** How a phase's lines fared, in reading order: `2 SEEN · 1 SHARED · 0 ABSENT`. */
+export function lineCounts(fit: Pick<PhaseFit, 'detected' | 'shared' | 'missing'>): readonly LineCount[] {
+  return [
+    { kind: 'seen', count: fit.detected.length },
+    { kind: 'shared', count: fit.shared },
+    { kind: 'absent', count: fit.missing.length },
+  ];
 }
 
 const BAND_PHRASE: Readonly<Record<TruthBand, string>> = { major: 'mostly', minor: 'a small amount of', trace: 'a trace of' };
@@ -170,4 +176,23 @@ function decisionSentence(report: Pick<Debrief, 'truth' | 'objectiveMet' | 'fixe
  */
 export function debriefSummary(report: Pick<Debrief, 'truth' | 'objectiveMet' | 'fixes'>, decision: Decision) {
   return [powderSentence(report.truth), decisionSentence(report, decision)].filter(Boolean).join(' ');
+}
+
+/** The one next step a newcomer is pointed at, read only from what the bench shows. */
+export type GoalStep = 'scan' | 'probe' | 'add' | 'fit' | 'misfit' | 'decide';
+
+export function goalStep(view: {
+  /** A run is on show. */
+  readonly run: boolean;
+  /** An angle on the plot is being probed. */
+  readonly probing: boolean;
+  /** Chips in the active slot. */
+  readonly chips: number;
+  /** The active slot's fit, once it has finished. */
+  readonly fit?: Pick<AnalysisResult, 'features'>;
+}): GoalStep {
+  if (!view.run) return 'scan';
+  if (view.chips === 0) return view.probing ? 'add' : 'probe';
+  if (!view.fit) return 'fit';
+  return view.fit.features.length > 0 ? 'misfit' : 'decide';
 }

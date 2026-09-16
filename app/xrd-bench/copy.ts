@@ -125,11 +125,14 @@ export const WORD = {
   nextSample: 'NEXT SAMPLE',
   newShift: 'NEW SHIFT',
   close: 'CLOSE',
+  // Intro
+  start: 'START',
 } as const;
 
 /** Labels read by assistive technology only. */
 export const ARIA = {
   bench: 'XRD bench',
+  intro: 'How the bench works',
   sample: 'Sample',
   close: 'Close bench',
   pattern: 'Pattern',

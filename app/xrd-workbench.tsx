@@ -35,7 +35,9 @@ import {
   unsupportedLine,
 } from './xrd-bench/copy';
 import { dispatch, newShift, saveSlots, savedSlots, seat, seatedMount, useAnalysesReady, useAnalysis, useLab } from './xrd-bench/session';
-import { debriefSummary, detectionReach, lineCountsText, overlayScale, probeGroups, probeZ, runCentre, runCovers, runTag, sampleStatus, spacingReading } from './xrd-bench/view';
+import { GLOSS } from './xrd-bench/gloss';
+import { GlossContext, GuideLine, IntroCard, Term, introSeen, markIntroSeen, useGloss, type Gloss } from './xrd-bench/guide';
+import { debriefSummary, detectionReach, goalStep, lineCounts, overlayScale, probeGroups, probeZ, runCentre, runCovers, runTag, sampleStatus, spacingReading, type GoalStep } from './xrd-bench/view';
 import { PatternPlot, phaseColor, type PlotOverlay, type PlotRange, type PlotTicks } from './xrd-plot';
 import { compareExplanations, type AnalysisResult, type Comparison } from './xrd/analysis';
 import { ensureAnalysis } from './xrd/analysis-client';
@@ -148,6 +150,7 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
 const memory = { code: CASE_CODES[0], held: new Map<string, Held>(), calls: new Map<string, CallDraft>(), unreported: new Set<string>() };
 
 const degrees = (value: number, digits = 2) => `${value.toFixed(digits)}°`;
+const LINE_WORD = { seen: WORD.seen, shared: WORD.shared, absent: WORD.absent } as const;
 const flagWord = (words: readonly string[]) => (words.length === 0 ? WORD.noFlags : words.length === 1 ? words[0] : `${words.length} ${WORD.flags}`);
 const reportKey = (state: LabState, code: string) => `${state.seed}/${code}`;
 const clockShare = (minutes: number) => `${(100 * Math.max(0, minutes)) / SHIFT_MINUTES}%`;
@@ -260,6 +263,9 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
   const [program, setProgram] = useState<ProgramId>('survey');
   const [targetDeg, setTargetDeg] = useState<number>();
   const [ghost, setGhost] = useState<string>();
+  const [intro, setIntro] = useState(() => !introSeen());
+  /** A tapped word's meaning, shown only while the lab, the sample, the sheet and the next step are as they were when it was tapped. */
+  const [gloss, setGloss] = useState<Gloss & { readonly at: LabState; readonly code: string; readonly sheet: Sheet; readonly step?: GoalStep }>();
   const [overlayId, setOverlayId] = useState<string>();
   /** The interpretation each slot last fitted, set only when that slot's newest FIT finishes. */
   const [fitted, setFitted] = useState<SlotFits>(NO_FITS);
@@ -620,6 +626,11 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
     onClose();
   };
 
+  const closeIntro = () => {
+    markIntroSeen();
+    setIntro(false);
+  };
+
   const startShift = () => {
     memory.held.clear();
     memory.calls.clear();
@@ -651,11 +662,12 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
     }
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (chip) setChip(undefined);
+      if (intro) closeIntro();
+      else if (chip) setChip(undefined);
       else close();
       return;
     }
-    if (!run || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (intro || !run || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     if ((origin instanceof HTMLElement && origin.isContentEditable) || origin?.closest('input, select, textarea')) return;
     const pressed = event.key.toLowerCase();
     if (pressed === 'a' || pressed === 'b') {
@@ -697,9 +709,19 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
   const selectedReach = chip && activeFit ? detectionReach(activeFit.phases, chip, spike) : undefined;
   const selectedSpacing = chip && activeFit ? spacingReading(activeFit, chip, source.record.objective, spike) : undefined;
   const nextOpen = state.samples.find((item) => !item.call && item.code !== sample.code);
+  // Until the first call of the shift, one line points at the next step, read only from what the bench shows.
+  const step = state.samples.some((item) => item.call) ? undefined : goalStep({ run: Boolean(run), probing: probeDeg !== undefined, chips: activeSet.length, fit: activeFit });
+  const shownGloss = gloss && gloss.at === state && gloss.code === sample.code && gloss.sheet === sheet && gloss.step === step ? gloss : undefined;
+  const showGloss = (next: Gloss, toggle = false, on: Sheet = sheet) => {
+    const same = shownGloss?.word === next.word && shownGloss.line === next.line;
+    setGloss(toggle && same ? undefined : { ...next, at: state, code: sample.code, sheet: on, step });
+  };
 
   return <div className="xb-backdrop">
+    <GlossContext value={{ shown: shownGloss, show: showGloss }}>
     <section ref={dialogRef} className="xb" role="dialog" aria-modal="true" aria-label={ARIA.bench} tabIndex={-1}>
+      {/* First in the dialog, so the focus trap lands on START; it covers the body below the top bar. */}
+      {intro && <IntroCard onStart={closeIntro} />}
       <header className="xb-top">
         <label className="xb-sample">
           <span className="xb-hidden">{ARIA.sample}</span>
@@ -712,10 +734,11 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
           <i style={{ width: clockShare(minutesLeft) }} />
           {ghostMinutes > 0 && <i className="xb-ghost" style={{ left: clockShare(minutesLeft - ghostMinutes), width: clockShare(ghostMinutes) }} />}
         </div>
+        <button type="button" className="xb-icon" aria-label={ARIA.intro} aria-expanded={intro} onClick={() => (intro ? closeIntro() : setIntro(true))}>?</button>
         <button type="button" className="xb-icon" aria-label={ARIA.close} onClick={close}>✕</button>
       </header>
 
-      <div className="xb-body">
+      <div className="xb-body" inert={intro}>
         <section className="xb-work" aria-label={ARIA.pattern}>
           <div className="xb-runbar">
             <div className="xb-runs" role="tablist" aria-label={ARIA.runs}>
@@ -799,19 +822,26 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
             <b style={{ color: phaseColor(chip) }}>{phaseLabel(chip)}</b>
             {PHASE_NAME[chip] && <span className="xb-muted">{PHASE_NAME[chip]}</span>}
             {selectedFit ? <>
-              <span>{STATUS_WORD[selectedFit.status]}</span>
+              <Term word={STATUS_WORD[selectedFit.status]} line={GLOSS.status[selectedFit.status]} />
               {/* A phase the fit did not need has no lines to count, so it reads what this scan could have shown instead. */}
-              {selectedReach ? <span title={ARIA.reachShare}>{REACH_WORD[selectedReach]}</span> : <span>{lineCountsText(selectedFit)}</span>}
-              {selectedSpacing && <span>{WORD.spacing} {selectedSpacing.kind === 'zr' ? `≈ Zr${selectedSpacing.value}` : `· ${WORD.checkZeroFirst}`}</span>}
-              {selectedFit.indistinguishableFrom.length > 0 && <span className="xb-warn">{WORD.looksLike} {selectedFit.indistinguishableFrom.map(phaseLabel).join(', ')}</span>}
+              {selectedReach
+                ? <span title={ARIA.reachShare}><Term word={REACH_WORD[selectedReach]} line={GLOSS.reach[selectedReach]} /></span>
+                : <span>{lineCounts(selectedFit).map((item, index) => <span key={item.kind}>{index > 0 && ' · '}{item.count} <Term word={LINE_WORD[item.kind]} line={GLOSS.lines[item.kind]} /></span>)}</span>}
+              {selectedSpacing && <span>
+                <Term word={WORD.spacing} line={GLOSS.spacing.zr} /> {selectedSpacing.kind === 'zr' ? `≈ Zr${selectedSpacing.value}` : <>· <Term word={WORD.checkZeroFirst} line={GLOSS.spacing.checkZero} /></>}
+              </span>}
+              {selectedFit.indistinguishableFrom.length > 0 && <span className="xb-warn"><Term word={WORD.looksLike} line={GLOSS.word.looksLike} /> {selectedFit.indistinguishableFrom.map(phaseLabel).join(', ')}</span>}
             </> : <span className="xb-muted">{fitting(active) ? WORD.fitting : WORD.noFit}</span>}
-            {chemicalSupport(chip, evidence).unsupported.map((element) => <span key={element} className="xb-warn">{element} {WORD.unsupported}</span>)}
+            {chemicalSupport(chip, evidence).unsupported.map((element) => <span key={element} className="xb-warn">{element} <Term word={WORD.unsupported} line={GLOSS.word.unsupported} /></span>)}
             {!committed && <button type="button" className="xb-link" onClick={() => removePhase(chip)}>{WORD.remove}</button>}
           </div>}
         </section>
 
         <nav className="xb-tabs" role="tablist" aria-label={ARIA.sheets}>
-          {dock.map((cell) => <button key={cell.id} type="button" role="tab" aria-selected={sheet === cell.id} onClick={() => setSheet(cell.id)}>
+          {dock.map((cell) => <button key={cell.id} type="button" role="tab" aria-selected={sheet === cell.id} onClick={() => {
+            if (sheet !== cell.id) showGloss({ word: SHEET_LABEL[cell.id], line: GLOSS.sheet[cell.id] }, false, cell.id);
+            setSheet(cell.id);
+          }}>
             <b>
               {SHEET_LABEL[cell.id]}
               {cell.flag && <em className="xb-dot" />}
@@ -889,7 +919,9 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
             />)}
         </section>
       </div>
+      {!intro && <GuideLine gloss={shownGloss} step={step} />}
     </section>
+    </GlossContext>
   </div>;
 }
 
@@ -918,9 +950,13 @@ function FitButton({ state, action, onFit }: { readonly state: LabState; readonl
 
 function CompareWord({ comparison, pending }: { readonly comparison?: Comparison; readonly pending: boolean }) {
   const [open, setOpen] = useState(false);
+  const gloss = useGloss();
   if (pending) return <span className="xb-compare xb-muted">{WORD.fitting}</span>;
   if (!comparison) return null;
-  return <button type="button" className="xb-compare" data-tone={comparison} aria-expanded={open} onClick={() => setOpen(!open)}>
+  return <button type="button" className="xb-compare" data-tone={comparison} aria-expanded={open} onClick={() => {
+    if (!open) gloss({ word: WORD.notProof, line: GLOSS.word.notProof });
+    setOpen(!open);
+  }}>
     {COMPARISON_WORD[comparison]}
     {open && <small>{WORD.notProof}</small>}
   </button>;
@@ -954,7 +990,7 @@ function ProbeCard({ state, sample, run, deg, fit, evidence, library, set, runSp
       <b>{degrees(deg)}</b>
       {/* No z at an angle this run never measured; amber stays on the feature word. */}
       {!fit ? <span className="xb-muted">{WORD.noFit}</span> : z !== undefined && <span className="xb-muted">z {z >= 0 ? '+' : '−'}{Math.abs(z).toFixed(1)}</span>}
-      {feature && <span className="xb-warn">{FEATURE_WORD[feature.kind]}</span>}
+      {feature && <span className="xb-warn"><Term word={FEATURE_WORD[feature.kind]} line={GLOSS.feature[feature.kind]} /></span>}
       <button type="button" className="xb-icon xb-icon-small" aria-label={ARIA.clearProbe} onClick={onClose}>✕</button>
     </div>
     <ul className="xb-groups" aria-label={ARIA.libraryLines}>
@@ -973,24 +1009,46 @@ function ProbeCard({ state, sample, run, deg, fit, evidence, library, set, runSp
   </div>;
 }
 
-function Options<T extends string | boolean>({ label, value, options, onChange, disabled }: {
+function Options<T extends string | boolean>({ label, gloss, value, options, glosses, onChange, disabled }: {
   readonly label: string;
+  /** What the label means, on tap. */
+  readonly gloss?: string;
   readonly value: T;
   readonly options: readonly (readonly [T, string])[];
+  /** What each choice means, shown when it is picked. */
+  readonly glosses?: Readonly<Partial<Record<string, string>>>;
   readonly onChange: (value: T) => void;
   readonly disabled?: (value: T) => boolean;
 }) {
+  const show = useGloss();
+  const pick = (option: T, text: string) => {
+    const line = glosses?.[String(option)];
+    if (line) show({ word: text, line });
+    onChange(option);
+  };
   return <div className="xb-field">
-    <span className="xb-label">{label}</span>
+    {gloss ? <Term className="xb-label" word={label} line={gloss} /> : <span className="xb-label">{label}</span>}
     <div className="xb-seg" role="group" aria-label={label}>
-      {options.map(([option, text]) => <button key={String(option)} type="button" aria-pressed={option === value} disabled={disabled?.(option)} onClick={() => onChange(option)}>{text}</button>)}
+      {options.map(([option, text]) => <button key={String(option)} type="button" aria-pressed={option === value} disabled={disabled?.(option)} onClick={() => pick(option, text)}>{text}</button>)}
     </div>
   </div>;
 }
 
-function Tabs<T extends string>({ value, options, onChange }: { readonly value: T; readonly options: readonly (readonly [T, string])[]; readonly onChange: (value: T) => void }) {
+function Tabs<T extends string>({ value, options, glosses, onChange }: {
+  readonly value: T;
+  readonly options: readonly (readonly [T, string])[];
+  /** What each tab holds, shown when it is opened. */
+  readonly glosses?: Readonly<Partial<Record<T, string>>>;
+  readonly onChange: (value: T) => void;
+}) {
+  const show = useGloss();
+  const open = (option: T, text: string) => {
+    const line = glosses?.[option];
+    if (line && option !== value) show({ word: text, line });
+    onChange(option);
+  };
   return <div className="xb-subtabs" role="tablist">
-    {options.map(([option, text]) => <button key={option} type="button" role="tab" aria-selected={option === value} onClick={() => onChange(option)}>{text}</button>)}
+    {options.map(([option, text]) => <button key={option} type="button" role="tab" aria-selected={option === value} onClick={() => open(option, text)}>{text}</button>)}
   </div>;
 }
 
@@ -1032,6 +1090,7 @@ function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, dra
   const leftG = powderLeftG(state, sample.code);
   const ghostG = Math.min(costGhost?.powderG ?? 0, leftG);
   const jarShare = (grams: number) => `${(100 * Math.max(0, grams)) / jarG}%`;
+  const show = useGloss();
   return <>
     <Tabs value={tab} options={[['scan', WORD.scan], ['prep', WORD.prep], ['runs', WORD.runs]]} onChange={onTab} />
     {tab === 'scan' && <>
@@ -1043,7 +1102,10 @@ function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, dra
           const cost = costOf(state, action);
           const acquisition = acquisitionFor(id, targetDeg);
           const detail = id !== 'targeted' ? `${plainDeg(acquisition.range.startDeg)}-${plainDeg(acquisition.range.endDeg)}° · ${acquisition.stepDeg}°` : targetDeg === undefined ? WORD.holdPlot : `${degrees(targetDeg, 1)} · ${WORD.checkOnly}`;
-          return <button key={id} type="button" aria-pressed={program === id} onClick={() => onProgram(id)} {...onCost(pinned ? undefined : action)}>
+          return <button key={id} type="button" aria-pressed={program === id} onClick={() => {
+            show({ word: PROGRAM_LABEL[id], line: GLOSS.program[id] });
+            onProgram(id);
+          }} {...onCost(pinned ? undefined : action)}>
             <b>{PROGRAM_LABEL[id]} {typeof cost === 'string' ? ERROR_WORD[cost] : cost.minutes}</b><span>{detail}</span>
           </button>;
         })}
@@ -1051,7 +1113,7 @@ function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, dra
       <PrimaryCost state={state} action={scanAction} label={rescan ? WORD.rescan : WORD.scan} onRun={() => onScan(program, centre)} onCost={onCost} disabled={waiting} />
       <button type="button" className="xb-link" aria-expanded={more.scan} onClick={() => setMore({ ...more, scan: !more.scan })}>{WORD.more}</button>
       {more.scan && <div className="xb-field">
-        <span className="xb-label">{WORD.zero} {state.zeroDeg === undefined ? WORD.unchecked : degrees(state.zeroDeg, 3)}</span>
+        <span className="xb-label"><Term word={WORD.zero} line={GLOSS.word.zero} /> {state.zeroDeg === undefined ? WORD.unchecked : degrees(state.zeroDeg, 3)}</span>
         <PrimaryCost state={state} secondary action={{ type: 'standard' }} label={WORD.checkZero} onRun={onZero} onCost={onCost} />
       </div>}
     </>}
@@ -1078,13 +1140,13 @@ function DataSheet({ state, sample, run, tab, program, targetDeg, overlayId, dra
           {ghostG > 0 && <i className="xb-ghost" style={{ left: jarShare(leftG - ghostG), width: jarShare(ghostG) }} />}
         </div>
       </div>
-      <Options label={WORD.aliquot} value={draft.aliquot} options={[['same', WORD.same], ['new', WORD.new]]} onChange={(aliquot) => onDraft(aliquot === 'new' ? { ...draft, aliquot } : { ...draft, aliquot, grind: GRIND_RANK[draft.grind] < GRIND_RANK[mount.grind] ? mount.grind : draft.grind, spike: mount.spike === 'none' ? draft.spike : mount.spike })} />
-      <Options label={WORD.grind} value={draft.grind} options={(Object.keys(GRIND_LABEL) as Grind[]).map((grind) => [grind, GRIND_LABEL[grind]] as const)} onChange={(grind) => onDraft({ ...draft, grind })} disabled={(grind) => same && GRIND_RANK[grind] < GRIND_RANK[mount.grind]} />
-      <Options label={WORD.spin} value={draft.spin} options={[[false, WORD.off], [true, WORD.on]]} onChange={(spin) => onDraft({ ...draft, spin })} />
+      <Options label={WORD.aliquot} gloss={GLOSS.word.aliquot} value={draft.aliquot} options={[['same', WORD.same], ['new', WORD.new]]} onChange={(aliquot) => onDraft(aliquot === 'new' ? { ...draft, aliquot } : { ...draft, aliquot, grind: GRIND_RANK[draft.grind] < GRIND_RANK[mount.grind] ? mount.grind : draft.grind, spike: mount.spike === 'none' ? draft.spike : mount.spike })} />
+      <Options label={WORD.grind} gloss={GLOSS.word.grind} value={draft.grind} options={(Object.keys(GRIND_LABEL) as Grind[]).map((grind) => [grind, GRIND_LABEL[grind]] as const)} onChange={(grind) => onDraft({ ...draft, grind })} disabled={(grind) => same && GRIND_RANK[grind] < GRIND_RANK[mount.grind]} />
+      <Options label={WORD.spin} gloss={GLOSS.word.spin} value={draft.spin} options={[[false, WORD.off], [true, WORD.on]]} onChange={(spin) => onDraft({ ...draft, spin })} />
       <button type="button" className="xb-link" aria-expanded={more.prep} onClick={() => setMore({ ...more, prep: !more.prep })}>{WORD.more}</button>
       {more.prep && <>
-        <Options label={WORD.load} value={draft.method} options={[['front', METHOD_LABEL.front], ['back', METHOD_LABEL.back]]} onChange={(method) => onDraft({ ...draft, method })} />
-        <Options label={WORD.spike} value={draft.spike} options={(Object.keys(SPIKE_LABEL) as SpikeKind[]).map((kind) => [kind, SPIKE_LABEL[kind]] as const)} onChange={(spike) => onDraft({ ...draft, spike })} disabled={(kind) => same && mount.spike !== 'none' && kind !== mount.spike} />
+        <Options label={WORD.load} gloss={GLOSS.word.load} value={draft.method} options={[['front', METHOD_LABEL.front], ['back', METHOD_LABEL.back]]} onChange={(method) => onDraft({ ...draft, method })} />
+        <Options label={WORD.spike} gloss={GLOSS.word.spike} value={draft.spike} options={(Object.keys(SPIKE_LABEL) as SpikeKind[]).map((kind) => [kind, SPIKE_LABEL[kind]] as const)} onChange={(spike) => onDraft({ ...draft, spike })} disabled={(kind) => same && mount.spike !== 'none' && kind !== mount.spike} />
       </>}
       <PrimaryCost state={state} grams action={{ type: 'mount', code: sample.code, choice: draft }} label={WORD.mount} onRun={onMount} onCost={onCost} />
     </>}
@@ -1106,7 +1168,7 @@ function SupportSheet({ state, sample, tab, fit, limits, unsupported, refs, onTa
 }) {
   const [open, setOpen] = useState<string>();
   return <>
-    <Tabs value={tab} options={[['limits', WORD.limits], ['refs', WORD.refs], ['tests', WORD.tests]]} onChange={onTab} />
+    <Tabs value={tab} options={[['limits', WORD.limits], ['refs', WORD.refs], ['tests', WORD.tests]]} glosses={{ limits: GLOSS.word.limits, refs: GLOSS.word.refs, tests: GLOSS.word.tests }} onChange={onTab} />
     {tab === 'limits' && <>
       {fit && limits.length === 0 && unsupported.length === 0 && <p className="xb-line xb-muted">{WORD.noFlags}</p>}
       <ul className="xb-list">
@@ -1153,7 +1215,7 @@ function RefsPanel({ state, sample, library, evidence, set, active, runSpike, us
   const zero = state.zeroDeg !== undefined;
   return <>
     {/* Broadening is two-way and free in the core, so it shows no cost. */}
-    <Options label={WORD.search} value={sample.broadened} options={[[false, WORD.record], [true, WORD.all]]} onChange={(on) => onAct({ type: 'broaden', code: sample.code, on })} disabled={() => committed} />
+    <Options label={WORD.search} gloss={GLOSS.word.search} value={sample.broadened} options={[[false, WORD.record], [true, WORD.all]]} onChange={(on) => onAct({ type: 'broaden', code: sample.code, on })} disabled={() => committed} />
     <div className="xb-chips xb-refs" role="group" aria-label={ARIA.references}>
       {chips.map((id) => <button key={id} type="button" className="xb-chip" aria-pressed={preview === id} data-in={set.includes(id) || undefined} title={ARIA.showLines} onClick={() => onPreview(id)}>
         <i style={{ background: phaseColor(id) }} />{phaseLabel(id)}
@@ -1204,7 +1266,7 @@ function TestsPanel({ state, sample, onAct, onCost }: { readonly state: LabState
   const sem = semStatus(state, sample.code);
   return <>
     <div className="xb-test">
-      <div className="xb-test-head"><b>{TEST_LABEL.tga}</b><Pips state={state} kind="tga" /></div>
+      <div className="xb-test-head"><b><Term word={TEST_LABEL.tga} line={GLOSS.word.tga} /></b><Pips state={state} kind="tga" /></div>
       <TestStatus state={state} kind="tga" code={sample.code} status={tga} onAct={onAct} onCost={onCost} />
       {tga.status === 'ready' && <ul className="xb-steps">
         {tga.result.steps.length === 0 && <li className="xb-muted">{WORD.noSteps}</li>}
@@ -1212,7 +1274,7 @@ function TestsPanel({ state, sample, onAct, onCost }: { readonly state: LabState
       </ul>}
     </div>
     <div className="xb-test">
-      <div className="xb-test-head"><b>{TEST_LABEL.sem}</b><Pips state={state} kind="sem" /></div>
+      <div className="xb-test-head"><b><Term word={TEST_LABEL.sem} line={GLOSS.word.sem} /></b><Pips state={state} kind="sem" /></div>
       <TestStatus state={state} kind="sem" code={sample.code} status={sem} onAct={onAct} onCost={onCost} />
       {sem.status === 'ready' && <>
         <div className="xb-pills">
@@ -1309,9 +1371,10 @@ function DecideSheet({ state, sample, interpretations, active, run, draft, fits,
     setHolding(false);
   };
   const holdKey = (event: KeyboardEvent<HTMLButtonElement>) => event.key === 'Enter' || event.key === ' ';
+  const show = useGloss();
   return <>
     <div className="xb-field">
-      <span className="xb-label">{WORD.basis}</span>
+      <Term className="xb-label" word={WORD.basis} line={GLOSS.word.basis} />
       <div className="xb-seg" role="group" aria-label={ARIA.basis}>
         {(!run || fitted.length === 0) && <span className="xb-line xb-muted">{WORD.noFit}</span>}
         {run && fitted.map((id) => <button key={id} type="button" aria-pressed={basisSlot === id} onClick={() => onDraft({ ...draft, basis: id })}>{id} · R{run.index}</button>)}
@@ -1319,10 +1382,10 @@ function DecideSheet({ state, sample, interpretations, active, run, draft, fits,
     </div>
     {basisFit && <p className="xb-line">
       {left.length === 0 ? <span className="xb-muted">{WORD.noneLeft}</span> : <>{left.length} {WORD.left}{left.slice(0, 3).map((feature) => <button key={feature.centreDeg} type="button" className="xb-link" onClick={() => onFocus(feature.centreDeg)}>{degrees(feature.centreDeg, 1)}</button>)}</>}
-      {missingLines && <span className="xb-warn"> · {LIMIT_COPY['missing-lines'].word}</span>}
+      {missingLines && <span className="xb-warn"> · <Term word={LIMIT_COPY['missing-lines'].word} line={GLOSS.lines.absent} /></span>}
     </p>}
     <div className="xb-field">
-      <span className="xb-label">{WORD.claim}</span>
+      <Term className="xb-label" word={WORD.claim} line={GLOSS.word.claim} />
       <div className="xb-chips">
         {claimable.length === 0 && <span className="xb-muted">{WORD.fromBasis}</span>}
         {claimable.map((id) => <button key={id} type="button" className="xb-chip" aria-pressed={phases.includes(id)} onClick={() => onDraft({ ...draft, phases: phases.includes(id) ? phases.filter((item) => item !== id) : [...phases, id] })}>
@@ -1330,11 +1393,14 @@ function DecideSheet({ state, sample, interpretations, active, run, draft, fits,
         </button>)}
       </div>
     </div>
-    <Options label={WORD.unexplained} value={draft.unexplained ?? ('' as Unexplained)} options={(Object.keys(UNEXPLAINED_LABEL) as Unexplained[]).map((item) => [item, UNEXPLAINED_LABEL[item]] as const)} onChange={(unexplained) => onDraft({ ...draft, unexplained })} />
+    <Options label={WORD.unexplained} gloss={GLOSS.word.unexplained} glosses={GLOSS.unexplained} value={draft.unexplained ?? ('' as Unexplained)} options={(Object.keys(UNEXPLAINED_LABEL) as Unexplained[]).map((item) => [item, UNEXPLAINED_LABEL[item]] as const)} onChange={(unexplained) => onDraft({ ...draft, unexplained })} />
     <div className="xb-field">
-      <span className="xb-label">{WORD.next}</span>
+      <Term className="xb-label" word={WORD.next} line={GLOSS.word.next} />
       <div className="xb-decisions" role="group" aria-label={ARIA.next}>
-        {DECISIONS.map((decision) => <button key={decision} type="button" aria-pressed={draft.decision === decision} onClick={() => onDraft({ ...draft, decision })}>{DECISION_LABELS[decision].toUpperCase()}</button>)}
+        {DECISIONS.map((decision) => <button key={decision} type="button" aria-pressed={draft.decision === decision} onClick={() => {
+          show({ word: DECISION_LABELS[decision].toUpperCase(), line: GLOSS.decision[decision] });
+          onDraft({ ...draft, decision });
+        }}>{DECISION_LABELS[decision].toUpperCase()}</button>)}
       </div>
     </div>
     {running.length > 0 && <p className="xb-line xb-warn">{running.map((kind) => `${TEST_LABEL[kind]} ${WORD.running}`).join(' · ')}</p>}
@@ -1393,6 +1459,7 @@ function DebriefView({ report, decision, tried, hasNext, onNext, onNewShift, onC
   readonly onClose: () => void;
 }) {
   const [open, setOpen] = useState<string>();
+  const show = useGloss();
   if (!report) return <p className="xb-line xb-muted" role="status">{WORD.reviewing}</p>;
   return <div className="xb-debrief">
     <h3 className="xb-title">{report.code} {WORD.committed}</h3>
@@ -1400,7 +1467,10 @@ function DebriefView({ report, decision, tried, hasNext, onNext, onNewShift, onC
     <p className="xb-line xb-muted">{debriefCounts(report, tried)}</p>
     <ul className="xb-list">
       {report.rows.map((row) => <li key={row.id}>
-        <button type="button" className="xb-row" aria-expanded={open === row.id} onClick={() => setOpen(open === row.id ? undefined : row.id)}>
+        <button type="button" className="xb-row" aria-expanded={open === row.id} onClick={() => {
+          if (open !== row.id) show({ word: ROW_LABEL[row.id], line: GLOSS.row[row.id] });
+          setOpen(open === row.id ? undefined : row.id);
+        }}>
           <b><GradeMark grade={row.grade} />{ROW_LABEL[row.id]}</b>
           {row.notes.slice(0, open === row.id ? 3 : 1).map((note) => <span key={note}>{note}</span>)}
         </button>

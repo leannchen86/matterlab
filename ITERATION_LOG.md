@@ -2704,8 +2704,33 @@ Three things the analysis already computed never reached the player. A candidate
 
 ### Known gaps
 
-- The bench still assumes the reader knows what XRD is. There is no intro, no tap-to-explain for its words, and every control is visible from the first sample. That was the larger half of this round and is not done.
+- The bench still assumes the reader knows what XRD is. There is no intro, no tap-to-explain for its words, and every control is visible from the first sample. That was the larger half of this round and is not done. (Addressed in critique 147.)
 - The spacing slope is an illustrative 0.0005 per mol% Zr, not a measured Vegard slope, and the reading is rounded to whole mol%.
 - Detection reach is a property of the scan and the fitted phases, not of the powder. A phase whose lines all overlap reads `NO LINES OF ITS OWN` however much of it is present.
+- The plot is still drawn on canvas, and a one-finger drag pans rather than scrubbing the probe.
+- Costs are illustrative. They are not instrument timings.
+
+## Critique 147: the bench assumed its reader knew XRD
+
+A newcomer opening the bench met a plot, four state cells, and words like REQUIRED, SHARED and WEAK DATA. Nothing said what any of them meant or what to do first. Critique 146 left this as the larger half of its round.
+
+### Changes made
+
+- On first open, an intro card sits over the bench. It shows a drawn pattern with barcode ticks under three peaks and an amber band on a fourth peak that has none. Three lines follow: each crystal gives its own barcode of peaks; scan, add barcodes and FIT; unexplained peaks are clues, so decide knowing what a scan can miss. START or Escape closes the card, the bench behind it is inert, and `?` in the top bar reopens it. Browser storage remembers it was seen; where storage is blocked, it shows once per page load.
+- Words explain themselves. A dotted underline marks status words, SEEN · SHARED · ABSENT, detection reach, SPACING and CHECK ZERO FIRST, LOOKS LIKE, UNSUPPORTED, feature words on the probe, ZERO, the prep labels, SEARCH, TGA, SEM/EDS, MISSING LINES and the DECIDE labels. A tap puts the plain meaning on one guide line under the bench, and a second tap clears it. Opening a sheet or sub-tab, or picking a program, an unexplained choice, a decision, the compare word or a debrief row, shows its meaning the same way. The meanings live in `app/xrd-bench/gloss.ts`.
+- Until the first call of a shift, the guide line names one next step, read only from what the bench shows: scan, tap a peak, add a barcode, press FIT, read the amber marks or, with nothing left unexplained, check SUPPORT for what a scan can miss. It never says which phase to add or what to decide. Once a fit is drawn, a one-line legend names the plot marks.
+- A meaning and a goal line never show together. A meaning stays until the lab, the sample, the sheet or the next step changes.
+- Tests check that the goal step follows only visible state. They also check that every newcomer line is at most 72 characters, carries no digits or percentages, and uses "proof" only when denying it.
+
+### Defaults chosen
+
+- Controls are not gated behind steps. Rarely needed controls (zero check, load method, spike) stay folded under MORE as before; unlocking tabs in sequence would turn the bench back into click-through.
+- The guide line stops after the first committed call of a shift, so later samples read clean.
+- "Barcode" is the newcomer word for a reference pattern. The bench's own labels keep their names.
+
+### Known gaps
+
+- Each meaning is one line, not a course. Bragg's law, peak widths and Rietveld refinement are not explained.
+- Picking a choice shows its meaning every time, which experienced players may find chatty. There is no setting to turn meanings off.
 - The plot is still drawn on canvas, and a one-finger drag pans rather than scrubbing the probe.
 - Costs are illustrative. They are not instrument timings.

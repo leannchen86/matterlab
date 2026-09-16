@@ -424,3 +424,34 @@
   .xb-hold[data-holding]::after { transition: none; }
   .xb-clock i { transition: none; }
 }
+
+/* Newcomer layer: tap a word for its meaning; one guide line under the bench; an intro card over it. */
+.xb { grid-template-rows: 48px minmax(0, 1fr) auto; position: relative; }
+.xb-term {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: inherit;
+  text-decoration: underline dotted var(--xb-muted);
+  text-underline-offset: 3px;
+}
+.xb-term[data-on] { text-decoration-color: var(--xb-cyan); text-decoration-style: solid; }
+.xb-guide { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; min-height: 34px; padding: 8px 12px; border-top: 1px solid var(--xb-line); background: var(--xb-panel); color: var(--xb-muted); }
+.xb-guide p { margin: 0; }
+.xb-guide b { margin-right: 6px; color: var(--xb-text); font-weight: 600; letter-spacing: .06em; }
+.xb-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; }
+.xb-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.xb-legend i { display: inline-block; font-style: normal; }
+.xb-legend i[data-mark='band'] { width: 10px; height: 10px; background: rgba(244, 185, 95, .35); }
+.xb-legend i[data-mark='missing'] { color: var(--xb-amber); font-size: 9px; }
+.xb-legend i[data-mark='lines'] { width: 8px; height: 10px; border-left: 2px solid var(--xb-cyan); border-right: 2px solid var(--xb-cyan); }
+.xb-intro { position: absolute; inset: 48px 0 0; z-index: 5; display: grid; place-items: center; padding: 16px; background: rgba(10, 16, 24, .9); }
+.xb-intro-card { display: grid; gap: 14px; width: min(420px, 100%); padding: 18px; border: 1px solid var(--xb-line); border-radius: 10px; background: var(--xb-panel); }
+.xb-intro-picture { width: 100%; height: auto; }
+.xb-intro ol { display: grid; gap: 8px; margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.45; }
+.xb-intro .xb-primary { justify-self: start; }
+@media (max-width: 899px) {
+  .xb-guide { min-height: 30px; padding: 6px 10px; font-size: 11px; }
+}

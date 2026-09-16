@@ -6,7 +6,8 @@ import { apply, createLab, libraryFor, replay, sampleState, tgaStatus, type Acti
 import { acquisitionFor, expectedCounts, prepareMount, type Acquisition, type MountRecord } from '../xrd/measure.ts';
 import { CATALOG_IDS } from '../xrd/phases.ts';
 import { PHASE_NAME, SAMPLE_STATUS } from './copy.ts';
-import { debriefSummary, detectionReach, lineCountsText, overlayScale, probeZ, resultReady, runCovers, runTag, sampleStatus, spacingReading } from './view.ts';
+import { GLOSS, GOAL_LINE, INTRO_LINES, LEGEND } from './gloss.ts';
+import { debriefSummary, detectionReach, goalStep, lineCounts, overlayScale, probeZ, resultReady, runCovers, runTag, sampleStatus, spacingReading } from './view.ts';
 
 function act(state: LabState, ...actions: Action[]): LabState {
   let current = state;
@@ -167,7 +168,7 @@ test('the spacing reading asks for a zero check before reading Zr off the host c
 
 test('line counts separate the lines that sit under another phase from those seen and absent', () => {
   const check = { twoTheta: 33, predicted: 0, net: 0, decision: 0, detection: 0 };
-  assert.equal(lineCountsText({ detected: [check, check], shared: 3, missing: [check] }), '2 SEEN · 3 SHARED · 1 ABSENT');
+  assert.deepEqual(lineCounts({ detected: [check, check], shared: 3, missing: [check] }).map((item) => `${item.count} ${item.kind}`), ['2 seen', '3 shared', '1 absent']);
 });
 
 test('every catalogued phase has a common name', () => {
@@ -190,5 +191,28 @@ test('the debrief summary says what the powder was and whether the call met the 
   for (const text of [missedSecondPhase, summary([truth('catio3', 'major', true), truth('lime', 'trace', false)], false, ['recalcine', 'change-media'], 'change-media')]) {
     assert.doesNotMatch(text, /\d/, text);
     assert.doesNotMatch(text, /%/, text);
+  }
+});
+
+test('the goal line follows only what the bench shows', () => {
+  const misfit = { features: [{ kind: 'unexplained' as const, startDeg: 30, endDeg: 30.2, centreDeg: 30.1, z: 6, contributors: [] }] };
+  assert.equal(goalStep({ run: false, probing: false, chips: 0 }), 'scan');
+  assert.equal(goalStep({ run: true, probing: false, chips: 0 }), 'probe');
+  assert.equal(goalStep({ run: true, probing: true, chips: 0 }), 'add');
+  // Chips without a finished fit ask for FIT, whether or not an angle is probed.
+  assert.equal(goalStep({ run: true, probing: true, chips: 2 }), 'fit');
+  assert.equal(goalStep({ run: true, probing: false, chips: 1, fit: misfit }), 'misfit');
+  assert.equal(goalStep({ run: true, probing: false, chips: 1, fit: { features: [] } }), 'decide');
+});
+
+test('newcomer copy stays one short plain line with no numbers or verdicts', () => {
+  const lines: string[] = [...INTRO_LINES, ...Object.values(GOAL_LINE), ...Object.values(LEGEND)];
+  for (const group of Object.values(GLOSS)) lines.push(...Object.values(group));
+  for (const line of lines) {
+    assert.ok(line.length <= 72, `too long: ${line}`);
+    assert.doesNotMatch(line, /\d|%/, `number in: ${line}`);
+    assert.doesNotMatch(line, /rules? out|confirm|certain|definitely|guarantee/i, `overclaim in: ${line}`);
+    // Proof only ever appears denied.
+    for (const match of line.matchAll(/\b(proof|proves?)\b/gi)) assert.match(line.slice(0, match.index), /(not|never) $/i, `claims proof: ${line}`);
   }
 });
