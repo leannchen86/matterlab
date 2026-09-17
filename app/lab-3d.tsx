@@ -15,7 +15,7 @@ import reviewCamerasJson from '../materials_lab_threejs/cameras.json';
 import { getStationSceneSpec, SCENE_QUALITY, STATION_MENU_ORDER, STATION_SCENE_ORDER } from './lab-scene-config';
 import type { CameraMode, SceneQualityPolicy, StationId, StationKind, StationSceneSpec } from './lab-scene-config';
 import type { Station } from './sim-data';
-import { DEFAULT_FOV, OVERVIEW_POSITION, OVERVIEW_TARGET, TOUR_SHOTS } from './lab-tour';
+import { DEFAULT_FOV, OVERVIEW_POSITION, OVERVIEW_TARGET, TOUR_CAMERA_IDS, TOUR_DURATION_SECONDS } from './lab-tour';
 import { inspectionProgress } from './inspection-progress';
 import { getInspectionPoints, HOTSPOTS, type InspectionPoint } from './lab-inspection';
 
@@ -42,7 +42,9 @@ type SceneProps = {
   lightingMode: LightingMode;
   reviewCameraId: string | null;
   tourActive: boolean;
-  tourStep: number;
+  tourRun: number;
+  tourPaused: boolean;
+  onTourComplete: () => void;
   controlFeedback?: Record<string, string[]>;
   onCameraMode: (mode: CameraMode) => void;
   onOpenConsole: () => void;
@@ -53,6 +55,11 @@ type SceneProps = {
 
 const REVIEW_CAMERAS = reviewCamerasJson as ReviewCamera[];
 const REVIEW_CAMERA_BY_ID = new Map(REVIEW_CAMERAS.map((camera) => [camera.id, camera]));
+const TOUR_CAMERAS = TOUR_CAMERA_IDS.map((id) => {
+  const shot = REVIEW_CAMERA_BY_ID.get(id);
+  if (!shot) throw new Error(`Missing cinematic camera ${id}`);
+  return shot;
+});
 const TONE_COLORS: Record<Station['tone'], string> = {
   ready: '#51e19a',
   hold: '#718198',
@@ -61,7 +68,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, reviewCameraId, tourActive, tourStep, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, reviewCameraId, tourActive, tourRun, tourPaused, onTourComplete, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -80,10 +87,9 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
   const inspected = visited[selectedId] ?? [];
   const inspection = inspectionProgress(selectedHotspots.map((point) => point.label), inspected);
   const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? selectedHotspots.find((point) => point.label === observationRecord.point.label) ?? null : null;
-  const displayStationId = tourActive ? TOUR_SHOTS[tourStep]?.stationId ?? selectedId : selectedId;
   const quality = SCENE_QUALITY[cameraMode];
   const reviewCamera = reviewCameraId ? REVIEW_CAMERA_BY_ID.get(reviewCameraId) ?? null : null;
-  const isolatedStationId = reviewCamera?.stationId ?? (tourActive ? TOUR_SHOTS[tourStep]?.stationId : null);
+  const isolatedStationId = reviewCamera?.stationId ?? null;
   const hideStations = Boolean(reviewCamera?.hideStations);
   const inspect = (label: string) => {
     const point = selectedHotspots.find((hotspot) => hotspot.label === label);
@@ -117,7 +123,7 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
             key={station.id}
             station={station}
             scene={scene}
-            selected={displayStationId === station.id}
+            selected={selectedId === station.id}
             active={station.tone === 'run'}
             showHotspots={!tourActive && selectedId === station.id && cameraMode === 'focus'}
             inspected={visited[station.id] ?? []}
@@ -129,7 +135,7 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
             onSelect={onSelect}
           />
         ) : null)}
-        <CameraDirector mode={cameraMode} selectedScene={selectedScene} controls={controlsRef} reviewCameraId={reviewCameraId} tourActive={tourActive} tourStep={tourStep} />
+        <CameraDirector mode={cameraMode} selectedScene={selectedScene} controls={controlsRef} reviewCameraId={reviewCameraId} tourActive={tourActive} tourRun={tourRun} tourPaused={tourPaused} onTourComplete={onTourComplete} />
         <AisleNavigator active={cameraMode === 'walk' && !tourActive && !reviewCameraId} controls={controlsRef} command={walkCommand} />
         {!tourActive && !reviewCameraId && <OrbitControls
           ref={controlsRef}
@@ -149,7 +155,7 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
         <LabPostEffects enabled />
       </Canvas>
       <nav className="scene-station-picker" aria-label="Select a lab station">
-        {menuStations.map((station) => <button key={station.id} type="button" className={displayStationId === station.id ? 'active' : ''} style={{ '--station-tone': TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={displayStationId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
+        {menuStations.map((station) => <button key={station.id} type="button" className={selectedId === station.id ? 'active' : ''} style={{ '--station-tone': TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
       </nav>
       {!tourActive && cameraMode === 'walk' && <div className="walk-hud">
         <header><b>{selectedStation.id} · {selectedStation.name}</b></header>
@@ -224,16 +230,20 @@ function FacilityLighting({ mode, quality }: { mode: LightingMode; quality: Scen
 
 /* R3F camera directors intentionally mutate Three.js camera and controls objects in useFrame. */
 /* eslint-disable react-hooks/immutability */
-function CameraDirector({ mode, selectedScene, controls, reviewCameraId, tourActive, tourStep }: {
+function CameraDirector({ mode, selectedScene, controls, reviewCameraId, tourActive, tourRun, tourPaused, onTourComplete }: {
   mode: CameraMode;
   selectedScene: StationSceneSpec;
   controls: React.RefObject<OrbitControlsHandle | null>;
   reviewCameraId: string | null;
   tourActive: boolean;
-  tourStep: number;
+  tourRun: number;
+  tourPaused: boolean;
+  onTourComplete: () => void;
 }) {
   const { camera } = useThree();
   const animating = useRef(true);
+  const tourElapsed = useRef(0);
+  const tourFinished = useRef(false);
   const reviewCamera = reviewCameraId ? REVIEW_CAMERA_BY_ID.get(reviewCameraId) ?? null : null;
   const overviewPosition = useMemo(() => new THREE.Vector3(...OVERVIEW_POSITION), []);
   const overviewTarget = useMemo(() => new THREE.Vector3(...OVERVIEW_TARGET), []);
@@ -256,17 +266,51 @@ function CameraDirector({ mode, selectedScene, controls, reviewCameraId, tourAct
     const [x, y, z] = selectedScene.position;
     return new THREE.Vector3(x, y + 1.28, z + 0.2);
   }, [selectedScene]);
+  const tourPositionCurve = useMemo(() => new THREE.CatmullRomCurve3(TOUR_CAMERAS.map((shot) => new THREE.Vector3(...shot.position)), false, 'centripetal', 0.42), []);
+  const tourTargetCurve = useMemo(() => new THREE.CatmullRomCurve3(TOUR_CAMERAS.map((shot) => new THREE.Vector3(...shot.target)), false, 'centripetal', 0.42), []);
+  const tourTarget = useMemo(() => new THREE.Vector3(), []);
+  const tourOffset = useMemo(() => new THREE.Vector3(), []);
+  const tourSpherical = useMemo(() => new THREE.Spherical(), []);
   useEffect(() => {
     animating.current = true;
-  }, [mode, selectedScene, reviewCameraId, tourActive, tourStep]);
+  }, [mode, selectedScene, reviewCameraId, tourActive]);
+  useEffect(() => {
+    tourElapsed.current = 0;
+    tourFinished.current = false;
+  }, [tourActive, tourRun]);
   useFrame((_, delta) => {
-    const directed = reviewCamera ?? (tourActive ? TOUR_SHOTS[tourStep] : null);
+    const directed = reviewCamera;
     if (directed) {
       camera.position.set(...directed.position);
       camera.lookAt(...directed.target);
       if (camera instanceof THREE.PerspectiveCamera && camera.fov !== directed.fov) {
         camera.fov = directed.fov;
         camera.updateProjectionMatrix();
+      }
+      return;
+    }
+    if (tourActive) {
+      if (!tourPaused) tourElapsed.current += delta;
+      const rawProgress = Math.min(1, tourElapsed.current / TOUR_DURATION_SECONDS);
+      const progress = rawProgress * rawProgress * (3 - 2 * rawProgress);
+      camera.position.copy(tourPositionCurve.getPointAt(progress));
+      tourTargetCurve.getPointAt(progress, tourTarget);
+      // Preserve the September 1 default-tour framing, formerly applied by OrbitControls.update().
+      // Apply those fixed bounds directly so entering from WALK/FOCUS cannot change the tour.
+      tourSpherical.setFromVector3(tourOffset.copy(camera.position).sub(tourTarget));
+      tourSpherical.theta = THREE.MathUtils.clamp(tourSpherical.theta, -1.45, 1.25);
+      tourSpherical.phi = THREE.MathUtils.clamp(tourSpherical.phi, 0.55, 1.36);
+      tourSpherical.makeSafe();
+      tourSpherical.radius = THREE.MathUtils.clamp(tourSpherical.radius, 11, 34);
+      camera.position.copy(tourTarget).add(tourOffset.setFromSpherical(tourSpherical));
+      camera.lookAt(tourTarget);
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.fov = THREE.MathUtils.lerp(52, 47, Math.sin(progress * Math.PI));
+        camera.updateProjectionMatrix();
+      }
+      if (rawProgress >= 1 && !tourFinished.current) {
+        tourFinished.current = true;
+        onTourComplete();
       }
       return;
     }

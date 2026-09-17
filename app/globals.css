@@ -431,9 +431,6 @@ button { font: inherit; }
   .maintenance-timeline { margin: 0 15px; }
 }
 
-.tour-transition { position: absolute; inset: 0; z-index: 30; pointer-events: none; background: #c8c2b8; animation: tour-transition linear both; }
-@keyframes tour-transition { 0%, 100% { opacity: 1; } 8%, 92% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .tour-transition { animation: none; opacity: 0; } }
 
 /* Final beginner-HUD overrides live last so legacy simulation styles cannot re-expand it. */
 .workspace { grid-template-columns: 248px minmax(560px, 1fr) 292px; }

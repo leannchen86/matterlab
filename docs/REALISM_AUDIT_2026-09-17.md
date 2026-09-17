@@ -1,5 +1,7 @@
 # MatterLab realism audit — 17 September 2026
 
+**Later update:** At the user’s request, the stationary tour described below was replaced with the original September 1 continuous 24-second animation and historical overview framing. The science and interaction fixes remain.
+
 Baseline: `252852b`; resulting simulation: `xrd-engine-4`, reference library `refs-3cfb0e4e`.
 
 This audit covers all seven sample histories, all fourteen crystallographic references, peak generation and fitting, chemical follow-ups, plot semantics, saved-session behavior, and the seven-station 3D interface. It extends the earlier independent CIF/peak audit and its fixes. The simulator remains an educational model, not a validated predictor of experimental results.
