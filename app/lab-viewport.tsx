@@ -86,7 +86,6 @@ export function LabViewport({ stations, selectedId, phase, inspectionState, onIn
     {!reviewCameraId && <div className="camera-switch" role="group" aria-label="3D camera mode">
       <button type="button" className={cameraMode === 'overview' ? 'active' : ''} onClick={() => setCameraMode('overview')} aria-pressed={cameraMode === 'overview'}>⌂ OVERVIEW</button>
       <button type="button" className={cameraMode === 'walk' ? 'active' : ''} onClick={() => setCameraMode('walk')} aria-pressed={cameraMode === 'walk'}>⇧ WALK AISLE</button>
-      <button type="button" className={cameraMode === 'focus' ? 'active' : ''} onClick={() => setCameraMode('focus')} aria-pressed={cameraMode === 'focus'}>◎ FOCUS {selectedId}</button>
     </div>}
     {!reviewCameraId && !immersive && cameraMode === 'overview' && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><i>→</i></button>}
     {!reviewCameraId && immersive && <button className="exit-lab-button" type="button" onClick={exitLab} aria-label="Exit immersive view">EXIT LAB</button>}
