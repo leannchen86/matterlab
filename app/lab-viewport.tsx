@@ -4,6 +4,8 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { emitLabEvent, subscribeLabEvent } from './lab-events';
 import type { Station } from './sim-data';
+import { TOUR_SHOTS, TOUR_SHOT_MS } from './lab-tour';
+import type { CameraMode } from './lab-scene-config';
 
 const Lab3D = lazy(() => import('./lab-3d').then((module) => ({ default: module.Lab3D })));
 
@@ -20,11 +22,27 @@ export function LabViewport({ stations, selectedId, phase, inspectionState, onIn
     const camera = new URLSearchParams(window.location.search).get('camera');
     return camera && /^C(?:0[1-9]|1[0-6])$/.test(camera) ? camera : null;
   });
-  const [cameraMode, setCameraMode] = useState<'overview' | 'walk' | 'focus'>('overview');
+  const [cameraMode, setCameraMode] = useState<CameraMode>('overview');
   const [controlFeedback, setControlFeedback] = useState<Record<string, string[]>>({});
   const [immersive, setImmersive] = useState(Boolean(reviewCameraId));
   const [tourActive, setTourActive] = useState(false);
-  const [tourRun, setTourRun] = useState(0);
+  const [tourStep, setTourStep] = useState(0);
+  const [tourPaused, setTourPaused] = useState(false);
+  const chooseCamera = (mode: CameraMode) => {
+    setTourActive(false);
+    setCameraMode(mode);
+  };
+  useEffect(() => {
+    if (!tourActive || tourPaused) return;
+    const timer = window.setTimeout(() => {
+      if (tourStep + 1 < TOUR_SHOTS.length) setTourStep(tourStep + 1);
+      else {
+        setTourActive(false);
+        setCameraMode('overview');
+      }
+    }, TOUR_SHOT_MS);
+    return () => window.clearTimeout(timer);
+  }, [tourActive, tourStep, tourPaused]);
   useEffect(() => {
     if (!immersive) return;
     const previousOverflow = document.body.style.overflow;
@@ -38,6 +56,12 @@ export function LabViewport({ stations, selectedId, phase, inspectionState, onIn
     if (!immersive && cameraMode !== 'focus') return;
     const stepBackOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (tourActive) {
+        setTourActive(false);
+        setCameraMode('overview');
+        event.preventDefault();
+        return;
+      }
       if (cameraMode === 'focus') {
         setCameraMode('overview');
         return;
@@ -46,7 +70,7 @@ export function LabViewport({ stations, selectedId, phase, inspectionState, onIn
     };
     window.addEventListener('keydown', stepBackOnEscape);
     return () => window.removeEventListener('keydown', stepBackOnEscape);
-  }, [cameraMode, immersive]);
+  }, [cameraMode, immersive, tourActive]);
 
   useEffect(() => {
     return subscribeLabEvent('station-event', (event) => {
@@ -60,12 +84,14 @@ export function LabViewport({ stations, selectedId, phase, inspectionState, onIn
   useEffect(() => {
     return subscribeLabEvent('return-to-lab', ({ stationId }) => {
       onSelect(stationId);
+      setTourActive(false);
       setCameraMode('walk');
       setImmersive(true);
     });
   }, [onSelect]);
 
   const enterLab = () => {
+    setTourActive(false);
     setCameraMode('walk');
     setImmersive(true);
   };
@@ -76,12 +102,15 @@ export function LabViewport({ stations, selectedId, phase, inspectionState, onIn
   };
 
   const replayTour = () => {
-    setTourRun((run) => run + 1);
+    setTourPaused(false);
+    setTourStep(0);
+    setCameraMode('overview');
     setTourActive(true);
     setImmersive(true);
   };
 
   const openSelectedConsole = () => {
+    setTourActive(false);
     setImmersive(false);
     emitLabEvent('open-console', { stationId: selectedId });
   };
@@ -92,15 +121,18 @@ export function LabViewport({ stations, selectedId, phase, inspectionState, onIn
     style={immersive ? { position: 'fixed', zIndex: 240, inset: 0, width: '100vw', height: '100dvh', background: '#c8c2b8' } : undefined}
   >
     {!reviewCameraId && <div className="camera-switch" role="group" aria-label="3D camera mode">
-      <button type="button" className={cameraMode === 'overview' ? 'active' : ''} onClick={() => setCameraMode('overview')} aria-pressed={cameraMode === 'overview'}>⌂ OVERVIEW</button>
-      <button type="button" className={cameraMode === 'walk' ? 'active' : ''} onClick={() => setCameraMode('walk')} aria-pressed={cameraMode === 'walk'}>⇧ WALK AISLE</button>
-      <button type="button" className={cameraMode === 'focus' ? 'active' : ''} onClick={() => setCameraMode('focus')} aria-pressed={cameraMode === 'focus'}>◎ FOCUS {selectedId}</button>
+      <button type="button" className={!tourActive && cameraMode === 'overview' ? 'active' : ''} onClick={() => chooseCamera('overview')} aria-pressed={!tourActive && cameraMode === 'overview'}>⌂ OVERVIEW</button>
+      <button type="button" className={cameraMode === 'walk' ? 'active' : ''} onClick={() => chooseCamera('walk')} aria-pressed={cameraMode === 'walk'}>⇧ WALK AISLE</button>
+      <button type="button" className={cameraMode === 'focus' ? 'active' : ''} onClick={() => chooseCamera('focus')} aria-pressed={cameraMode === 'focus'}>◎ FOCUS {selectedId}</button>
       <button type="button" className={tourActive ? 'active tour-toggle' : 'tour-toggle'} onClick={replayTour} aria-pressed={tourActive}>▶ TOUR</button>
     </div>}
     {!reviewCameraId && !immersive && cameraMode === 'overview' && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><i>→</i></button>}
     {!reviewCameraId && immersive && <button className="exit-lab-button" type="button" onClick={exitLab} aria-label="Exit immersive view">EXIT LAB</button>}
-    <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} cameraMode={cameraMode} lightingMode="inspection" reviewCameraId={reviewCameraId} tourActive={tourActive} tourRun={tourRun} onTourComplete={() => setTourActive(false)} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
-    {tourActive && <div className="cinematic-hud" role="status"><span>TOUR</span><button type="button" onClick={() => setTourActive(false)}>EXIT TOUR</button></div>}
+    <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} cameraMode={cameraMode} lightingMode="inspection" reviewCameraId={reviewCameraId} tourActive={tourActive} tourStep={tourStep} controlFeedback={controlFeedback} onCameraMode={chooseCamera} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
+    {tourActive && <>
+      <div key={`fade-${tourStep}`} className="tour-transition" aria-hidden="true" style={{ animationDuration: `${TOUR_SHOT_MS}ms`, animationName: tourPaused ? 'none' : undefined, opacity: 0 }} />
+      <div className="cinematic-hud" role="status"><span>{tourStep + 1}/{TOUR_SHOTS.length} · {TOUR_SHOTS[tourStep].name}</span><button type="button" aria-label="Previous tour view" disabled={tourStep === 0} onClick={() => setTourStep((step) => Math.max(0, step - 1))}>←</button><button type="button" aria-label={tourPaused ? 'Resume tour' : 'Pause tour'} onClick={() => setTourPaused((paused) => !paused)}>{tourPaused ? 'RESUME' : 'PAUSE'}</button><button type="button" aria-label="Next tour view" disabled={tourStep === TOUR_SHOTS.length - 1} onClick={() => setTourStep((step) => Math.min(TOUR_SHOTS.length - 1, step + 1))}>→</button><button type="button" onClick={() => chooseCamera('overview')}>EXIT TOUR</button></div>
+    </>}
     {reviewCameraId && <div className="review-camera-stamp" aria-hidden="true">MATTERLAB JUDGESET · {reviewCameraId}</div>}
   </div>;
 

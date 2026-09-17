@@ -98,7 +98,6 @@ button { font: inherit; }
 .cinematic-hud { position: absolute; z-index: 40; left: 20px; bottom: 20px; display: flex; align-items: center; gap: 12px; padding: 8px 9px 8px 12px; border: 1px solid #b5aa9a; border-radius: 7px; background: #f3ece3e8; box-shadow: 0 16px 42px #4d44383d, inset 2px 0 #4dd5ed; backdrop-filter: blur(10px); }
 .cinematic-hud span { color: #267887; font: 720 9px var(--font-geist-mono); letter-spacing: .1em; }
 .cinematic-hud button { padding: 5px 8px; border: 1px solid #a7aaa3; border-radius: 4px; background: #e5ddd1; color: #5e696f; font: 650 9px var(--font-geist-mono); cursor: pointer; }
-.cinematic-hud::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: linear-gradient(90deg, #4dd5ed, #51e19a, #f4b95f); transform-origin: left; animation: cinematic-progress 24s linear forwards; }
 .enter-lab-button { position: absolute; z-index: 35; left: 13px; bottom: 36px; display: grid; grid-template-columns: 22px auto 18px; align-items: center; min-width: 166px; padding: 8px 9px; border: 1px solid #397084; background: linear-gradient(100deg, #0a1d27e8, #0a131ce8); color: #bed0d8; box-shadow: 0 12px 30px #0009, inset 0 0 18px #4dd5ed0a; backdrop-filter: blur(10px); cursor: pointer; text-align: left; }
 .enter-lab-button > span { display: grid; place-items: center; width: 17px; height: 26px; border: 1px solid #43778a; color: var(--cyan); font: 700 13px var(--font-geist-mono); box-shadow: inset 0 0 10px #4dd5ed18; }
 .enter-lab-button b { color: #c6d5dc; font: 750 9px var(--font-geist-mono); letter-spacing: .08em; }
@@ -432,7 +431,9 @@ button { font: inherit; }
   .maintenance-timeline { margin: 0 15px; }
 }
 
-@keyframes cinematic-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.tour-transition { position: absolute; inset: 0; z-index: 30; pointer-events: none; background: #c8c2b8; animation: tour-transition linear both; }
+@keyframes tour-transition { 0%, 100% { opacity: 1; } 8%, 92% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tour-transition { animation: none; opacity: 0; } }
 
 /* Final beginner-HUD overrides live last so legacy simulation styles cannot re-expand it. */
 .workspace { grid-template-columns: 248px minmax(560px, 1fr) 292px; }
@@ -845,3 +846,5 @@ html, body { background: #e7ded1; }
 
 .station-3d-label { border-radius: 6px; }
 .hotspot-label { border-radius: 5px; }
+
+.console-model-note { color: var(--muted, #93a6b9); font-size: 12px; line-height: 1.5; margin: 0 0 14px; }

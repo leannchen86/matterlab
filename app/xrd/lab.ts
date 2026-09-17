@@ -41,7 +41,7 @@ export const DECISION_LABELS: Readonly<Record<Decision, string>> = {
   recalcine: 'Recalcine',
   'regrind-recalcine': 'Regrind + recalcine',
   'adjust-stoichiometry': 'Reweigh 1:1',
-  'change-media': 'Agate media',
+  'change-media': 'Remake with agate',
   'hold-reference': 'Hold for reference',
 };
 type BatchDecision = Exclude<Decision, 'hold-reference'>;
@@ -486,6 +486,7 @@ export function afterDecision(history: SynthesisHistory, decision: Decision): Sy
       return { ...history, precursors: [carbonate, ...history.precursors.filter((item) => item.material !== 'CaCO3')], carbonateMoisture: 0, storage: FRESH_STORAGE };
     }
     case 'change-media':
+      // Remake from the original precursors with different media; remilling cannot remove existing Zr.
       return history.milling ? { ...history, milling: { ...history.milling, media: 'agate' }, storage: FRESH_STORAGE } : history;
     default:
       return history;

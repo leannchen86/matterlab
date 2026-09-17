@@ -9,7 +9,7 @@ type Pending = { readonly resolve: (result: AnalysisResult) => void; readonly re
 let worker: Worker | null | undefined;
 let nextId = 1;
 const pending = new Map<number, Pending>();
-const inFlight = new Map<RunRecord, Map<string, Promise<AnalysisResult>>>();
+const inFlight = new WeakMap<RunRecord, Map<string, Promise<AnalysisResult>>>();
 
 function abandonWorker(reason: string) {
   worker?.terminate();

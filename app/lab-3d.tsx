@@ -15,6 +15,9 @@ import reviewCamerasJson from '../materials_lab_threejs/cameras.json';
 import { getStationSceneSpec, SCENE_QUALITY, STATION_MENU_ORDER, STATION_SCENE_ORDER } from './lab-scene-config';
 import type { CameraMode, SceneQualityPolicy, StationId, StationKind, StationSceneSpec } from './lab-scene-config';
 import type { Station } from './sim-data';
+import { DEFAULT_FOV, OVERVIEW_POSITION, OVERVIEW_TARGET, TOUR_SHOTS } from './lab-tour';
+import { inspectionProgress } from './inspection-progress';
+import { getInspectionPoints, HOTSPOTS, type InspectionPoint } from './lab-inspection';
 
 type OrbitControlsHandle = React.ComponentRef<typeof OrbitControls>;
 
@@ -39,8 +42,7 @@ type SceneProps = {
   lightingMode: LightingMode;
   reviewCameraId: string | null;
   tourActive: boolean;
-  tourRun: number;
-  onTourComplete: () => void;
+  tourStep: number;
   controlFeedback?: Record<string, string[]>;
   onCameraMode: (mode: CameraMode) => void;
   onOpenConsole: () => void;
@@ -51,13 +53,6 @@ type SceneProps = {
 
 const REVIEW_CAMERAS = reviewCamerasJson as ReviewCamera[];
 const REVIEW_CAMERA_BY_ID = new Map(REVIEW_CAMERAS.map((camera) => [camera.id, camera]));
-const TOUR_CAMERA_IDS = ['C01', 'C04', 'C08', 'C09', 'C11', 'C13', 'C16'];
-const TOUR_CAMERAS = TOUR_CAMERA_IDS.map((id) => {
-  const camera = REVIEW_CAMERA_BY_ID.get(id);
-  if (!camera) throw new Error(`Missing cinematic camera ${id}`);
-  return camera;
-});
-
 const TONE_COLORS: Record<Station['tone'], string> = {
   ready: '#51e19a',
   hold: '#718198',
@@ -66,7 +61,7 @@ const TONE_COLORS: Record<Station['tone'], string> = {
   off: '#586579',
 };
 
-export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, reviewCameraId, tourActive, tourRun, onTourComplete, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
+export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, reviewCameraId, tourActive, tourStep, controlFeedback, onCameraMode, onOpenConsole, inspectionState, onInspectionChange, onSelect }: SceneProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const [localVisited, setLocalVisited] = useState<Record<string, string[]>>({});
   const visited = inspectionState ?? localVisited;
@@ -83,10 +78,12 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
   const selectedScene = selectedSceneStation.scene;
   const selectedHotspots = getInspectionPoints(selectedScene.kind, phase);
   const inspected = visited[selectedId] ?? [];
-  const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? observationRecord.point : null;
+  const inspection = inspectionProgress(selectedHotspots.map((point) => point.label), inspected);
+  const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? selectedHotspots.find((point) => point.label === observationRecord.point.label) ?? null : null;
+  const displayStationId = tourActive ? TOUR_SHOTS[tourStep]?.stationId ?? selectedId : selectedId;
   const quality = SCENE_QUALITY[cameraMode];
   const reviewCamera = reviewCameraId ? REVIEW_CAMERA_BY_ID.get(reviewCameraId) ?? null : null;
-  const isolatedStationId = reviewCamera?.stationId ?? null;
+  const isolatedStationId = reviewCamera?.stationId ?? (tourActive ? TOUR_SHOTS[tourStep]?.stationId : null);
   const hideStations = Boolean(reviewCamera?.hideStations);
   const inspect = (label: string) => {
     const point = selectedHotspots.find((hotspot) => hotspot.label === label);
@@ -112,17 +109,17 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
         <FacilityLighting mode={lightingMode} quality={quality} />
 
         <LabArchitecture lightingMode={lightingMode} />
-        {cameraMode !== 'focus' && !isolatedStationId && !hideStations && <OperationsProps />}
-        {cameraMode !== 'focus' && !isolatedStationId && !hideStations && <BacklogRack />}
-        {cameraMode !== 'focus' && !isolatedStationId && !hideStations && <MaterialRoute phase={phase} />}
-        {!hideStations && sceneStations.map(({ station, scene }) => ((cameraMode !== 'focus' || selectedId === station.id) && (!isolatedStationId || isolatedStationId === station.id)) ? (
+        {(cameraMode !== 'focus' || tourActive) && !isolatedStationId && !hideStations && <OperationsProps />}
+        {(cameraMode !== 'focus' || tourActive) && !isolatedStationId && !hideStations && <BacklogRack />}
+        {(cameraMode !== 'focus' || tourActive) && !isolatedStationId && !hideStations && <MaterialRoute />}
+        {!hideStations && sceneStations.map(({ station, scene }) => ((cameraMode !== 'focus' || tourActive || selectedId === station.id) && (!isolatedStationId || isolatedStationId === station.id)) ? (
           <StationCell
             key={station.id}
             station={station}
             scene={scene}
-            selected={selectedId === station.id}
+            selected={displayStationId === station.id}
             active={station.tone === 'run'}
-            showHotspots={selectedId === station.id && cameraMode === 'focus'}
+            showHotspots={!tourActive && selectedId === station.id && cameraMode === 'focus'}
             inspected={visited[station.id] ?? []}
             inspectionPoints={selectedId === station.id && cameraMode === 'focus' ? selectedHotspots : HOTSPOTS[scene.kind]}
             controls={controlFeedback?.[station.id] ?? []}
@@ -132,9 +129,9 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
             onSelect={onSelect}
           />
         ) : null)}
-        <CameraDirector mode={cameraMode} selectedScene={selectedScene} controls={controlsRef} reviewCameraId={reviewCameraId} tourActive={tourActive} tourRun={tourRun} onTourComplete={onTourComplete} />
+        <CameraDirector mode={cameraMode} selectedScene={selectedScene} controls={controlsRef} reviewCameraId={reviewCameraId} tourActive={tourActive} tourStep={tourStep} />
         <AisleNavigator active={cameraMode === 'walk' && !tourActive && !reviewCameraId} controls={controlsRef} command={walkCommand} />
-        <OrbitControls
+        {!tourActive && !reviewCameraId && <OrbitControls
           ref={controlsRef}
           makeDefault
           target={[-1.55, 0.72, -0.18]}
@@ -148,13 +145,13 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
           maxPolarAngle={cameraMode === 'walk' ? 1.55 : 1.36}
           minAzimuthAngle={-1.45}
           maxAzimuthAngle={1.25}
-        />
-        <LabPostEffects enabled={!tourActive || cameraMode !== 'walk'} />
+        />}
+        <LabPostEffects enabled />
       </Canvas>
       <nav className="scene-station-picker" aria-label="Select a lab station">
-        {menuStations.map((station) => <button key={station.id} type="button" className={selectedId === station.id ? 'active' : ''} style={{ '--station-tone': TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
+        {menuStations.map((station) => <button key={station.id} type="button" className={displayStationId === station.id ? 'active' : ''} style={{ '--station-tone': TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={displayStationId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
       </nav>
-      {cameraMode === 'walk' && <div className="walk-hud">
+      {!tourActive && cameraMode === 'walk' && <div className="walk-hud">
         <header><b>{selectedStation.id} · {selectedStation.name}</b></header>
         <div className="walk-pad" role="group" aria-label="Aisle movement controls">
           <button type="button" className="walk-forward" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'forward' }))} aria-label="Step forward">↑</button>
@@ -162,15 +159,15 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
           <button type="button" className="walk-back" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'back' }))} aria-label="Step back">↓</button>
           <button type="button" className="walk-right" onClick={() => setWalkCommand((command) => ({ id: command.id + 1, direction: 'right' }))} aria-label="Step right">→</button>
         </div>
-        {inspected.length === selectedHotspots.length && <button type="button" className="walk-console" onClick={onOpenConsole}>OPEN CONSOLE <i>↗</i></button>}
+        {inspection.complete && <button type="button" className="walk-console" onClick={onOpenConsole}>OPEN CONSOLE <i>↗</i></button>}
         <small>WASD / ARROWS</small>
-        <button type="button" className="walk-inspect" onClick={() => onCameraMode('focus')}>◎ {inspected.length ? 'REVIEW INSPECTION' : 'INSPECT ASSET'} <i>{inspected.length}/{selectedHotspots.length}</i></button>
+        <button type="button" className="walk-inspect" onClick={() => onCameraMode('focus')}>◎ {inspected.length ? 'REVIEW INSPECTION' : 'INSPECT ASSET'} <i>{inspection.count}/{inspection.total}</i></button>
       </div>}
-      {cameraMode === 'focus' && <div className="walkaround-panel">
-        <header><div><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspected.length} / {selectedHotspots.length}</em></header>
+      {!tourActive && cameraMode === 'focus' && <div className="walkaround-panel">
+        <header><div><b>{selectedStation.id} · {selectedStation.name}</b></div><em>{inspection.count} / {inspection.total}</em></header>
         <div>{selectedHotspots.map((hotspot) => <button key={hotspot.label} type="button" className={inspected.includes(hotspot.label) ? 'visited' : ''} onClick={() => inspect(hotspot.label)}><i>{inspected.includes(hotspot.label) ? '✓' : '○'}</i>{hotspot.displayLabel ?? hotspot.label}</button>)}</div>
         {activeObservation && <div className={`walkaround-observation ${activeObservation.state}`}><span>{activeObservation.displayLabel ?? activeObservation.label} OBSERVATION</span><b>{activeObservation.observation}</b><em>{activeObservation.state === 'attention' ? 'ATTENTION' : 'CAPTURED'}</em></div>}
-        {inspected.length === selectedHotspots.length && <button type="button" className="walkaround-next" onClick={onOpenConsole}>OPEN CONSOLE <i>→</i></button>}
+        {inspection.complete && <button type="button" className="walkaround-next" onClick={onOpenConsole}>OPEN CONSOLE <i>→</i></button>}
       </div>}
     </div>
   );
@@ -227,22 +224,19 @@ function FacilityLighting({ mode, quality }: { mode: LightingMode; quality: Scen
 
 /* R3F camera directors intentionally mutate Three.js camera and controls objects in useFrame. */
 /* eslint-disable react-hooks/immutability */
-function CameraDirector({ mode, selectedScene, controls, reviewCameraId, tourActive, tourRun, onTourComplete }: {
+function CameraDirector({ mode, selectedScene, controls, reviewCameraId, tourActive, tourStep }: {
   mode: CameraMode;
   selectedScene: StationSceneSpec;
   controls: React.RefObject<OrbitControlsHandle | null>;
   reviewCameraId: string | null;
   tourActive: boolean;
-  tourRun: number;
-  onTourComplete: () => void;
+  tourStep: number;
 }) {
   const { camera } = useThree();
   const animating = useRef(true);
-  const tourStart = useRef<number | null>(null);
-  const tourFinished = useRef(false);
   const reviewCamera = reviewCameraId ? REVIEW_CAMERA_BY_ID.get(reviewCameraId) ?? null : null;
-  const overviewPosition = useMemo(() => new THREE.Vector3(10.5, 11.8, 19.5), []);
-  const overviewTarget = useMemo(() => new THREE.Vector3(-1.55, 0.72, -0.18), []);
+  const overviewPosition = useMemo(() => new THREE.Vector3(...OVERVIEW_POSITION), []);
+  const overviewTarget = useMemo(() => new THREE.Vector3(...OVERVIEW_TARGET), []);
   const focusPosition = useMemo(() => {
     const [x, y, z] = selectedScene.position;
     const [offsetX, offsetY, offsetZ] = selectedScene.focusOffset;
@@ -262,43 +256,25 @@ function CameraDirector({ mode, selectedScene, controls, reviewCameraId, tourAct
     const [x, y, z] = selectedScene.position;
     return new THREE.Vector3(x, y + 1.28, z + 0.2);
   }, [selectedScene]);
-  const tourPositionCurve = useMemo(() => new THREE.CatmullRomCurve3(TOUR_CAMERAS.map((shot) => new THREE.Vector3(...shot.position)), false, 'centripetal', 0.42), []);
-  const tourTargetCurve = useMemo(() => new THREE.CatmullRomCurve3(TOUR_CAMERAS.map((shot) => new THREE.Vector3(...shot.target)), false, 'centripetal', 0.42), []);
-  const tourTarget = useMemo(() => new THREE.Vector3(), []);
   useEffect(() => {
     animating.current = true;
-    tourStart.current = null;
-    tourFinished.current = false;
-  }, [mode, selectedScene, reviewCameraId, tourActive, tourRun]);
-  useFrame((state, delta) => {
-    const orbit = controls.current;
-    if (!orbit) return;
-    if (reviewCamera) {
-      camera.position.set(...reviewCamera.position);
-      if (camera instanceof THREE.PerspectiveCamera) {
-        camera.fov = reviewCamera.fov;
+  }, [mode, selectedScene, reviewCameraId, tourActive, tourStep]);
+  useFrame((_, delta) => {
+    const directed = reviewCamera ?? (tourActive ? TOUR_SHOTS[tourStep] : null);
+    if (directed) {
+      camera.position.set(...directed.position);
+      camera.lookAt(...directed.target);
+      if (camera instanceof THREE.PerspectiveCamera && camera.fov !== directed.fov) {
+        camera.fov = directed.fov;
         camera.updateProjectionMatrix();
       }
-      orbit.target.set(...reviewCamera.target);
-      orbit.update();
       return;
     }
-    if (tourActive) {
-      tourStart.current ??= state.clock.elapsedTime;
-      const rawProgress = Math.min(1, (state.clock.elapsedTime - tourStart.current) / 24);
-      const progress = rawProgress * rawProgress * (3 - 2 * rawProgress);
-      camera.position.copy(tourPositionCurve.getPointAt(progress));
-      if (camera instanceof THREE.PerspectiveCamera) {
-        camera.fov = THREE.MathUtils.lerp(52, 47, Math.sin(progress * Math.PI));
-        camera.updateProjectionMatrix();
-      }
-      orbit.target.copy(tourTargetCurve.getPointAt(progress, tourTarget));
-      orbit.update();
-      if (rawProgress >= 1 && !tourFinished.current) {
-        tourFinished.current = true;
-        onTourComplete();
-      }
-      return;
+    const orbit = controls.current;
+    if (!orbit) return;
+    if (camera instanceof THREE.PerspectiveCamera && camera.fov !== DEFAULT_FOV) {
+      camera.fov = DEFAULT_FOV;
+      camera.updateProjectionMatrix();
     }
     if (!animating.current) return;
     const position = mode === 'focus' ? focusPosition : mode === 'walk' ? walkPosition : overviewPosition;
@@ -410,13 +386,18 @@ function AisleNavigator({ active, controls, command }: { active: boolean; contro
       return;
     }
     const keyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (event.defaultPrevented || document.querySelector('[role="dialog"][aria-modal="true"]') || target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       if (setWalkInput(input.current, event.code, true)) event.preventDefault();
     };
     const keyUp = (event: KeyboardEvent) => setWalkInput(input.current, event.code, false);
+    const releaseKeys = () => { input.current = { forward: false, back: false, left: false, right: false, sprint: false }; };
+    window.addEventListener('blur', releaseKeys);
     window.addEventListener('keydown', keyDown);
     window.addEventListener('keyup', keyUp);
     return () => {
       input.current = { forward: false, back: false, left: false, right: false, sprint: false };
+      window.removeEventListener('blur', releaseKeys);
       window.removeEventListener('keydown', keyDown);
       window.removeEventListener('keyup', keyUp);
     };
@@ -427,6 +408,12 @@ function AisleNavigator({ active, controls, command }: { active: boolean; contro
     const hasKeyboardMovement = keyboard.forward || keyboard.back || keyboard.left || keyboard.right;
     const hasCommand = command.id !== handledCommand.current;
     if (!hasKeyboardMovement && !hasCommand) return;
+    // A walkthrough or bench modal owns keyboard input, including keys held before it opened.
+    if (document.querySelector('[role="dialog"][aria-modal="true"]')) {
+      input.current = { forward: false, back: false, left: false, right: false, sprint: false };
+      handledCommand.current = command.id;
+      return;
+    }
     const orbit = controls.current;
     const { forward, right, movement, next, slideX, slideZ, applied } = vectors.current;
     forward.copy(orbit.target).sub(camera.position);
@@ -853,42 +840,11 @@ function Equipment({ kind, active, tone, focused, controls, phase }: { kind: Sta
     case 'prep': return <PowderPrep controls={controls} />;
     case 'robot': return <RobotCell focused={focused} controls={controls} />;
     case 'furnace': return <Furnace active={active} focused={focused} controls={controls} />;
-    case 'xrd': return <Xrd active={active} focused={focused} controls={controls} phase={phase} />;
+    case 'xrd': return <Xrd active={phase === 3} focused={focused} controls={controls} phase={phase} />;
     case 'sem': return <SemEds active={active} controls={controls} />;
     case 'bet': return <Bet active={active} focused={focused} tone={tone} controls={controls} />;
     case 'tga': return <TgaDsc active={active} focused={focused} controls={controls} />;
   }
-}
-
-type InspectionPoint = { position: [number, number, number]; label: string; displayLabel?: string; observation: string; state: 'pass' | 'attention' };
-
-const HOTSPOTS: Record<StationKind, InspectionPoint[]> = {
-  prep: [{ position: [-0.65, 1.25, 0.68], label: 'SASH', observation: '420 mm opening · airflow normal', state: 'pass' }, { position: [0.86, 0.97, 0.55], label: 'BALANCE', observation: 'level centered · zero 0.000 g', state: 'pass' }, { position: [-0.15, 0.68, 0.58], label: 'LOT', observation: 'three capped powder vials retained in secondary tray', state: 'pass' }],
-  robot: [{ position: [1.17, 1.28, 1.1], label: 'GATE', displayLabel: 'GATE INTERLOCK', observation: 'CH1 interlock closed · no bypass', state: 'pass' }, { position: [0.98, 0.84, 0.18], label: 'GRIPPER', displayLabel: 'GRIPPER TOOL', observation: 'carrier jaws clear · tool seated', state: 'pass' }, { position: [1.55, 0.86, 0.81], label: 'HMI', displayLabel: 'ROBOT HMI', observation: 'AUTO hold · route inhibited', state: 'attention' }],
-  furnace: [{ position: [0.59, 1.38, 0.93], label: 'INTERLOCK', displayLabel: 'DOOR INTERLOCK', observation: 'door input closed · latch engaged', state: 'pass' }, { position: [-0.38, 0.58, 0.9], label: 'CONTROLLER', observation: 'PV 982 °C · SP 1,000 °C', state: 'pass' }, { position: [0, 1.38, 0.94], label: 'CHAMBER', displayLabel: 'HOT CHAMBER', observation: 'load present · hot-zone active', state: 'attention' }],
-  xrd: [{ position: [-0.12, 1.23, 0.98], label: 'HOLDER', displayLabel: 'SAMPLE HOLDER', observation: 'surface clean · specimen flat', state: 'pass' }, { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: 'QC CHECK DUE', state: 'attention' }, { position: [-0.48, 1.52, 0.92], label: 'SHUTTER', displayLabel: 'SOURCE SHUTTER', observation: 'closed feedback TRUE', state: 'pass' }],
-  sem: [{ position: [-0.25, 0.92, 0.82], label: 'CHAMBER', displayLabel: 'VACUUM CHAMBER', observation: 'specimen stage inside sealed chamber · vacuum 2.1e−5 Pa', state: 'pass' }, { position: [-0.25, 2.08, 0.42], label: 'COLUMN', displayLabel: 'ELECTRON COLUMN', observation: 'electron-optics stack above specimen · HV standby', state: 'pass' }, { position: [0.48, 1.22, 0.55], label: 'BSE / EDS', displayLabel: 'DETECTOR ARRAY', observation: 'annular BSE below the lens · EDS and SE on side ports', state: 'pass' }],
-  bet: [{ position: [-0.3, 1.62, 0.38], label: 'PORTS', displayLabel: 'ANALYSIS PORTS', observation: 'sealed manifold feeds four sample tubes independently', state: 'attention' }, { position: [0.98, 1.42, 0.34], label: 'N₂', displayLabel: 'N₂ GAS SUPPLY', observation: 'analysis and backfill gas · regulator stable', state: 'pass' }, { position: [0.68, 0.5, 0.1], label: 'VACUUM', displayLabel: 'VACUUM SYSTEM', observation: 'evacuates sample tubes before adsorption measurement', state: 'attention' }],
-  tga: [{ position: [-0.42, 1.04, 0.44], label: 'PAN', displayLabel: 'PAN SET', observation: 'matched sample/reference pans suspend from microbalance', state: 'pass' }, { position: [1, 0.95, 0.42], label: 'PURGE', displayLabel: 'PURGE GAS', observation: 'N₂ controls the furnace atmosphere and clears evolved gas', state: 'pass' }, { position: [-0.42, 1.42, 0.42], label: 'FURNACE', displayLabel: 'MOVABLE FURNACE', observation: 'furnace rises around suspended pans · 28 °C', state: 'attention' }],
-};
-
-function getInspectionPoints(kind: StationKind, phase: number): InspectionPoint[] {
-  if (kind === 'xrd' && phase >= 1) return [
-    { position: [-0.12, 1.23, 0.98], label: 'HOLDER', displayLabel: 'SAMPLE HOLDER', observation: phase === 1 ? 'stage empty · selected holder at load position' : phase === 2 ? 'selected holder seated · preparation retained with run' : phase === 3 ? 'holder centered · specimen stage moving' : 'measured pattern retained · holder identity preserved', state: phase === 1 ? 'attention' : 'pass' },
-    { position: [0.9, 0.7, 0.92], label: 'HMI', displayLabel: 'LOCAL HMI', observation: phase <= 2 ? 'READY' : phase === 3 ? 'SCANNING' : phase === 4 ? 'ANALYSIS' : 'SAVED', state: 'pass' },
-    { position: [-0.58, 1.7, 0.92], label: 'ENCLOSURE', displayLabel: 'RADIATION ENCLOSURE', observation: phase === 1 ? 'door open · source shutter closed' : phase === 2 ? 'door closed · interlock ready' : phase === 3 ? 'door locked · X-ray source enabled' : 'source off · door remains interlocked', state: 'pass' },
-  ];
-  if (kind === 'robot' && phase >= 2) return [
-    { position: [1.17, 1.28, 1.1], label: 'GATE', displayLabel: 'GATE INTERLOCK', observation: 'CH1 interlock closed · route authorized', state: 'pass' },
-    { position: [0.98, 0.84, 0.18], label: 'GRIPPER', displayLabel: 'GRIPPER TOOL', observation: phase === 3 ? 'BC-184 seated · transfer in progress' : 'jaws clear · BC-184 handoff retained', state: 'pass' },
-    { position: [1.55, 0.86, 0.81], label: 'HMI', displayLabel: 'ROBOT HMI', observation: phase === 3 ? 'AUTO route active · 5 eligible specimens' : 'route complete · quarantined specimen excluded', state: 'pass' },
-  ];
-  if (kind === 'sem' && phase >= 5) return [
-    { position: [-0.25, 0.92, 0.82], label: 'CHAMBER', displayLabel: 'VACUUM CHAMBER', observation: 'SPEC-184-03 loaded · vacuum stable', state: 'pass' },
-    { position: [-0.25, 2.08, 0.42], label: 'COLUMN', displayLabel: 'ELECTRON COLUMN', observation: 'BSE conditions retained · working distance linked', state: 'pass' },
-    { position: [0.48, 1.22, 0.55], label: 'BSE / EDS', displayLabel: 'DETECTOR ARRAY', observation: phase >= 6 ? '4 fields + EDS map retained' : 'field 01 inclusion · coverage incomplete', state: phase >= 6 ? 'pass' : 'attention' },
-  ];
-  return HOTSPOTS[kind];
 }
 
 function InspectionHotspots({ points, tone, inspected, onInspect }: { points: InspectionPoint[]; tone: string; inspected: string[]; onInspect: (label: string) => void }) {
@@ -1185,13 +1141,12 @@ function Xrd({ active, focused, controls, phase }: { active: boolean; focused: b
   const stage = useRef<THREE.Group>(null);
   const enclosureDoor = useRef<THREE.Group>(null);
   const homed = controls.includes('Home specimen stage') || phase >= 2;
-  const enclosureClosed = controls.includes('Close radiation enclosure');
-  const benchDoorClosed = phase >= 2;
+  const enclosureClosed = controls.includes('Close radiation enclosure') || phase >= 2 || !focused;
   const shutterProven = controls.includes('Prove shutter feedback');
   const referenceRead = controls.includes('Read silicon QC position');
   useFrame((_, delta) => {
     if (stage.current) stage.current.rotation.y = THREE.MathUtils.damp(stage.current.rotation.y, homed ? 0 : 0.55, 3.2, delta);
-    if (enclosureDoor.current) enclosureDoor.current.position.x = THREE.MathUtils.damp(enclosureDoor.current.position.x, enclosureClosed || benchDoorClosed || !focused ? -0.12 : 1.96, 3.4, delta);
+    if (enclosureDoor.current) enclosureDoor.current.position.x = THREE.MathUtils.damp(enclosureDoor.current.position.x, enclosureClosed ? -0.12 : 1.96, 3.4, delta);
   });
   return <group position={[0, 0.1, 0]} scale={[0.64, 0.82, 0.75]}>
     <RoundedBox args={[2.5, 2.25, 1.55]} radius={0.18} smoothness={5} position={[0, 1.15, 0]} castShadow>
@@ -1217,7 +1172,7 @@ function Xrd({ active, focused, controls, phase }: { active: boolean; focused: b
         <mesh><cylinderGeometry args={[0.13, 0.13, 0.08, 24]} /><meshStandardMaterial color="#455b68" metalness={0.86} roughness={0.18} /></mesh>
         <mesh position={[0, 0.047, 0]}><torusGeometry args={[0.085, 0.014, 8, 24]} /><meshStandardMaterial color="#aab7bc" metalness={0.9} roughness={0.14} /></mesh>
       </group>)}
-      <Line points={[[-0.48, 0.37, 0.03], [0, -0.1, 0.03], [0.47, 0.4, 0.03]]} color={shutterProven ? '#51e19a' : active ? '#f4b95f' : '#6f8591'} lineWidth={shutterProven || active ? 1.4 : 0.7} transparent opacity={shutterProven || active ? 0.92 : 0.35} />
+      {active && <Line points={[[-0.48, 0.37, 0.03], [0, -0.1, 0.03], [0.47, 0.4, 0.03]]} color="#f4b95f" lineWidth={1.4} transparent opacity={0.92} />}
     </group>
     <Line points={[[ -1.06, 0.36, 0.805], [1.06, 0.36, 0.805]]} color="#829099" lineWidth={0.55} transparent opacity={0.6} />
       <Line points={[[0.77, 0.43, 0.82], [0.77, 2.01, 0.82]]} color="#7b8a92" lineWidth={0.55} transparent opacity={0.5} />
@@ -1518,29 +1473,15 @@ function StatusBeacon({ position, color, active }: { position: [number, number, 
   </group>;
 }
 
-function MaterialRoute({ phase }: { phase: number }) {
-  const carrier = useRef<THREE.Group>(null);
-  const current = useRef(0.03);
+function MaterialRoute() {
   const points = useMemo(() => (['PREP-01', 'ROBO-02', 'FURN-04', 'XRD-03'] as const).map((stationId) => {
     const [x, , z] = getStationSceneSpec(stationId).position;
     return new THREE.Vector3(x, 0.18, z + 1.18);
   }), []);
-  const curve = useMemo(() => new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.15), [points]);
-  const route = useMemo(() => curve.getPoints(50), [curve]);
   const routeColor = '#4dd5ed';
-  useFrame(({ clock }, delta) => {
-    const target = Math.min(0.96, 0.04 + (Math.min(phase, 4) / 4) * 0.9);
-    current.current = THREE.MathUtils.damp(current.current, target, 3.8, delta);
-    const breathing = phase === 3 ? Math.sin(clock.elapsedTime * 1.6) * 0.008 : 0;
-    const point = curve.getPointAt(THREE.MathUtils.clamp(current.current + breathing, 0.02, 0.98));
-    if (carrier.current) carrier.current.position.copy(point);
-  });
   return <group>
-    <Line points={route} color={routeColor} lineWidth={0.52} dashed dashSize={0.18} gapSize={0.16} transparent opacity={0.34} />
-    <group ref={carrier}>
-      <SampleCarrier routeColor={routeColor} />
-      <pointLight position={[0, 0.16, 0]} intensity={0.45} distance={0.65} color={routeColor} />
-    </group>
+    <Line points={points} color={routeColor} lineWidth={0.52} dashed dashSize={0.18} gapSize={0.16} transparent opacity={0.34} />
+    <group position={points[0]}><SampleCarrier routeColor={routeColor} /></group>
   </group>;
 }
 

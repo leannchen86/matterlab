@@ -67,17 +67,19 @@ const TRACE = Array.from({ length: 961 }, (_, index) => {
   return `${x},${(62 - y).toFixed(1)}`;
 }).join(' ');
 
-/** Peaks with two reference barcodes under them; the last peak has no barcode and stays amber. */
+/** Labeled reference rows distinguish candidate matches from the unexplained peak. */
 function IntroPicture() {
-  return <svg className="xb-intro-picture" viewBox="0 0 240 96" aria-hidden="true">
+  return <svg className="xb-intro-picture" viewBox="-76 -15 322 129" role="img" aria-label="Schematic pattern: reference A matches the first and third peaks; reference B matches the second. The fourth peak is unexplained.">
     <rect x="192" y="6" width="20" height="58" fill="var(--xb-amber)" opacity=".16" />
+    <text x="202" y="-5" fill="var(--xb-amber)" fontSize="8" textAnchor="middle">Unexplained peak</text>
+    <line x1="202" y1="0" x2="202" y2="33" stroke="var(--xb-amber)" strokeWidth=".7" />
+    <text x="-5" y="46" fill="var(--plot-observed)" fontSize="8" textAnchor="end">Powder scan</text>
     <polyline points={TRACE} fill="none" stroke="var(--plot-observed)" strokeWidth="1.5" strokeLinejoin="round" />
-    <g stroke="var(--xb-cyan)" strokeWidth="2">
-      <line x1="44" y1="72" x2="44" y2="80" />
-      <line x1="150" y1="72" x2="150" y2="80" />
-    </g>
-    <line x1="96" y1="86" x2="96" y2="94" stroke="var(--xb-violet)" strokeWidth="2" />
-    <text x="202" y="88" fill="var(--xb-amber)" fontSize="12" textAnchor="middle">?</text>
+    <text x="-5" y="82" fill="var(--xb-cyan)" fontSize="8" textAnchor="end">Reference A</text>
+    <text x="-5" y="101" fill="var(--xb-violet)" fontSize="8" textAnchor="end">Reference B</text>
+    <g stroke="var(--xb-line)" strokeWidth=".6"><line x1="0" y1="82" x2="240" y2="82" /><line x1="0" y1="101" x2="240" y2="101" /></g>
+    <g stroke="var(--xb-cyan)" strokeWidth="2"><line x1="44" y1="72" x2="44" y2="82" /><line x1="150" y1="72" x2="150" y2="82" /></g>
+    <line x1="96" y1="91" x2="96" y2="101" stroke="var(--xb-violet)" strokeWidth="2" />
   </svg>;
 }
 
@@ -85,7 +87,7 @@ export function IntroCard({ onStart }: { readonly onStart: () => void }) {
   return <div className="xb-intro" role="group" aria-label={ARIA.intro}>
     <div className="xb-intro-card">
       <IntroPicture />
-      <p className="xb-line xb-muted">Schematic pattern</p>
+      <p className="xb-line xb-muted">Schematic pattern · reference marks show where each material’s peaks belong.</p>
       <ol>{INTRO_LINES.map((line) => <li key={line}>{line}</li>)}</ol>
       <button type="button" className="xb-primary" onClick={onStart}>{WORD.start}</button>
     </div>

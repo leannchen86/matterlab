@@ -54,7 +54,7 @@ const STATION_SCENE_SPECS: Record<StationId, StationSceneSpec> = {
     position: [1.75, 0, -2.15],
     focusOffset: [-2.15, 2.75, 4.35],
     focusTargetOffset: [0, 1.05, 0],
-    walkOffset: [2.35, 1.68, 2.15],
+    walkOffset: [-2.35, 1.68, 2.15],
     colliderHalfSize: [1.72, 1.58],
     platformHeight: 0.055,
     labelPosition: [-0.38, 2.98, -0.2],

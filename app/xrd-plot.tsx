@@ -607,6 +607,7 @@ export function PatternPlot({ grid, counts, fit, dim = false, other, overlay, hi
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLCanvasElement>) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
     const span = view.endDeg - view.startDeg;
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       event.preventDefault();

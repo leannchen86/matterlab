@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Vector3 } from './crystallography.ts';
+import { accumulateLines, calculateLines, REFERENCE_STATE } from './pattern.ts';
 import { STRUCTURE_IDS, phaseReference } from './library.ts';
-import { CU_KALPHA1, lorentzPolarization, twoThetaFromD } from './profile.ts';
+import { CU_KALPHA1, LAB_OPTICS, lorentzPolarization, twoThetaFromD } from './profile.ts';
 import { hashSeed } from './random.ts';
 import { PHASE_DATA, REFERENCE_DATA_VERSION } from './references.generated.ts';
 
@@ -113,4 +114,33 @@ test('diagnostic lines used by the chemical context are present', () => {
   assert.ok(hasLineNear('ca4ti3o10', 19.6, 0.1, 0.005));
   // Portlandite 001 is the reflection enhanced by platelet orientation.
   assert.ok(hasLineNear('portlandite', 18.07, 0.03, 0.3));
+});
+
+test('high-angle Kβ lines survive the shorter-wavelength reference cutoff', () => {
+  const reference = phaseReference('silicon');
+  const lines = calculateLines(reference, REFERENCE_STATE, LAB_OPTICS, { startDeg: 103, endDeg: 120 });
+  // Independent cubic-cell Bragg positions for a = 5.431144 Å, λ(Kβ) = 1.39225 Å;
+  // confirmed with pymatgen from the source CIF. Their Kα1 counterparts lie beyond 120°.
+  for (const [indices, expected] of [['620', 108.316242], ['533', 114.382811]] as const) {
+    const line = lines.find((candidate) => candidate.emission === 'Kβ'
+      && [...reference.reflections[candidate.reflection].hkl].map(Math.abs).sort((a, b) => b - a).join('') === indices);
+    assert.ok(line, `missing Si ${indices} Kβ`);
+    assert.ok(Math.abs(line.twoTheta - expected) < 0.0002, `${indices}: ${line.twoTheta}`);
+    assert.ok(line.intensity > 0);
+  }
+});
+
+test('coverage includes expanded-cell lines whose tails enter the upper scan edge', () => {
+  const reference = phaseReference('catio3');
+  const state = { latticeScale: 1.01, crystalliteNm: 20, microstrain: 0.004 };
+  const lines = calculateLines(reference, state, LAB_OPTICS, { startDeg: 118.5, endDeg: 120 });
+  // This Kβ line is at 123.219868° before expansion, beyond the unexpanded 120° + 3° cutoff.
+  const line = lines.find((candidate) => candidate.emission === 'Kβ'
+    && reference.reflections[candidate.reflection].hkl.join(',') === '3,5,5');
+  assert.ok(line);
+  assert.ok(Math.abs(line.twoTheta - 121.154965) < 0.0002);
+  const grid = { startDeg: 119.9, stepDeg: 0.01, count: 11 };
+  const tail = new Float64Array(grid.count);
+  accumulateLines(tail, grid, [line], 1, 0, LAB_OPTICS);
+  assert.ok(tail.every((count) => count > 0), 'the outside peak contributes inside the measured range');
 });

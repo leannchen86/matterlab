@@ -93,7 +93,7 @@ export const WORD = {
   send: 'SEND',
   wait: 'WAIT',
   noSteps: 'NO STEPS',
-  hiddenBy: 'HIDDEN BY',
+  overlap: 'OVERLAP',
   noHeavy: 'NO HEAVY ELEMENTS',
   // AIM
   expected: 'EXPECTED',
@@ -198,7 +198,7 @@ export const PHASE_NAME: Readonly<Record<string, string>> = {
   cazro3: 'calcium zirconate',
   batio3: 'barium titanate',
   witherite: 'barium carbonate',
-  catio2o4: 'calcium dititanate',
+  catio2o4: 'calcium titanium(III) oxide',
   ca4ti3o10: 'calcium titanate, Ca-rich',
 };
 

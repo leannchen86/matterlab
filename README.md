@@ -11,7 +11,7 @@ The simulation places the player inside a high-throughput laboratory where resto
 - Explore a browser-rendered 3D laboratory containing powder preparation, robotics, furnace, XRD, SEM/EDS, BET, and TGA equipment.
 - Select or click equipment to focus the camera; press `Esc` to return to the overview.
 - Enter a technician-scale aisle view with keyboard or on-screen movement controls.
-- Replay a cinematic facility tour from the camera controls.
+- Explore a guided facility tour with stable, labeled views of all seven stations.
 - Inspect three physical points on each machine before entering its local controls.
 - Complete equipment-specific HMI sequences without erasing independent quality holds.
 - Follow sample custody and reference checks at each machine's inspection points and console readouts.

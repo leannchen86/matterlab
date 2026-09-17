@@ -3024,3 +3024,9 @@ The introductory drawing undersampled its narrow schematic peaks, and comparison
 - Regression tests reconstruct Ca/Ti/Zr ratios from product weights and host occupancy across all seven samples and limiting-reagent cases. A real S-130 silicon-spiked close-up rejects a spacing reading; a subsequent survey with three unique standard lines permits it.
 - Browser checks confirm smooth intro peaks, truthful reference-preview heights, and exhausted-shift cancellation, reload, restart, and cleared 3D state. Reloading a reset shift retains its fresh state.
 - `pnpm check`: TypeScript, ESLint, and all 80 tests passed. `pnpm build:pages` passed. The real zoomed comparison regression includes the taller inactive fit and preserves scale when A/B swap.
+
+## 17 September 2026 — comprehensive realism and interaction audit
+
+Corrected missing high-angle Kβ reference coverage, phase complexity penalties, and lattice covariance; regenerated all fourteen references and advanced the measurement engine to version 4. Clarified Ti(III) chemistry, unresolved Ba/Ti EDS overlap, and remaking with agate. Replaced anonymous intro marks with labeled reference rows and shortened the entry to OPEN XRD.
+
+The tour now presents stable, fully framed equipment stops with pause/previous/next controls, independent of OrbitControls clamps. Fixed the blocked furnace walking spawn, stale inspection observations and checklist gates. Idle XRD no longer displays the schematic beam, and local consoles identify their illustrative walkthrough scope. Saved-call completion now survives bench closure/reload and rejects stale asynchronous results. See docs/REALISM_AUDIT_2026-09-17.md for scope, evidence and retained model limits.

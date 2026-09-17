@@ -18,13 +18,18 @@ import {
   type Vector3,
 } from '../app/xrd/crystallography.ts';
 import type { PhaseData } from '../app/xrd/library.ts';
-import { CU_KALPHA1, DEG, lorentzPolarization, twoThetaFromD } from '../app/xrd/profile.ts';
+import { CU_KALPHA1, CU_NI_FILTERED, DEG, lorentzPolarization, twoThetaFromD } from '../app/xrd/profile.ts';
 import { hashSeed } from '../app/xrd/random.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT = join(ROOT, 'app/xrd/references.generated.ts');
-const MAX_TWO_THETA = 120;
-const D_MIN = CU_KALPHA1 / (2 * Math.sin((MAX_TWO_THETA / 2) * DEG));
+// Cover every reflection the runtime can request, including shorter-wavelength Kβ, expanded cells,
+// and the 3° line-selection margin used by calculateLines for tails at either scan edge.
+const MAX_SCAN_TWO_THETA = 120;
+const LINE_RANGE_MARGIN_DEG = 3;
+const MAX_LATTICE_SCALE = 1.01; // Upper bound of lattice refinement in analysis.ts.
+const MIN_WAVELENGTH = Math.min(...CU_NI_FILTERED.map((line) => line.wavelength));
+const D_MIN = MIN_WAVELENGTH / (2 * MAX_LATTICE_SCALE * Math.sin(((MAX_SCAN_TWO_THETA + LINE_RANGE_MARGIN_DEG) / 2) * DEG));
 
 type AxisOrder = readonly [number, number, number];
 

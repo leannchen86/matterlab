@@ -69,6 +69,11 @@ export function useLab(): LabState {
   return useSyncExternalStore(subscribe, () => current().state, () => serverState);
 }
 
+/** Current durable state, for validating asynchronous presentation completion. */
+export function getLabSnapshot(): LabState {
+  return current().state;
+}
+
 /** Applies an action to the shift; failed actions change nothing and report why. */
 export function dispatch(action: Action): Outcome {
   const before = current();

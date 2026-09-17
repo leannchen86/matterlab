@@ -4,13 +4,11 @@ import { useMemo, useState } from 'react';
 import { LabViewport } from './lab-viewport';
 import { baseStations, type Station } from './sim-data';
 import { StationAccess } from './station-access';
-import { XrdWorkbench, type XrdBenchStage, type XrdRunContext, type XrdRunResult } from './xrd-workbench';
+import { XrdWorkbench } from './xrd-workbench';
+import { useXrdPresentation } from './xrd-bench/use-presentation';
 
 export default function Home() {
-  const [phase, setPhase] = useState(0);
-  const [xrdBenchStage, setXrdBenchStage] = useState<XrdBenchStage>('idle');
-  const [xrdRunContext, setXrdRunContext] = useState<XrdRunContext | null>(null);
-  const [xrdRunResult, setXrdRunResult] = useState<XrdRunResult | null>(null);
+  const { phase, context: xrdRunContext, result: xrdRunResult, updateStage: updateXrdBenchStage } = useXrdPresentation();
   const [workbenchOpen, setWorkbenchOpen] = useState(false);
   const [selectedId, setSelectedId] = useState('XRD-03');
   const [physicalInspections, setPhysicalInspections] = useState<Record<string, string[]>>({});
@@ -18,8 +16,8 @@ export default function Home() {
   const stations = useMemo(() => baseStations.map((station): Station => {
     if (station.id === 'XRD-03') return {
       ...station,
-      state: phase >= 5 ? xrdRunResult?.uncertain ? 'RUN HELD' : xrdRunResult?.supported ? 'CALL SAVED' : 'REVIEW' : phase === 4 ? 'INTERPRET' : phase === 3 ? 'SCANNING' : phase >= 1 ? 'LOCAL CONTROL' : 'FREE LAB READY',
-      tone: phase >= 5 ? xrdRunResult?.supported ? 'ready' : 'warn' : phase >= 3 ? 'run' : 'ready',
+      state: phase >= 5 ? xrdRunResult?.held ? 'RUN HELD' : xrdRunResult?.supported ? 'CALL SAVED' : 'REVIEW' : phase === 4 ? 'INTERPRET' : phase === 3 ? 'SCANNING' : phase >= 1 ? 'LOCAL CONTROL' : 'FREE LAB READY',
+      tone: phase >= 5 ? xrdRunResult?.held || !xrdRunResult?.supported ? 'warn' : 'ready' : phase >= 3 ? 'run' : 'ready',
       meta: phase >= 5 ? `${xrdRunResult?.sampleId ?? 'sample'} · ${xrdRunResult?.decision ?? '-'}` : phase === 4 ? `${xrdRunContext?.sampleId ?? 'sample'} · choose references` : phase === 3 ? `${xrdRunContext?.sampleId ?? 'sample'} · ${xrdRunContext?.scan ?? 'scan'}` : 'Choose sample · preparation · scan',
       technicianView: phase >= 5
         ? [`Sample: ${xrdRunResult?.sampleId ?? '-'}`, `Claim: ${xrdRunResult?.phases.join(' + ') ?? '-'}`, `Decision: ${xrdRunResult?.decision ?? '-'}`, `Support: ${xrdRunResult?.supported ? 'adequate' : 'weak'}`]
@@ -36,25 +34,6 @@ export default function Home() {
 
   const recordInspection = (stationId: string, checks: string[]) => {
     setPhysicalInspections((current) => ({ ...current, [stationId]: checks }));
-  };
-
-  const updateXrdBenchStage = (nextStage: XrdBenchStage, context: XrdRunContext) => {
-    setXrdBenchStage(nextStage);
-    setXrdRunContext(context);
-    if (nextStage === 'idle') setXrdRunResult(null);
-    const nextPhase = nextStage === 'idle' ? 0
-      : nextStage === 'open' ? 1
-        : nextStage === 'loaded' || nextStage === 'closed' ? 2
-          : nextStage === 'scanning' ? 3
-            : nextStage === 'review' ? 4 : 5;
-    setPhase(nextPhase);
-  };
-
-  const completeXrdRun = (result: XrdRunResult) => {
-    setXrdRunResult(result);
-    setXrdBenchStage('complete');
-    setPhase(5);
-    setXrdRunContext(result);
   };
 
   return (
@@ -97,7 +76,7 @@ export default function Home() {
         </aside>
       </div>
 
-      {workbenchOpen && <XrdWorkbench stage={xrdBenchStage} result={xrdRunResult} onStage={updateXrdBenchStage} onResult={completeXrdRun} onClose={() => setWorkbenchOpen(false)} />}
+      {workbenchOpen && <XrdWorkbench onStage={updateXrdBenchStage} onClose={() => setWorkbenchOpen(false)} />}
     </main>
   );
 }
@@ -108,5 +87,5 @@ function Task({ number, title, note, status, onClick }: { number: string; title:
 }
 
 function ActionPanel({ onOpen }: { onOpen: () => void }) {
-  return <section className="rail-section alert-card tone-ready"><button className="primary-action" type="button" onClick={onOpen}>OPEN XRD LAB<span>→</span></button></section>;
+  return <section className="rail-section alert-card tone-ready"><button className="primary-action" type="button" onClick={onOpen}>OPEN XRD<span>→</span></button></section>;
 }

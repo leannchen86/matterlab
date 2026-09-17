@@ -1,15 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { analysisOf, apply, createLab } from '../xrd/lab.ts';
 import { plotScalePeak } from './plot-scale.ts';
 
 test('a zoomed comparison includes the inactive fit and keeps the scale when A and B swap', () => {
-  const scanned = apply(createLab('test', ['S-101']), { type: 'scan', code: 'S-101', program: 'survey' });
-  if (!scanned.ok) return assert.fail(scanned.error);
-  const run = scanned.state.samples[0].runs[0];
-  const a = analysisOf(run, { candidates: ['catio3'] });
-  const b = analysisOf(run, { candidates: ['anatase'] });
-  const input = { grid: run.grid, counts: run.counts, view: { startDeg: 24.7, endDeg: 25.14 } };
+  // Deterministic plot data keeps this regression independent of engine noise seeds and fit convergence.
+  const a = { calculated: [2000, 8, 11, 10, 2000] };
+  const b = { calculated: [2000, 10, 180, 20, 2000] };
+  const input = { grid: { startDeg: 10, stepDeg: 1, count: 5 }, counts: [2000, 9, 12, 10, 2000], view: { startDeg: 12, endDeg: 12 } };
   const observed = plotScalePeak(input);
   const aOnly = plotScalePeak({ ...input, fit: a });
   const bOnly = plotScalePeak({ ...input, fit: b });

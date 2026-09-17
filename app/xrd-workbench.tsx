@@ -37,6 +37,7 @@ import {
 } from './xrd-bench/copy';
 import { dispatch, newShift, saveSlots, savedSlots, seat, seatedMount, useAnalysesReady, useAnalysis, useLab } from './xrd-bench/session';
 import { GLOSS } from './xrd-bench/gloss';
+import { runContext, type XrdBenchStage, type XrdRunContext } from './xrd-bench/presentation';
 import { GlossContext, GuideLine, IntroCard, Term, introSeen, markIntroSeen, useGloss, type Gloss } from './xrd-bench/guide';
 import { closeUpCentre, debriefSummary, detectionReach, goalStep, lineCounts, overlayScale, probeGroups, probeZ, runCentre, runCovers, runTag, sampleStatus, spacingReading, speedOf, targetCentre, type GoalStep, type Speed } from './xrd-bench/view';
 import { PatternPlot, phaseColor, type PlotOverlay, type PlotRange, type PlotTicks } from './xrd-plot';
@@ -80,27 +81,6 @@ import { referenceLines } from './xrd/probe';
 import { interpretationOptions, sameInterpretation, type Interpretation, type RunRecord } from './xrd/records';
 import './xrd-bench.css';
 
-export type XrdBenchStage = 'idle' | 'open' | 'loaded' | 'closed' | 'scanning' | 'review' | 'complete';
-
-export type XrdRunContext = {
-  readonly sampleId: string;
-  readonly sampleName: string;
-  readonly prep: string;
-  readonly scan: string;
-  readonly scanMinutes: number;
-  readonly runNumber: number;
-};
-
-export type XrdRunResult = XrdRunContext & {
-  readonly phases: readonly string[];
-  readonly decision: string;
-  /** The SUPPORT row was not graded poor. */
-  readonly supported: boolean;
-  /** The call left signal unexplained or held the batch for a reference. */
-  readonly uncertain: boolean;
-  readonly summary: string;
-};
-
 type SlotId = 'A' | 'B';
 type Slots = Readonly<Record<SlotId, readonly string[]>>;
 type Sheet = 'data' | 'support' | 'aim' | 'decide';
@@ -143,7 +123,7 @@ const FINE_STEP_DEG = Math.min(...PROGRAM_ORDER.map((id) => acquisitionFor(id).s
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** What the bench remembers between openings. */
-const memory = { code: CASE_CODES[0], held: new Map<string, Held>(), calls: new Map<string, CallDraft>(), unreported: new Set<string>() };
+const memory = { code: CASE_CODES[0], held: new Map<string, Held>(), calls: new Map<string, CallDraft>() };
 
 // Rounds the magnitude first, so ±z read alike and a small negative reads 0.00°, never -0.00°.
 const degrees = (value: number, digits = 2) => `${((Math.sign(value) * Math.round(Math.abs(value) * 10 ** digits)) / 10 ** digits || 0).toFixed(digits)}°`;
@@ -197,17 +177,6 @@ function slotDraft(state: LabState, run: RunRecord, set: readonly string[], use:
   return { runId: run.id, candidates, internalStandard: spike, zeroDeg: use.zero ? state.zeroDeg : undefined };
 }
 
-function runContext(sample: SampleState, run?: RunRecord): XrdRunContext {
-  return {
-    sampleId: sample.code,
-    sampleName: sampleCase(sample.code).record.title,
-    prep: mountTag(run?.mount ?? currentMount(sample)),
-    scan: PROGRAM_LABEL[run?.acquisition.program ?? 'survey'],
-    scanMinutes: run?.acquisition.minutes ?? 0,
-    runNumber: run?.index ?? 0,
-  };
-}
-
 /** A run's number and program, `R5 TARGET`. */
 const runShort = (run: RunRecord) => `R${run.index} ${PROGRAM_LABEL[run.acquisition.program]}`;
 
@@ -232,11 +201,8 @@ function reducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 }
 
-export function XrdWorkbench({ onStage, onResult, onClose }: {
-  readonly stage: XrdBenchStage;
-  readonly result: XrdRunResult | null;
+export function XrdWorkbench({ onStage, onClose }: {
   readonly onStage: (stage: XrdBenchStage, context: XrdRunContext) => void;
-  readonly onResult: (result: XrdRunResult) => void;
   readonly onClose: () => void;
 }) {
   const dialogRef = useModalFocusTrap();
@@ -407,25 +373,6 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
   const debriefReady = useAnalysesReady(debriefJobs);
   const report = useMemo(() => (sample.call && debriefReady && !inReview ? debrief(state, sample.code) : undefined), [state, sample.call, sample.code, debriefReady, inReview]);
 
-  // The debrief has rendered: report the call to the page once.
-  useEffect(() => {
-    const call = sample.call;
-    if (!report || !call || !memory.unreported.has(key)) return;
-    memory.unreported.delete(key);
-    const basis = sample.interpretations.find((item) => item.id === call.basis);
-    const basisRun = sample.runs.find((item) => item.id === basis?.runId);
-    const phases = call.phases.map(phaseLabel);
-    const decision = DECISION_LABELS[call.decision];
-    onResult({
-      ...runContext(sample, basisRun),
-      phases,
-      decision,
-      supported: report.rows.find((row) => row.id === 'support')?.grade !== 'poor',
-      uncertain: call.unexplained !== 'none' || call.decision === 'hold-reference',
-      summary: `${phases.join(' + ')} · ${decision.toUpperCase()}`,
-    });
-  }, [report, sample, key, onResult]);
-
   /** Sample switches keep any running door or scan sequence going and emit nothing. */
   const resetUi = (next: SampleState, at: LabState = state) => {
     memory.code = next.code;
@@ -538,10 +485,10 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
   const commit = (basisId: string, phases: readonly string[]) => {
     const { unexplained, decision } = callDraft;
     if (!unexplained || !decision) return;
+    settle();
     const outcome = dispatch({ type: 'call', code: sample.code, phases, unexplained, decision, basis: basisId });
     if (!outcome.ok) return setNotice(ERROR_WORD[outcome.error]);
     const committedKey = reportKey(outcome.state, sample.code);
-    memory.unreported.add(committedKey);
     setReviewing(committedKey);
     const minimum = new Promise<void>((resolve) => {
       window.setTimeout(resolve, reducedMotion() ? 0 : REVIEW_MS);
@@ -648,7 +595,6 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
   const startShift = () => {
     memory.held.clear();
     memory.calls.clear();
-    memory.unreported.clear();
     settle();
     const fresh = newShift();
     resetUi(fresh.samples[0], fresh);
@@ -931,7 +877,7 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
           />}
           {sheet === 'aim' && <AimSheet state={state} sample={sample} onAct={act} onCost={onCost} />}
           {sheet === 'decide' && (committed
-            ? <DebriefView report={report} decision={sample.call?.decision} tried={sample.interpretations.length} hasNext={Boolean(nextOpen)} onNext={() => nextOpen && resetUi(nextOpen)} onNewShift={startShift} onClose={close} />
+            ? <DebriefView report={report} decision={sample.call?.decision} tried={sample.interpretations.length} hasNext={Boolean(nextOpen)} onNext={() => nextOpen && resetUi(nextOpen)} onNewShift={() => setConfirmNewShift(true)} onClose={close} />
             : <DecideSheet
               state={state}
               sample={sample}
@@ -1316,7 +1262,7 @@ function TestsPanel({ state, sample, onAct, onCost }: { readonly state: LabState
       {sem.status === 'ready' && <>
         <div className="xb-pills">
           {sem.result.area.map((signal) => <span key={signal.element} className="xb-pill" data-dim={signal.artefact ? true : undefined}>{signal.element} {signal.artefact ? ARTEFACT_WORD[signal.artefact] : BAND_LABEL[signal.level]}</span>)}
-          {sem.result.unresolved.map((item) => <span key={item.element} className="xb-pill xb-warn">{item.element} {WORD.hiddenBy} {item.hiddenBy}</span>)}
+          {sem.result.unresolved.map((item) => <span key={item.element} className="xb-pill xb-warn"><Term word={`${item.element} / ${item.hiddenBy} ${WORD.overlap}`} line={GLOSS.word.edsOverlap} /></span>)}
         </div>
         <div className="xb-particles" role="group" aria-label={ARIA.particles}>
           {sem.result.spots.map((_, index) => <button key={index} type="button" aria-pressed={particle === index} aria-label={ARIA.particle(index + 1)} onClick={() => setParticle(particle === index ? undefined : index)} />)}

@@ -1,6 +1,6 @@
 // Follow-up measurements with honest limits. TGA reports mass-loss steps, never phases. SEM/EDS reports elements
 // qualitatively over a handful of particles, with the artefacts of a real stub: carbon from the tape, an occasional Al
-// signal from the stub, and Ba Lα hidden under Ti Kα. Both read the hidden powder, as the diffractometer does, and both
+// signal from the stub, and possible overlap of Ba Lα with Ti Kα. Both read the hidden powder, as the diffractometer does, and both
 // are seeded, so a request always returns the same result.
 import { ELEMENTS, type ElementSymbol } from './elements.ts';
 import type { Specimen } from './measure.ts';
@@ -42,7 +42,7 @@ export type SemEdsResult = {
   readonly area: readonly EdsSignal[];
   /** Heavy elements in each analysed particle. */
   readonly spots: readonly (readonly ElementSymbol[])[];
-  /** Elements this spectrum can neither confirm nor exclude, with the line that hides them. */
+  /** Elements these spectra can neither confirm nor exclude, with the overlapping element. */
   readonly unresolved: readonly { readonly element: ElementSymbol; readonly hiddenBy: ElementSymbol }[];
   readonly detectionPercent: number;
 };
@@ -74,6 +74,14 @@ function level(percent: number): EdsLevel | undefined {
   return percent >= EDS_DETECTION ? 'trace' : undefined;
 }
 
+/** A deliberately coarse limit for this qualitative test, not a universal EDS resolution threshold.
+ * Full-spectrum, standards-based fitting can separate Ba/Ti overlaps (Mengason & Ritchie, 2017).
+ * Apply the same rule separately to the area and each particle; a Ba-rich particle can supply evidence.
+ */
+function baUnresolved(composition: ReadonlyMap<ElementSymbol, number>): boolean {
+  return (composition.get('Ti') ?? 0) >= 0.01 && (composition.get('Ba') ?? 0) < 0.1;
+}
+
 export function runSemEds(specimen: Specimen, key: string): SemEdsResult {
   const random = createRandom(hashSeed('sem-eds', key));
   const phases = specimen.phases.filter((phase) => phase.weightFraction > 0);
@@ -88,7 +96,7 @@ export function runSemEds(specimen: Specimen, key: string): SemEdsResult {
     if (element === 'H' || element === 'C') continue;
     // Matrix and geometry effects make standardless levels uncertain by about a quarter.
     const found = level(100 * fraction * Math.exp(0.25 * random.normal()));
-    if (found) area.push({ element, level: found });
+    if (found && !(element === 'Ba' && baUnresolved(bulk))) area.push({ element, level: found });
   }
   area.push({ element: 'C', level: 'major', artefact: 'tape' });
   if (random.next() < 0.35) area.push({ element: 'Al', level: 'trace', artefact: 'stub' });
@@ -97,11 +105,11 @@ export function runSemEds(specimen: Specimen, key: string): SemEdsResult {
   const spots = Array.from({ length: SPOTS }, () => {
     let pick = random.next() * total;
     const index = Math.max(0, phases.findIndex((phase) => (pick -= phase.weightFraction) <= 0));
-    return [...compositions[index]].filter(([element, fraction]) => !LIGHT.has(element) && fraction >= 0.01).map(([element]) => element).sort();
+    const composition = compositions[index];
+    return [...composition].filter(([element, fraction]) => !LIGHT.has(element) && fraction >= 0.01 && !(element === 'Ba' && baUnresolved(composition))).map(([element]) => element).sort();
   });
 
-  const ti = 100 * (bulk.get('Ti') ?? 0);
-  const unresolved = ti >= 1 && 100 * (bulk.get('Ba') ?? 0) < 10 ? [{ element: 'Ba' as ElementSymbol, hiddenBy: 'Ti' as ElementSymbol }] : [];
+  const unresolved = baUnresolved(bulk) && !spots.some((spot) => spot.includes('Ba')) ? [{ element: 'Ba' as ElementSymbol, hiddenBy: 'Ti' as ElementSymbol }] : [];
   return { area, spots, unresolved, detectionPercent: EDS_DETECTION };
 }
 

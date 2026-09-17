@@ -5,6 +5,10 @@ import { sampleCase, specimenFor } from './cases.ts';
 import { acquisitionFor, measure, prepareMount, type MountRecord, type ProgramId } from './measure.ts';
 import { createRun } from './records.ts';
 
+import { catalogPhase } from './phases.ts';
+import { accumulateLines, braggScale, calculateLines } from './pattern.ts';
+import { LAB_OPTICS } from './profile.ts';
+
 const INSTRUMENT = { zeroShiftDeg: 0.01 };
 
 function scan(code: string, program: ProgramId) {
@@ -106,4 +110,26 @@ test('a checked zero widens the lattice uncertainty by as much as the refitted c
   const added = Math.sqrt(Math.max(0, checked.latticeSigma ** 2 - exact.latticeSigma ** 2));
   const expected = Math.abs(slope) * ZERO_CHECK_SD_DEG;
   assert.ok(Math.abs(added / expected - 1) < 0.1, `added ${added} expected ${expected}`);
+});
+
+test('ordinary phase evidence pays for its scale, cell, size and strain', () => {
+  const grid = { startDeg: 10, stepDeg: 0.02, count: 3501 };
+  const state = { latticeScale: 1, crystalliteNm: 300, microstrain: 0.0003 };
+  const column = (id: string) => {
+    const reference = catalogPhase(id).reference;
+    const values = new Float64Array(grid.count);
+    accumulateLines(values, grid,
+      calculateLines(reference, state, LAB_OPTICS, { startDeg: 10, endDeg: 80 }),
+      braggScale(reference), 0, LAB_OPTICS);
+    return values;
+  };
+  const host = column('catio3');
+  const rutile = column('rutile');
+  const counts = host.map((value, i) => 30 + 10000 * (value + 0.017 * rutile[i]));
+  const fit = analyzePattern({ grid, counts }, { candidates: ['catio3', 'rutile'], zeroDeg: 0, zeroSigmaDeg: 0 });
+  assert.equal(fit.parameterCount, 16); // 7 background + 2 × 4 phase + displacement.
+  const minor = fit.phases.find((phase) => phase.id === 'rutile');
+  assert.ok(minor && minor.detected.length > 0);
+  assert.equal(minor.status, 'not-required');
+  assert.ok(minor.deltaBic > 0 && minor.deltaBic < 10);
 });

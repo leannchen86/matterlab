@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { emitLabEvent, subscribeLabEvent } from './lab-events';
+import { inspectionProgress } from './inspection-progress';
+import { getInspectionPoints } from './lab-inspection';
+import { getStationSceneSpec } from './lab-scene-config';
 import type { Station } from './sim-data';
 
 type ConsoleSession = { completed: boolean; hmiOperations: string[] };
@@ -86,27 +89,29 @@ export function StationAccess({ station, physicalChecks = [] }: { station: Stati
     setOpen(true);
   };
 
+  const inspection = inspectionProgress(getInspectionPoints(getStationSceneSpec(station.id).kind, 0).map((point) => point.label), physicalChecks);
   return <>
-    <button className="station-access-button" type="button" onClick={openStationAccess}><span>⌁</span><b>OPERATE MACHINE</b><i>{Math.min(physicalChecks.length, 3)}/3 INSPECTED</i><em>→</em></button>
+    <button className="station-access-button" type="button" onClick={openStationAccess}><span>⌁</span><b>OPERATE MACHINE</b><i>{inspection.count}/{inspection.total} INSPECTED</i><em>→</em></button>
     {open && <div className="modal-backdrop station-console-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) closeConsole(); }}>
       <section className="modal-card wide station-console" role="dialog" aria-modal="true" aria-label={`${station.name} local station console`}>
-        <header><div><p className="section-kicker">INSTRUMENT CONTROL · {controller}</p><h2>{station.name}</h2></div><div className="console-header-actions">{enteredFromLab && <button type="button" className="return-asset" onClick={returnToAsset}>← BACK TO MACHINE</button>}<button type="button" onClick={closeConsole} aria-label="Close">×</button></div></header>
+        <header><div><p className="section-kicker">INSTRUMENT WALKTHROUGH · {controller}</p><h2>{station.name}</h2></div><div className="console-header-actions">{enteredFromLab && <button type="button" className="return-asset" onClick={returnToAsset}>← BACK TO MACHINE</button>}<button type="button" onClick={closeConsole} aria-label="Close">×</button></div></header>
         <div className="console-main compact-console-main">
-          <HmiView station={station} physicalChecks={physicalChecks} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed} onComplete={finish} />
+          <HmiView station={station} inspectionComplete={inspection.complete} operations={hmiOperations} onOperation={commitHmiOperation} complete={completed} onComplete={finish} />
         </div>
       </section>
     </div>}
   </>;
 }
 
-function HmiView({ station, physicalChecks, operations, onOperation, complete, onComplete }: { station: Station; physicalChecks: string[]; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
+function HmiView({ station, inspectionComplete, operations, onOperation, complete, onComplete }: { station: Station; inspectionComplete: boolean; operations: string[]; onOperation: (operation: string) => void; complete: boolean; onComplete: () => void }) {
   const releaseBlocked = station.tone === 'warn' || station.tone === 'off' || station.tone === 'hold';
-  const walkaroundComplete = physicalChecks.length === 3;
+  const walkaroundComplete = inspectionComplete;
   const operationSteps = HMI_OPERATIONS[station.id] ?? HMI_OPERATIONS['XRD-03'];
   const completedOperations = operationSteps.filter((operation) => operations.includes(operation)).length;
   const operationsComplete = operationSteps.every((operation) => operations.includes(operation));
   return <div className="console-view hmi-view compact-hmi-view">
     <div className="console-view-head compact-console-head"><div><p className="section-kicker">{station.id} · MACHINE CONTROL</p><h3>{station.state}</h3></div></div>
+    <p className="console-model-note">Illustrative equipment checks. Acquire and analyze simulated measurements in OPEN XRD.</p>
     <div className="compact-readouts">{station.technicianView.slice(0, 3).map((item) => { const [key, value = 'N/A'] = item.split(': '); return <div key={item}><span>{key}</span><b>{value}</b></div>; })}</div>
     <div className="hmi-operations">
       <div><p className="mini-label">OPERATING STEPS</p><span>{completedOperations} of {operationSteps.length}</span></div>

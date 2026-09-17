@@ -69,7 +69,7 @@ export const GLOSS = {
     recalcine: 'Fire it again so an unfinished reaction can complete',
     'regrind-recalcine': 'Grind and fire again, for starting grains that never met',
     'adjust-stoichiometry': 'Remake it from powders weighed in the right ratio',
-    'change-media': 'Grind with agate, if the grinding media left material behind',
+    'change-media': 'Remake the batch with agate to avoid zirconia-media contamination',
     'hold-reference': 'Hold the batch until a reference for the unknown is found',
   } satisfies Record<Decision, string>,
   program: {
@@ -105,6 +105,7 @@ export const GLOSS = {
     tests: 'Other instruments, for what a scan cannot see',
     tga: 'Weighs the powder while heating it. Losses point to water or carbonate',
     sem: 'Images the grains and reads which elements are there',
+    edsOverlap: 'Overlapping lines leave the element possible, but not established',
     basis: 'The finished fit your call rests on',
     claim: 'The phases you say are in the powder',
     unexplained: 'What you say about signal the fit leaves over',

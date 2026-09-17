@@ -34,7 +34,7 @@ export type AnalysisOptions = {
   readonly zeroDeg?: number;
   /** Standard uncertainty of zeroDeg, carried into latticeSigma; one standard check's repeatability when undefined. */
   readonly zeroSigmaDeg?: number;
-  /** Spike recorded for the mount; its cell stays at the certified value. */
+  /** Spike recorded for the mount; its cell stays at the reference value. */
   readonly internalStandard?: string;
   /** Adds unassigned broad-scatter terms, never reported as phases. */
   readonly broadScatter?: boolean;
@@ -59,7 +59,7 @@ export type PhaseFit = {
   readonly latticeScale: number;
   readonly crystalliteNm: number;
   readonly microstrain: number;
-  /** Evidence for including the phase: Δχ²/χ²ν − 3 ln N_eff. */
+  /** Evidence for including the phase: Δχ²/max(1, χ²ν) − k ln N_eff (k=4; fixed-cell spike k=3). */
   readonly deltaBic: number;
   readonly status: PhaseStatus;
   /** Reflections of this phase alone that rise above the decision limit. */
@@ -438,6 +438,33 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
       });
       return derivative;
     });
+    // Final covariance marginalizes the fitted linear nuisance parameters. The search still uses its existing Jacobian.
+    if (central) {
+      const nuisance = [...background, ...base.filter((_, p) => current.scales[p] > 0), ...broad.filter((_, j) => current.broad[j] > 0)];
+      const orthogonal: Float64Array[] = [];
+      const dot = (left: Float64Array, right: Float64Array) => left.reduce((sum, value, i) => sum + weights[i] * value * right[i], 0);
+      for (const column of nuisance) {
+        const q = Float64Array.from(column);
+        const originalNorm = Math.sqrt(dot(q, q));
+        // Reorthogonalization keeps nearly collinear background terms numerically stable.
+        for (let pass = 0; pass < 2; pass += 1) {
+          for (const previous of orthogonal) {
+            const projection = dot(q, previous);
+            for (let i = 0; i < n; i += 1) q[i] -= projection * previous[i];
+          }
+        }
+        const norm = Math.sqrt(dot(q, q));
+        if (!(norm > 1e-10 * originalNorm)) continue;
+        for (let i = 0; i < n; i += 1) q[i] /= norm;
+        orthogonal.push(q);
+      }
+      for (const derivative of jacobian) {
+        for (const q of orthogonal) {
+          const projection = dot(derivative, q);
+          for (let i = 0; i < n; i += 1) derivative[i] -= projection * q[i];
+        }
+      }
+    }
     const matrix = new Float64Array(size * size);
     const gradient = new Float64Array(size);
     for (let j = 0; j < size; j += 1) {
@@ -570,13 +597,15 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
   const phaseColumns = columns();
   current = reweight(phaseColumns);
   const { smooth, total } = assemble(current, phaseColumns, background, broad, n);
-  const activePhases = ids.filter((_, p) => current.scales[p] > 0).length;
-  const parameterCount = background.length + broad.length + 3 * activePhases + (ids.length ? 1 : 0) + (ids.length && zeroRefined ? 1 : 0);
+  const activePhases = ids.filter((_, p) => current.scales[p] > 0);
+  const phaseParameterCount = (id: string) => id === standard ? 3 : 4;
+  const parameterCount = background.length + broad.length
+    + activePhases.reduce((sum, id) => sum + phaseParameterCount(id), 0)
+    + (activePhases.length ? 1 : 0) + (activePhases.length && zeroRefined ? 1 : 0);
   const reducedChiSquare = current.chiSquare / Math.max(1, n - parameterCount);
   const span = gridAngle(grid, n - 1) - grid.startDeg;
   const midFwhm = fwhmAt(grid.startDeg + span / 2, baseOptics);
   const effectivePoints = Math.max(20, Math.min(n, span / midFwhm));
-  const penalty = 3 * Math.log(effectivePoints);
   const finalOptics = { ...baseOptics, zeroShiftDeg: zero };
 
   // Curvature of χ² at the optimum with every refined nonlinear parameter free, so the lattice uncertainty carries its
@@ -659,6 +688,7 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
 
   const phases = ids.map((id, p): PhaseFit => {
     const scale = current.scales[p];
+    const penalty = phaseParameterCount(id) * Math.log(effectivePoints);
     let deltaBic = -Infinity;
     if (scale > 0) {
       const without = fit(phaseColumns.map((values, q) => (q === p ? undefined : values)));
