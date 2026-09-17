@@ -24,13 +24,6 @@ export function LabViewport({ stations, selectedId, phase, inspectionState, onIn
   const [cameraMode, setCameraMode] = useState<CameraMode>('overview');
   const [controlFeedback, setControlFeedback] = useState<Record<string, string[]>>({});
   const [immersive, setImmersive] = useState(Boolean(reviewCameraId));
-  const [tourActive, setTourActive] = useState(false);
-  const [tourRun, setTourRun] = useState(0);
-  const [tourPaused, setTourPaused] = useState(false);
-  const chooseCamera = (mode: CameraMode) => {
-    setTourActive(false);
-    setCameraMode(mode);
-  };
   useEffect(() => {
     if (!immersive) return;
     const previousOverflow = document.body.style.overflow;
@@ -44,12 +37,6 @@ export function LabViewport({ stations, selectedId, phase, inspectionState, onIn
     if (!immersive && cameraMode !== 'focus') return;
     const stepBackOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
-      if (tourActive) {
-        setTourActive(false);
-        setCameraMode('overview');
-        event.preventDefault();
-        return;
-      }
       if (cameraMode === 'focus') {
         setCameraMode('overview');
         return;
@@ -58,7 +45,7 @@ export function LabViewport({ stations, selectedId, phase, inspectionState, onIn
     };
     window.addEventListener('keydown', stepBackOnEscape);
     return () => window.removeEventListener('keydown', stepBackOnEscape);
-  }, [cameraMode, immersive, tourActive]);
+  }, [cameraMode, immersive]);
 
   useEffect(() => {
     return subscribeLabEvent('station-event', (event) => {
@@ -72,56 +59,38 @@ export function LabViewport({ stations, selectedId, phase, inspectionState, onIn
   useEffect(() => {
     return subscribeLabEvent('return-to-lab', ({ stationId }) => {
       onSelect(stationId);
-      setTourActive(false);
       setCameraMode('walk');
       setImmersive(true);
     });
   }, [onSelect]);
 
   const enterLab = () => {
-    setTourActive(false);
     setCameraMode('walk');
     setImmersive(true);
   };
 
   const exitLab = () => {
-    setTourActive(false);
     setImmersive(false);
   };
 
-  const replayTour = () => {
-    setTourPaused(false);
-    setTourRun((run) => run + 1);
-    setCameraMode('overview');
-    setTourActive(true);
-    setImmersive(true);
-  };
-
   const openSelectedConsole = () => {
-    setTourActive(false);
     setImmersive(false);
     emitLabEvent('open-console', { stationId: selectedId });
   };
 
   const viewport = <div
-    className={`lab-viewport mode-3d${immersive ? ' is-immersive' : ''}${reviewCameraId ? ' is-review' : ''}${tourActive ? ' is-tour' : ''}`}
+    className={`lab-viewport mode-3d${immersive ? ' is-immersive' : ''}${reviewCameraId ? ' is-review' : ''}`}
     aria-label={immersive ? 'Immersive facility view' : undefined}
     style={immersive ? { position: 'fixed', zIndex: 240, inset: 0, width: '100vw', height: '100dvh', background: '#c8c2b8' } : undefined}
   >
     {!reviewCameraId && <div className="camera-switch" role="group" aria-label="3D camera mode">
-      <button type="button" className={!tourActive && cameraMode === 'overview' ? 'active' : ''} onClick={() => chooseCamera('overview')} aria-pressed={!tourActive && cameraMode === 'overview'}>⌂ OVERVIEW</button>
-      <button type="button" className={cameraMode === 'walk' ? 'active' : ''} onClick={() => chooseCamera('walk')} aria-pressed={cameraMode === 'walk'}>⇧ WALK AISLE</button>
-      <button type="button" className={cameraMode === 'focus' ? 'active' : ''} onClick={() => chooseCamera('focus')} aria-pressed={cameraMode === 'focus'}>◎ FOCUS {selectedId}</button>
-      <button type="button" className={tourActive ? 'active tour-toggle' : 'tour-toggle'} onClick={replayTour} aria-pressed={tourActive}>▶ TOUR</button>
+      <button type="button" className={cameraMode === 'overview' ? 'active' : ''} onClick={() => setCameraMode('overview')} aria-pressed={cameraMode === 'overview'}>⌂ OVERVIEW</button>
+      <button type="button" className={cameraMode === 'walk' ? 'active' : ''} onClick={() => setCameraMode('walk')} aria-pressed={cameraMode === 'walk'}>⇧ WALK AISLE</button>
+      <button type="button" className={cameraMode === 'focus' ? 'active' : ''} onClick={() => setCameraMode('focus')} aria-pressed={cameraMode === 'focus'}>◎ FOCUS {selectedId}</button>
     </div>}
     {!reviewCameraId && !immersive && cameraMode === 'overview' && <button className="enter-lab-button" type="button" onClick={enterLab}><span>↳</span><b>ENTER LAB</b><i>→</i></button>}
     {!reviewCameraId && immersive && <button className="exit-lab-button" type="button" onClick={exitLab} aria-label="Exit immersive view">EXIT LAB</button>}
-    <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} cameraMode={cameraMode} lightingMode="inspection" reviewCameraId={reviewCameraId} tourActive={tourActive} tourRun={tourRun} tourPaused={tourPaused} onTourComplete={() => chooseCamera('overview')} controlFeedback={controlFeedback} onCameraMode={chooseCamera} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
-    {tourActive && <div className="cinematic-hud" role="status">
-      <span>CINEMATIC FACILITY TOUR</span>
-      <button type="button" aria-label={tourPaused ? 'Resume tour' : 'Pause tour'} onClick={() => setTourPaused((paused) => !paused)}>{tourPaused ? 'RESUME' : 'PAUSE'}</button>
-      <button type="button" onClick={() => chooseCamera('overview')}>EXIT TOUR</button>
-    </div>}
+    <Suspense fallback={<SceneBoot />}><Lab3D stations={stations} selectedId={selectedId} phase={phase} cameraMode={cameraMode} lightingMode="inspection" reviewCameraId={reviewCameraId} controlFeedback={controlFeedback} onCameraMode={setCameraMode} onOpenConsole={openSelectedConsole} inspectionState={inspectionState} onInspectionChange={onInspectionChange} onSelect={onSelect} /></Suspense>
     {reviewCameraId && <div className="review-camera-stamp" aria-hidden="true">MATTERLAB JUDGESET · {reviewCameraId}</div>}
   </div>;
 

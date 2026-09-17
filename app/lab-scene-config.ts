@@ -6,6 +6,10 @@ export type StationKind = 'prep' | 'robot' | 'furnace' | 'xrd' | 'sem' | 'bet' |
 
 export type Vector3Tuple = [number, number, number];
 
+export const DEFAULT_FOV = 55;
+export const OVERVIEW_POSITION: Vector3Tuple = [10.5, 11.8, 19.5];
+export const OVERVIEW_TARGET: Vector3Tuple = [-1.55, 0.72, -0.18];
+
 export type StationSceneSpec = {
   id: StationId;
   kind: StationKind;

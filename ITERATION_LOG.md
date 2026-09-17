@@ -3038,3 +3038,7 @@ At the user's request, restored the September 1 tour from 1ed26c4: the original 
 ## 17 September 2026 — correct the historical tour variant
 
 The user reported that the restored view still did not match the older tour. Re-running the unmodified September 1 build showed why: its tour inherited the current camera mode. The prior restoration matched only the high OVERVIEW variant; ENTER LAB → TOUR used a closer camera (radius 2.8–5.7, polar 1.05–1.55) and bypassed postprocessing. Made this aisle-level variant the consistent default while retaining the original spline, timing and field-of-view changes. At 12 seconds the old overview camera height is 9.84 versus 2.50 for the aisle variant; this is a substantial framing difference, not a deployment-only issue.
+
+## 17 September 2026 — remove the tour
+
+At the user's request, removed the Tour option entirely, including its playback controls, camera path, state and styling. Manual Overview, Walk Aisle and Focus navigation remain. Moved shared camera defaults into the scene configuration and deleted the tour module.
