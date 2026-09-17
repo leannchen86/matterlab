@@ -105,7 +105,7 @@ const ENTRIES: readonly Entry[] = [
     entry: 'mp-15315',
     absent: pbca,
     citation: 'Materials Project mp-15315 (DFT coordinates, CC BY 4.0) in the cell of Elcombe et al. (1991), Acta Cryst. B47, 305',
-    notes: ['DFT-relaxed fractional coordinates placed in the experimental cell (Pcab a, b exchanged to Pbca).'],
+    notes: ['DFT-relaxed fractional coordinates placed in the experimental cell (Pcab b, c exchanged to Pbca).'],
   },
 ];
 

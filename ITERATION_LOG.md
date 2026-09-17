@@ -3003,3 +3003,24 @@ The last round did two things. When a fit with a refined zero dropped a candidat
 - Silicon 55 still ends 24.2 above its held fit and silicon 28 11.0 above.
 - 29 of 264 player refined fits end more than 10 above the checked fit, some by thousands (fit-1 S-156 spiked-standard, 2687.18). With the zero held, that scan's deviance jumps between minima: 151736.49 at −0.02°, 154685.19 at −0.01°, 154350.40 at 0° and 151433.21 at 0.01°. A local search does not reliably reach the lowest.
 - The extended test takes 17.7 s of the 22.9 s suite.
+
+
+## 2026-09-17: peak audit corrections
+
+The introductory drawing undersampled its narrow schematic peaks, and comparison plots could clip an inactive fit. The audit also found two simulation errors: rounding before the TGA detection threshold created false mass-loss steps, and the Zr synthesis allocation did not conserve metal inventory in partially reacted mixtures.
+
+### Changes
+
+- Sample the intro curve at quarter-unit intervals and label it schematic. Preserve relative reference-preview intensities without a minimum-height floor; use equal-height barcode ticks for positions only. Include both fits when scaling the plot.
+- Allocate reacted Zr and Ti before forming the pure-Ti RP phase, retain unused zirconia, and use the doped host's formula mass. Use the exact expanded Bragg angle for the probe's lower bound.
+- Apply the TGA detection threshold before rounding. In the fixed 10,000-seed clean-control audit, spurious decomposition reports fell from 946 to 10; rare raw noise excursions remain possible.
+- Require observed standard evidence before showing the approximate Zr spacing reading: a required positive-scale spike with at least two detected unique lines and no missing lines, or a checked zero. Use the same rule in the debrief.
+- Assess earlier sufficient full-range runs against the latest acquisition, even when an older run is selected as the call's basis.
+- Offer a confirmed restart when a shift is too short for another scan, including shifts with unfinished samples. Clear the outer lab's stage after resetting. Preserve an old-engine action log locally before starting the corrected model's fresh shift.
+- Correct the documented Pcab-to-Pbca axis exchange to b/c; generated reflections are unchanged. Document that Zr-dependent structure factors are still an approximation and have not been recomputed.
+
+### Verification
+
+- Regression tests reconstruct Ca/Ti/Zr ratios from product weights and host occupancy across all seven samples and limiting-reagent cases. A real S-130 silicon-spiked close-up rejects a spacing reading; a subsequent survey with three unique standard lines permits it.
+- Browser checks confirm smooth intro peaks, truthful reference-preview heights, and exhausted-shift cancellation, reload, restart, and cleared 3D state. Reloading a reset shift retains its fresh state.
+- `pnpm check`: TypeScript, ESLint, and all 80 tests passed. `pnpm build:pages` passed. The real zoomed comparison regression includes the taller inactive fit and preserves scale when A/B swap.

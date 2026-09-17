@@ -57,6 +57,9 @@ test('a clean sample is called quickly, and holding or scanning longer earns not
   assert.equal(row(debrief(held, 'S-101'), 'decision')?.grade, 'mixed');
 
   const longer = act(settled.state, scan('S-101', 'slow'));
+  const olderBasis = debrief(act(longer.state, call('S-101', settled.id, ['catio3'], 'release')).state, 'S-101');
+  assert.equal(row(olderBasis, 'measurement')?.grade, 'mixed');
+  assert.ok(row(olderBasis, 'measurement')?.notes.includes('R1 already settled it; later scans only used up the shift'));
   const slow = act(longer.state, interpret('S-101', longer.id, ['catio3']));
   const late = debrief(act(slow.state, call('S-101', slow.id, ['catio3'], 'release')).state, 'S-101');
   assert.ok(row(late, 'measurement')?.notes.includes('R1 already settled it; later scans only used up the shift'));

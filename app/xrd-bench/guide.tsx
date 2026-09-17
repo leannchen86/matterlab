@@ -61,8 +61,8 @@ export function markIntroSeen() {
 
 // A made-up pattern: four peaks on a flat background, drawn once.
 const PEAKS: readonly (readonly [number, number])[] = [[44, 42], [96, 20], [150, 50], [202, 18]];
-const TRACE = Array.from({ length: 81 }, (_, index) => {
-  const x = index * 3;
+const TRACE = Array.from({ length: 961 }, (_, index) => {
+  const x = index / 4;
   const y = PEAKS.reduce((sum, [centre, height]) => sum + height * Math.exp(-(((x - centre) / 3.2) ** 2)), 0);
   return `${x},${(62 - y).toFixed(1)}`;
 }).join(' ');
@@ -85,6 +85,7 @@ export function IntroCard({ onStart }: { readonly onStart: () => void }) {
   return <div className="xb-intro" role="group" aria-label={ARIA.intro}>
     <div className="xb-intro-card">
       <IntroPicture />
+      <p className="xb-line xb-muted">Schematic pattern</p>
       <ol>{INTRO_LINES.map((line) => <li key={line}>{line}</li>)}</ol>
       <button type="button" className="xb-primary" onClick={onStart}>{WORD.start}</button>
     </div>

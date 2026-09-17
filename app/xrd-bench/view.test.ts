@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { PhaseFit, PhaseStatus } from '../xrd/analysis.ts';
 import { CASE_CODES, sampleCase, specimenFor } from '../xrd/cases.ts';
-import { COSTS, apply, costOf, createLab, libraryFor, replay, sampleState, tgaStatus, type Action, type LabState, type TruthPhase } from '../xrd/lab.ts';
+import { COSTS, apply, costOf, createLab, interpretationResult, libraryFor, replay, sampleState, tgaStatus, type Action, type LabState, type TruthPhase } from '../xrd/lab.ts';
 import { acquisitionFor, expectedCounts, prepareMount, type Acquisition, type MountRecord, type ProgramId } from '../xrd/measure.ts';
 import { CATALOG_IDS } from '../xrd/phases.ts';
 import { lineWindow, referenceLines } from '../xrd/probe.ts';
@@ -230,13 +230,25 @@ test('detection reach says what this scan could have shown, over the fitted phas
 
 test('the spacing reading asks for a zero check before reading Zr off the host cell', () => {
   const objective = { targets: ['catio3'], zrMolPercent: 8 };
-  const phases = [{ id: 'catio3', scale: 100, latticeScale: 1.004 }, { id: 'rutile', scale: 0, latticeScale: 1 }];
+  const check = { twoTheta: 28.44, predicted: 100, net: 100, decision: 10, detection: 20 };
+  const evidence = { status: 'required' as const, detected: [check, { ...check, twoTheta: 47.3 }], missing: [] };
+  const phases = [{ id: 'catio3', scale: 100, latticeScale: 1.004, ...evidence }, { id: 'rutile', scale: 0, latticeScale: 1, ...evidence }];
   // A refined zero trades against the cell, so the reading waits for a checked zero or a spike.
   assert.deepEqual(spacingReading({ zeroRefined: true, phases }, 'catio3', objective), { kind: 'check-zero' });
-  assert.deepEqual(spacingReading({ zeroRefined: true, phases }, 'catio3', objective, 'silicon'), { kind: 'zr', value: 8 });
+  assert.deepEqual(spacingReading({ zeroRefined: true, phases }, 'catio3', objective, 'silicon'), { kind: 'check-zero' });
+  const spike = { id: 'silicon', scale: 10, latticeScale: 1, ...evidence };
+  for (const bad of [
+    { ...spike, scale: 0 },
+    { ...spike, status: 'not-detected' as const },
+    { ...spike, status: 'not-required' as const },
+    { ...spike, status: 'overlapped' as const },
+    { ...spike, detected: [check] },
+    { ...spike, missing: [check] },
+  ]) assert.deepEqual(spacingReading({ zeroRefined: true, phases: [...phases, bad] }, 'catio3', objective, 'silicon'), { kind: 'check-zero' });
+  assert.deepEqual(spacingReading({ zeroRefined: true, phases: [...phases, spike] }, 'catio3', objective, 'silicon'), { kind: 'zr', value: 8 });
   assert.deepEqual(spacingReading({ zeroRefined: false, phases }, 'catio3', objective), { kind: 'zr', value: 8 });
   // A cell at or below the reference reads as none, never as a negative amount.
-  assert.deepEqual(spacingReading({ zeroRefined: false, phases: [{ id: 'catio3', scale: 100, latticeScale: 0.999 }] }, 'catio3', objective), { kind: 'zr', value: 0 });
+  assert.deepEqual(spacingReading({ zeroRefined: false, phases: [{ id: 'catio3', scale: 100, latticeScale: 0.999, ...evidence }] }, 'catio3', objective), { kind: 'zr', value: 0 });
   // Only the host of a sample aiming at a solid solution has a reading, and only once it is fitted.
   assert.equal(spacingReading({ zeroRefined: false, phases }, 'rutile', objective), undefined);
   assert.equal(spacingReading({ zeroRefined: false, phases }, 'catio3', { targets: ['catio3'] }), undefined);
@@ -308,5 +320,41 @@ test('newcomer copy stays one short plain line with no numbers or verdicts', () 
     assert.doesNotMatch(line, /rules? out|confirm|certain|definitely|guarantee/i, `overclaim in: ${line}`);
     // Proof only ever appears denied.
     for (const match of line.matchAll(/\b(proof|proves?)\b/gi)) assert.match(line.slice(0, match.index), /(not|never) $/i, `claims proof: ${line}`);
+  }
+});
+
+test('an unmeasured silicon spike cannot calibrate Zr, but its survey lines can', () => {
+  const code = 'S-130';
+  let state = act(createLab('review', [code]), {
+    type: 'mount', code,
+    choice: { aliquot: 'new', method: 'front', grind: 'hand', spike: 'silicon', spin: true },
+  });
+  for (const program of ['targeted', 'survey'] as const) {
+    state = act(state, { type: 'scan', code, program, centreDeg: 33 });
+    const run = sampleState(state, code)?.runs.at(-1);
+    assert.ok(run);
+    const outcome = apply(state, {
+      type: 'interpret', code, runId: run.id,
+      candidates: ['catio3', 'baddeleyite'], standard: true,
+    });
+    if (!outcome.ok) assert.fail(outcome.error);
+    assert.ok(outcome.id);
+    state = outcome.state;
+    const fit = interpretationResult(state, code, outcome.id);
+    assert.ok(fit);
+    assert.equal(state.zeroDeg, undefined);
+    assert.equal(fit.zeroRefined, true);
+    const spike = fit.phases.find((phase) => phase.id === 'silicon');
+    assert.ok(spike);
+    const reading = spacingReading(fit, 'catio3', sampleCase(code).record.objective, 'silicon');
+    if (program === 'targeted') {
+      assert.equal(spike.status, 'not-detected');
+      assert.equal(spike.detected.length, 0);
+      assert.deepEqual(reading, { kind: 'check-zero' });
+    } else {
+      assert.equal(spike.status, 'required');
+      assert.ok(spike.scale > 0 && spike.detected.length >= 2 && spike.missing.length === 0);
+      assert.equal(reading?.kind, 'zr');
+    }
   }
 });

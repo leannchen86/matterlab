@@ -59,10 +59,13 @@ const SATELLITE_MINIMUM = LAB_OPTICS.spectrum.find((line) => line.label === 'Kβ
  */
 export function lineWindow(twoTheta: number, phaseId: string, emission: EmissionLabel = 'Kα1') {
   const theta = (twoTheta / 2) * DEG;
-  // Δ2θ = 2 s cosθ / R for the largest displacement, plus the zero clamp; below adds 2 tanθ (scale − 1), above 2 tanθ × the Kα2 pull.
+  // Use the expanded line's exact Bragg angle and its displacement bound on the low-angle side.
+  const scale = LATTICE_LIMIT.get(phaseId) ?? 1;
+  const expanded = scale === 1 ? twoTheta : 2 * Math.asin(Math.sin(theta) / scale) / DEG;
+  const below = twoTheta - expanded + (2 * DISPLACEMENT_LIMIT_MM * Math.cos((expanded / 2) * DEG)) / LAB_OPTICS.radiusMm / DEG + ZERO_SHIFT_LIMIT_DEG;
   const shared = (2 * DISPLACEMENT_LIMIT_MM * Math.cos(theta)) / LAB_OPTICS.radiusMm / DEG + ZERO_SHIFT_LIMIT_DEG;
   const pull = emission === 'Kα1' ? KALPHA2_PULL : 0;
-  return { below: shared + (2 * Math.tan(theta) * ((LATTICE_LIMIT.get(phaseId) ?? 1) - 1)) / DEG, above: shared + (2 * Math.tan(theta) * pull) / DEG };
+  return { below, above: shared + (2 * Math.tan(theta) * pull) / DEG };
 }
 
 const within = (line: number, twoTheta: number, phaseId: string, emission: EmissionLabel) => {

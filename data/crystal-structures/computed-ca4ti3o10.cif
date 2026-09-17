@@ -8,7 +8,7 @@
 #    The Materials Project entry is linked to the experimental ICSD entry 86242.
 #  - Cell lengths: M. M. Elcombe, E. H. Kisi, K. D. Hawkins, T. J. White, P. Goodman and
 #    S. Matheson, Acta Cryst. B47 (1991) 305-314, doi:10.1107/S0108768190013416, reported
-#    in setting Pcab as a = 5.4083, b = 27.1432, c = 5.4337 A. Pcab is Pbca with a and b
+#    in setting Pcab as a = 5.4083, b = 27.1432, c = 5.4337 A. Pcab is Pbca with b and c
 #    exchanged, so in this Pbca setting a = 5.4083, b = 5.4337, c = 27.1432 A.
 #    The DFT cell (5.4447, 5.5279, 27.1789 A) is replaced by these experimental lengths.
 #

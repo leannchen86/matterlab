@@ -30,8 +30,9 @@ export function runTga(specimen: Specimen, key: string, storageRelativeHumidity:
     calcite && calcite.crystalliteNm < 50 ? [600, 730, 100 * share('calcite') * CO2_OF_CALCITE] : [650, 800, 100 * share('calcite') * CO2_OF_CALCITE],
   ];
   const steps = candidates
-    .map(([fromC, toC, loss]) => ({ fromC: fromC + jitter(), toC: toC + jitter(), lossPercent: Math.round(10 * (loss + 0.03 * random.normal())) / 10 }))
-    .filter((step) => step.lossPercent >= TGA_DETECTION);
+    .map(([fromC, toC, loss]) => ({ fromC: fromC + jitter(), toC: toC + jitter(), lossPercent: loss + 0.03 * random.normal() }))
+    .filter((step) => step.lossPercent >= TGA_DETECTION)
+    .map((step) => ({ ...step, lossPercent: Math.round(10 * step.lossPercent) / 10 }));
   return { steps, detectionPercent: TGA_DETECTION };
 }
 

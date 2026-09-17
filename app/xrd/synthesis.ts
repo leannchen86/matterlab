@@ -75,9 +75,14 @@ export function synthesize(history: SynthesisHistory): PhaseAmount[] {
   const zrDissolved = nZr * zrExtent;
   const nB = nTi + zrDissolved;
   const reactedB = extent * Math.min(nB, nCa);
-  const rpMoles = Math.min(reactedB / 3, rpExtent * extent * Math.max(0, nCa - nB));
+  // Partition the reacted B-site inventory before allocating the pure-Ti RP phase.
+  // Any Zr that did not enter a product remains zirconia, including Ca-limited batches.
+  const reactedZr = nB > 0 ? reactedB * (zrDissolved / nB) : 0;
+  const reactedTi = reactedB - reactedZr;
+  const rpMoles = Math.min(reactedTi / 3, rpExtent * extent * Math.max(0, nCa - nB));
   const perovskite = reactedB - 3 * rpMoles;
-  const titaniaLeft = nTi - (nTi / nB) * reactedB;
+  const titaniaLeft = nTi - reactedTi;
+  const zirconiaLeft = nZr - reactedZr;
   const freeCa = nCa - perovskite - 4 * rpMoles;
   const carbonateLeft = freeCa * (1 - decarbonation);
   const lime = freeCa - carbonateLeft;
@@ -89,15 +94,17 @@ export function synthesize(history: SynthesisHistory): PhaseAmount[] {
   const hydroxide = lime * hydrated * (1 - carbonated);
   const weatheredCarbonate = lime * hydrated * carbonated;
 
-  const zrMolPercent = nB > 0 ? (100 * zrDissolved) / nB : 0;
+  const zrFraction = perovskite > 0 ? reactedZr / perovskite : 0;
+  const zrMolPercent = 100 * zrFraction;
+  const perovskiteMass = MASS.CaTiO3 + zrFraction * (MASS.ZrO2 - MASS.TiO2);
   const perovskiteNm = 60 + 2.2 * Math.max(0, temperatureC - 850) + 8 * effectiveHours;
   // Grains coarsen along a cube-root time law: about 12 µm after 19 effective hours at 1250 °C, over 30 µm after sintering.
   const grainUm = Math.min(40, Math.max(3, 12 * Math.exp((temperatureC - 1250) / 150) * Math.cbrt(effectiveHours / 19.2)));
   const amounts: [string, number, Omit<PhaseAmount, 'structureId' | 'weightFraction'>][] = [
-    ['catio3', perovskite * MASS.CaTiO3, { latticeScale: 1 + ZR_LATTICE_PER_MOL_PERCENT * zrMolPercent, crystalliteNm: perovskiteNm, microstrain: 0.0002, grainUm }],
+    ['catio3', perovskite * perovskiteMass, { latticeScale: 1 + ZR_LATTICE_PER_MOL_PERCENT * zrMolPercent, crystalliteNm: perovskiteNm, microstrain: 0.0002, grainUm }],
     ['ca4ti3o10', rpMoles * MASS.Ca4Ti3O10, { latticeScale: 1, crystalliteNm: 0.7 * perovskiteNm, microstrain: 0.0004, grainUm: 0.8 * grainUm }],
     [history.titania.polymorph === 'anatase' && temperatureC < 700 ? 'anatase' : 'rutile', titaniaLeft * MASS.TiO2, { latticeScale: 1, crystalliteNm: 180, microstrain: 0.0002, grainUm: history.titania.d50Um * 2 }],
-    ['baddeleyite', (nZr - zrDissolved) * MASS.ZrO2, { latticeScale: 1, crystalliteNm: 70, microstrain: 0.0006, grainUm: 3 }],
+    ['baddeleyite', zirconiaLeft * MASS.ZrO2, { latticeScale: 1, crystalliteNm: 70, microstrain: 0.0006, grainUm: 3 }],
     ['calcite', (carbonateLeft + weatheredCarbonate) * MASS.CaCO3, { latticeScale: 1, crystalliteNm: weatheredCarbonate > carbonateLeft ? 35 : 90, microstrain: 0.0008, grainUm: 6 }],
     ['lime', limeLeft * MASS.CaO, { latticeScale: 1, crystalliteNm: 70, microstrain: 0.0005, grainUm: 8 }],
     ['portlandite', hydroxide * MASS.CaOH2, { latticeScale: 1, crystalliteNm: 45, microstrain: 0.0008, grainUm: 6 }],

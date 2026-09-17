@@ -39,8 +39,8 @@ test('the probe window covers the largest shift the model can give a line, and n
     const lowest = expanded + positionShift(expanded, displacementMm, { ...LAB_OPTICS, zeroShiftDeg: -ZERO_SHIFT_LIMIT_DEG });
     const partner = twoThetaFromD(dFromTwoTheta(twoTheta, CU_KALPHA1), CU_KALPHA2) ?? NaN;
     const highest = twoTheta + positionShift(twoTheta, -displacementMm, { ...LAB_OPTICS, zeroShiftDeg: ZERO_SHIFT_LIMIT_DEG }) + ((partner - twoTheta) * weight) / (1 + weight);
-    // The window uses first-order shifts; the exact ones differ by far less than a scan step.
-    assert.ok(Math.abs(twoTheta - lowest - below) < 0.002, `below ${twoTheta}`);
+    // Expansion is exact; the unresolved-doublet pull remains a first-order approximation.
+    assert.ok(Math.abs(twoTheta - lowest - below) < 1e-10, `below ${twoTheta}`);
     assert.ok(Math.abs(highest - twoTheta - above) < 0.002, `above ${twoTheta}`);
     // No case expands rutile, and a resolved satellite peaks at its own angle, so both keep only displacement and zero.
     assert.equal(lineWindow(twoTheta, 'rutile').below, lineWindow(twoTheta, 'rutile', 'Kβ').above);

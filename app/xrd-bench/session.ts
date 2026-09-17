@@ -30,6 +30,8 @@ function restore(): Session {
       const actions = saved.actions as Action[];
       return { seed: saved.seed, actions, state: replay(saved.seed, CASE_CODES, actions) };
     }
+    // Preserve the old action log before the corrected model starts a fresh shift.
+    if (saved && typeof saved.engine === 'string') window.localStorage.setItem(`${STORAGE_KEY}-previous`, JSON.stringify(saved));
   } catch {
     // Unreadable or blocked storage starts a new shift.
   }

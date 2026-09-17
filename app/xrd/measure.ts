@@ -13,7 +13,7 @@ import { CU_KALPHA1, DEG, LAB_OPTICS, type InstrumentOptics } from './profile.ts
 import { createRandom, hashSeed } from './random.ts';
 import type { PhaseAmount } from './synthesis.ts';
 
-export const ENGINE_VERSION = 'xrd-engine-2';
+export const ENGINE_VERSION = 'xrd-engine-3';
 
 export type Grind = 'as-received' | 'hand' | 'extended';
 export type SpikeKind = 'none' | 'silicon' | 'corundum';

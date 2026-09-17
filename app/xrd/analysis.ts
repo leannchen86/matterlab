@@ -114,6 +114,16 @@ export type AnalysisResult = {
   readonly warnings: readonly AnalysisWarning[];
 };
 
+/** A checked zero, or a spike with independent lines constraining both free zero and displacement. */
+export function hasPositionReference(
+  fit: Pick<AnalysisResult, 'zeroRefined'> & { readonly phases: readonly Pick<PhaseFit, 'id' | 'scale' | 'status' | 'detected' | 'missing'>[] },
+  internalStandard?: string,
+) {
+  return !fit.zeroRefined || (internalStandard !== undefined && fit.phases.some((phase) =>
+    phase.id === internalStandard && phase.scale > 0 && phase.status === 'required' && phase.detected.length >= 2 && phase.missing.length === 0,
+  ));
+}
+
 const Z_THRESHOLD = 4;
 const BIC_REQUIRED = 10;
 const UNIQUE_SHARE = 0.2;

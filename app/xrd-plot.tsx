@@ -3,6 +3,7 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
 import type { AnalysisResult, PhaseStatus } from './xrd/analysis';
 import type { Grid } from './xrd/pattern';
+import { plotScalePeak, visibleIndices } from './xrd-bench/plot-scale';
 import type { ReferenceLine } from './xrd/probe';
 
 export type PlotRange = { readonly startDeg: number; readonly endDeg: number };
@@ -97,14 +98,6 @@ function strokeColumns(context: CanvasRenderingContext2D, data: Columns, y: (val
   context.stroke();
 }
 
-/** Grid indices covering a view, with one point of margin either side. */
-function visible(grid: Grid, view: PlotRange) {
-  return {
-    first: Math.max(0, Math.floor((view.startDeg - grid.startDeg) / grid.stepDeg) - 1),
-    last: Math.min(grid.count - 1, Math.ceil((view.endDeg - grid.startDeg) / grid.stepDeg) + 1),
-  };
-}
-
 type DrawInput = {
   readonly width: number;
   readonly height: number;
@@ -156,15 +149,12 @@ function drawPlot(canvas: HTMLCanvasElement, input: DrawInput) {
   const box = layout(width, height, ticks.length, track);
   const span = view.endDeg - view.startDeg;
   const x = (deg: number) => box.left + ((deg - view.startDeg) / span) * box.plotW;
-  const { first, last } = visible(grid, view);
+  const { first, last } = visibleIndices(grid, view);
   const revealed = revealDeg === undefined ? grid.count - 1 : Math.floor((revealDeg - grid.startDeg) / grid.stepDeg);
   const observedLast = Math.min(last, revealed);
   const transform = sqrt ? (value: number) => Math.sqrt(Math.max(0, value)) : (value: number) => Math.max(0, value);
-  const shown = overlay && visible(overlay.grid, view);
-  let peak = 1;
-  for (let index = first; index <= observedLast; index += 1) peak = Math.max(peak, counts[index]);
-  if (fit) for (let index = first; index <= last; index += 1) peak = Math.max(peak, fit.calculated[index]);
-  if (overlay && shown) for (let index = shown.first; index <= shown.last; index += 1) peak = Math.max(peak, overlay.counts[index] * overlay.scale);
+  const shown = overlay && visibleIndices(overlay.grid, view);
+  const peak = plotScalePeak({ grid, counts, view, fit, other, overlay, revealDeg });
   const ceiling = transform(peak) * 1.08;
   const y = (value: number) => box.top + box.main * (1 - transform(value) / ceiling);
   const bottom = box.residualTop + box.residual;
@@ -283,7 +273,7 @@ function drawPlot(canvas: HTMLCanvasElement, input: DrawInput) {
       const px = Math.round(x(line.twoTheta)) + 0.5;
       context.beginPath();
       context.moveTo(px, box.top + box.main);
-      context.lineTo(px, box.top + box.main * (1 - Math.max(0.15, line.relative)));
+      context.lineTo(px, box.top + box.main * (1 - line.relative));
       context.stroke();
     }
     context.setLineDash([]);
@@ -296,7 +286,8 @@ function drawPlot(canvas: HTMLCanvasElement, input: DrawInput) {
     context.globalAlpha = row.status ? TICK_ALPHA[row.status] : 0.8;
     for (const line of row.lines) {
       if (line.twoTheta < view.startDeg || line.twoTheta > view.endDeg) continue;
-      const h = Math.max(1.5, 5 * line.relative);
+      // Barcode ticks mark positions only; the preview above carries relative intensities.
+      const h = 5;
       context.fillRect(x(line.twoTheta) - 0.75, rowTop + 5 - h, 1.5, h);
     }
     context.globalAlpha = 1;

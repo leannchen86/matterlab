@@ -2,7 +2,7 @@
 // would: revealed notes, mounts, immutable runs, interpretations, requests and calls. Powders and the instrument are
 // derived from the seed whenever an instrument reads them and are never stored where an interface could show them. Hidden
 // truth appears only in the debrief, and only after a call is committed.
-import { analyzePattern, compareExplanations, ZERO_CHECK_SD_DEG, type AnalysisOptions, type AnalysisResult, type Comparison } from './analysis.ts';
+import { analyzePattern, compareExplanations, hasPositionReference, ZERO_CHECK_SD_DEG, type AnalysisOptions, type AnalysisResult, type Comparison } from './analysis.ts';
 import { sampleCase, specimenFor, type Objective } from './cases.ts';
 import { candidateLibrary, chemicalSupport, type ElementEvidence } from './context.ts';
 import { edsElements, runSemEds, runTga, type SemEdsResult, type TgaResult } from './followups.ts';
@@ -510,9 +510,10 @@ function band(fraction: number): TruthBand {
 
 const FOLLOW_UP_LABELS = { tga: 'TGA', sem: 'SEM/EDS' } as const;
 
-/** Earlier full-range runs, which the debrief re-reads to see whether one already settled the call. */
-function earlierChecks(sample: SampleState, run: RunRecord) {
-  return sample.runs.filter((candidate) => candidate.index < run.index && candidate.acquisition.program !== 'targeted');
+/** Full-range runs followed by another acquisition, regardless of which run the call uses. */
+function earlierChecks(sample: SampleState) {
+  const latest = sample.runs.at(-1);
+  return sample.runs.filter((candidate) => latest && candidate.index < latest.index && candidate.acquisition.program !== 'targeted');
 }
 
 /** The basis references applied to another run; a spike that run does not carry is dropped. */
@@ -528,7 +529,7 @@ export function debriefAnalyses(state: LabState, code: string): { readonly run: 
   const basis = call && sample.interpretations.find((item) => item.id === call.basis);
   const run = basis && sample.runs.find((item) => item.id === basis.runId);
   if (!sample || !basis || !run) return [];
-  return [{ run, options: interpretationOptions(basis) }, ...earlierChecks(sample, run).map((candidate) => ({ run: candidate, options: checkOptions(basis, candidate) }))];
+  return [{ run, options: interpretationOptions(basis) }, ...earlierChecks(sample).filter((candidate) => candidate.id !== run.id).map((candidate) => ({ run: candidate, options: checkOptions(basis, candidate) }))];
 }
 
 export function debrief(state: LabState, code: string): Debrief | undefined {
@@ -554,10 +555,10 @@ export function debrief(state: LabState, code: string): Debrief | undefined {
     const options = checkOptions(basis, candidate);
     const check = analysisOf(candidate, options);
     // A refined zero trades against the cell, so a run cannot settle a solid-solution aim without a checked zero or a spike.
-    if (source.record.objective.zrMolPercent !== undefined && check.zeroRefined && !options.internalStandard) return false;
+    if (source.record.objective.zrMolPercent !== undefined && !hasPositionReference(check, options.internalStandard)) return false;
     return check.peakCounts >= IDENTIFY_COUNTS && !check.warnings.includes('undersampled') && check.features.length === 0 && call.phases.every((id) => check.phases.some((phase) => phase.id === id && phase.status === 'required'));
   };
-  const settled = earlierChecks(sample, run).find(settles);
+  const settled = earlierChecks(sample).find(settles);
   if (settled) measurement.push({ grade: 'mixed', text: `R${settled.index} already settled it; later scans only used up the shift` });
   const requested = (['tga', 'sem'] as const).filter((kind) => sample[kind]);
   const pending = requested.filter((kind) => (sample[kind]?.readyMinute ?? 0) > call.minute);

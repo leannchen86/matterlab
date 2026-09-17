@@ -50,7 +50,7 @@ export const GLOSS = {
     none: 'Its peaks all sit under other phases, so this scan cannot show it',
   },
   spacing: {
-    zr: 'Where the host peaks sit gives a rough reading of the Zr inside it',
+    zr: 'A rough Zr estimate using the simulated lattice expansion',
     checkZero: 'Peak positions can mislead until the zero is checked',
   },
   feature: {

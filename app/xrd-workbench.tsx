@@ -265,6 +265,7 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
   const [targetDeg, setTargetDeg] = useState<number>();
   const [ghost, setGhost] = useState<string>();
   const [intro, setIntro] = useState(() => !introSeen());
+  const [confirmNewShift, setConfirmNewShift] = useState(false);
   /** A tapped word's meaning, shown only while the lab, the sample, the sheet and the next step are as they were when it was tapped. */
   const [gloss, setGloss] = useState<Gloss & { readonly at: LabState; readonly code: string; readonly sheet: Sheet; readonly step?: GoalStep }>();
   const [overlayId, setOverlayId] = useState<string>();
@@ -651,6 +652,8 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
     settle();
     const fresh = newShift();
     resetUi(fresh.samples[0], fresh);
+    setConfirmNewShift(false);
+    onStage('idle', runContext(fresh.samples[0]));
   };
 
   /**
@@ -675,7 +678,8 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
     }
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (intro) closeIntro();
+      if (confirmNewShift) setConfirmNewShift(false);
+      else if (intro) closeIntro();
       else if (chip) setChip(undefined);
       else close();
       return;
@@ -745,7 +749,7 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
         </label>
         <div className="xb-clock" data-tone={shiftOver ? 'over' : minutesLeft < 60 ? 'low' : undefined}>
           {/* The bar along the top edge is the shift; a hovered control previews its share in its speed colour. */}
-          {shiftOver ? <b>{WORD.shiftOver}</b> : <Term word={WORD.shift} line={GLOSS.word.shift} />}
+          {shiftOver ? <button type="button" className="xb-link" onClick={() => setConfirmNewShift(true)}>{WORD.newShift}</button> : <Term word={WORD.shift} line={GLOSS.word.shift} />}
           <span className="xb-hidden">{ARIA.shiftLeft(Math.round((100 * minutesLeft) / SHIFT_MINUTES))}</span>
           <i style={{ width: clockShare(minutesLeft) }} />
           {ghostMinutes > 0 && <i className="xb-ghost" data-speed={ghostSpeed} style={{ left: clockShare(minutesLeft - ghostMinutes), width: clockShare(ghostMinutes) }} />}
@@ -755,6 +759,13 @@ export function XrdWorkbench({ onStage, onResult, onClose }: {
       </header>
 
       <div className="xb-body" inert={intro}>
+        {confirmNewShift && <div className="xb-reset" role="alert">
+          <p className="xb-line">Start a new shift? This replaces the current shift’s runs and calls.</p>
+          <div className="xb-actions">
+            <button type="button" className="xb-primary" onClick={startShift}>{WORD.newShift}</button>
+            <button type="button" className="xb-secondary" onClick={() => setConfirmNewShift(false)}>KEEP CURRENT SHIFT</button>
+          </div>
+        </div>}
         <section className="xb-work" aria-label={ARIA.pattern}>
           <div className="xb-runbar">
             <div className="xb-runs" role="tablist" aria-label={ARIA.runs}>
@@ -1248,6 +1259,7 @@ function RefsPanel({ state, sample, library, evidence, set, active, runSpike, us
         {!chemicalSupport(id, evidence).supported && <em className="xb-dot" title={ARIA.notOnRecord} />}
       </button>)}
     </div>
+    {preview && <p className="xb-line xb-muted">Preview heights are relative to this reference; barcode ticks mark positions.</p>}
     {!committed && preview && chips.includes(preview) && !set.includes(preview) && <button type="button" className="xb-secondary" aria-label={ARIA.add(phaseLabel(preview))} disabled={full} onClick={() => onAdd(preview)}>
       {full ? `${MAX_CHIPS} ${WORD.max}` : `${WORD.addTo} ${active}`}
     </button>}

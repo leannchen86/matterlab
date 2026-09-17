@@ -1,6 +1,6 @@
 // Pure view helpers for the bench: run tags, overlay scaling, probe groups, probe significance, sample status, fit readouts
 // and the debrief summary. Node tests import this module, so its imports carry .ts extensions like the core.
-import type { AnalysisResult, PhaseFit } from '../xrd/analysis.ts';
+import { hasPositionReference, type AnalysisResult, type PhaseFit } from '../xrd/analysis.ts';
 import type { Objective } from '../xrd/cases.ts';
 import { DECISION_LABELS, REPORTABLE, ZR_LATTICE_PER_MOL_PERCENT, type Debrief, type Decision, type LabState, type Request, type SampleState, type TruthBand, type TruthPhase } from '../xrd/lab.ts';
 import { acquisitionFor, exposure, type Acquisition } from '../xrd/measure.ts';
@@ -139,7 +139,7 @@ export type SpacingReading = { readonly kind: 'zr'; readonly value: number } | {
  * refined zero trades against the cell, so without a checked zero or a spike it asks for a zero check instead.
  */
 export function spacingReading(
-  fit: Pick<AnalysisResult, 'zeroRefined'> & { readonly phases: readonly Pick<PhaseFit, 'id' | 'scale' | 'latticeScale'>[] },
+  fit: Pick<AnalysisResult, 'zeroRefined'> & { readonly phases: readonly Pick<PhaseFit, 'id' | 'scale' | 'latticeScale' | 'status' | 'detected' | 'missing'>[] },
   phaseId: string,
   objective: Pick<Objective, 'targets' | 'zrMolPercent'>,
   internalStandard?: string,
@@ -147,7 +147,7 @@ export function spacingReading(
   if (objective.zrMolPercent === undefined || phaseId !== objective.targets[0]) return undefined;
   const phase = fit.phases.find((item) => item.id === phaseId);
   if (!phase || !(phase.scale > 0)) return undefined;
-  if (fit.zeroRefined && !internalStandard) return { kind: 'check-zero' };
+  if (!hasPositionReference(fit, internalStandard)) return { kind: 'check-zero' };
   return { kind: 'zr', value: Math.max(0, Math.round((phase.latticeScale - 1) / ZR_LATTICE_PER_MOL_PERCENT)) };
 }
 
