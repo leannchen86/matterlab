@@ -111,7 +111,7 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
       >
         <FacilityLighting mode={lightingMode} quality={quality} />
 
-        <LabArchitecture lightingMode={lightingMode} showScaleTechnician={!isolatedStationId && !hideStations} />
+        <LabArchitecture lightingMode={lightingMode} />
         {cameraMode !== 'focus' && !isolatedStationId && !hideStations && <OperationsProps />}
         {cameraMode !== 'focus' && !isolatedStationId && !hideStations && <BacklogRack />}
         {cameraMode !== 'focus' && !isolatedStationId && !hideStations && <MaterialRoute phase={phase} />}
@@ -477,7 +477,7 @@ function AisleNavigator({ active, controls, command }: { active: boolean; contro
   return null;
 }
 
-function LabArchitecture({ lightingMode, showScaleTechnician }: { lightingMode: LightingMode; showScaleTechnician: boolean }) {
+function LabArchitecture({ lightingMode }: { lightingMode: LightingMode }) {
   const inspection = lightingMode === 'inspection';
   return <group>
     <mesh receiveShadow position={[-1.75, -0.07, 2.05]}>
@@ -494,7 +494,6 @@ function LabArchitecture({ lightingMode, showScaleTechnician }: { lightingMode: 
       <meshStandardMaterial color={inspection ? '#999b95' : '#0d151f'} roughness={0.72} metalness={0.14} />
     </mesh>
     <CeilingServiceFrame />
-    <FacilityIdentitySign />
     {[-5.8, -1.75, 2.3].map((x) => <group key={x} position={[x, 4.65, -4.25]}>
       <mesh castShadow><boxGeometry args={[2.7, 0.07, 0.12]} /><meshStandardMaterial color="#d7f2ff" emissive="#bdeaff" emissiveIntensity={inspection ? 1.1 : 0.7} /></mesh>
       <pointLight position={[0, -0.3, 1.2]} intensity={inspection ? 3.4 : 1.8} distance={6.5} color="#caeaff" decay={2} />
@@ -506,7 +505,6 @@ function LabArchitecture({ lightingMode, showScaleTechnician }: { lightingMode: 
     </group>)}
     <UtilityServices />
     <FacilitySafetyInfrastructure inspection={inspection} />
-    {showScaleTechnician && <ScaleTechnician />}
   </group>;
 }
 
@@ -529,48 +527,6 @@ function CeilingServiceFrame() {
       <Line points={[[0, 0.74, 0], [0, 0.14, 0], [0.18, 0, 0]]} color="#405969" lineWidth={1.1} />
       <mesh position={[0, 0.46, 0]} castShadow><cylinderGeometry args={[0.026, 0.026, 0.72, 12]} /><meshStandardMaterial color="#6b7779" metalness={0.82} roughness={0.23} /></mesh>
     </group>)}
-  </group>;
-}
-
-function FacilityIdentitySign() {
-  const texture = useMemo(() => {
-    if (typeof document === 'undefined') return null;
-    const canvas = document.createElement('canvas');
-    canvas.width = 1024;
-    canvas.height = 256;
-    const context = canvas.getContext('2d');
-    if (!context) return null;
-    context.fillStyle = '#13232a';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = '#4dd5ed';
-    context.fillRect(0, 0, 24, canvas.height);
-    context.fillStyle = '#ecf8f7';
-    context.font = '700 92px ui-monospace, SFMono-Regular, Menlo, monospace';
-    context.fillText('MATTERLAB', 74, 160);
-    const panelTexture = new THREE.CanvasTexture(canvas);
-    panelTexture.colorSpace = THREE.SRGBColorSpace;
-    panelTexture.anisotropy = 4;
-    return panelTexture;
-  }, []);
-  useEffect(() => () => texture?.dispose(), [texture]);
-  if (!texture) return null;
-  return <group position={[-5.35, 3.2, -4.3]}>
-    <RoundedBox args={[4.35, 1.02, 0.09]} radius={0.04} castShadow><meshStandardMaterial color="#27363c" metalness={0.7} roughness={0.32} /></RoundedBox>
-    <mesh position={[0, 0, 0.051]}><planeGeometry args={[4.12, 0.79]} /><meshBasicMaterial map={texture} toneMapped={false} /></mesh>
-  </group>;
-}
-
-function ScaleTechnician() {
-  return <group position={[3.5, 0.02, 7.1]} rotation={[0, -0.5, 0]}>
-    {[-0.105, 0.105].map((x) => <group key={x} position={[x, 0, 0]}>
-      <mesh position={[0, 0.43, 0]} castShadow><cylinderGeometry args={[0.055, 0.07, 0.76, 18]} /><meshStandardMaterial color="#27343b" roughness={0.72} /></mesh>
-      <RoundedBox args={[0.18, 0.09, 0.29]} radius={0.035} position={[0, 0.055, 0.045]} castShadow><meshStandardMaterial color="#151d22" roughness={0.78} /></RoundedBox>
-    </group>)}
-    <RoundedBox args={[0.46, 0.72, 0.28]} radius={0.11} position={[0, 1.1, 0]} castShadow><meshPhysicalMaterial color="#9aaeb0" roughness={0.55} clearcoat={0.08} /></RoundedBox>
-    {[-0.28, 0.28].map((x) => <mesh key={x} position={[x, 1.08, 0]} rotation={[0, 0, x < 0 ? -0.16 : 0.16]} castShadow><cylinderGeometry args={[0.045, 0.055, 0.66, 18]} /><meshStandardMaterial color="#899d9f" roughness={0.58} /></mesh>)}
-    <mesh position={[0, 1.58, 0]} castShadow><sphereGeometry args={[0.125, 26, 18]} /><meshPhysicalMaterial color="#a9816c" roughness={0.58} clearcoat={0.05} /></mesh>
-    <mesh position={[0, 1.69, -0.005]} castShadow><sphereGeometry args={[0.132, 26, 14, 0, Math.PI * 2, 0, Math.PI * 0.48]} /><meshStandardMaterial color="#dae3df" roughness={0.52} /></mesh>
-    <RoundedBox args={[0.24, 0.34, 0.025]} radius={0.025} position={[0.32, 1.04, 0.08]} rotation={[0.08, -0.18, -0.12]}><meshStandardMaterial color="#53656b" metalness={0.25} roughness={0.42} /></RoundedBox>
   </group>;
 }
 
