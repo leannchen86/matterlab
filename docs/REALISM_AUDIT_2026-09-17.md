@@ -1,6 +1,6 @@
 # MatterLab realism audit — 17 September 2026
 
-**Later update:** At the user’s request, the stationary tour described below was replaced with the original September 1 continuous 24-second animation and historical overview framing. The science and interaction fixes remain.
+**Later update:** At the user’s request, the stationary tour described below was replaced with the original September 1 continuous 24-second animation. A subsequent correction selects the close ENTER LAB → TOUR framing, which differs from the old overview-entry variant. The science and interaction fixes remain.
 
 Baseline: `252852b`; resulting simulation: `xrd-engine-4`, reference library `refs-3cfb0e4e`.
 

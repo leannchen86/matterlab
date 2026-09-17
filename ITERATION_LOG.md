@@ -3034,3 +3034,7 @@ The tour now presents stable, fully framed equipment stops with pause/previous/n
 ## 17 September 2026 — restore the original cinematic tour
 
 At the user's request, restored the September 1 tour from 1ed26c4: the original C01 → C04 → C08 → C09 → C11 → C13 → C16 camera and look-at curves, 24-second smoothstep timing, and 52° → 47° → 52° field of view. All equipment remains in view during the continuous sweep; removed the replacement station-by-station slides and fades. Kept pause/replay/exit behavior and the camera-control conflict fix. Applied the historical default overview bounds directly to preserve the rendered framing without making the tour depend on whether WALK or FOCUS was active. A 2,401-point comparison with the historical OrbitControls path matches exactly. Science, reference, inspection and saved-session fixes remain in place.
+
+## 17 September 2026 — correct the historical tour variant
+
+The user reported that the restored view still did not match the older tour. Re-running the unmodified September 1 build showed why: its tour inherited the current camera mode. The prior restoration matched only the high OVERVIEW variant; ENTER LAB → TOUR used a closer camera (radius 2.8–5.7, polar 1.05–1.55) and bypassed postprocessing. Made this aisle-level variant the consistent default while retaining the original spline, timing and field-of-view changes. At 12 seconds the old overview camera height is 9.84 versus 2.50 for the aisle variant; this is a substantial framing difference, not a deployment-only issue.

@@ -87,7 +87,7 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
   const inspected = visited[selectedId] ?? [];
   const inspection = inspectionProgress(selectedHotspots.map((point) => point.label), inspected);
   const activeObservation = cameraMode === 'focus' && observationRecord?.stationId === selectedId ? selectedHotspots.find((point) => point.label === observationRecord.point.label) ?? null : null;
-  const quality = SCENE_QUALITY[cameraMode];
+  const quality = SCENE_QUALITY[tourActive ? 'walk' : cameraMode];
   const reviewCamera = reviewCameraId ? REVIEW_CAMERA_BY_ID.get(reviewCameraId) ?? null : null;
   const isolatedStationId = reviewCamera?.stationId ?? null;
   const hideStations = Boolean(reviewCamera?.hideStations);
@@ -152,7 +152,7 @@ export function Lab3D({ stations, selectedId, phase, cameraMode, lightingMode, r
           minAzimuthAngle={-1.45}
           maxAzimuthAngle={1.25}
         />}
-        <LabPostEffects enabled />
+        <LabPostEffects enabled={!tourActive} />
       </Canvas>
       <nav className="scene-station-picker" aria-label="Select a lab station">
         {menuStations.map((station) => <button key={station.id} type="button" className={selectedId === station.id ? 'active' : ''} style={{ '--station-tone': TONE_COLORS[station.tone] } as React.CSSProperties} onClick={() => { onSelect(station.id); onCameraMode('focus'); }} aria-pressed={selectedId === station.id}><i />{station.id.replace('-0', '·')}</button>)}
@@ -295,13 +295,13 @@ function CameraDirector({ mode, selectedScene, controls, reviewCameraId, tourAct
       const progress = rawProgress * rawProgress * (3 - 2 * rawProgress);
       camera.position.copy(tourPositionCurve.getPointAt(progress));
       tourTargetCurve.getPointAt(progress, tourTarget);
-      // Preserve the September 1 default-tour framing, formerly applied by OrbitControls.update().
-      // Apply those fixed bounds directly so entering from WALK/FOCUS cannot change the tour.
+      // Preserve the September 1 ENTER LAB → TOUR framing, formerly applied by OrbitControls.update().
+      // The historical tour inherited its entry mode; use its close aisle variant consistently.
       tourSpherical.setFromVector3(tourOffset.copy(camera.position).sub(tourTarget));
       tourSpherical.theta = THREE.MathUtils.clamp(tourSpherical.theta, -1.45, 1.25);
-      tourSpherical.phi = THREE.MathUtils.clamp(tourSpherical.phi, 0.55, 1.36);
+      tourSpherical.phi = THREE.MathUtils.clamp(tourSpherical.phi, 1.05, 1.55);
       tourSpherical.makeSafe();
-      tourSpherical.radius = THREE.MathUtils.clamp(tourSpherical.radius, 11, 34);
+      tourSpherical.radius = THREE.MathUtils.clamp(tourSpherical.radius, 2.8, 5.7);
       camera.position.copy(tourTarget).add(tourOffset.setFromSpherical(tourSpherical));
       camera.lookAt(tourTarget);
       if (camera instanceof THREE.PerspectiveCamera) {
