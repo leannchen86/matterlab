@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { analyzePattern, compareExplanations, type AnalysisResult } from './analysis.ts';
+import { analyzePattern, compareExplanations, ZERO_CHECK_SD_DEG, type AnalysisOptions, type AnalysisResult } from './analysis.ts';
 import { sampleCase, specimenFor } from './cases.ts';
 import { acquisitionFor, measure, prepareMount, type MountRecord, type ProgramId } from './measure.ts';
 import { createRun } from './records.ts';
@@ -76,4 +76,34 @@ test('more counts strengthen the evidence for a weak minor phase', () => {
   const hostOnly = analyzePattern(scan('S-117', 'standard'), { candidates: ['catio3'] });
   assert.equal(compareExplanations(hostOnly, standard), 'much-better');
   assert.equal(compareExplanations(standard, hostOnly), 'much-worse');
+});
+
+test('refining the zero does not end worse than holding it at the instrument value', () => {
+  // Scans where the joint zero–displacement search dropped Ca₄Ti₃O₁₀ and ended ~700 deviance above the fit with the
+  // true zero held: run 0 before the staged retry, run 3 with it. A gap under the Δχ² ≈ 10 evidence threshold settles nothing.
+  const mount: MountRecord = { index: 1, aliquot: 1, method: 'front', grind: 'hand', spike: 'none', spikeFraction: 0, spin: false, preparedBy: 'queue' };
+  const prepared = prepareMount(specimenFor(sampleCase('S-130')), 'S-130', mount);
+  const candidates = ['baddeleyite', 'ca4ti3o10', 'catio3'];
+  for (const runIndex of [0, 3]) {
+    const measurement = measure(prepared, acquisitionFor('standard'), { zeroShiftDeg: -0.023 }, runIndex);
+    const observation = { grid: measurement.grid, counts: measurement.counts };
+    const refined = analyzePattern(observation, { candidates });
+    const held = analyzePattern(observation, { candidates, zeroDeg: -0.023 });
+    assert.ok(refined.deviance <= held.deviance + 10, `run ${runIndex}: refined ${refined.deviance} held ${held.deviance}`);
+    for (const phase of refined.phases) assert.ok(phase.scale > 0, `run ${runIndex}: ${phase.id}`);
+  }
+});
+
+test('a checked zero widens the lattice uncertainty by as much as the refitted cell follows the zero', () => {
+  const standard = scan('S-101', 'standard');
+  const zeroDeg = INSTRUMENT.zeroShiftDeg;
+  const host = (options: Omit<AnalysisOptions, 'candidates'>) => analyzePattern(standard, { candidates: ['catio3'], ...options }).phases[0];
+  const checked = host({ zeroDeg });
+  const exact = host({ zeroDeg, zeroSigmaDeg: 0 });
+  // Refits with the zero moved by ±5 check SDs give how far the cell estimate follows the zero.
+  const delta = 5 * ZERO_CHECK_SD_DEG;
+  const slope = (host({ zeroDeg: zeroDeg + delta }).latticeScale - host({ zeroDeg: zeroDeg - delta }).latticeScale) / (2 * delta);
+  const added = Math.sqrt(Math.max(0, checked.latticeSigma ** 2 - exact.latticeSigma ** 2));
+  const expected = Math.abs(slope) * ZERO_CHECK_SD_DEG;
+  assert.ok(Math.abs(added / expected - 1) < 0.1, `added ${added} expected ${expected}`);
 });

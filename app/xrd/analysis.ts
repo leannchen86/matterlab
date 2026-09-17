@@ -8,7 +8,12 @@
 //
 // Linear parameters: Lawson–Hanson NNLS on weighted normal equations; weights 1/(N+1), then 1/max(μ, 1).
 // Nonlinear parameters: coarse scans over displacement and lattice, then Levenberg–Marquardt over displacement, zero
-// and per-phase lattice, size and strain.
+// and per-phase lattice, size and strain. The search runs twice from the coarse state and keeps the lower settled
+// deviance: once with strain in ε and every coordinate free, and once with strain in ε², a refined zero held until the
+// rest has settled, a dropped candidate's parameters left where they were, a second lattice scan about the cells, and
+// gains counted in the evidence's units.
+// Uncertainty: central-difference curvature of χ² at the optimum; a checked zero adds its own uncertainty through the
+// lattice–zero correlation.
 // Evidence: BIC with Δχ² scaled by the reduced χ², and Currie limits on reflections unique to one phase
 // (L. A. Currie, Anal. Chem. 40 (1968) 586): L_C = 1.645√B, L_D = 2.71 + 3.29√B.
 
@@ -16,7 +21,10 @@ import { catalogPhase } from './phases.ts';
 import { accumulateLines, braggScale, calculateLines, gridAngle, type Grid } from './pattern.ts';
 import { CU_KALPHA1, LAB_OPTICS, peakShape, positionShift, type InstrumentOptics } from './profile.ts';
 
-export const ANALYSIS_VERSION = 'analysis-2';
+export const ANALYSIS_VERSION = 'analysis-3';
+
+/** Repeatability of the goniometer zero from one standard check, degrees 2θ. */
+export const ZERO_CHECK_SD_DEG = 0.002;
 
 export type Observation = { readonly grid: Grid; readonly counts: ArrayLike<number> };
 
@@ -24,6 +32,8 @@ export type AnalysisOptions = {
   readonly candidates: readonly string[];
   /** Goniometer zero from a standard check; refined when undefined. */
   readonly zeroDeg?: number;
+  /** Standard uncertainty of zeroDeg, carried into latticeSigma; one standard check's repeatability when undefined. */
+  readonly zeroSigmaDeg?: number;
   /** Spike recorded for the mount; its cell stays at the certified value. */
   readonly internalStandard?: string;
   /** Adds unassigned broad-scatter terms, never reported as phases. */
@@ -62,7 +72,7 @@ export type PhaseFit = {
   readonly indistinguishableFrom: readonly string[];
   /** Smallest scale at which a reflection of its own would reach the detection limit. */
   readonly detectionScale: number;
-  /** Standard uncertainty of latticeScale from the curvature of χ²; Infinity when the cell was not refined. */
+  /** Standard uncertainty of latticeScale from the curvature of χ², plus a checked zero's own uncertainty; Infinity when the cell was not refined. */
   readonly latticeSigma: number;
   readonly contribution: Float64Array;
 };
@@ -214,6 +224,19 @@ export function nnlsNormal(matrix: Float64Array, vector: Float64Array, free: rea
   return x;
 }
 
+/** Columns of the inverse of a symmetric matrix, solved at unit diagonal so the pivot test is relative; undefined when singular. */
+function inverseColumns(matrix: Float64Array, size: number, columns: readonly number[]) {
+  const norms = Array.from({ length: size }, (_, j) => Math.sqrt(matrix[j * size + j]) || 1);
+  const scaled = matrix.map((value, index) => value / (norms[Math.floor(index / size)] * norms[index % size]));
+  const all = Array.from({ length: size }, (_, j) => j);
+  return columns.map((column) => {
+    const unit = new Float64Array(size);
+    unit[column] = 1;
+    const solution = solveSubset(scaled, unit, size, all);
+    return solution ? solution.map((value, row) => value / (norms[row] * norms[column])) : undefined;
+  });
+}
+
 type LinearFit = { readonly background: Float64Array; readonly scales: Float64Array; readonly broad: Float64Array; readonly chiSquare: number };
 
 function solveLinear(y: Float64Array, weights: Float64Array, background: readonly Float64Array[], phases: readonly (Float64Array | undefined)[], broad: readonly Float64Array[]): LinearFit {
@@ -309,11 +332,22 @@ function fwhmAt(twoTheta: number, optics: InstrumentOptics) {
   return peakShape(twoTheta, CU_KALPHA1, optics, START).fwhm;
 }
 
+/** Poisson deviance of the counts against a model over the first n bins. */
+function poissonDeviance(y: Float64Array, model: Float64Array, n: number) {
+  let deviance = 0;
+  for (let index = 0; index < n; index += 1) {
+    const mu = Math.max(model[index], 1e-9);
+    deviance += 2 * (mu - y[index] + (y[index] > 0 ? y[index] * Math.log(y[index] / mu) : 0));
+  }
+  return deviance;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Analysis
 
 /** A nonlinear parameter with bounds and the finite-difference step used for its derivative. */
 type Coordinate = { readonly read: () => number; readonly write: (value: number) => void; readonly lower: number; readonly upper: number; readonly delta: number; readonly phase?: number };
+type Snapshot = { readonly displacement: number; readonly zero: number; readonly params: readonly PhaseParams[]; readonly current: LinearFit };
 
 export function analyzePattern(observation: Observation, options: AnalysisOptions): AnalysisResult {
   const { grid } = observation;
@@ -365,22 +399,32 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
   };
   const scan = (coordinate: Coordinate, values: readonly number[]) => values.forEach((value) => attempt(coordinate, value));
   const activeCoordinates = (all: readonly Coordinate[]) => all.filter((coordinate) => coordinate.phase === undefined || current.scales[coordinate.phase] > 0);
-  // Forward differences of the model with the linear parameters held at their current values.
-  const normalEquations = (active: readonly Coordinate[]) => {
+  const shiftedColumns = (coordinate: Coordinate, value: number) => {
+    const start = coordinate.read();
+    coordinate.write(value);
+    const shifted = columns();
+    coordinate.write(start);
+    return shifted;
+  };
+  // Finite differences of the model with the linear parameters held at their current values: forward steps for the
+  // search, central steps for the final curvature.
+  const normalEquations = (active: readonly Coordinate[], central = false) => {
     const size = active.length;
     const base = columns();
     const residual = assemble(current, base, background, broad, n).total.map((value, index) => y[index] - value);
     const jacobian = active.map((coordinate) => {
       const start = coordinate.read();
-      const h = start + coordinate.delta <= coordinate.upper ? coordinate.delta : -coordinate.delta;
-      coordinate.write(start + h);
-      const shifted = columns();
-      coordinate.write(start);
+      const forward = start + coordinate.delta <= coordinate.upper ? coordinate.delta : -coordinate.delta;
+      const up = central ? Math.min(coordinate.upper, start + coordinate.delta) : start + forward;
+      const down = central ? Math.max(coordinate.lower, start - coordinate.delta) : start;
+      const high = shiftedColumns(coordinate, up);
+      const low = central ? shiftedColumns(coordinate, down) : base;
+      const h = central ? up - down : forward;
       const derivative = new Float64Array(n);
-      shifted.forEach((values, p) => {
+      high.forEach((values, p) => {
         const factor = current.scales[p] / h;
-        if (values === base[p] || factor === 0) return;
-        for (let index = 0; index < n; index += 1) derivative[index] += factor * (values[index] - base[p][index]);
+        if (values === low[p] || factor === 0) return;
+        for (let index = 0; index < n; index += 1) derivative[index] += factor * (values[index] - low[p][index]);
       });
       return derivative;
     });
@@ -398,8 +442,9 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
     return { matrix, gradient };
   };
   // Levenberg–Marquardt with the linear parameters projected out. The Jacobian holds them fixed (Kaufman's
-  // approximation); every trial step re-solves them exactly, so a step is kept only if χ² truly falls.
-  const refine = (coordinates: readonly Coordinate[]) => {
+  // approximation); every trial step re-solves them exactly, so a step is kept only if χ² truly falls. `second` marks the
+  // second search below, which changes what happens to a dropped candidate and when the search stops.
+  const refine = (coordinates: readonly Coordinate[], second: boolean) => {
     let lambda = 1e-3;
     for (let iteration = 0; iteration < 40; iteration += 1) {
       const active = activeCoordinates(coordinates);
@@ -413,8 +458,18 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
         const damped = matrix.map((value, index) => (index % (size + 1) === 0 ? (value || 1) * (1 + lambda) : value));
         const step = solveSubset(damped, gradient, size, active.map((_, j) => j));
         if (step) {
-          active.forEach((coordinate, j) => coordinate.write(Math.min(coordinate.upper, Math.max(coordinate.lower, starts[j] + step[j]))));
-          const candidate = fit(columns());
+          const take = (j: number) => Math.min(active[j].upper, Math.max(active[j].lower, starts[j] + step[j]));
+          active.forEach((coordinate, j) => coordinate.write(take(j)));
+          let candidate = fit(columns());
+          // A step that drops a candidate would freeze its parameters wherever the step left them, often at a bound. In the
+          // second search they go back to where they were: with that pattern available again the linear solve ends no worse.
+          const dropped = second ? active.flatMap((coordinate, j) => (coordinate.phase !== undefined && !(candidate.scales[coordinate.phase] > 0) ? [j] : [])) : [];
+          if (dropped.length) {
+            dropped.forEach((j) => active[j].write(starts[j]));
+            const kept = fit(columns());
+            if (kept.chiSquare <= candidate.chiSquare) candidate = kept;
+            else dropped.forEach((j) => active[j].write(take(j)));
+          }
           if (candidate.chiSquare < current.chiSquare) {
             current = candidate;
             accepted = true;
@@ -425,16 +480,19 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
         }
         lambda *= 4;
       }
-      // Evidence thresholds sit at Δχ² ≈ 10, so smaller gains cannot change any conclusion.
-      if (!accepted || previous - current.chiSquare < 0.1) return;
+      // Evidence thresholds sit at Δχ² ≈ 10, so smaller gains cannot change any conclusion. The evidence divides Δχ² by the
+      // reduced χ² when that exceeds 1, and the second search measures its gains the same way; the first stops as before.
+      if (!accepted || previous - current.chiSquare < 0.1 * (second ? Math.max(1, previous / n) : 1)) return;
     }
   };
 
   const coordinates: Coordinate[] = [];
   const displacementCoordinate: Coordinate = { read: () => displacement, write: (value) => (displacement = value), lower: -0.6, upper: 0.6, delta: 0.004 };
+  const zeroCoordinate: Coordinate = { read: () => zero, write: (value) => (zero = value), lower: -0.2, upper: 0.2, delta: 0.001 };
   if (ids.length) coordinates.push(displacementCoordinate);
-  if (ids.length && zeroRefined) coordinates.push({ read: () => zero, write: (value) => (zero = value), lower: -0.2, upper: 0.2, delta: 0.001 });
+  if (ids.length && zeroRefined) coordinates.push(zeroCoordinate);
   const latticeCoordinates = new Map<number, Coordinate>();
+  const linearStrain = new Map<Coordinate, Coordinate>();
   ids.forEach((id, p) => {
     if (id !== standard) {
       const lattice: Coordinate = { read: () => params[p].latticeScale, write: (value) => (params[p].latticeScale = value), lower: 0.99, upper: 1.01, delta: 2e-5, phase: p };
@@ -442,22 +500,65 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
       coordinates.push(lattice);
     }
     coordinates.push({ read: () => Math.log2(params[p].crystalliteNm), write: (value) => (params[p].crystalliteNm = 2 ** value), lower: Math.log2(20), upper: Math.log2(3000), delta: 0.02, phase: p });
-    coordinates.push({ read: () => params[p].microstrain, write: (value) => (params[p].microstrain = value), lower: 0, upper: 0.004, delta: 1e-5, phase: p });
+    // The strain width adds in quadrature, so the profile follows ε², not ε. In ε the slope at zero strain is zero and
+    // every step clipped at the bound raises χ²; the first search keeps ε as before, the second and the curvature use ε².
+    const strain: Coordinate = { read: () => params[p].microstrain ** 2, write: (value) => (params[p].microstrain = Math.sqrt(value)), lower: 0, upper: 0.004 ** 2, delta: 4e-9, phase: p };
+    coordinates.push(strain);
+    linearStrain.set(strain, { read: () => params[p].microstrain, write: (value) => (params[p].microstrain = value), lower: 0, upper: 0.004, delta: 1e-5, phase: p });
   });
 
+  // Poisson weights from the model, with the linear parameters re-solved after each update.
+  const reweight = (phaseColumns: readonly Float64Array[]) => {
+    let settled = current;
+    for (let iteration = 0; iteration < 2; iteration += 1) {
+      const model = assemble(settled, phaseColumns, background, broad, n).total;
+      for (let index = 0; index < n; index += 1) weights[index] = 1 / Math.max(model[index], 1);
+      settled = fit(phaseColumns);
+    }
+    return settled;
+  };
+  const snapshot = (): Snapshot => ({ displacement, zero, params: params.map((phase) => ({ ...phase })), current });
+  const restore = (saved: Snapshot) => {
+    displacement = saved.displacement;
+    zero = saved.zero;
+    saved.params.forEach((phase, p) => Object.assign(params[p], phase));
+    current = saved.current;
+  };
+  // The deviance the current parameters would end with, leaving the search weights as they were.
+  const settledDeviance = () => {
+    const searchWeights = Float64Array.from(weights);
+    const phaseColumns = columns();
+    const deviance = poissonDeviance(y, assemble(reweight(phaseColumns), phaseColumns, background, broad, n).total, n);
+    weights.set(searchWeights);
+    return deviance;
+  };
   if (ids.length) {
     // Coarse grids first: shifts of a full width or more sit outside the basin of a local search.
     scan(displacementCoordinate, [-0.45, -0.375, -0.3, -0.225, -0.15, -0.075, 0.075, 0.15, 0.225, 0.3, 0.375, 0.45]);
     for (const lattice of latticeCoordinates.values()) scan(lattice, [0.994, 0.995, 0.996, 0.997, 0.998, 0.999, 1.001, 1.002, 1.003, 1.004, 1.005, 1.006]);
-    refine(coordinates);
+    const coarse = snapshot();
+    refine(coordinates.map((coordinate) => linearStrain.get(coordinate) ?? coordinate), false);
+    const first = snapshot();
+    const firstDeviance = settledDeviance();
+    // A second search from the same coarse state. Zero and displacement move peaks almost alike, so a joint search runs
+    // along that valley and leaves the cells behind: a refined zero stays at the coarse value until the rest has settled.
+    restore(coarse);
+    if (zeroRefined) refine(coordinates.filter((coordinate) => coordinate !== zeroCoordinate), true);
+    refine(coordinates, true);
+    // A weak phase's cell has several local minima, and the coarse lattice grid ran at the coarse displacement. The same
+    // grid is scanned again about each refined cell, and the search restarts when that lowers χ².
+    const settled = current.chiSquare;
+    for (const lattice of latticeCoordinates.values()) {
+      const centre = lattice.read();
+      scan(lattice, [-6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6].map((k) => centre + 0.001 * k));
+    }
+    if (current.chiSquare < settled) refine(coordinates, true);
+    // Neither search ends lower on every scan, so the fit keeps whichever settles lower, the first on a tie.
+    if (!(settledDeviance() < firstDeviance)) restore(first);
   }
 
   const phaseColumns = columns();
-  for (let iteration = 0; iteration < 2; iteration += 1) {
-    const model = assemble(current, phaseColumns, background, broad, n).total;
-    for (let index = 0; index < n; index += 1) weights[index] = 1 / Math.max(model[index], 1);
-    current = fit(phaseColumns);
-  }
+  current = reweight(phaseColumns);
   const { smooth, total } = assemble(current, phaseColumns, background, broad, n);
   const activePhases = ids.filter((_, p) => current.scales[p] > 0).length;
   const parameterCount = background.length + broad.length + 3 * activePhases + (ids.length ? 1 : 0) + (ids.length && zeroRefined ? 1 : 0);
@@ -468,19 +569,30 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
   const penalty = 3 * Math.log(effectivePoints);
   const finalOptics = { ...baseOptics, zeroShiftDeg: zero };
 
-  // Curvature of χ² at the optimum with every nonlinear parameter free, so the lattice uncertainty carries its
-  // correlation with displacement and zero.
+  // Curvature of χ² at the optimum with every refined nonlinear parameter free, so the lattice uncertainty carries its
+  // correlation with displacement and a refined zero. A checked zero stays held, and its own uncertainty enters through
+  // the lattice–zero correlation: σ² = C_held[a,a]·max(1, χ²ν) + (C[a,z]/C[z,z]·σ_zero)².
   const latticeSigmas = new Map<number, number>();
   const finalActive = activeCoordinates(coordinates);
-  if (finalActive.length) {
+  const lattices = finalActive.flatMap((coordinate, j) => (coordinate.phase !== undefined && latticeCoordinates.get(coordinate.phase) === coordinate ? [j] : []));
+  if (lattices.length) {
+    const zeroSigma = options.zeroSigmaDeg ?? ZERO_CHECK_SD_DEG;
+    const propagate = !zeroRefined && zeroSigma > 0;
     const size = finalActive.length;
-    const { matrix } = normalEquations(finalActive);
-    finalActive.forEach((coordinate, j) => {
-      if (coordinate.phase === undefined || latticeCoordinates.get(coordinate.phase) !== coordinate) return;
-      const unit = new Float64Array(size);
-      unit[j] = 1;
-      const inverse = solveSubset(matrix, unit, size, finalActive.map((_, k) => k));
-      if (inverse && inverse[j] > 0) latticeSigmas.set(coordinate.phase, Math.sqrt(inverse[j] * Math.max(1, reducedChiSquare)));
+    // The held zero is not refined, so its steps are not clipped to the refinement bounds.
+    const { matrix } = normalEquations(propagate ? [...finalActive, { ...zeroCoordinate, lower: -Infinity, upper: Infinity }] : finalActive, true);
+    const held = propagate ? matrix.filter((_, index) => index % (size + 1) !== size && Math.floor(index / (size + 1)) !== size) : matrix;
+    const [zeroColumn] = propagate ? inverseColumns(matrix, size + 1, [size]) : [];
+    inverseColumns(held, size, lattices).forEach((column, k) => {
+      const j = lattices[k];
+      const phase = finalActive[j].phase;
+      if (!column || !(column[j] > 0) || phase === undefined) return;
+      let variance = column[j] * Math.max(1, reducedChiSquare);
+      if (propagate) {
+        if (!zeroColumn || !(zeroColumn[size] > 0)) return;
+        variance += ((zeroColumn[j] / zeroColumn[size]) * zeroSigma) ** 2;
+      }
+      latticeSigmas.set(phase, Math.sqrt(variance));
     });
   }
 
@@ -580,13 +692,9 @@ export function analyzePattern(observation: Observation, options: AnalysisOption
     };
   });
 
-  let deviance = 0;
+  const deviance = poissonDeviance(y, total, n);
   let peakCounts = 0;
-  for (let index = 0; index < n; index += 1) {
-    const mu = Math.max(total[index], 1e-9);
-    deviance += 2 * (mu - y[index] + (y[index] > 0 ? y[index] * Math.log(y[index] / mu) : 0));
-    peakCounts = Math.max(peakCounts, y[index] - smooth[index]);
-  }
+  for (let index = 0; index < n; index += 1) peakCounts = Math.max(peakCounts, y[index] - smooth[index]);
   const pointsPerFwhm = midFwhm / grid.stepDeg;
   const warnings: AnalysisWarning[] = [];
   if (!ids.length) warnings.push('no-candidates');

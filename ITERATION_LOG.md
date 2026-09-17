@@ -2861,3 +2861,145 @@ The last round swapped the probe's fixed 0.3° tolerance for the model's own bou
 - The probe reads no sample state, so a marked Kα2 or Kβ chip can name a phase the sample lacks.
 - The sampling check still judges a mid-range width, so narrowest lines just under 3 points per FWHM do not warn.
 - The engine guard in the session store has no automated test, since it needs browser storage.
+
+## Critique 151: a refined zero could still end far above a held one
+
+The last round did two things. When a fit with a refined zero dropped a candidate or ended with a shift at its bound, the fit repeated its search from the coarse state with the zero held until the rest had settled. It also carried a checked zero's own uncertainty into the lattice uncertainty. Checking it showed several problems:
+
+- **The retry missed most bad fits, and did not always fix the ones it caught.** The test case is the audit mount: S-130, front mount, hand grind, standard program, zero −0.023°, baddeleyite + Ca₄Ti₃O₁₀ + CaTiO₃.
+  - On runs 6, 7, 13 and 14 the refined fit ended 588.3, 146.5, 15.2 and 16.5 above the fit with the zero held. No candidate had dropped and no shift sat at its bound, so the retry never ran.
+  - On run 3 the refined fit dropped Ca₄Ti₃O₁₀, so the retry ran. It still ended 715.9 above the held fit.
+  - Fits with the zero held had the same problem. On runs 1, 2, 8, 10, 11 and 12 they ended 368.1 to 658.1 above the best fit any configuration found.
+  - Across 264 player runs, 44 refined fits ended more than 10 above the checked fit on the same scan. HEAD had 52.
+- **Retried fits were slow.** Timed with repeated, alternating runs, seven sweep jobs took 2.848× to 11.504× HEAD's minimum time. The worst was job 1912: 514 → 5910 ms.
+- **Silicon-spiked fits with a refined zero missed the retry.** Silicon 55 ended 923.2 above its held fit. Its zero sat at −0.1076°, with no candidate dropped and no shift at a bound. The cell was off by −1.54e-4 against a reported σ of 7.51e-6.
+  - In the Monte Carlo (60 seeds per condition), the spread of spiked cells was 3.06, 3.95 and 1.38 times the median σ.
+- **A zero just inside its bound kept the cell far off.** The retry tested only the exact bound.
+  - Refined 23 ended with the zero at −0.1997° and refined 44 at −0.1713°. Neither was retried; their cell errors were −4.93e-4 and −4.13e-4.
+  - On refined 37 the zero was pinned at −0.2°. The retry ran, but the pinned path won: cell error −4.91e-4, σ 1.66e-5.
+  - Without a spike, the Monte Carlo cell spread was 5.40, 4.84 and 4.63 times the median σ.
+
+### Changes made
+
+- The fit no longer triggers a retry. Every fit runs two searches from the coarse state and keeps whichever settles to the lower Poisson deviance. On a tie it keeps the first.
+  - The first search is HEAD's: strain in ε, every coordinate free, and a stop when χ² falls by less than 0.1. The result therefore never ends above HEAD's.
+  - The second search differs in five ways:
+    - A refined zero stays at its coarse value until the rest has settled, and is then freed.
+    - Strain is refined as ε². The strain width adds in quadrature, so in ε the slope at zero strain is zero.
+    - A step that drops a candidate puts that candidate's parameters back where they were, if the re-solve ends no worse.
+    - Each refined cell is scanned again at ±1 to 6 steps of 0.001, and the search restarts if χ² fell.
+    - The search stops when χ² falls by less than 0.1·max(1, χ²/N). The evidence divides Δχ² by the reduced χ² when that exceeds 1, and this stop measures gains the same way.
+  - The lattice curvature uses the ε² strain coordinate.
+  - Repeated fits returned identical deviances on every scan tested: audit 3, silicon 55, refined 37, and jobs 1417, 702, 2158, 845, plus all seven retimed jobs.
+- Bench results, refined minus held deviance on the same scan:
+
+  | Scan | Last round | Now |
+  | --- | --- | --- |
+  | Audit 1 | −529.2 | 0.0 |
+  | Audit 2 | −657.9 | 3.1 |
+  | Audit 3 | 715.9 | 0.7 |
+  | Audit 6 | 588.3 | 1.7 |
+  | Audit 7 | 146.5 | −0.4 |
+  | Audit 8 | −562.6 | −3.3 |
+  | Audit 13 | 15.2 | −0.5 |
+  | Audit 14 | 16.5 | −0.6 |
+  | Refined 23 | 47.9 | 7.7 |
+  | Refined 37 | 0.2 | −0.3 |
+  | Refined 44 | 23.1 | 1.3 |
+  | Silicon 21 | 446.9 | 8.4 |
+  | Silicon 22 | 489.8 | −3.0 |
+  | Silicon 28 | 44.2 | 11.0 |
+  | Silicon 55 | 923.2 | 24.2 |
+
+  - Over the 22 scans, refined fits more than 10 above held went from 11 to 2.
+  - Held fits more than 10 above the best any configuration found went from 8 to 0. For example, audit 1 held went from 529.6 above to 0.0.
+  - Run 3 keeps Ca₄Ti₃O₁₀ required.
+  - Zero and cell error before → after:
+
+    | Scan | Zero (°) | Cell error | σ |
+    | --- | --- | --- | --- |
+    | Silicon 55 | −0.1076 → −0.0266 | −1.54e-4 → −1.04e-5 | 7.51e-6 → 7.02e-6 |
+    | Refined 37 | −0.2 → −0.0013 | −4.91e-4 → 5.86e-5 | 1.66e-5 → 4.89e-5 |
+    | Refined 23 | −0.1997 → −0.0019 | −4.93e-4 → 5.51e-5 | 2.44e-5 → 4.81e-5 |
+    | Refined 44 | −0.1713 → 0 | −4.13e-4 → 6.17e-5 | 3.35e-5 → 4.02e-5 |
+- Player runs:
+  - Refined fits more than 10 above the checked fit: 52 of 264 at HEAD, 44 last round, 29 now.
+    - 19 of the 29 were HEAD gaps too.
+    - 10 are new because the checked fit found a lower minimum. In fit-1 S-156 spiked-standard, the checked fit went 155094.57 → 151726.34 while the refined fit went 154718.07 → 154413.52.
+  - None of the 616 fits compared ends worse than HEAD's.
+  - One status changed: calcite in fit-1 S-142 spiked-standard went from overlapped to required, with deviance 6784.40 → 6771.42. No debrief grade changed.
+- Time, as a multiple of HEAD's minimum over three runs:
+
+  | Job | Last round | Now |
+  | --- | --- | --- |
+  | 1440 | 6.443 | 4.691 |
+  | 1766 | 6.931 | 3.420 |
+  | 1912 | 11.504 | 6.374 |
+  | 1098 | 6.539 | 2.005 |
+  | 87 | 4.433 | 2.252 |
+  | 637 | 3.132 | 1.437 |
+  | 1833 | 2.848 | 1.668 |
+
+  - The sweep takes every 13th of the 2292 jobs (177), run as 12 parallel shards. HEAD's deviances are identical in both sweeps.
+    - Total time went from 1.597× to 1.644× HEAD.
+    - The slowest job went from 3.99× (job 611) to 4.60× (job 754).
+    - Jobs above 3× went from 5 to 2.
+    - Fits more than 10 below HEAD's deviance went from 21 to 31. None is more than 1 above.
+- Monte Carlo: spread of the cell error over the median reported σ, 60 seeds per condition.
+
+  | Set | Zero | HEAD | Last round | Now |
+  | --- | --- | --- | --- | --- |
+  | Full, fixed grain | Refined | 20.94 | 5.40 | 1.76 |
+  | Library, fixed grain | Refined | 22.83 | 4.84 | 1.24 |
+  | Library, varied grain | Refined | 22.99 | 4.63 | 1.34 |
+  | Full, fixed grain | Refined, silicon spike | 3.59 | 3.06 | 1.38 |
+  | Library, fixed grain | Refined, silicon spike | 4.82 | 3.95 | 1.27 |
+  | Library, varied grain | Refined, silicon spike | 7.73 | 1.38 | 1.23 |
+  | Full, fixed grain | Checked | 1.54 | 1.05 | 1.07 |
+  | Full, fixed grain | Checked, silicon spike | 1.41 | 1.07 | 1.10 |
+  | Full, fixed grain | Exact | 0.87 | 0.87 | 0.85 |
+
+  - Seeds with |z| > 3:
+    - Refined zero: 51, 58 and 53 at HEAD; 26, 24 and 21 last round; 3, 2 and 2 now.
+    - Silicon-spiked: 24, 26 and 23 at HEAD; 14, 18 and 10 last round; 3, 5 and 5 now.
+  - Refined zeros at ±0.2° went from 5, 15 and 9 at HEAD to none.
+  - Refined fits more than 10 above the checked fit on the same scan went from 29, 35 and 30 at HEAD to 2, 0 and 3.
+  - No fit in any condition ends more than 1 above HEAD's deviance.
+- The test "refining the zero does not end worse than holding it at the instrument value" now covers audit runs 0 and 3. On each run it requires the refined deviance within 10 of the held one, and every candidate at a positive scale.
+- The review also flagged status changes against HEAD on jobs 1827, 1159, 1028 and 845. These are corrections, not defects. HEAD's zero sat at ±0.2° on all four, and every fit now ends lower:
+
+  | Job | HEAD deviance | Now | Status now |
+  | --- | --- | --- | --- |
+  | 1827 | 74407.97 | 74252.91 | Same as HEAD |
+  | 1159 | 5626.09 | 5612.97 | Portlandite not required → overlapped |
+  | 1028 | 7493.57 | 7474.60 | Same as HEAD |
+  | 845 | 444304.73 | 441750.80 | Anatase not required → required, calcite not required → not detected |
+
+  - Across the sweep, 25 statuses differ from HEAD, and each comes with a lower deviance:
+    - 20 not detected → not required
+    - 2 not required → not detected
+    - 2 not required → required
+    - 1 not detected → required (job 1053, portlandite, −103.7)
+
+### Defaults chosen
+
+- On a tie the fit keeps the first search, which is HEAD's path.
+- The second lattice scan uses the coarse grid's step of 0.001, six steps each way.
+- Strain in ε² uses step 4e-9 and bound 0.004², the same 0.004 limit as before.
+- Only the second search uses the scaled stop. The first keeps HEAD's 0.1.
+- The test allows a gap of 10, the evidence threshold.
+
+### Known gaps
+
+- Fits are still slower than HEAD, since every fit runs both searches. Job 1912 takes 6.374× and job 1440 4.691×. The sweep total of 1.644× is no better than the last round's 1.597×. Both sweeps ran as parallel shards, so their times are rougher than the retime.
+- The scaled stop gives up some lower minima the last round found.
+  - Across the sweep, 15 jobs end more than 10 above the last round (job 637 +1994.3), and 26 end more than 10 below.
+  - Among the retimed jobs, the last round ended lower on 1912 (239323.85 against 242231.73), 1098 (1177403.91 against 1186015.43), 87 and 637.
+- A refined zero rarely moves from its coarse value.
+  - In the Monte Carlo without a spike, 49, 42 and 45 of 60 fits end with |zero| < 0.001°, while the true zero is −0.023°.
+  - Those cells share a bias: the median error is 6.39e-5, 5.98e-5 and 6.08e-5, against a median σ of 4.03e-5, 4.32e-5 and 4.15e-5. Across all refined fits, the error's root mean square is 2.05, 1.60 and 1.69 times the median σ.
+  - Some zeros wander well past the true value. Seed 51 ends at −0.1286° with z −8.40, only 0.26 above its checked fit.
+  - The spacing reading is shown only after a zero check or with a spike.
+- Silicon 55 still ends 24.2 above its held fit and silicon 28 11.0 above.
+- 29 of 264 player refined fits end more than 10 above the checked fit, some by thousands (fit-1 S-156 spiked-standard, 2687.18). With the zero held, that scan's deviance jumps between minima: 151736.49 at −0.02°, 154685.19 at −0.01°, 154350.40 at 0° and 151433.21 at 0.01°. A local search does not reliably reach the lowest.
+- The extended test takes 17.7 s of the 22.9 s suite.

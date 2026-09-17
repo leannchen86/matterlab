@@ -2,7 +2,7 @@
 // would: revealed notes, mounts, immutable runs, interpretations, requests and calls. Powders and the instrument are
 // derived from the seed whenever an instrument reads them and are never stored where an interface could show them. Hidden
 // truth appears only in the debrief, and only after a call is committed.
-import { analyzePattern, compareExplanations, type AnalysisOptions, type AnalysisResult, type Comparison } from './analysis.ts';
+import { analyzePattern, compareExplanations, ZERO_CHECK_SD_DEG, type AnalysisOptions, type AnalysisResult, type Comparison } from './analysis.ts';
 import { sampleCase, specimenFor, type Objective } from './cases.ts';
 import { candidateLibrary, chemicalSupport, type ElementEvidence } from './context.ts';
 import { edsElements, runSemEds, runTga, type SemEdsResult, type TgaResult } from './followups.ts';
@@ -362,7 +362,7 @@ export function apply(state: LabState, action: Action): Outcome {
 
   if (action.type === 'standard') {
     const random = createRandom(hashSeed('standard', state.seed, state.log.filter((entry) => entry.kind === 'standard').length));
-    return done(state.samples, undefined, Math.round(1e4 * (instrumentOf(state.seed).zeroShiftDeg + 0.002 * random.normal())) / 1e4);
+    return done(state.samples, undefined, Math.round(1e4 * (instrumentOf(state.seed).zeroShiftDeg + ZERO_CHECK_SD_DEG * random.normal())) / 1e4);
   }
   if (action.type === 'wait') return done(state.samples);
   const sample = sampleState(state, action.code);
