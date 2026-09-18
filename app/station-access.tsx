@@ -84,14 +84,8 @@ export function StationAccess({ station, physicalChecks = [] }: { station: Stati
     setEnteredFromLab(false);
     emitLabEvent('return-to-lab', { stationId: station.id });
   };
-  const openStationAccess = () => {
-    setEnteredFromLab(false);
-    setOpen(true);
-  };
-
   const inspection = inspectionProgress(getInspectionPoints(getStationSceneSpec(station.id).kind, 0).map((point) => point.label), physicalChecks);
   return <>
-    <button className="station-access-button" type="button" onClick={openStationAccess}><span>⌁</span><b>OPERATE MACHINE</b><i>{inspection.count}/{inspection.total} INSPECTED</i><em>→</em></button>
     {open && <div className="modal-backdrop station-console-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) closeConsole(); }}>
       <section className="modal-card wide station-console" role="dialog" aria-modal="true" aria-label={`${station.name} local station console`}>
         <header><div><p className="section-kicker">INSTRUMENT WALKTHROUGH · {controller}</p><h2>{station.name}</h2></div><div className="console-header-actions">{enteredFromLab && <button type="button" className="return-asset" onClick={returnToAsset}>← BACK TO MACHINE</button>}<button type="button" onClick={closeConsole} aria-label="Close">×</button></div></header>

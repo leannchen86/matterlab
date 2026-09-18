@@ -63,19 +63,11 @@ export default function Home() {
         </aside>
 
         <section className="lab-view">
-          <LabViewport stations={stations} selectedId={selectedId} phase={phase} inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} />
+          <LabViewport stations={stations} selectedId={selectedId} phase={phase} inspectionState={physicalInspections} onInspectionChange={recordInspection} onSelect={setSelectedId} onOpenXrd={() => setWorkbenchOpen(true)} />
         </section>
-
-        <aside className="right-rail">
-          <ActionPanel onOpen={() => setWorkbenchOpen(true)} />
-
-          <section className="rail-section station-inspector">
-            <div className="station-identity"><b>{selected.id}</b><h2 title={selected.purpose}>{selected.name}</h2></div>
-            <StationAccess station={selected} physicalChecks={physicalInspections[selected.id] ?? []} />
-          </section>
-        </aside>
       </div>
 
+      <StationAccess station={selected} physicalChecks={physicalInspections[selected.id] ?? []} />
       {workbenchOpen && <XrdWorkbench onStage={updateXrdBenchStage} onClose={() => setWorkbenchOpen(false)} />}
     </main>
   );
@@ -84,8 +76,4 @@ export default function Home() {
 function Task({ number, title, note, status, onClick }: { number: string; title: string; note: string; status: 'done' | 'active' | 'pending'; onClick?: () => void }) {
   const content = <><span>{status === 'done' ? '✓' : number}</span><div><b>{title}</b><small>{note}</small></div></>;
   return <li className={status}>{onClick ? <button type="button" onClick={onClick}>{content}</button> : content}</li>;
-}
-
-function ActionPanel({ onOpen }: { onOpen: () => void }) {
-  return <section className="rail-section alert-card tone-ready"><button className="primary-action" type="button" onClick={onOpen}>OPEN XRD<span>→</span></button></section>;
 }
